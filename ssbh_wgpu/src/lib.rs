@@ -14,8 +14,14 @@ use ssbh_data::{
 };
 use texture::load_texture_sampler_3d;
 
-// TODO: Does it matter if the in game format is different?
+// Rgba16Float is widely supported.
+// The in game format uses less precision.
 pub const BLOOM_COLOR_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba16Float;
+
+// Bgra8Unorm and Bgra8UnormSrgb should always be supported.
+pub const RGBA_COLOR_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Bgra8Unorm;
+
+pub const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
 
 pub struct ModelFolder {
     pub name: String,
@@ -127,7 +133,7 @@ pub fn create_depth(
         mip_level_count: 1,
         sample_count: 1,
         dimension: wgpu::TextureDimension::D2,
-        format: wgpu::TextureFormat::Depth32Float, // TODO: make this a constant?
+        format: DEPTH_FORMAT,
         usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
     };
     let texture = device.create_texture(&desc);
@@ -166,7 +172,7 @@ pub fn create_color_texture(
         mip_level_count: 1,
         sample_count: 1,
         dimension: wgpu::TextureDimension::D2,
-        format: wgpu::TextureFormat::Rgba8Unorm, // TODO: make this a constant?
+        format: RGBA_COLOR_FORMAT,
         usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
     });
 
@@ -335,7 +341,7 @@ pub fn create_bloom_combine_bind_group(
         mip_level_count: 1,
         sample_count: 1,
         dimension: wgpu::TextureDimension::D2,
-        format: wgpu::TextureFormat::Rgba8Unorm, // TODO: Why doesn't the game use float here?
+        format: RGBA_COLOR_FORMAT, // TODO: Why doesn't the game use float here?
         usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
     });
     let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
@@ -388,7 +394,7 @@ pub fn create_bloom_upscale_bind_group(
         mip_level_count: 1,
         sample_count: 1,
         dimension: wgpu::TextureDimension::D2,
-        format: wgpu::TextureFormat::Rgba8Unorm, // TODO: Why doesn't the game use float here?
+        format: RGBA_COLOR_FORMAT, // TODO: Why doesn't the game use float here?
         usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
     });
     let view = texture.create_view(&wgpu::TextureViewDescriptor::default());

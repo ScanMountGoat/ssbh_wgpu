@@ -98,9 +98,8 @@ fn load_texture_sampler_cube(
     //     .join(material_path)
     //     .with_extension("nutexb");
     // TODO: Handle #replace_cubemap?
-    let absolute_path = std::path::Path::new(
-        r"F:\Yuzu Games\01006A800016E000\romfs\root\stage\training\normal\render\reflection_cubemap.nutexb",
-    );
+    // TODO: Don't hardcode this path.
+    let absolute_path = std::path::Path::new("reflection_cubemap.nutexb");
 
     // TODO: This function should return an error.
     let nutexb = NutexbFile::read_from_file(absolute_path).unwrap();
@@ -130,9 +129,8 @@ pub fn load_texture_sampler_3d(
     device: &Device,
     queue: &wgpu::Queue,
 ) -> (wgpu::TextureView, wgpu::Sampler) {
-    let absolute_path = std::path::Path::new(
-        r"F:\Yuzu Games\01006A800016E000\romfs\root\stage\training\normal\lut\color_grading_lut.nutexb",
-    );
+    // TODO: Don't hardcode this path.
+    let absolute_path = std::path::Path::new("color_grading_lut.nutexb");
 
     // TODO: This function should return an error.
     let nutexb = NutexbFile::read_from_file(absolute_path).unwrap();

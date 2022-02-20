@@ -155,8 +155,9 @@ impl State {
             .unwrap();
 
         let size = window.inner_size();
-        // let surface_format = surface.get_preferred_format(&adapter).unwrap();
-        let surface_format = wgpu::TextureFormat::Rgba8Unorm;
+
+        let surface_format = ssbh_wgpu::RGBA_COLOR_FORMAT;
+
         let config = wgpu::SurfaceConfiguration {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
             format: surface_format,
@@ -192,7 +193,7 @@ impl State {
                 fragment: Some(wgpu::FragmentState {
                     module: &shader,
                     entry_point: "fs_main",
-                    targets: &[wgpu::TextureFormat::Rgba8Unorm.into()], // formats can be made targets?
+                    targets: &[ssbh_wgpu::RGBA_COLOR_FORMAT.into()], // formats can be made targets?
                 }),
                 primitive: wgpu::PrimitiveState::default(),
                 depth_stencil: None,
@@ -258,7 +259,7 @@ impl State {
                 fragment: Some(wgpu::FragmentState {
                     module: &shader,
                     entry_point: "fs_main",
-                    targets: &[wgpu::TextureFormat::Rgba8Unorm.into()],
+                    targets: &[ssbh_wgpu::RGBA_COLOR_FORMAT.into()],
                 }),
                 primitive: wgpu::PrimitiveState::default(),
                 depth_stencil: None,
@@ -280,7 +281,7 @@ impl State {
                 fragment: Some(wgpu::FragmentState {
                     module: &shader,
                     entry_point: "fs_main",
-                    targets: &[wgpu::TextureFormat::Rgba8Unorm.into()],
+                    targets: &[ssbh_wgpu::RGBA_COLOR_FORMAT.into()],
                 }),
                 primitive: wgpu::PrimitiveState::default(),
                 depth_stencil: None,
