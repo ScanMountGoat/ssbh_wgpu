@@ -2,14 +2,9 @@ use std::{iter, path::Path};
 
 use ssbh_wgpu::shader::model::bind_groups::CameraTransforms;
 use ssbh_wgpu::{
-    camera::create_camera_bind_group, create_depth, load_model_folders, load_models,
-    rendermesh::RenderMesh, TextureSamplerView,
+    camera::create_camera_bind_group, load_model_folders, load_models, RenderMesh, SsbhRenderer,
 };
-use ssbh_wgpu::{
-    create_bloom_blur_bind_groups, create_bloom_combine_bind_group,
-    create_bloom_threshold_bind_group, create_bloom_upscale_bind_group, create_color_texture,
-    create_post_process_bind_group,
-};
+
 use winit::{
     dpi::PhysicalPosition,
     event::*,
@@ -33,73 +28,6 @@ fn calculate_mvp(
     (camera_pos, perspective_matrix * model_view_matrix)
 }
 
-struct PassInfo {
-    pub depth: TextureSamplerView,
-    pub color: TextureSamplerView,
-    pub bloom_threshold: TextureSamplerView,
-
-    pub bloom_threshold_bind_group: ssbh_wgpu::shader::bloom_threshold::bind_groups::BindGroup0,
-
-    pub bloom_blur_colors: [TextureSamplerView; 4],
-    pub bloom_blur_bind_groups: [ssbh_wgpu::shader::bloom_blur::bind_groups::BindGroup0; 4],
-
-    pub bloom_combined: TextureSamplerView,
-    pub bloom_combine_bind_group: ssbh_wgpu::shader::bloom_combine::bind_groups::BindGroup0,
-
-    pub bloom_upscaled: TextureSamplerView,
-    pub bloom_upscale_bind_group: ssbh_wgpu::shader::bloom_upscale::bind_groups::BindGroup0,
-
-    pub post_process_bind_group: ssbh_wgpu::shader::post_process::bind_groups::BindGroup0,
-}
-
-impl PassInfo {
-    fn new(
-        device: &wgpu::Device,
-        queue: &wgpu::Queue,
-        size: winit::dpi::PhysicalSize<u32>,
-    ) -> Self {
-        let depth = create_depth(device, size);
-
-        let color = create_color_texture(device, size);
-        let (bloom_threshold, bloom_threshold_bind_group) =
-            create_bloom_threshold_bind_group(device, size.width / 4, size.height / 4, &color);
-        let (bright_blur_colors, bloom_blur_bind_groups) = create_bloom_blur_bind_groups(
-            device,
-            size.width / 4,
-            size.height / 4,
-            &bloom_threshold,
-        );
-        let (bloom_combined, bloom_combine_bind_group) = create_bloom_combine_bind_group(
-            device,
-            size.width / 4,
-            size.height / 4,
-            &bright_blur_colors,
-        );
-        let (bloom_upscaled, bloom_upscale_bind_group) = create_bloom_upscale_bind_group(
-            device,
-            size.width / 2,
-            size.height / 2,
-            &bloom_combined,
-        );
-
-        let post_process_bind_group =
-            create_post_process_bind_group(device, queue, &color, &bloom_combined);
-        Self {
-            depth,
-            color,
-            bloom_threshold,
-            bloom_threshold_bind_group,
-            bloom_blur_colors: bright_blur_colors,
-            bloom_blur_bind_groups,
-            bloom_combined,
-            bloom_combine_bind_group,
-            bloom_upscaled,
-            bloom_upscale_bind_group,
-            post_process_bind_group,
-        }
-    }
-}
-
 struct State {
     surface: wgpu::Surface,
     device: wgpu::Device,
@@ -109,13 +37,7 @@ struct State {
     camera_buffer: wgpu::Buffer,
     // TODO: Make this part of the public API?
     // TODO: Organize the passes somehow?
-    bloom_threshold_pipeline: wgpu::RenderPipeline,
-    bloom_blur_pipeline: wgpu::RenderPipeline,
-    bloom_combine_pipeline: wgpu::RenderPipeline,
-    bloom_upscale_pipeline: wgpu::RenderPipeline,
-    post_process_pipeline: wgpu::RenderPipeline,
-    pass_info: PassInfo,
-
+    renderer: SsbhRenderer,
     camera_bind_group: ssbh_wgpu::shader::model::bind_groups::BindGroup0,
     // TODO: Separate camera/window state struct?
     size: winit::dpi::PhysicalSize<u32>,
@@ -179,117 +101,7 @@ impl State {
         let render_meshes = load_model_folders(&device, &queue, surface_format, &models);
 
         // TODO: Move this to the lib?
-        let shader = ssbh_wgpu::shader::post_process::create_shader_module(&device);
-        let pipeline_layout = ssbh_wgpu::shader::post_process::create_pipeline_layout(&device);
-        let post_process_pipeline =
-            device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-                label: None,
-                layout: Some(&pipeline_layout),
-                vertex: wgpu::VertexState {
-                    module: &shader,
-                    entry_point: "vs_main",
-                    buffers: &[],
-                },
-                fragment: Some(wgpu::FragmentState {
-                    module: &shader,
-                    entry_point: "fs_main",
-                    targets: &[ssbh_wgpu::RGBA_COLOR_FORMAT.into()], // formats can be made targets?
-                }),
-                primitive: wgpu::PrimitiveState::default(),
-                depth_stencil: None,
-                multisample: wgpu::MultisampleState::default(),
-                multiview: None,
-            });
-
-        let shader = ssbh_wgpu::shader::bloom_threshold::create_shader_module(&device);
-        let pipeline_layout = ssbh_wgpu::shader::bloom_threshold::create_pipeline_layout(&device);
-        let bloom_threshold_pipeline =
-            device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-                label: None,
-                layout: Some(&pipeline_layout),
-                vertex: wgpu::VertexState {
-                    module: &shader,
-                    entry_point: "vs_main",
-                    buffers: &[],
-                },
-                fragment: Some(wgpu::FragmentState {
-                    module: &shader,
-                    entry_point: "fs_main",
-                    targets: &[ssbh_wgpu::BLOOM_COLOR_FORMAT.into()], // formats can be made targets?
-                }),
-                primitive: wgpu::PrimitiveState::default(),
-                depth_stencil: None,
-                multisample: wgpu::MultisampleState::default(),
-                multiview: None,
-            });
-
-        let shader = ssbh_wgpu::shader::bloom_blur::create_shader_module(&device);
-        let pipeline_layout = ssbh_wgpu::shader::bloom_blur::create_pipeline_layout(&device);
-        let bloom_blur_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: None,
-            layout: Some(&pipeline_layout),
-            vertex: wgpu::VertexState {
-                module: &shader,
-                entry_point: "vs_main",
-                buffers: &[],
-            },
-            fragment: Some(wgpu::FragmentState {
-                // TODO: Floating point target?
-                module: &shader,
-                entry_point: "fs_main",
-                targets: &[ssbh_wgpu::BLOOM_COLOR_FORMAT.into()], // formats can be made targets?
-            }),
-            primitive: wgpu::PrimitiveState::default(),
-            depth_stencil: None,
-            multisample: wgpu::MultisampleState::default(),
-            multiview: None,
-        });
-
-        let shader = ssbh_wgpu::shader::bloom_combine::create_shader_module(&device);
-        let pipeline_layout = ssbh_wgpu::shader::bloom_combine::create_pipeline_layout(&device);
-        let bloom_combine_pipeline =
-            device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-                label: None,
-                layout: Some(&pipeline_layout),
-                vertex: wgpu::VertexState {
-                    module: &shader,
-                    entry_point: "vs_main",
-                    buffers: &[],
-                },
-                fragment: Some(wgpu::FragmentState {
-                    module: &shader,
-                    entry_point: "fs_main",
-                    targets: &[ssbh_wgpu::RGBA_COLOR_FORMAT.into()],
-                }),
-                primitive: wgpu::PrimitiveState::default(),
-                depth_stencil: None,
-                multisample: wgpu::MultisampleState::default(),
-                multiview: None,
-            });
-
-        let shader = ssbh_wgpu::shader::bloom_upscale::create_shader_module(&device);
-        let pipeline_layout = ssbh_wgpu::shader::bloom_upscale::create_pipeline_layout(&device);
-        let bloom_upscale_pipeline =
-            device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-                label: None,
-                layout: Some(&pipeline_layout),
-                vertex: wgpu::VertexState {
-                    module: &shader,
-                    entry_point: "vs_main",
-                    buffers: &[],
-                },
-                fragment: Some(wgpu::FragmentState {
-                    module: &shader,
-                    entry_point: "fs_main",
-                    targets: &[ssbh_wgpu::RGBA_COLOR_FORMAT.into()],
-                }),
-                primitive: wgpu::PrimitiveState::default(),
-                depth_stencil: None,
-                multisample: wgpu::MultisampleState::default(),
-                multiview: None,
-            });
-
-        let pass_info = PassInfo::new(&device, &queue, size);
+        let renderer = SsbhRenderer::new(&device, &queue, size.width, size.height);
 
         Self {
             surface,
@@ -300,17 +112,12 @@ impl State {
             render_meshes,
             camera_buffer,
             camera_bind_group,
-            bloom_threshold_pipeline,
-            bloom_blur_pipeline,
-            bloom_combine_pipeline,
-            bloom_upscale_pipeline,
-            post_process_pipeline,
+            renderer,
             previous_cursor_position: PhysicalPosition { x: 0.0, y: 0.0 },
             is_mouse_left_clicked: false,
             is_mouse_right_clicked: false,
             translation_xyz: camera_position,
             rotation_xyz: glam::Vec3::new(0.0, 0.0, 0.0),
-            pass_info,
         }
     }
 
@@ -333,7 +140,8 @@ impl State {
             );
 
             // We also need to recreate the attachments if the size changes.
-            self.pass_info = PassInfo::new(&self.device, &self.queue, new_size);
+            self.renderer
+                .resize(&self.device, &self.queue, new_size.width, new_size.height);
         }
     }
 
@@ -434,152 +242,12 @@ impl State {
                 label: Some("Render Encoder"),
             });
 
-        // TODO: Force having a color attachment for each fragment shader output?
-        // TODO: Refactor render passes?
-        let mut model_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-            label: Some("Model Pass"),
-            color_attachments: &[wgpu::RenderPassColorAttachment {
-                view: &self.pass_info.color.view,
-                resolve_target: None,
-                ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
-                    store: true,
-                },
-            }],
-            depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                view: &self.pass_info.depth.view,
-                depth_ops: Some(wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(1.0),
-                    store: true,
-                }),
-                stencil_ops: None,
-            }),
-        });
-
-        ssbh_wgpu::rendermesh::draw_render_meshes(
+        self.renderer.render_ssbh_passes(
+            &mut encoder,
+            &output_view,
             &self.render_meshes,
-            &mut model_pass,
             &self.camera_bind_group,
         );
-
-        drop(model_pass);
-
-        // TODO: Reduce repetitive code for screen space passes?
-        let mut bloom_threshold_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-            label: Some("Bloom Threshold Pass"),
-            color_attachments: &[wgpu::RenderPassColorAttachment {
-                view: &self.pass_info.bloom_threshold.view,
-                resolve_target: None,
-                ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
-                    store: true,
-                },
-            }],
-            depth_stencil_attachment: None,
-        });
-
-        bloom_threshold_pass.set_pipeline(&self.bloom_threshold_pipeline);
-        ssbh_wgpu::shader::bloom_threshold::bind_groups::set_bind_groups(
-            &mut bloom_threshold_pass,
-            ssbh_wgpu::shader::bloom_threshold::bind_groups::BindGroups {
-                bind_group0: &self.pass_info.bloom_threshold_bind_group,
-            },
-        );
-        bloom_threshold_pass.draw(0..3, 0..1);
-        drop(bloom_threshold_pass);
-
-        for i in 0..4 {
-            let mut bloom_blur_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: None,
-                color_attachments: &[wgpu::RenderPassColorAttachment {
-                    view: &self.pass_info.bloom_blur_colors[i].view,
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
-                        store: true,
-                    },
-                }],
-                depth_stencil_attachment: None,
-            });
-
-            bloom_blur_pass.set_pipeline(&self.bloom_blur_pipeline);
-            ssbh_wgpu::shader::bloom_blur::bind_groups::set_bind_groups(
-                &mut bloom_blur_pass,
-                ssbh_wgpu::shader::bloom_blur::bind_groups::BindGroups {
-                    bind_group0: &self.pass_info.bloom_blur_bind_groups[i],
-                },
-            );
-            bloom_blur_pass.draw(0..3, 0..1);
-        }
-
-        let mut bloom_combine_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-            label: Some("Bloom Combine Pass"),
-            color_attachments: &[wgpu::RenderPassColorAttachment {
-                view: &self.pass_info.bloom_combined.view,
-                resolve_target: None,
-                ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
-                    store: true,
-                },
-            }],
-            depth_stencil_attachment: None,
-        });
-
-        bloom_combine_pass.set_pipeline(&self.bloom_combine_pipeline);
-        ssbh_wgpu::shader::bloom_combine::bind_groups::set_bind_groups(
-            &mut bloom_combine_pass,
-            ssbh_wgpu::shader::bloom_combine::bind_groups::BindGroups {
-                bind_group0: &self.pass_info.bloom_combine_bind_group,
-            },
-        );
-        bloom_combine_pass.draw(0..3, 0..1);
-        drop(bloom_combine_pass);
-
-        let mut bloom_upscale_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-            label: Some("Bloom upscale Pass"),
-            color_attachments: &[wgpu::RenderPassColorAttachment {
-                view: &self.pass_info.bloom_upscaled.view,
-                resolve_target: None,
-                ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
-                    store: true,
-                },
-            }],
-            depth_stencil_attachment: None,
-        });
-
-        bloom_upscale_pass.set_pipeline(&self.bloom_upscale_pipeline);
-        ssbh_wgpu::shader::bloom_upscale::bind_groups::set_bind_groups(
-            &mut bloom_upscale_pass,
-            ssbh_wgpu::shader::bloom_upscale::bind_groups::BindGroups {
-                bind_group0: &self.pass_info.bloom_upscale_bind_group,
-            },
-        );
-        bloom_upscale_pass.draw(0..3, 0..1);
-        drop(bloom_upscale_pass);
-
-        let mut post_processing_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-            label: Some("Post Processing Pass"),
-            color_attachments: &[wgpu::RenderPassColorAttachment {
-                view: &output_view,
-                resolve_target: None,
-                ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
-                    store: true,
-                },
-            }],
-            depth_stencil_attachment: None,
-        });
-
-        post_processing_pass.set_pipeline(&self.post_process_pipeline);
-        ssbh_wgpu::shader::post_process::bind_groups::set_bind_groups(
-            &mut post_processing_pass,
-            ssbh_wgpu::shader::post_process::bind_groups::BindGroups {
-                bind_group0: &self.pass_info.post_process_bind_group,
-            },
-        );
-        post_processing_pass.draw(0..3, 0..1);
-        drop(post_processing_pass);
 
         self.queue.submit(iter::once(encoder.finish()));
         // Actually draw the frame.

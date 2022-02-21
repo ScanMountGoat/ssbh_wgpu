@@ -59,7 +59,6 @@ fn get_render_meshes_and_shader_tags(
     // TODO: Find a way to derive the constants for the strides, alignments, etc.
     mesh.objects
         .iter() // TODO: par_iter?
-        .filter(|m| !m.name.contains("ball"))
         .map(|mesh_object| {
             // TODO: These could be cleaner as functions.
             let material_label = modl
@@ -271,16 +270,16 @@ pub fn draw_render_meshes<'a>(
 
 pub struct RenderMesh {
     // TODO: It may be worth sharing buffers in the future.
-    pub vertex_buffer0: wgpu::Buffer,
-    pub vertex_buffer1: wgpu::Buffer,
-    pub index_buffer: wgpu::Buffer,
-    pub vertex_index_count: u32,
+    vertex_buffer0: wgpu::Buffer,
+    vertex_buffer1: wgpu::Buffer,
+    index_buffer: wgpu::Buffer,
+    vertex_index_count: u32,
     // Use Arc so that meshes can share a pipeline.
     // Comparing arc pointers can be used to reduce set_pipeline calls later.
-    pub pipeline: Arc<wgpu::RenderPipeline>,
-    pub transforms_bind_group: crate::shader::model::bind_groups::BindGroup1,
-    pub textures_bind_group: crate::shader::model::bind_groups::BindGroup2,
-    pub material_uniforms_bind_group: crate::shader::model::bind_groups::BindGroup3,
+    pipeline: Arc<wgpu::RenderPipeline>,
+    transforms_bind_group: crate::shader::model::bind_groups::BindGroup1,
+    textures_bind_group: crate::shader::model::bind_groups::BindGroup2,
+    material_uniforms_bind_group: crate::shader::model::bind_groups::BindGroup3,
 }
 
 impl RenderMesh {
