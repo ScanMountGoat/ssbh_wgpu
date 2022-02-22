@@ -5,26 +5,26 @@ pub mod bind_groups {
     pub struct BindGroupLayout0<'a> {
         pub camera: &'a wgpu::Buffer,
     }
-    const LAYOUT_DESCRIPTOR0: wgpu::BindGroupLayoutDescriptor =
-        wgpu::BindGroupLayoutDescriptor {
-            label: None,
-            entries: &[
-                wgpu::BindGroupLayoutEntry {
-                    binding: 0u32,
-                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
+    const LAYOUT_DESCRIPTOR0: wgpu::BindGroupLayoutDescriptor = wgpu::BindGroupLayoutDescriptor {
+        label: None,
+        entries: &[
+            wgpu::BindGroupLayoutEntry {
+                binding: 0u32,
+                visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
                 },
-            ]
-        };
+                count: None,
+            },
+        ]
+    };
     impl BindGroup0 {
         pub fn get_bind_group_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
             device.create_bind_group_layout(&LAYOUT_DESCRIPTOR0)
         }
+    
         pub fn from_bindings(device: &wgpu::Device, bindings: BindGroupLayout0) -> Self {
             let bind_group_layout = device.create_bind_group_layout(&LAYOUT_DESCRIPTOR0);
             let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
@@ -39,6 +39,7 @@ pub mod bind_groups {
             });
             Self(bind_group)
         }
+    
         pub fn set<'a>(&'a self, render_pass: &mut wgpu::RenderPass<'a>) {
             render_pass.set_bind_group(0u32, &self.0, &[]);
         }
@@ -47,32 +48,32 @@ pub mod bind_groups {
     #[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
     pub struct CameraTransforms {
         pub mvp_matrix: glam::Mat4,
-        pub camera_pos: glam::Vec4,
+        pub camera_pos: [f32; 4],
     }
     pub struct BindGroup1(wgpu::BindGroup);
     pub struct BindGroupLayout1<'a> {
         pub transforms: &'a wgpu::Buffer,
     }
-    const LAYOUT_DESCRIPTOR1: wgpu::BindGroupLayoutDescriptor =
-        wgpu::BindGroupLayoutDescriptor {
-            label: None,
-            entries: &[
-                wgpu::BindGroupLayoutEntry {
-                    binding: 0u32,
-                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
+    const LAYOUT_DESCRIPTOR1: wgpu::BindGroupLayoutDescriptor = wgpu::BindGroupLayoutDescriptor {
+        label: None,
+        entries: &[
+            wgpu::BindGroupLayoutEntry {
+                binding: 0u32,
+                visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
                 },
-            ]
-        };
+                count: None,
+            },
+        ]
+    };
     impl BindGroup1 {
         pub fn get_bind_group_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
             device.create_bind_group_layout(&LAYOUT_DESCRIPTOR1)
         }
+    
         pub fn from_bindings(device: &wgpu::Device, bindings: BindGroupLayout1) -> Self {
             let bind_group_layout = device.create_bind_group_layout(&LAYOUT_DESCRIPTOR1);
             let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
@@ -87,6 +88,7 @@ pub mod bind_groups {
             });
             Self(bind_group)
         }
+    
         pub fn set<'a>(&'a self, render_pass: &mut wgpu::RenderPass<'a>) {
             render_pass.set_bind_group(1u32, &self.0, &[]);
         }
@@ -113,128 +115,128 @@ pub mod bind_groups {
         pub texture14: &'a wgpu::TextureView,
         pub sampler14: &'a wgpu::Sampler,
     }
-    const LAYOUT_DESCRIPTOR2: wgpu::BindGroupLayoutDescriptor =
-        wgpu::BindGroupLayoutDescriptor {
-            label: None,
-            entries: &[
-                wgpu::BindGroupLayoutEntry {
-                    binding: 0u32,
-                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
-                    ty: wgpu::BindingType::Texture {
-                        multisampled: false,
-                        view_dimension: wgpu::TextureViewDimension::D2,
-                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
-                    },
-                    count: None,
+    const LAYOUT_DESCRIPTOR2: wgpu::BindGroupLayoutDescriptor = wgpu::BindGroupLayoutDescriptor {
+        label: None,
+        entries: &[
+            wgpu::BindGroupLayoutEntry {
+                binding: 0u32,
+                visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                ty: wgpu::BindingType::Texture {
+                    multisampled: false,
+                    view_dimension: wgpu::TextureViewDimension::D2,
+                    sample_type: wgpu::TextureSampleType::Float { filterable: true },
                 },
-                wgpu::BindGroupLayoutEntry {
-                    binding: 1u32,
-                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
-                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
-                    count: None,
+                count: None,
+            },
+            wgpu::BindGroupLayoutEntry {
+                binding: 1u32,
+                visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                count: None,
+            },
+            wgpu::BindGroupLayoutEntry {
+                binding: 2u32,
+                visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                ty: wgpu::BindingType::Texture {
+                    multisampled: false,
+                    view_dimension: wgpu::TextureViewDimension::D2,
+                    sample_type: wgpu::TextureSampleType::Float { filterable: true },
                 },
-                wgpu::BindGroupLayoutEntry {
-                    binding: 2u32,
-                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
-                    ty: wgpu::BindingType::Texture {
-                        multisampled: false,
-                        view_dimension: wgpu::TextureViewDimension::D2,
-                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
-                    },
-                    count: None,
+                count: None,
+            },
+            wgpu::BindGroupLayoutEntry {
+                binding: 3u32,
+                visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                count: None,
+            },
+            wgpu::BindGroupLayoutEntry {
+                binding: 4u32,
+                visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                ty: wgpu::BindingType::Texture {
+                    multisampled: false,
+                    view_dimension: wgpu::TextureViewDimension::D2,
+                    sample_type: wgpu::TextureSampleType::Float { filterable: true },
                 },
-                wgpu::BindGroupLayoutEntry {
-                    binding: 3u32,
-                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
-                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
-                    count: None,
+                count: None,
+            },
+            wgpu::BindGroupLayoutEntry {
+                binding: 5u32,
+                visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                count: None,
+            },
+            wgpu::BindGroupLayoutEntry {
+                binding: 6u32,
+                visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                ty: wgpu::BindingType::Texture {
+                    multisampled: false,
+                    view_dimension: wgpu::TextureViewDimension::D2,
+                    sample_type: wgpu::TextureSampleType::Float { filterable: true },
                 },
-                wgpu::BindGroupLayoutEntry {
-                    binding: 4u32,
-                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
-                    ty: wgpu::BindingType::Texture {
-                        multisampled: false,
-                        view_dimension: wgpu::TextureViewDimension::D2,
-                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
-                    },
-                    count: None,
+                count: None,
+            },
+            wgpu::BindGroupLayoutEntry {
+                binding: 7u32,
+                visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                count: None,
+            },
+            wgpu::BindGroupLayoutEntry {
+                binding: 8u32,
+                visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                ty: wgpu::BindingType::Texture {
+                    multisampled: false,
+                    view_dimension: wgpu::TextureViewDimension::D2,
+                    sample_type: wgpu::TextureSampleType::Float { filterable: true },
                 },
-                wgpu::BindGroupLayoutEntry {
-                    binding: 5u32,
-                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
-                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
-                    count: None,
+                count: None,
+            },
+            wgpu::BindGroupLayoutEntry {
+                binding: 9u32,
+                visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                count: None,
+            },
+            wgpu::BindGroupLayoutEntry {
+                binding: 10u32,
+                visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                ty: wgpu::BindingType::Texture {
+                    multisampled: false,
+                    view_dimension: wgpu::TextureViewDimension::Cube,
+                    sample_type: wgpu::TextureSampleType::Float { filterable: true },
                 },
-                wgpu::BindGroupLayoutEntry {
-                    binding: 6u32,
-                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
-                    ty: wgpu::BindingType::Texture {
-                        multisampled: false,
-                        view_dimension: wgpu::TextureViewDimension::D2,
-                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
-                    },
-                    count: None,
+                count: None,
+            },
+            wgpu::BindGroupLayoutEntry {
+                binding: 11u32,
+                visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                count: None,
+            },
+            wgpu::BindGroupLayoutEntry {
+                binding: 12u32,
+                visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                ty: wgpu::BindingType::Texture {
+                    multisampled: false,
+                    view_dimension: wgpu::TextureViewDimension::D2,
+                    sample_type: wgpu::TextureSampleType::Float { filterable: true },
                 },
-                wgpu::BindGroupLayoutEntry {
-                    binding: 7u32,
-                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
-                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
-                    count: None,
-                },
-                wgpu::BindGroupLayoutEntry {
-                    binding: 8u32,
-                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
-                    ty: wgpu::BindingType::Texture {
-                        multisampled: false,
-                        view_dimension: wgpu::TextureViewDimension::D2,
-                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
-                    },
-                    count: None,
-                },
-                wgpu::BindGroupLayoutEntry {
-                    binding: 9u32,
-                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
-                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
-                    count: None,
-                },
-                wgpu::BindGroupLayoutEntry {
-                    binding: 10u32,
-                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
-                    ty: wgpu::BindingType::Texture {
-                        multisampled: false,
-                        view_dimension: wgpu::TextureViewDimension::Cube,
-                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
-                    },
-                    count: None,
-                },
-                wgpu::BindGroupLayoutEntry {
-                    binding: 11u32,
-                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
-                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
-                    count: None,
-                },
-                wgpu::BindGroupLayoutEntry {
-                    binding: 12u32,
-                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
-                    ty: wgpu::BindingType::Texture {
-                        multisampled: false,
-                        view_dimension: wgpu::TextureViewDimension::D2,
-                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
-                    },
-                    count: None,
-                },
-                wgpu::BindGroupLayoutEntry {
-                    binding: 13u32,
-                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
-                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
-                    count: None,
-                },
-            ]
-        };
+                count: None,
+            },
+            wgpu::BindGroupLayoutEntry {
+                binding: 13u32,
+                visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                count: None,
+            },
+        ]
+    };
     impl BindGroup2 {
         pub fn get_bind_group_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
             device.create_bind_group_layout(&LAYOUT_DESCRIPTOR2)
         }
+    
         pub fn from_bindings(device: &wgpu::Device, bindings: BindGroupLayout2) -> Self {
             let bind_group_layout = device.create_bind_group_layout(&LAYOUT_DESCRIPTOR2);
             let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
@@ -301,6 +303,7 @@ pub mod bind_groups {
             });
             Self(bind_group)
         }
+    
         pub fn set<'a>(&'a self, render_pass: &mut wgpu::RenderPass<'a>) {
             render_pass.set_bind_group(2u32, &self.0, &[]);
         }
@@ -309,26 +312,26 @@ pub mod bind_groups {
     pub struct BindGroupLayout3<'a> {
         pub uniforms: &'a wgpu::Buffer,
     }
-    const LAYOUT_DESCRIPTOR3: wgpu::BindGroupLayoutDescriptor =
-        wgpu::BindGroupLayoutDescriptor {
-            label: None,
-            entries: &[
-                wgpu::BindGroupLayoutEntry {
-                    binding: 0u32,
-                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
+    const LAYOUT_DESCRIPTOR3: wgpu::BindGroupLayoutDescriptor = wgpu::BindGroupLayoutDescriptor {
+        label: None,
+        entries: &[
+            wgpu::BindGroupLayoutEntry {
+                binding: 0u32,
+                visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
                 },
-            ]
-        };
+                count: None,
+            },
+        ]
+    };
     impl BindGroup3 {
         pub fn get_bind_group_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
             device.create_bind_group_layout(&LAYOUT_DESCRIPTOR3)
         }
+    
         pub fn from_bindings(device: &wgpu::Device, bindings: BindGroupLayout3) -> Self {
             let bind_group_layout = device.create_bind_group_layout(&LAYOUT_DESCRIPTOR3);
             let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
@@ -343,6 +346,7 @@ pub mod bind_groups {
             });
             Self(bind_group)
         }
+    
         pub fn set<'a>(&'a self, render_pass: &mut wgpu::RenderPass<'a>) {
             render_pass.set_bind_group(3u32, &self.0, &[]);
         }
@@ -350,9 +354,11 @@ pub mod bind_groups {
     #[repr(C)]
     #[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
     pub struct MaterialUniforms {
-        pub custom_vector: [glam::Vec4; 64],
-        pub custom_boolean: [glam::Vec4; 20],
-        pub custom_float: [glam::Vec4; 20],
+        pub custom_vector: [[f32; 4]; 64],
+        pub custom_boolean: [[f32; 4]; 20],
+        pub custom_float: [[f32; 4]; 20],
+        pub has_float: [[f32; 4]; 20],
+        pub has_texture: [[f32; 4]; 19],
     }
     pub struct BindGroups<'a> {
         pub bind_group0: &'a BindGroup0,

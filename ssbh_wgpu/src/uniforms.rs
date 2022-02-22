@@ -7,7 +7,7 @@ pub fn create_uniforms_buffer(
 ) -> wgpu::Buffer {
     let uniforms = material
         .map(|material| {
-            let mut custom_vector = [glam::Vec4::ZERO; 64];
+            let mut custom_vector = [[0.0; 4]; 64];
             for vector in &material.vectors {
                 // TODO: Add this to ssbh_lib?
                 let index = match vector.param_id {
@@ -81,7 +81,8 @@ pub fn create_uniforms_buffer(
                 custom_vector[index] = vector.data.to_array().into();
             }
 
-            let mut custom_float = [glam::Vec4::ZERO; 20];
+            let mut custom_float = [[0.0; 4]; 20];
+            let mut has_float = [[0.0; 4]; 20];
             for float in &material.floats {
                 // TODO: Add this to ssbh_lib?
                 let index = match float.param_id {
@@ -108,10 +109,11 @@ pub fn create_uniforms_buffer(
                     _ => panic!("Unsupported float param ID"),
                 };
 
-                custom_float[index].x = float.data;
+                custom_float[index][0] = float.data;
+                has_float[index][0] = 1.0;
             }
 
-            let mut custom_boolean = [glam::Vec4::ZERO; 20];
+            let mut custom_boolean = [[0.0; 4]; 20];
             for boolean in &material.booleans {
                 // TODO: Add this to ssbh_lib?
                 let index = match boolean.param_id {
@@ -138,21 +140,55 @@ pub fn create_uniforms_buffer(
                     _ => panic!("Unsupported boolean param ID"),
                 };
 
-                custom_boolean[index].x = if boolean.data { 1.0 } else { 0.0 };
+                custom_boolean[index][0] = if boolean.data { 1.0 } else { 0.0 };
+            }
+
+            let mut has_texture = [[0.0; 4]; 19];
+            for texture in &material.textures {
+                // TODO: Add this to ssbh_lib?
+                let index = match texture.param_id {
+                    ParamId::Texture0 => 0,
+                    ParamId::Texture1 => 1,
+                    ParamId::Texture2 => 2,
+                    ParamId::Texture3 => 3,
+                    ParamId::Texture4 => 4,
+                    ParamId::Texture5 => 5,
+                    ParamId::Texture6 => 6,
+                    ParamId::Texture7 => 7,
+                    ParamId::Texture8 => 8,
+                    ParamId::Texture9 => 9,
+                    ParamId::Texture10 => 10,
+                    ParamId::Texture11 => 11,
+                    ParamId::Texture12 => 12,
+                    ParamId::Texture13 => 13,
+                    ParamId::Texture14 => 14,
+                    ParamId::Texture15 => 15,
+                    ParamId::Texture16 => 16,
+                    ParamId::Texture17 => 17,
+                    ParamId::Texture18 => 18,
+                    ParamId::Texture19 => 19,
+                    _ => panic!("Unsupported boolean param ID"),
+                };
+
+                has_texture[index][0] = 1.0;
             }
 
             crate::shader::model::bind_groups::MaterialUniforms {
                 custom_vector,
                 custom_boolean,
                 custom_float,
+                has_texture,
+                has_float,
             }
         })
         .unwrap_or(
             // Missing values are always set to zero.
             crate::shader::model::bind_groups::MaterialUniforms {
-                custom_vector: [glam::Vec4::ZERO; 64],
-                custom_boolean: [glam::Vec4::ZERO; 20],
-                custom_float: [glam::Vec4::ZERO; 20],
+                custom_vector: [[0.0; 4]; 64],
+                custom_boolean: [[0.0; 4]; 20],
+                custom_float: [[0.0; 4]; 20],
+                has_texture: [[0.0; 4]; 19],
+                has_float: [[0.0; 4]; 20],
             },
         );
 

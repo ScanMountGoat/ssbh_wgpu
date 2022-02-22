@@ -13,7 +13,7 @@ pub fn create_camera_bind_group(
         label: Some("Camera Buffer"),
         contents: bytemuck::cast_slice(&[crate::shader::model::bind_groups::CameraTransforms {
             mvp_matrix,
-            camera_pos,
+            camera_pos: camera_pos.to_array(),
         }]),
         usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
     });

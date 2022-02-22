@@ -135,7 +135,7 @@ impl State {
                 0,
                 bytemuck::cast_slice(&[CameraTransforms {
                     mvp_matrix,
-                    camera_pos,
+                    camera_pos: camera_pos.to_array(),
                 }]),
             );
 
@@ -221,7 +221,7 @@ impl State {
             0,
             bytemuck::cast_slice(&[CameraTransforms {
                 mvp_matrix,
-                camera_pos,
+                camera_pos: camera_pos.to_array(),
             }]),
         );
     }
@@ -307,7 +307,7 @@ fn main() {
                         0,
                         bytemuck::cast_slice(&[CameraTransforms {
                             mvp_matrix,
-                            camera_pos,
+                            camera_pos: camera_pos.to_array(),
                         }]),
                     );
                 }

@@ -9,10 +9,15 @@ struct Transforms {
 
 // Align everything to 16 bytes to avoid alignment issues.
 // Smash Ultimate's shaders also use this alignment.
+// TODO: Investigate std140/std430
+// TODO: Does wgsl/wgpu require a specific layout/alignment?
 struct MaterialUniforms {
+    // TODO: Merge values into a single vec4?
     custom_vector: array<vec4<f32>, 64>;
     custom_boolean: array<vec4<f32>, 20>;
     custom_float: array<vec4<f32>, 20>;
+    has_float: array<vec4<f32>, 20>;
+    has_texture: array<vec4<f32>, 19>;
 };
 
 [[group(0), binding(0)]]
@@ -144,14 +149,17 @@ fn GetAlbedoColor(uv1: vec2<f32>, uv2: vec2<f32>, uv3: vec2<f32>, R: vec3<f32>, 
     var albedoColor = textureSample(texture0, sampler0, uvLayer1).rgba;
     let albedoColor2 = textureSample(texture1, sampler1, uvLayer2).rgba;
 
+    var outRgb = albedoColor.rgb;
+    let outAlpha = albedoColor.a;
+
     // let diffuseColor = textureSample(texture10, sampler10, uvLayer1).rgba;
     // let diffuse2Color = textureSample(texture11, sampler11, uvLayer2).rgba;
     // let diffuse3Color = textureSample(texture12, sampler12, uvLayer3).rgba;
 
     // colorSet5.w is used to blend between the two col map layers.
-    // if (hasCol2Map == 1) {
-    //     albedoColor.rgb = Blend(albedoColor, albedoColor2 * vec4<f32>(1.0, 1.0, 1.0, colorSet5.w));
-    // }
+    if (uniforms.has_texture[1].x == 1.0) {
+        outRgb = Blend(albedoColor, albedoColor2 * vec4<f32>(1.0, 1.0, 1.0, colorSet5.w));
+    }
 
     // Materials won't have col and diffuse cubemaps.
     // if (hasDifCubeMap == 1) {
@@ -169,7 +177,7 @@ fn GetAlbedoColor(uv1: vec2<f32>, uv2: vec2<f32>, uv3: vec2<f32>, R: vec3<f32>, 
     //     albedoColor.rgb += diffuse3Color.rgb;
     // }
 
-    return albedoColor;
+    return vec4<f32>(outRgb, outAlpha);
 }
 
 fn GetAlbedoColorFinal(albedoColor: vec4<f32>) -> vec3<f32>
@@ -325,18 +333,20 @@ fn DiffuseTerm(in: VertexOutput, albedo: vec3<f32>, nDotL: f32, ambientLight: ve
 //     return mat4x4<f32>(oc * axis.x * axis.x + c, oc * axis.x * axis.y - axis.z * s,  oc * axis.z * axis.x + axis.y * s, 0.0, oc * axis.x * axis.y + axis.z * s, oc * axis.y * axis.y + c, oc * axis.y * axis.z - axis.x * s,  0.0, oc * axis.z * axis.x - axis.y * s,  oc * axis.y * axis.z + axis.x * s,  oc * axis.z * axis.z + c, 0.0, 0.0, 0.0, 0.0, 1.0);
 // }
 
+// TODO: Make bitangent and argument?
 fn SpecularBrdf(tangent: vec4<f32>, nDotH: f32, nDotL: f32, nDotV: f32, halfAngle: vec3<f32>, normal: vec3<f32>, roughness: f32, anisotropicRotation: f32) -> f32
 {
     let angle = anisotropicRotation * 3.14159;
     //let tangentMatrix = rotationMatrix(normal, angle);
     //let rotatedTangent = mat3x3<f32>(tangentMatrix) * tangent.xyz;
-    // TODO: How is this calculated?
-    let rotatedBitangent = GetBitangent(normal, tangent.xyz, tangent.w);
+    // TODO: How is the rotation calculated for tangents and bitangents?
+    let bitangent = GetBitangent(normal, tangent.xyz, tangent.w);
     // The two BRDFs look very different so don't just use anisotropic for everything.
-    //if (hasCustomFloat10 == 1)
-    //    return GgxAnisotropic(nDotH, halfAngle, rotatedTangent, rotatedBitangent, roughness, uniforms.custom_float[10].x);
-    //else
+    if (uniforms.has_float[10].x == 1.0) {
+        return GgxAnisotropic(nDotH, halfAngle, tangent.xyz, bitangent, roughness, uniforms.custom_float[10].x);
+    } else {
         return Ggx(nDotH, nDotL, nDotV, roughness);
+    }
 }
 
 fn SpecularTerm(tangent: vec4<f32>, nDotH: f32, nDotL: f32, nDotV: f32, halfAngle: vec3<f32>, normal: vec3<f32>, roughness: f32, specularIbl: vec3<f32>, metalness: f32, anisotropicRotation: f32) -> vec3<f32>
@@ -477,14 +487,8 @@ fn vs_main(
     return out;
 }
 
-struct FragmentOutput {
-    [[location(0)]] color: vec4<f32>;
-    // TODO: This is a separate pass to allow different sizes.
-    // [[location(1)]] bright_color: vec4<f32>;
-};
-
 [[stage(fragment)]]
-fn fs_main(in: VertexOutput) -> FragmentOutput {
+fn fs_main(in: VertexOutput) -> [[location(0)]] vec4<f32> {
     // TODO: Some of these textures are sampled more than once.
     let nor = textureSample(texture4, sampler4, in.uvs.xy);
     let prm = textureSample(texture6, sampler6, in.uvs.xy);
@@ -558,7 +562,5 @@ fn fs_main(in: VertexOutput) -> FragmentOutput {
     outColor = GetRimBlend(outColor, albedoColorFinal, nDotV, max(nDotL, 0.0), 1.0, shColor);
 
     // TODO: Set alpha?
-    var out: FragmentOutput;
-    out.color = vec4<f32>(outColor, outAlpha);
-    return out;
+    return vec4<f32>(outColor, outAlpha);
 }
