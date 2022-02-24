@@ -8,6 +8,7 @@ pub fn create_uniforms_buffer(
     let uniforms = material
         .map(|material| {
             let mut custom_vector = [[0.0; 4]; 64];
+            let mut has_vector = [[0.0; 4]; 64];
             for vector in &material.vectors {
                 // TODO: Add this to ssbh_lib?
                 let index = match vector.param_id {
@@ -79,6 +80,7 @@ pub fn create_uniforms_buffer(
                 };
 
                 custom_vector[index] = vector.data.to_array().into();
+                has_vector[index][0] = 1.0;
             }
 
             let mut custom_float = [[0.0; 4]; 20];
@@ -179,6 +181,7 @@ pub fn create_uniforms_buffer(
                 custom_float,
                 has_texture,
                 has_float,
+                has_vector,
             }
         })
         .unwrap_or(
@@ -189,6 +192,8 @@ pub fn create_uniforms_buffer(
                 custom_float: [[0.0; 4]; 20],
                 has_texture: [[0.0; 4]; 19],
                 has_float: [[0.0; 4]; 20],
+                has_vector: [[0.0; 4]; 64],
+
             },
         );
 

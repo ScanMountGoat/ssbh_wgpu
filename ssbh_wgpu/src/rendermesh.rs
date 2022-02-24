@@ -114,20 +114,38 @@ fn get_render_meshes_and_shader_tags(
             };
 
             // TODO: Have accurate defaults but also accurate texture blending?
+            // TODO: Generate this using a macro?
             let (texture0, sampler0) =
                 load_texture_sampler(ParamId::Texture0, ParamId::Sampler0, [0, 0, 0, 255]);
             let (texture1, sampler1) =
                 load_texture_sampler(ParamId::Texture1, ParamId::Sampler1, [0, 0, 0, 0]);
+            let (texture2, sampler2) =
+                load_texture_sampler_cube(ParamId::Texture2, ParamId::Sampler2, [0, 0, 0, 0]);
+            let (texture3, sampler3) =
+                load_texture_sampler(ParamId::Texture3, ParamId::Sampler3, [0, 0, 0, 0]);
             let (texture4, sampler4) =
-                load_texture_sampler(ParamId::Texture4, ParamId::Sampler4, [0, 0, 0, 255]);
+                load_texture_sampler(ParamId::Texture4, ParamId::Sampler4, [0, 0, 0, 0]);
             let (texture5, sampler5) =
                 load_texture_sampler(ParamId::Texture5, ParamId::Sampler5, [0, 0, 0, 255]);
             let (texture6, sampler6) =
-                load_texture_sampler(ParamId::Texture6, ParamId::Sampler6, [0, 0, 0, 255]);
+                load_texture_sampler(ParamId::Texture6, ParamId::Sampler6, [0, 0, 0, 0]);
 
             // TODO: Avoid loading texture files more than once.
             let (texture7, sampler7) =
                 load_texture_sampler_cube(ParamId::Texture7, ParamId::Sampler7, [0, 128, 255, 255]);
+
+            let (texture8, sampler8) =
+                load_texture_sampler_cube(ParamId::Texture8, ParamId::Sampler8, [0, 0, 0, 255]);
+            let (texture9, sampler9) =
+                load_texture_sampler(ParamId::Texture9, ParamId::Sampler9, [0, 0, 0, 255]);
+            let (texture10, sampler10) =
+                load_texture_sampler(ParamId::Texture10, ParamId::Sampler10, [0, 0, 0, 255]);
+            let (texture11, sampler11) =
+                load_texture_sampler(ParamId::Texture11, ParamId::Sampler11, [0, 0, 0, 255]);
+            let (texture12, sampler12) =
+                load_texture_sampler(ParamId::Texture12, ParamId::Sampler12, [0, 0, 0, 255]);
+            let (texture13, sampler13) =
+                load_texture_sampler(ParamId::Texture13, ParamId::Sampler13, [0, 0, 0, 255]);
 
             let (texture14, sampler14) =
                 load_texture_sampler(ParamId::Texture14, ParamId::Sampler14, [0, 0, 0, 0]);
@@ -154,6 +172,10 @@ fn get_render_meshes_and_shader_tags(
                         sampler0: &sampler0,
                         texture1: &texture1,
                         sampler1: &sampler1,
+                        texture2: &texture2,
+                        sampler2: &sampler2,
+                        texture3: &texture3,
+                        sampler3: &sampler3,
                         texture4: &texture4,
                         sampler4: &sampler4,
                         texture5: &texture5,
@@ -162,6 +184,18 @@ fn get_render_meshes_and_shader_tags(
                         sampler6: &sampler6,
                         texture7: &texture7,
                         sampler7: &sampler7,
+                        texture8: &texture8,
+                        sampler8: &sampler8,
+                        texture9: &texture9,
+                        sampler9: &sampler9,
+                        texture10: &texture10,
+                        sampler10: &sampler10,
+                        texture11: &texture11,
+                        sampler11: &sampler11,
+                        texture12: &texture12,
+                        sampler12: &sampler12,
+                        texture13: &texture13,
+                        sampler13: &sampler13,
                         texture14: &texture14,
                         sampler14: &sampler14,
                     },

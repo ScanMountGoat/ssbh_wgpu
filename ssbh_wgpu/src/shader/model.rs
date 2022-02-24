@@ -104,6 +104,10 @@ pub mod bind_groups {
         pub sampler0: &'a wgpu::Sampler,
         pub texture1: &'a wgpu::TextureView,
         pub sampler1: &'a wgpu::Sampler,
+        pub texture2: &'a wgpu::TextureView,
+        pub sampler2: &'a wgpu::Sampler,
+        pub texture3: &'a wgpu::TextureView,
+        pub sampler3: &'a wgpu::Sampler,
         pub texture4: &'a wgpu::TextureView,
         pub sampler4: &'a wgpu::Sampler,
         pub texture5: &'a wgpu::TextureView,
@@ -112,6 +116,18 @@ pub mod bind_groups {
         pub sampler6: &'a wgpu::Sampler,
         pub texture7: &'a wgpu::TextureView,
         pub sampler7: &'a wgpu::Sampler,
+        pub texture8: &'a wgpu::TextureView,
+        pub sampler8: &'a wgpu::Sampler,
+        pub texture9: &'a wgpu::TextureView,
+        pub sampler9: &'a wgpu::Sampler,
+        pub texture10: &'a wgpu::TextureView,
+        pub sampler10: &'a wgpu::Sampler,
+        pub texture11: &'a wgpu::TextureView,
+        pub sampler11: &'a wgpu::Sampler,
+        pub texture12: &'a wgpu::TextureView,
+        pub sampler12: &'a wgpu::Sampler,
+        pub texture13: &'a wgpu::TextureView,
+        pub sampler13: &'a wgpu::Sampler,
         pub texture14: &'a wgpu::TextureView,
         pub sampler14: &'a wgpu::Sampler,
     }
@@ -155,7 +171,7 @@ pub mod bind_groups {
                 visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
                 ty: wgpu::BindingType::Texture {
                     multisampled: false,
-                    view_dimension: wgpu::TextureViewDimension::D2,
+                    view_dimension: wgpu::TextureViewDimension::Cube,
                     sample_type: wgpu::TextureSampleType::Float { filterable: true },
                 },
                 count: None,
@@ -203,7 +219,7 @@ pub mod bind_groups {
                 visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
                 ty: wgpu::BindingType::Texture {
                     multisampled: false,
-                    view_dimension: wgpu::TextureViewDimension::Cube,
+                    view_dimension: wgpu::TextureViewDimension::D2,
                     sample_type: wgpu::TextureSampleType::Float { filterable: true },
                 },
                 count: None,
@@ -226,6 +242,134 @@ pub mod bind_groups {
             },
             wgpu::BindGroupLayoutEntry {
                 binding: 13u32,
+                visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                count: None,
+            },
+            wgpu::BindGroupLayoutEntry {
+                binding: 14u32,
+                visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                ty: wgpu::BindingType::Texture {
+                    multisampled: false,
+                    view_dimension: wgpu::TextureViewDimension::Cube,
+                    sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                },
+                count: None,
+            },
+            wgpu::BindGroupLayoutEntry {
+                binding: 15u32,
+                visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                count: None,
+            },
+            wgpu::BindGroupLayoutEntry {
+                binding: 16u32,
+                visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                ty: wgpu::BindingType::Texture {
+                    multisampled: false,
+                    view_dimension: wgpu::TextureViewDimension::Cube,
+                    sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                },
+                count: None,
+            },
+            wgpu::BindGroupLayoutEntry {
+                binding: 17u32,
+                visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                count: None,
+            },
+            wgpu::BindGroupLayoutEntry {
+                binding: 18u32,
+                visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                ty: wgpu::BindingType::Texture {
+                    multisampled: false,
+                    view_dimension: wgpu::TextureViewDimension::D2,
+                    sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                },
+                count: None,
+            },
+            wgpu::BindGroupLayoutEntry {
+                binding: 19u32,
+                visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                count: None,
+            },
+            wgpu::BindGroupLayoutEntry {
+                binding: 20u32,
+                visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                ty: wgpu::BindingType::Texture {
+                    multisampled: false,
+                    view_dimension: wgpu::TextureViewDimension::D2,
+                    sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                },
+                count: None,
+            },
+            wgpu::BindGroupLayoutEntry {
+                binding: 21u32,
+                visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                count: None,
+            },
+            wgpu::BindGroupLayoutEntry {
+                binding: 22u32,
+                visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                ty: wgpu::BindingType::Texture {
+                    multisampled: false,
+                    view_dimension: wgpu::TextureViewDimension::D2,
+                    sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                },
+                count: None,
+            },
+            wgpu::BindGroupLayoutEntry {
+                binding: 23u32,
+                visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                count: None,
+            },
+            wgpu::BindGroupLayoutEntry {
+                binding: 24u32,
+                visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                ty: wgpu::BindingType::Texture {
+                    multisampled: false,
+                    view_dimension: wgpu::TextureViewDimension::D2,
+                    sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                },
+                count: None,
+            },
+            wgpu::BindGroupLayoutEntry {
+                binding: 25u32,
+                visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                count: None,
+            },
+            wgpu::BindGroupLayoutEntry {
+                binding: 26u32,
+                visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                ty: wgpu::BindingType::Texture {
+                    multisampled: false,
+                    view_dimension: wgpu::TextureViewDimension::D2,
+                    sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                },
+                count: None,
+            },
+            wgpu::BindGroupLayoutEntry {
+                binding: 27u32,
+                visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                count: None,
+            },
+            wgpu::BindGroupLayoutEntry {
+                binding: 28u32,
+                visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                ty: wgpu::BindingType::Texture {
+                    multisampled: false,
+                    view_dimension: wgpu::TextureViewDimension::D2,
+                    sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                },
+                count: None,
+            },
+            wgpu::BindGroupLayoutEntry {
+                binding: 29u32,
                 visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
                 ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
                 count: None,
@@ -260,42 +404,106 @@ pub mod bind_groups {
                     },
                     wgpu::BindGroupEntry {
                         binding: 4u32,
-                        resource: wgpu::BindingResource::TextureView(bindings.texture4),
+                        resource: wgpu::BindingResource::TextureView(bindings.texture2),
                     },
                     wgpu::BindGroupEntry {
                         binding: 5u32,
-                        resource: wgpu::BindingResource::Sampler(bindings.sampler4),
+                        resource: wgpu::BindingResource::Sampler(bindings.sampler2),
                     },
                     wgpu::BindGroupEntry {
                         binding: 6u32,
-                        resource: wgpu::BindingResource::TextureView(bindings.texture5),
+                        resource: wgpu::BindingResource::TextureView(bindings.texture3),
                     },
                     wgpu::BindGroupEntry {
                         binding: 7u32,
-                        resource: wgpu::BindingResource::Sampler(bindings.sampler5),
+                        resource: wgpu::BindingResource::Sampler(bindings.sampler3),
                     },
                     wgpu::BindGroupEntry {
                         binding: 8u32,
-                        resource: wgpu::BindingResource::TextureView(bindings.texture6),
+                        resource: wgpu::BindingResource::TextureView(bindings.texture4),
                     },
                     wgpu::BindGroupEntry {
                         binding: 9u32,
-                        resource: wgpu::BindingResource::Sampler(bindings.sampler6),
+                        resource: wgpu::BindingResource::Sampler(bindings.sampler4),
                     },
                     wgpu::BindGroupEntry {
                         binding: 10u32,
-                        resource: wgpu::BindingResource::TextureView(bindings.texture7),
+                        resource: wgpu::BindingResource::TextureView(bindings.texture5),
                     },
                     wgpu::BindGroupEntry {
                         binding: 11u32,
-                        resource: wgpu::BindingResource::Sampler(bindings.sampler7),
+                        resource: wgpu::BindingResource::Sampler(bindings.sampler5),
                     },
                     wgpu::BindGroupEntry {
                         binding: 12u32,
-                        resource: wgpu::BindingResource::TextureView(bindings.texture14),
+                        resource: wgpu::BindingResource::TextureView(bindings.texture6),
                     },
                     wgpu::BindGroupEntry {
                         binding: 13u32,
+                        resource: wgpu::BindingResource::Sampler(bindings.sampler6),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 14u32,
+                        resource: wgpu::BindingResource::TextureView(bindings.texture7),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 15u32,
+                        resource: wgpu::BindingResource::Sampler(bindings.sampler7),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 16u32,
+                        resource: wgpu::BindingResource::TextureView(bindings.texture8),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 17u32,
+                        resource: wgpu::BindingResource::Sampler(bindings.sampler8),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 18u32,
+                        resource: wgpu::BindingResource::TextureView(bindings.texture9),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 19u32,
+                        resource: wgpu::BindingResource::Sampler(bindings.sampler9),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 20u32,
+                        resource: wgpu::BindingResource::TextureView(bindings.texture10),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 21u32,
+                        resource: wgpu::BindingResource::Sampler(bindings.sampler10),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 22u32,
+                        resource: wgpu::BindingResource::TextureView(bindings.texture11),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 23u32,
+                        resource: wgpu::BindingResource::Sampler(bindings.sampler11),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 24u32,
+                        resource: wgpu::BindingResource::TextureView(bindings.texture12),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 25u32,
+                        resource: wgpu::BindingResource::Sampler(bindings.sampler12),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 26u32,
+                        resource: wgpu::BindingResource::TextureView(bindings.texture13),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 27u32,
+                        resource: wgpu::BindingResource::Sampler(bindings.sampler13),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 28u32,
+                        resource: wgpu::BindingResource::TextureView(bindings.texture14),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 29u32,
                         resource: wgpu::BindingResource::Sampler(bindings.sampler14),
                     },
                 ],
@@ -359,6 +567,7 @@ pub mod bind_groups {
         pub custom_float: [[f32; 4]; 20],
         pub has_float: [[f32; 4]; 20],
         pub has_texture: [[f32; 4]; 19],
+        pub has_vector: [[f32; 4]; 64],
     }
     pub struct BindGroups<'a> {
         pub bind_group0: &'a BindGroup0,

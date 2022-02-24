@@ -13,11 +13,13 @@ struct Transforms {
 // TODO: Does wgsl/wgpu require a specific layout/alignment?
 struct MaterialUniforms {
     // TODO: Merge values into a single vec4?
+    // TODO: Add has_vector?
     custom_vector: array<vec4<f32>, 64>;
     custom_boolean: array<vec4<f32>, 20>;
     custom_float: array<vec4<f32>, 20>;
     has_float: array<vec4<f32>, 20>;
     has_texture: array<vec4<f32>, 19>;
+    has_vector: array<vec4<f32>, 64>;
 };
 
 [[group(0), binding(0)]]
@@ -27,46 +29,79 @@ var<uniform> camera: CameraTransforms;
 var<uniform> transforms: Transforms;
 
 // TODO: Is there a better way of organizing this?
-// Col1
 [[group(2), binding(0)]]
 var texture0: texture_2d<f32>;
 [[group(2), binding(1)]]
 var sampler0: sampler;
 
-// Col2
 [[group(2), binding(2)]]
 var texture1: texture_2d<f32>;
 [[group(2), binding(3)]]
 var sampler1: sampler;
 
-// Nor
 [[group(2), binding(4)]]
-var texture4: texture_2d<f32>;
+var texture2: texture_cube<f32>;
 [[group(2), binding(5)]]
+var sampler2: sampler;
+
+[[group(2), binding(6)]]
+var texture3: texture_2d<f32>;
+[[group(2), binding(7)]]
+var sampler3: sampler;
+
+[[group(2), binding(8)]]
+var texture4: texture_2d<f32>;
+[[group(2), binding(9)]]
 var sampler4: sampler;
 
-// Emi1
-[[group(2), binding(6)]]
+[[group(2), binding(10)]]
 var texture5: texture_2d<f32>;
-[[group(2), binding(7)]]
+[[group(2), binding(11)]]
 var sampler5: sampler;
 
-/// Prm
-[[group(2), binding(8)]]
+[[group(2), binding(12)]]
 var texture6: texture_2d<f32>;
-[[group(2), binding(9)]]
+[[group(2), binding(13)]]
 var sampler6: sampler;
 
-// Specular Cube
-[[group(2), binding(10)]]
+[[group(2), binding(14)]]
 var texture7: texture_cube<f32>;
-[[group(2), binding(11)]]
+[[group(2), binding(15)]]
 var sampler7: sampler;
 
-// Emi2
-[[group(2), binding(12)]]
+[[group(2), binding(16)]]
+var texture8: texture_cube<f32>;
+[[group(2), binding(17)]]
+var sampler8: sampler;
+
+[[group(2), binding(18)]]
+var texture9: texture_2d<f32>;
+[[group(2), binding(19)]]
+var sampler9: sampler;
+
+[[group(2), binding(20)]]
+var texture10: texture_2d<f32>;
+[[group(2), binding(21)]]
+var sampler10: sampler;
+
+[[group(2), binding(22)]]
+var texture11: texture_2d<f32>;
+[[group(2), binding(23)]]
+var sampler11: sampler;
+
+[[group(2), binding(24)]]
+var texture12: texture_2d<f32>;
+[[group(2), binding(25)]]
+var sampler12: sampler;
+
+[[group(2), binding(26)]]
+var texture13: texture_2d<f32>;
+[[group(2), binding(27)]]
+var sampler13: sampler;
+
+[[group(2), binding(28)]]
 var texture14: texture_2d<f32>;
-[[group(2), binding(13)]]
+[[group(2), binding(29)]]
 var sampler14: sampler;
 
 // TODO: How many textures can we have?
@@ -125,14 +160,19 @@ fn TransformUv(uv: vec2<f32>, transform: vec4<f32>) -> vec2<f32>
     return result;
 }
 
+// TODO: Rework texture blending to match the in game behavior.
+// TODO: How to handle no texture vs missing required texture?
 fn GetEmissionColor(uv1: vec2<f32>, uv2: vec2<f32>, transform1: vec4<f32>, transform2: vec4<f32>) -> vec4<f32> {
     let uvLayer1 = TransformUv(uv1, transform1);
-    var emissionColor = textureSample(texture5, sampler5, uvLayer1).rgba;
+    var emissionColor = textureSample(texture5, sampler5, uvLayer1);
 
-    let uvLayer2 = TransformUv(uv2, transform2);
-    let emission2Color = textureSample(texture14, sampler14, uvLayer2).rgba;
+    if (uniforms.has_texture[1].x == 1.0) {
+        let uvLayer2 = TransformUv(uv2, transform2);
+        let emission2Color = textureSample(texture14, sampler14, uvLayer2);
+        return vec4<f32>(Blend(emissionColor, emission2Color), emissionColor.a);
+    }
 
-    return vec4<f32>(Blend(emissionColor, emission2Color), emissionColor.a);
+    return emissionColor;
 }
 
 fn GetAlbedoColor(uv1: vec2<f32>, uv2: vec2<f32>, uv3: vec2<f32>, R: vec3<f32>, transform1: vec4<f32>, transform2: vec4<f32>, transform3: vec4<f32>, colorSet5: vec4<f32>) -> vec4<f32>
@@ -146,36 +186,33 @@ fn GetAlbedoColor(uv1: vec2<f32>, uv2: vec2<f32>, uv3: vec2<f32>, R: vec3<f32>, 
     let uvLayer2 = TransformUv(uv2, transform2);
     let uvLayer3 = TransformUv(uv3, transform3);
 
-    var albedoColor = textureSample(texture0, sampler0, uvLayer1).rgba;
-    let albedoColor2 = textureSample(texture1, sampler1, uvLayer2).rgba;
+    let albedoColor = textureSample(texture0, sampler0, uvLayer1);
 
     var outRgb = albedoColor.rgb;
     let outAlpha = albedoColor.a;
 
-    // let diffuseColor = textureSample(texture10, sampler10, uvLayer1).rgba;
-    // let diffuse2Color = textureSample(texture11, sampler11, uvLayer2).rgba;
-    // let diffuse3Color = textureSample(texture12, sampler12, uvLayer3).rgba;
 
     // colorSet5.w is used to blend between the two col map layers.
     if (uniforms.has_texture[1].x == 1.0) {
-        outRgb = Blend(albedoColor, albedoColor2 * vec4<f32>(1.0, 1.0, 1.0, colorSet5.w));
+        let albedoColor2 = textureSample(texture1, sampler1, uvLayer2);
+        outRgb = Blend(vec4<f32>(outRgb, 1.0), albedoColor2 * vec4<f32>(1.0, 1.0, 1.0, colorSet5.w));
     }
 
-    // Materials won't have col and diffuse cubemaps.
-    // if (hasDifCubeMap == 1) {
-    //     albedoColor.rgb = texture(difCubeMap, R).rgb;
-    // }
+    // // Materials won't have col and diffuse cube maps.
+    if (uniforms.has_texture[8].x == 1.0) {
+        outRgb = textureSample(texture8, sampler8, R).rgb;
+    }
 
-    // if (hasDiffuse == 1) {
-    //     albedoColor.rgb = Blend(albedoColor, diffuseColor);
-    // }
-    // if (hasDiffuse2 == 1) {
-    //     albedoColor.rgb += diffuse2Color.rgb;
-    // }
-    // // TODO: Is the blending always additive?
-    // if (hasDiffuse3 == 1) {
-    //     albedoColor.rgb += diffuse3Color.rgb;
-    // }
+    if (uniforms.has_texture[10].x == 1.0) {
+        outRgb = Blend(vec4<f32>(outRgb, 1.0), textureSample(texture10, sampler10, uvLayer1));
+    }
+    // TODO: Is the blending always additive?
+    if (uniforms.has_texture[11].x == 1.0) {
+        outRgb = outRgb + textureSample(texture11, sampler11, uvLayer2).rgb;
+    }
+    if (uniforms.has_texture[12].x == 1.0) {
+        outRgb = outRgb + textureSample(texture12, sampler12, uvLayer3).rgb;
+    }
 
     return vec4<f32>(outRgb, outAlpha);
 }
@@ -185,7 +222,9 @@ fn GetAlbedoColorFinal(albedoColor: vec4<f32>) -> vec3<f32>
     var albedoColorFinal = albedoColor.rgb;
 
     // Color multiplier param.
-    albedoColorFinal = albedoColorFinal * uniforms.custom_vector[13].rgb;
+    if (uniforms.has_vector[13].x == 1.0) {
+        albedoColorFinal = albedoColorFinal * uniforms.custom_vector[13].rgb;
+    }
 
     // TODO: Wiifit stage model color.
     // if (hasCustomVector44 == 1) {
@@ -303,13 +342,12 @@ fn DiffuseTerm(in: VertexOutput, albedo: vec3<f32>, nDotL: f32, ambientLight: ve
     // TODO: Skin shading looks correct without the PI term?
     directShading = mix(directShading / 3.14159, skinShading, sssBlend);
 
-    let bakedLitColor = textureSample(texture0, sampler0, in.uvs).rgba;
+    let bakedLitColor = textureSample(texture9, sampler9, in.uvs).rgba;
     let directLight = vec3<f32>(1.0,1.0,1.0) * directShading * 4.0 * bakedLitColor.a;
 
     // Baked lighting maps are not affected by ambient occlusion.
     var ambientTerm = (ambientLight * ao);
-    //if (renderBakedLighting == 1)
-    //    ambientTerm += (bakedLitColor.rgb * 8.0);
+    ambientTerm = ambientTerm + (bakedLitColor.rgb * 8.0);
     ambientTerm = ambientTerm * mix(albedo, uniforms.custom_vector[11].rgb, sssBlend);
 
     let result = directLight * 1.0 + ambientTerm * 1.0;
@@ -532,7 +570,7 @@ fn fs_main(in: VertexOutput) -> [[location(0)]] vec4<f32> {
     let sssBlend = prm.r * uniforms.custom_vector[30].x;
 
     // TODO: Apply multiplier param?
-    var albedoColorFinal = albedoColor.rgb;
+    var albedoColorFinal = GetAlbedoColorFinal(albedoColor);
 
     let specularF0 = GetF0FromSpecular(prm.a);
 
@@ -562,5 +600,7 @@ fn fs_main(in: VertexOutput) -> [[location(0)]] vec4<f32> {
     outColor = GetRimBlend(outColor, albedoColorFinal, nDotV, max(nDotL, 0.0), 1.0, shColor);
 
     // TODO: Set alpha?
+    // let albedoColor = textureSample(texture0, sampler0, in.uvs);
+
     return vec4<f32>(outColor, outAlpha);
 }
