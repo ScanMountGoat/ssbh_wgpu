@@ -193,7 +193,6 @@ pub fn create_uniforms_buffer(
                 has_texture: [[0.0; 4]; 19],
                 has_float: [[0.0; 4]; 20],
                 has_vector: [[0.0; 4]; 64],
-
             },
         );
 

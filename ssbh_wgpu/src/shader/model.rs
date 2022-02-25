@@ -589,9 +589,11 @@ pub mod vertex {
     pub const POSITION0_LOCATION: u32 = 0u32;
     pub const NORMAL0_LOCATION: u32 = 1u32;
     pub const TANGENT0_LOCATION: u32 = 2u32;
-    pub const MAP1_LOCATION: u32 = 3u32;
-    pub const UV_SET_LOCATION: u32 = 4u32;
-    pub const COLOR_SET2_PACKED_LOCATION: u32 = 5u32;
+    pub const MAP1_UVSET_LOCATION: u32 = 3u32;
+    pub const UV_SET1_UV_SET2_LOCATION: u32 = 4u32;
+    pub const BAKE1_COLOR_SET67_LOCATION: u32 = 5u32;
+    pub const COLOR_SET1345_LOCATION: u32 = 6u32;
+    pub const COLOR_SET2_PACKED_LOCATION: u32 = 7u32;
 }
 pub fn create_shader_module(device: &wgpu::Device) -> wgpu::ShaderModule {
     device.create_shader_module(&wgpu::ShaderModuleDescriptor {

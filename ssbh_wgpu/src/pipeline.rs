@@ -32,17 +32,29 @@ pub fn create_pipeline(
             module: shader,
             entry_point: "vs_main",
             // TODO: Generate this information from the structs themselves?
-            buffers: &[wgpu::VertexBufferLayout {
-                array_stride: 3*16,
-                step_mode: wgpu::VertexStepMode::Vertex,
-                attributes: &wgpu::vertex_attr_array![0 => Float32x4, 1 => Float32x4, 2 => Float32x4],
-            },
-            wgpu::VertexBufferLayout {
-                array_stride: 2*16,
-                step_mode: wgpu::VertexStepMode::Vertex,
-                // TODO: Does having unique locations simplify validating this against the shader code?
-                attributes: &wgpu::vertex_attr_array![3 => Float32x2, 4 => Float32x2, 5 => Float32x4],
-            }],
+            buffers: &[
+                wgpu::VertexBufferLayout {
+                    array_stride: 3 * 16,
+                    step_mode: wgpu::VertexStepMode::Vertex,
+                    attributes: &wgpu::vertex_attr_array![
+                        0 => Float32x4,
+                        1 => Float32x4,
+                        2 => Float32x4
+                    ],
+                },
+                wgpu::VertexBufferLayout {
+                    array_stride: 5 * 16,
+                    step_mode: wgpu::VertexStepMode::Vertex,
+                    // TODO: Does having unique locations simplify validating this against the shader code?
+                    attributes: &wgpu::vertex_attr_array![
+                        3 => Float32x4,
+                        4 => Float32x4,
+                        5 => Float32x4,
+                        6 => Float32x4,
+                        7 => Float32x4
+                    ],
+                },
+            ],
         },
         fragment: Some(wgpu::FragmentState {
             module: shader,
@@ -71,7 +83,11 @@ pub fn create_pipeline(
         depth_stencil: Some(wgpu::DepthStencilState {
             format: wgpu::TextureFormat::Depth32Float, // TODO: make this a constant?
             depth_write_enabled: !mesh_object.disable_depth_write,
-            depth_compare: if mesh_object.disable_depth_test { wgpu::CompareFunction::Always} else { wgpu::CompareFunction::LessEqual},
+            depth_compare: if mesh_object.disable_depth_test {
+                wgpu::CompareFunction::Always
+            } else {
+                wgpu::CompareFunction::LessEqual
+            },
             stencil: wgpu::StencilState::default(),
             bias: wgpu::DepthBiasState::default(),
         }),
@@ -80,7 +96,7 @@ pub fn create_pipeline(
             mask: !0,
             // TODO: This wont look correct without multisampling?
             // alpha_to_coverage_enabled: blend_state_data.map(|b| b.alpha_sample_to_coverage).unwrap_or(false),
-            alpha_to_coverage_enabled: false
+            alpha_to_coverage_enabled: false,
         },
         multiview: None,
     })
