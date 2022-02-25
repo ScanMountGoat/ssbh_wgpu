@@ -138,7 +138,7 @@ struct VertexOutput {
     [[location(7)]] bake1: vec2<f32>;
 };
 
-fn Blend(a: vec4<f32>, b: vec4<f32>) -> vec3<f32> {
+fn Blend(a: vec3<f32>, b: vec4<f32>) -> vec3<f32> {
     // CustomBoolean11 toggles additive vs alpha blending.
     if (uniforms.custom_boolean[11].x != 0.0) {
         return a.rgb + b.rgb * b.a;
@@ -175,7 +175,7 @@ fn GetEmissionColor(uv1: vec2<f32>, uv2: vec2<f32>, transform1: vec4<f32>, trans
     if (uniforms.has_texture[1].x == 1.0) {
         let uvLayer2 = TransformUv(uv2, transform2);
         let emission2Color = textureSample(texture14, sampler14, uvLayer2);
-        return vec4<f32>(Blend(emissionColor, emission2Color), emissionColor.a);
+        return vec4<f32>(Blend(emissionColor.rgb, emission2Color), emissionColor.a);
     }
 
     return emissionColor;
@@ -201,7 +201,7 @@ fn GetAlbedoColor(uv1: vec2<f32>, uv2: vec2<f32>, uv3: vec2<f32>, R: vec3<f32>, 
     // colorSet5.w is used to blend between the two col map layers.
     if (uniforms.has_texture[1].x == 1.0) {
         let albedoColor2 = textureSample(texture1, sampler1, uvLayer2);
-        outRgb = Blend(vec4<f32>(outRgb, 1.0), albedoColor2 * vec4<f32>(1.0, 1.0, 1.0, colorSet5.w));
+        outRgb = Blend(outRgb, albedoColor2 * vec4<f32>(1.0, 1.0, 1.0, colorSet5.w));
     }
 
     // // Materials won't have col and diffuse cube maps.
@@ -210,11 +210,11 @@ fn GetAlbedoColor(uv1: vec2<f32>, uv2: vec2<f32>, uv3: vec2<f32>, R: vec3<f32>, 
     }
 
     if (uniforms.has_texture[10].x == 1.0) {
-        outRgb = Blend(vec4<f32>(outRgb, 1.0), textureSample(texture10, sampler10, uvLayer1));
+        outRgb = Blend(outRgb, textureSample(texture10, sampler10, uvLayer1));
     }
     // TODO: Is the blending always additive?
     if (uniforms.has_texture[11].x == 1.0) {
-        outRgb = outRgb + textureSample(texture11, sampler11, uvLayer2).rgb;
+        outRgb = Blend(outRgb, textureSample(texture11, sampler11, uvLayer2));
     }
     if (uniforms.has_texture[12].x == 1.0) {
         outRgb = outRgb + textureSample(texture12, sampler12, uvLayer3).rgb;
@@ -348,12 +348,16 @@ fn DiffuseTerm(in: VertexOutput, albedo: vec3<f32>, nDotL: f32, ambientLight: ve
     // TODO: Skin shading looks correct without the PI term?
     directShading = mix(directShading / 3.14159, skinShading, sssBlend);
 
-    let bakedLitColor = textureSample(texture9, sampler9, in.bake1).rgba;
-    let directLight = vec3<f32>(1.0,1.0,1.0) * directShading * 4.0 * bakedLitColor.a;
-
-    // Baked lighting maps are not affected by ambient occlusion.
+    var directLight = vec3<f32>(1.0,1.0,1.0) * directShading * 4.0;
     var ambientTerm = (ambientLight * ao);
-    ambientTerm = ambientTerm + (bakedLitColor.rgb * 8.0);
+
+    if (uniforms.has_texture[9].x == 1.0) {
+        let bakedLitColor = textureSample(texture9, sampler9, in.bake1).rgba;
+        directLight = directLight * bakedLitColor.a;
+        // Baked lighting maps are not affected by ambient occlusion.
+        ambientTerm = ambientTerm + (bakedLitColor.rgb * 8.0);
+    }
+
     ambientTerm = ambientTerm * mix(albedo, uniforms.custom_vector[11].rgb, sssBlend);
 
     let result = directLight * 1.0 + ambientTerm * 1.0;
@@ -555,7 +559,10 @@ fn fs_main(in: VertexOutput) -> [[location(0)]] vec4<f32> {
     let tangent = normalize(in.tangent.xyz);
     let bitangent = normalize(cross(normal, tangent)) * in.tangent.w * -1.0;
 
-    let fragmentNormal = GetBumpMapNormal(normal, tangent, bitangent, nor);
+    var fragmentNormal = normal;
+    if (uniforms.has_texture[4].x == 1.0) {
+        fragmentNormal = GetBumpMapNormal(normal, tangent, bitangent, nor);
+    }
 
     var reflectionVector = reflect(viewVector, normal);
     reflectionVector.y = reflectionVector.y * -1.0;
@@ -565,10 +572,10 @@ fn fs_main(in: VertexOutput) -> [[location(0)]] vec4<f32> {
     let halfAngle = normalize(chrLightDir + viewVector);
     let nDotV = max(dot(fragmentNormal, viewVector), 0.0);
     let nDotH = clamp(dot(fragmentNormal, halfAngle), 0.0, 1.0);
-    let nDotL = dot(fragmentNormal, chrLightDir);
+    let nDotL = dot(fragmentNormal, normalize(chrLightDir));
 
     // TODO: Set up necessary inputs
-    let albedoColor = GetAlbedoColor(in.map1, in.uvSet, in.uvSet1, reflectionVector, vec4<f32>(1.0, 1.0, 0.0, 0.0), vec4<f32>(1.0, 1.0, 0.0, 0.0), uniforms.custom_vector[32], vec4<f32>(0.0));
+    let albedoColor = GetAlbedoColor(in.map1, in.uvSet, in.uvSet1, reflectionVector, vec4<f32>(1.0, 1.0, 0.0, 0.0), vec4<f32>(1.0, 1.0, 0.0, 0.0), vec4<f32>(1.0, 1.0, 0.0, 0.0), vec4<f32>(0.0));
     let emissionColor = GetEmissionColor(in.map1, in.uvSet, vec4<f32>(1.0, 1.0, 0.0, 0.0), vec4<f32>(1.0, 1.0, 0.0, 0.0));
 
     var outAlpha = max(albedoColor.a * emissionColor.a, uniforms.custom_vector[0].x);
@@ -611,6 +618,5 @@ fn fs_main(in: VertexOutput) -> [[location(0)]] vec4<f32> {
 
     // TODO: Set alpha?
     // let albedoColor = textureSample(texture0, sampler0, in.uvs);
-
     return vec4<f32>(outColor, outAlpha);
 }

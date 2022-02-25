@@ -15,7 +15,7 @@ struct VertexBuffer0 {
 
 // TODO: Add remaining attributes.
 #[repr(C)]
-#[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
+#[derive(Debug, Copy, Clone, Default, bytemuck::Pod, bytemuck::Zeroable)]
 struct VertexBuffer1 {
     map1_uv_set: glam::Vec4,
     uv_set1_uv_set2: glam::Vec4,
@@ -62,23 +62,44 @@ fn buffer0(mesh_data: &MeshObjectData) -> Vec<VertexBuffer0> {
     vertices
 }
 
+// TODO: Support other lengths?
+macro_rules! set_attribute {
+    ($v:ident, $data:expr, $field:ident, $dst1: literal, $dst2:literal) => {
+        match $data {
+            ssbh_data::mesh_data::VectorData::Vector2(values) => {
+                for (i, value) in values.iter().enumerate() {
+                    $v[i].$field[$dst1] = value[0];
+                    $v[i].$field[$dst2] = value[1];
+                }
+            }
+            ssbh_data::mesh_data::VectorData::Vector3(_) => todo!(),
+            ssbh_data::mesh_data::VectorData::Vector4(_) => todo!(),
+        }
+    };
+}
+
 fn buffer1(mesh_data: &MeshObjectData) -> Vec<VertexBuffer1> {
     // TODO: Actually check the attribute names.
     // TODO: How to assign attributes efficiently?
-    match &mesh_data.texture_coordinates[0].data {
-        ssbh_data::mesh_data::VectorData::Vector2(uvs) => uvs
-            .iter()
-            .map(|uv| VertexBuffer1 {
-                map1_uv_set: glam::Vec4::new(uv[0], uv[1], 0.0, 0.0),
-                uv_set1_uv_set2: glam::Vec4::ZERO,
-                bake1_color_set67: glam::Vec4::ZERO,
-                color_set1345: glam::Vec4::ZERO,
-                color_set2_packed: glam::Vec4::ZERO,
-            })
-            .collect(),
-        ssbh_data::mesh_data::VectorData::Vector3(_) => todo!(),
-        ssbh_data::mesh_data::VectorData::Vector4(_) => todo!(),
+    // TODO: More robustly determine vertex count?
+    let vertex_count = mesh_data.positions[0].data.len();
+
+    // TODO: This could be done by zeroing memory but probably isn't worth it.
+    let mut vertices = vec![VertexBuffer1::default(); vertex_count];
+    
+    for attribute in &mesh_data.texture_coordinates {
+        match attribute.name.as_str() {
+            "map1" => set_attribute!(vertices, &attribute.data, map1_uv_set, 0, 1),
+            "uvSet" => set_attribute!(vertices, &attribute.data, map1_uv_set, 2, 3),
+            "uvSet1" => set_attribute!(vertices, &attribute.data, uv_set1_uv_set2, 0, 1),
+            "uvSet2" => set_attribute!(vertices, &attribute.data, uv_set1_uv_set2, 2, 3),
+            "bake1" => set_attribute!(vertices, &attribute.data, bake1_color_set67, 0, 1),
+            // TODO: color sets
+            _ => (),
+        }
     }
+
+    vertices
 }
 
 pub fn mesh_object_buffers(
