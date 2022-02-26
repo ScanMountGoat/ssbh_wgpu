@@ -2,7 +2,7 @@ use std::path::Path;
 
 mod pipeline;
 pub mod shader;
-mod texture;
+pub mod texture;
 mod uniforms;
 mod vertex;
 
@@ -34,11 +34,13 @@ pub struct ModelFolder {
     pub modl: Option<ModlData>,
 }
 
+// TODO: Come up with a buffer function name.
 pub fn load_model_folders(
     device: &wgpu::Device,
     queue: &wgpu::Queue,
     surface_format: wgpu::TextureFormat,
     models: &[ModelFolder],
+    default_textures: &[(&'static str, wgpu::Texture)]
 ) -> Vec<rendermesh::RenderMesh> {
     // TODO: Not all models can reuse the same pipeline?
     // TODO: Use wgsl_to_wgpu to automate this?
@@ -66,6 +68,7 @@ pub fn load_model_folders(
                 &model.skel,
                 &model.matl,
                 &model.modl,
+                default_textures
             )
         })
         .flatten()

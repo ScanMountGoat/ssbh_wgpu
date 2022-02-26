@@ -232,6 +232,8 @@ impl SsbhRenderer {
         bloom_upscale_pass.draw(0..3, 0..1);
         drop(bloom_upscale_pass);
 
+        // TODO: Models with _near should be drawn after bloom but before post processing?
+
         let mut post_processing_pass =
             create_color_pass(encoder, output_view, Some("Post Processing Pass"));
 

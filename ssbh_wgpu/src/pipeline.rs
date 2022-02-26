@@ -16,7 +16,7 @@ pub fn create_pipeline(
     // Pipeline state takes most of its settings from the material.
     // The mesh object is just used for depth settings.
     // If matl parameters are not present, use fallback values.
-    let _rasterizer_state_data = material
+    let rasterizer_state_data = material
         .map(|m| m.rasterizer_states.first().map(|p| &p.data))
         .flatten();
     let blend_state_data = material
@@ -72,7 +72,13 @@ pub fn create_pipeline(
             topology: wgpu::PrimitiveTopology::TriangleList,
             strip_index_format: None,
             front_face: wgpu::FrontFace::Ccw,
-            cull_mode: Some(wgpu::Face::Back), // TODO: Set by blend state
+            cull_mode: rasterizer_state_data
+                .map(|r| match r.cull_mode {
+                    ssbh_data::matl_data::CullMode::Back => Some(wgpu::Face::Back),
+                    ssbh_data::matl_data::CullMode::Front => Some(wgpu::Face::Front),
+                    ssbh_data::matl_data::CullMode::None => None,
+                })
+                .flatten(),
             // Setting this to anything other than Fill requires Features::NON_FILL_POLYGON_MODE
             polygon_mode: wgpu::PolygonMode::Fill, // TODO: set by rasterizer state
             // Requires Features::DEPTH_CLAMPING

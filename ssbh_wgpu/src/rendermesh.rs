@@ -24,6 +24,7 @@ pub fn create_render_meshes(
     skel: &Option<SkelData>,
     matl: &Option<MatlData>,
     modl: &Option<ModlData>,
+    default_textures: &[(&'static str, wgpu::Texture)],
 ) -> Vec<RenderMesh> {
     let mut meshes = get_render_meshes_and_shader_tags(
         device,
@@ -36,10 +37,13 @@ pub fn create_render_meshes(
         skel,
         matl,
         modl,
+        default_textures,
     );
-    // Sort by the tag.
-    // TODO: Specify a custom ordering?
-    meshes.sort_by(|a, b| render_order(&a.1).cmp(&render_order(&b.1)));
+    // TODO: Does the order the sorting is applied matter here?
+    meshes.sort_by(|a, b| {
+        (render_pass_index(&a.1) as i32 + a.0.sort_bias)
+            .cmp(&(render_pass_index(&b.1) as i32 + b.0.sort_bias))
+    });
     meshes.into_iter().map(|(m, _)| m).collect()
 }
 
@@ -54,6 +58,7 @@ fn get_render_meshes_and_shader_tags(
     skel: &Option<SkelData>,
     matl: &Option<MatlData>,
     modl: &Option<ModlData>,
+    default_textures: &[(&'static str, wgpu::Texture)],
 ) -> Vec<(RenderMesh, String)> {
     // TODO: Find a way to organize this.
     // TODO: Find a way to derive the constants for the strides, alignments, etc.
@@ -101,9 +106,17 @@ fn get_render_meshes_and_shader_tags(
             let (vertex_buffer0, vertex_buffer1, index_buffer, vertex_index_count) =
                 mesh_object_buffers(mesh_object, device);
 
+            // TODO: Avoid creating defaults more than once?
             let load_texture_sampler = |texture_id, sampler_id, default| {
                 load_texture_sampler_or_default(
-                    device, queue, material, folder, texture_id, sampler_id, default,
+                    device,
+                    queue,
+                    material,
+                    folder,
+                    texture_id,
+                    sampler_id,
+                    default,
+                    default_textures,
                 )
             };
 
@@ -159,6 +172,7 @@ fn get_render_meshes_and_shader_tags(
                 vertex_buffer1,
                 index_buffer,
                 vertex_index_count,
+                sort_bias: mesh_object.sort_bias,
                 transforms_bind_group: crate::shader::model::bind_groups::BindGroup1::from_bindings(
                     device,
                     crate::shader::model::bind_groups::BindGroupLayout1 {
@@ -263,7 +277,7 @@ fn find_parent_transform(
     None
 }
 
-fn render_order(tag: &str) -> usize {
+fn render_pass_index(tag: &str) -> usize {
     match tag {
         "opaque" => 0,
         "far" => 1,
@@ -308,6 +322,7 @@ pub struct RenderMesh {
     vertex_buffer1: wgpu::Buffer,
     index_buffer: wgpu::Buffer,
     vertex_index_count: u32,
+    sort_bias: i32,
     // Use Arc so that meshes can share a pipeline.
     // Comparing arc pointers can be used to reduce set_pipeline calls later.
     pipeline: Arc<wgpu::RenderPipeline>,
