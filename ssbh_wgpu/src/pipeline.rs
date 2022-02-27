@@ -31,28 +31,17 @@ pub fn create_pipeline(
         vertex: wgpu::VertexState {
             module: shader,
             entry_point: "vs_main",
-            // TODO: Generate this information from the structs themselves?
             buffers: &[
+                // Assume tightly packed elements with no additional padding or alignment.
                 wgpu::VertexBufferLayout {
-                    array_stride: 3 * 16,
+                    array_stride: crate::shader::model::vertex::VertexInput0::SIZE_IN_BYTES,
                     step_mode: wgpu::VertexStepMode::Vertex,
-                    attributes: &wgpu::vertex_attr_array![
-                        0 => Float32x4,
-                        1 => Float32x4,
-                        2 => Float32x4
-                    ],
+                    attributes: &crate::shader::model::vertex::VertexInput0::VERTEX_ATTRIBUTES,
                 },
                 wgpu::VertexBufferLayout {
-                    array_stride: 5 * 16,
+                    array_stride: crate::shader::model::vertex::VertexInput1::SIZE_IN_BYTES,
                     step_mode: wgpu::VertexStepMode::Vertex,
-                    // TODO: Does having unique locations simplify validating this against the shader code?
-                    attributes: &wgpu::vertex_attr_array![
-                        3 => Float32x4,
-                        4 => Float32x4,
-                        5 => Float32x4,
-                        6 => Float32x4,
-                        7 => Float32x4
-                    ],
+                    attributes: &crate::shader::model::vertex::VertexInput1::VERTEX_ATTRIBUTES,
                 },
             ],
         },

@@ -591,9 +591,37 @@ pub mod vertex {
     pub const TANGENT0_LOCATION: u32 = 2u32;
     pub const MAP1_UVSET_LOCATION: u32 = 3u32;
     pub const UV_SET1_UV_SET2_LOCATION: u32 = 4u32;
-    pub const BAKE1_COLOR_SET67_LOCATION: u32 = 5u32;
-    pub const COLOR_SET1345_LOCATION: u32 = 6u32;
+    pub const BAKE1_LOCATION: u32 = 5u32;
+    pub const COLOR_SET1345_PACKED_LOCATION: u32 = 6u32;
     pub const COLOR_SET2_PACKED_LOCATION: u32 = 7u32;
+    pub const COLOR_SET67_PACKED_LOCATION: u32 = 8u32;
+    #[repr(C)]
+    #[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable, Default)]
+    pub struct VertexInput0 {
+        pub position0: [f32; 4],
+        pub normal0: [f32; 4],
+        pub tangent0: [f32; 4],
+    }
+    impl VertexInput0 {
+        pub const VERTEX_ATTRIBUTES: [wgpu::VertexAttribute; 3] = wgpu::vertex_attr_array![0 => Float32x4, 1 => Float32x4, 2 => Float32x4];
+        /// The total size in bytes of all fields without considering padding or alignment.
+        pub const SIZE_IN_BYTES: u64 = 48;
+    }
+    #[repr(C)]
+    #[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable, Default)]
+    pub struct VertexInput1 {
+        pub map1_uvset: [f32; 4],
+        pub uv_set1_uv_set2: [f32; 4],
+        pub bake1: [f32; 4],
+        pub color_set1345_packed: [u32; 4],
+        pub color_set2_packed: [u32; 4],
+        pub color_set67_packed: [u32; 4],
+    }
+    impl VertexInput1 {
+        pub const VERTEX_ATTRIBUTES: [wgpu::VertexAttribute; 6] = wgpu::vertex_attr_array![3 => Float32x4, 4 => Float32x4, 5 => Float32x4, 6 => Uint32x4, 7 => Uint32x4, 8 => Uint32x4];
+        /// The total size in bytes of all fields without considering padding or alignment.
+        pub const SIZE_IN_BYTES: u64 = 96;
+    }
 }
 pub fn create_shader_module(device: &wgpu::Device) -> wgpu::ShaderModule {
     device.create_shader_module(&wgpu::ShaderModuleDescriptor {

@@ -109,20 +109,22 @@ var sampler14: sampler;
 [[group(3), binding(0)]]
 var<uniform> uniforms: MaterialUniforms;
 
-// Multiple vertex buffers work fine as long as they have unique locations.
-// We can safely assume 16 available locations.
+
 struct VertexInput0 {
     [[location(0)]] position0: vec4<f32>;
     [[location(1)]] normal0: vec4<f32>;
     [[location(2)]] tangent0: vec4<f32>;
 };
 
+// We can safely assume 16 available locations.
+// Pack attributes to avoid going over the attribute limit.
 struct VertexInput1 {
     [[location(3)]] map1_uvset: vec4<f32>;
     [[location(4)]] uv_set1_uv_set2: vec4<f32>;
-    [[location(5)]] bake1_color_set67: vec4<f32>;
-    [[location(6)]] color_set1345: vec4<f32>;
-    [[location(7)]] color_set2_packed: vec4<f32>;
+    [[location(5)]] bake1: vec4<f32>;
+    [[location(6)]] color_set1345_packed: vec4<u32>;
+    [[location(7)]] color_set2_packed: vec4<u32>;
+    [[location(8)]] color_set67_packed: vec4<u32>;
 };
 
 // TODO: This will need to be reworked at some point.
@@ -131,11 +133,12 @@ struct VertexOutput {
     [[location(0)]] position: vec3<f32>;
     [[location(1)]] normal: vec3<f32>;
     [[location(2)]] tangent: vec4<f32>;
-    [[location(3)]] map1: vec2<f32>;
-    [[location(4)]] uvSet: vec2<f32>;
-    [[location(5)]] uvSet1: vec2<f32>;
-    [[location(6)]] uvSet2: vec2<f32>;
-    [[location(7)]] bake1: vec2<f32>;
+    [[location(3)]] map1_uvset: vec4<f32>;
+    [[location(4)]] uv_set1_uv_set2: vec4<f32>;
+    [[location(5)]] bake1: vec4<f32>;
+    [[location(6)]] color_set1345_packed: vec4<u32>;
+    [[location(7)]] color_set2_packed: vec4<u32>;
+    [[location(8)]] color_set67_packed: vec4<u32>;
 };
 
 fn Blend(a: vec3<f32>, b: vec4<f32>) -> vec3<f32> {
@@ -343,7 +346,9 @@ fn GgxAnisotropic(nDotH: f32, h: vec3<f32>, tangent: vec3<f32>, bitangent: vec3<
     return 1.0 / (normalization * denominator * denominator);
 }
 
-fn DiffuseTerm(in: VertexOutput, albedo: vec3<f32>, nDotL: f32, ambientLight: vec3<f32>, ao: vec3<f32>, sssBlend: f32) -> vec3<f32>
+fn DiffuseTerm(bake1: vec2<f32>, albedo: vec3<f32>, 
+    nDotL: f32, ambientLight: vec3<f32>, ao: vec3<f32>, 
+    sssBlend: f32) -> vec3<f32>
 {
     // TODO: This can be cleaned up.
     var directShading = albedo * max(nDotL, 0.0);
@@ -364,7 +369,7 @@ fn DiffuseTerm(in: VertexOutput, albedo: vec3<f32>, nDotL: f32, ambientLight: ve
     var ambientTerm = (ambientLight * ao);
 
     if (uniforms.has_texture[9].x == 1.0) {
-        let bakedLitColor = textureSample(texture9, sampler9, in.bake1).rgba;
+        let bakedLitColor = textureSample(texture9, sampler9, bake1).rgba;
         directLight = directLight * bakedLitColor.a;
         // Baked lighting maps are not affected by ambient occlusion.
         ambientTerm = ambientTerm + (bakedLitColor.rgb * 8.0);
@@ -543,19 +548,28 @@ fn vs_main(
     out.normal = transformed_normal.xyz;
     // Make sure to preserve the tangent sign.
     out.tangent = vec4<f32>(transformed_tangent.xyz, buffer0.tangent0.w);
-    out.map1 = buffer1.map1_uvset.xy;
-    out.uvSet = buffer1.map1_uvset.zw;
-    out.uvSet1 = buffer1.uv_set1_uv_set2.xy;
-    out.uvSet2 = buffer1.uv_set1_uv_set2.zw;
-    out.bake1 = buffer1.bake1_color_set67.xy;
+    
+    out.map1_uvset = buffer1.map1_uvset;
+    out.uv_set1_uv_set2 = buffer1.uv_set1_uv_set2;
+    out.bake1 = buffer1.bake1;
+    out.color_set1345_packed = buffer1.color_set1345_packed;
+    out.color_set2_packed = buffer1.color_set2_packed;
+    out.color_set67_packed = buffer1.color_set67_packed;
     return out;
 }
 
 [[stage(fragment)]]
 fn fs_main(in: VertexOutput) -> [[location(0)]] vec4<f32> {
+    let map1 = in.map1_uvset.xy;
+    let uvSet = in.map1_uvset.wz;
+    let uvSet1 = in.uv_set1_uv_set2.xy;
+    let uvSet2 = in.uv_set1_uv_set2.wz;
+    let bake1 = in.bake1.xy;
+    // TODO: Unpack color sets.
+
     // TODO: Some of these textures are sampled more than once.
-    let nor = textureSample(texture4, sampler4, in.map1.xy);
-    let prm = textureSample(texture6, sampler6, in.map1.xy);
+    let nor = textureSample(texture4, sampler4, map1);
+    let prm = textureSample(texture6, sampler6, map1);
     var metalness = prm.r;
     let roughness = prm.g;
     let ao = prm.b;
@@ -587,8 +601,8 @@ fn fs_main(in: VertexOutput) -> [[location(0)]] vec4<f32> {
     let nDotL = dot(fragmentNormal, normalize(chrLightDir));
 
     // TODO: Set up necessary inputs
-    let albedoColor = GetAlbedoColor(in.map1, in.uvSet, in.uvSet1, reflectionVector, vec4<f32>(1.0, 1.0, 0.0, 0.0), vec4<f32>(1.0, 1.0, 0.0, 0.0), vec4<f32>(1.0, 1.0, 0.0, 0.0), vec4<f32>(0.0));
-    let emissionColor = GetEmissionColor(in.map1, in.uvSet, vec4<f32>(1.0, 1.0, 0.0, 0.0), vec4<f32>(1.0, 1.0, 0.0, 0.0));
+    let albedoColor = GetAlbedoColor(map1, uvSet, uvSet1, reflectionVector, vec4<f32>(1.0, 1.0, 0.0, 0.0), vec4<f32>(1.0, 1.0, 0.0, 0.0), vec4<f32>(1.0, 1.0, 0.0, 0.0), vec4<f32>(0.0));
+    let emissionColor = GetEmissionColor(map1, uvSet, vec4<f32>(1.0, 1.0, 0.0, 0.0), vec4<f32>(1.0, 1.0, 0.0, 0.0));
 
     var outAlpha = max(albedoColor.a * emissionColor.a, uniforms.custom_vector[0].x);
     if (outAlpha < 0.5) {
@@ -612,7 +626,7 @@ fn fs_main(in: VertexOutput) -> [[location(0)]] vec4<f32> {
     let shAmbientB = dot(vec4<f32>(normalize(normal), 1.0), vec4<f32>(0.1419, 0.04334, -0.08283, 1.11018));
     let shColor = vec3<f32>(shAmbientR, shAmbientG, shAmbientB);
 
-    let diffusePass = DiffuseTerm(in, albedoColorFinal.rgb, nDotL, shColor, vec3<f32>(ao), sssBlend);
+    let diffusePass = DiffuseTerm(bake1, albedoColorFinal.rgb, nDotL, shColor, vec3<f32>(ao), sssBlend);
 
     let specularPass = SpecularTerm(in.tangent, nDotH, max(nDotL, 0.0), nDotV, halfAngle, fragmentNormal, roughness, specularIbl, metalness, prm.a);
 

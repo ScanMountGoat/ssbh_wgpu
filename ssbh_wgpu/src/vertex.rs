@@ -1,30 +1,10 @@
 use ssbh_data::mesh_data::MeshObjectData;
 use wgpu::{util::DeviceExt, Buffer, Device};
-
-// TODO: Generate structs for the vertex inputs in wgsl_to_wgpu
+use crate::shader::model::vertex::{VertexInput0, VertexInput1};
 
 // TODO: Create a function and tests that groups attributes into two buffers
 // TODO: Crevice for std140/430 layout to avoid alignment issues?
-#[repr(C)]
-#[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
-struct VertexBuffer0 {
-    position0: [f32; 4],
-    normal0: [f32; 4],
-    tangent0: [f32; 4],
-}
-
-// TODO: Add remaining attributes.
-#[repr(C)]
-#[derive(Debug, Copy, Clone, Default, bytemuck::Pod, bytemuck::Zeroable)]
-struct VertexBuffer1 {
-    map1_uv_set: glam::Vec4,
-    uv_set1_uv_set2: glam::Vec4,
-    bake1_color_set67: glam::Vec4,
-    color_set1345: glam::Vec4,     // TODO: use [u32; 4]?
-    color_set2_packed: glam::Vec4, // TODO: use [u32; 4]?
-}
-
-fn buffer0(mesh_data: &MeshObjectData) -> Vec<VertexBuffer0> {
+fn buffer0(mesh_data: &MeshObjectData) -> Vec<VertexInput0> {
     let mut vertices = Vec::new();
 
     // TODO: Refactor this to be cleaner.
@@ -52,7 +32,7 @@ fn buffer0(mesh_data: &MeshObjectData) -> Vec<VertexBuffer0> {
         .zip(normals.into_iter())
         .zip(tangents.into_iter())
     {
-        vertices.push(VertexBuffer0 {
+        vertices.push(VertexInput0 {
             position0: position,
             normal0: normal,
             tangent0: tangent,
@@ -78,22 +58,22 @@ macro_rules! set_attribute {
     };
 }
 
-fn buffer1(mesh_data: &MeshObjectData) -> Vec<VertexBuffer1> {
+fn buffer1(mesh_data: &MeshObjectData) -> Vec<VertexInput1> {
     // TODO: Actually check the attribute names.
     // TODO: How to assign attributes efficiently?
     // TODO: More robustly determine vertex count?
     let vertex_count = mesh_data.positions[0].data.len();
 
     // TODO: This could be done by zeroing memory but probably isn't worth it.
-    let mut vertices = vec![VertexBuffer1::default(); vertex_count];
+    let mut vertices = vec![VertexInput1::default(); vertex_count];
     
     for attribute in &mesh_data.texture_coordinates {
         match attribute.name.as_str() {
-            "map1" => set_attribute!(vertices, &attribute.data, map1_uv_set, 0, 1),
-            "uvSet" => set_attribute!(vertices, &attribute.data, map1_uv_set, 2, 3),
+            "map1" => set_attribute!(vertices, &attribute.data, map1_uvset, 0, 1),
+            "uvSet" => set_attribute!(vertices, &attribute.data, map1_uvset, 2, 3),
             "uvSet1" => set_attribute!(vertices, &attribute.data, uv_set1_uv_set2, 0, 1),
             "uvSet2" => set_attribute!(vertices, &attribute.data, uv_set1_uv_set2, 2, 3),
-            "bake1" => set_attribute!(vertices, &attribute.data, bake1_color_set67, 0, 1),
+            "bake1" => set_attribute!(vertices, &attribute.data, bake1, 0, 1),
             // TODO: color sets
             _ => (),
         }
