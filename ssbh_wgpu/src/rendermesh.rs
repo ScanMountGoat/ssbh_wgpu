@@ -1,6 +1,8 @@
 use crate::{
     pipeline::create_pipeline,
-    texture::{load_texture_sampler_cube_or_default, load_texture_sampler_or_default},
+    texture::{
+        load_texture_sampler, load_texture_sampler_cube, solid_color_texture_2d, load_default_cube,
+    },
     uniforms::create_uniforms_buffer,
     vertex::mesh_object_buffers,
 };
@@ -107,61 +109,51 @@ fn get_render_meshes_and_shader_tags(
                 mesh_object_buffers(mesh_object, device);
 
             // TODO: Avoid creating defaults more than once?
-            let load_texture_sampler = |texture_id, sampler_id, default| {
-                load_texture_sampler_or_default(
+            let load_texture_sampler = |texture_id, sampler_id| {
+                load_texture_sampler(
+                    material,
                     device,
                     queue,
-                    material,
                     folder,
                     texture_id,
                     sampler_id,
-                    default,
                     default_textures,
                 )
             };
 
-            let load_texture_sampler_cube = |texture_id, sampler_id, default| {
-                load_texture_sampler_cube_or_default(
-                    device, queue, material, folder, texture_id, sampler_id, default,
-                )
+            let load_texture_sampler_cube = |texture_id, sampler_id| {
+                load_texture_sampler_cube(material, device, queue, folder, texture_id, sampler_id)
             };
+
+            // TODO: Do all textures default to white if the path isn't correct?
+            // TODO: Default cube map?
+            let white = solid_color_texture_2d(device, queue, [255, 255, 255, 255]);
+            let default_white = (
+                white.create_view(&wgpu::TextureViewDescriptor::default()),
+                device.create_sampler(&wgpu::SamplerDescriptor::default()),
+            );
+
+            // TODO: Better cube map handling.
+            let stage_cube = load_default_cube(device, queue).unwrap();
 
             // TODO: Have accurate defaults but also accurate texture blending?
             // TODO: Generate this using a macro?
-            let (texture0, sampler0) =
-                load_texture_sampler(ParamId::Texture0, ParamId::Sampler0, [0, 0, 0, 255]);
-            let (texture1, sampler1) =
-                load_texture_sampler(ParamId::Texture1, ParamId::Sampler1, [0, 0, 0, 0]);
-            let (texture2, sampler2) =
-                load_texture_sampler_cube(ParamId::Texture2, ParamId::Sampler2, [0, 0, 0, 0]);
-            let (texture3, sampler3) =
-                load_texture_sampler(ParamId::Texture3, ParamId::Sampler3, [0, 0, 0, 0]);
-            let (texture4, sampler4) =
-                load_texture_sampler(ParamId::Texture4, ParamId::Sampler4, [0, 0, 0, 0]);
-            let (texture5, sampler5) =
-                load_texture_sampler(ParamId::Texture5, ParamId::Sampler5, [0, 0, 0, 255]);
-            let (texture6, sampler6) =
-                load_texture_sampler(ParamId::Texture6, ParamId::Sampler6, [0, 0, 0, 0]);
-
             // TODO: Avoid loading texture files more than once.
-            let (texture7, sampler7) =
-                load_texture_sampler_cube(ParamId::Texture7, ParamId::Sampler7, [0, 128, 255, 255]);
-
-            let (texture8, sampler8) =
-                load_texture_sampler_cube(ParamId::Texture8, ParamId::Sampler8, [0, 0, 0, 255]);
-            let (texture9, sampler9) =
-                load_texture_sampler(ParamId::Texture9, ParamId::Sampler9, [0, 0, 0, 255]);
-            let (texture10, sampler10) =
-                load_texture_sampler(ParamId::Texture10, ParamId::Sampler10, [0, 0, 0, 255]);
-            let (texture11, sampler11) =
-                load_texture_sampler(ParamId::Texture11, ParamId::Sampler11, [0, 0, 0, 255]);
-            let (texture12, sampler12) =
-                load_texture_sampler(ParamId::Texture12, ParamId::Sampler12, [0, 0, 0, 255]);
-            let (texture13, sampler13) =
-                load_texture_sampler(ParamId::Texture13, ParamId::Sampler13, [0, 0, 0, 255]);
-
-            let (texture14, sampler14) =
-                load_texture_sampler(ParamId::Texture14, ParamId::Sampler14, [0, 0, 0, 0]);
+            let texture0 = load_texture_sampler(ParamId::Texture0, ParamId::Sampler0);
+            let texture1 = load_texture_sampler(ParamId::Texture1, ParamId::Sampler1);
+            // let texture2 = load_texture_sampler_cube(ParamId::Texture2, ParamId::Sampler2).unwrap();
+            let texture3 = load_texture_sampler(ParamId::Texture3, ParamId::Sampler3);
+            let texture4 = load_texture_sampler(ParamId::Texture4, ParamId::Sampler4);
+            let texture5 = load_texture_sampler(ParamId::Texture5, ParamId::Sampler5);
+            let texture6 = load_texture_sampler(ParamId::Texture6, ParamId::Sampler6);
+            // let texture7 = load_texture_sampler_cube(ParamId::Texture7, ParamId::Sampler7).unwrap();
+            // let texture8 = load_texture_sampler_cube(ParamId::Texture8, ParamId::Sampler8).unwrap();
+            let texture9 = load_texture_sampler(ParamId::Texture9, ParamId::Sampler9);
+            let texture10 = load_texture_sampler(ParamId::Texture10, ParamId::Sampler10);
+            let texture11 = load_texture_sampler(ParamId::Texture11, ParamId::Sampler11);
+            let texture12 = load_texture_sampler(ParamId::Texture12, ParamId::Sampler12);
+            let texture13 = load_texture_sampler(ParamId::Texture13, ParamId::Sampler13);
+            let texture14 = load_texture_sampler(ParamId::Texture14, ParamId::Sampler14);
 
             let transforms_buffer = create_transforms_buffer(mesh_object, skel, device);
             let uniforms_buffer = create_uniforms_buffer(material, device);
@@ -182,36 +174,36 @@ fn get_render_meshes_and_shader_tags(
                 textures_bind_group: crate::shader::model::bind_groups::BindGroup2::from_bindings(
                     device,
                     crate::shader::model::bind_groups::BindGroupLayout2 {
-                        texture0: &texture0,
-                        sampler0: &sampler0,
-                        texture1: &texture1,
-                        sampler1: &sampler1,
-                        texture2: &texture2,
-                        sampler2: &sampler2,
-                        texture3: &texture3,
-                        sampler3: &sampler3,
-                        texture4: &texture4,
-                        sampler4: &sampler4,
-                        texture5: &texture5,
-                        sampler5: &sampler5,
-                        texture6: &texture6,
-                        sampler6: &sampler6,
-                        texture7: &texture7,
-                        sampler7: &sampler7,
-                        texture8: &texture8,
-                        sampler8: &sampler8,
-                        texture9: &texture9,
-                        sampler9: &sampler9,
-                        texture10: &texture10,
-                        sampler10: &sampler10,
-                        texture11: &texture11,
-                        sampler11: &sampler11,
-                        texture12: &texture12,
-                        sampler12: &sampler12,
-                        texture13: &texture13,
-                        sampler13: &sampler13,
-                        texture14: &texture14,
-                        sampler14: &sampler14,
+                        texture0: &texture0.as_ref().unwrap_or(&default_white).0,
+                        sampler0: &texture0.as_ref().unwrap_or(&default_white).1,
+                        texture1: &texture1.as_ref().unwrap_or(&default_white).0,
+                        sampler1: &texture1.as_ref().unwrap_or(&default_white).1,
+                        texture2: &stage_cube.0,
+                        sampler2: &stage_cube.1,
+                        texture3: &texture3.as_ref().unwrap_or(&default_white).0,
+                        sampler3: &texture3.as_ref().unwrap_or(&default_white).1,
+                        texture4: &texture4.as_ref().unwrap_or(&default_white).0,
+                        sampler4: &texture4.as_ref().unwrap_or(&default_white).1,
+                        texture5: &texture5.as_ref().unwrap_or(&default_white).0,
+                        sampler5: &texture5.as_ref().unwrap_or(&default_white).1,
+                        texture6: &texture6.as_ref().unwrap_or(&default_white).0,
+                        sampler6: &texture6.as_ref().unwrap_or(&default_white).1,
+                        texture7: &stage_cube.0,
+                        sampler7: &stage_cube.1,
+                        texture8: &stage_cube.0,
+                        sampler8: &stage_cube.1,
+                        texture9: &texture9.as_ref().unwrap_or(&default_white).0,
+                        sampler9: &texture9.as_ref().unwrap_or(&default_white).1,
+                        texture10: &texture10.as_ref().unwrap_or(&default_white).0,
+                        sampler10: &texture10.as_ref().unwrap_or(&default_white).1,
+                        texture11: &texture11.as_ref().unwrap_or(&default_white).0,
+                        sampler11: &texture11.as_ref().unwrap_or(&default_white).1,
+                        texture12: &texture12.as_ref().unwrap_or(&default_white).0,
+                        sampler12: &texture12.as_ref().unwrap_or(&default_white).1,
+                        texture13: &texture13.as_ref().unwrap_or(&default_white).0,
+                        sampler13: &texture13.as_ref().unwrap_or(&default_white).1,
+                        texture14: &texture14.as_ref().unwrap_or(&default_white).0,
+                        sampler14: &texture14.as_ref().unwrap_or(&default_white).1,
                     },
                 ),
                 material_uniforms_bind_group:

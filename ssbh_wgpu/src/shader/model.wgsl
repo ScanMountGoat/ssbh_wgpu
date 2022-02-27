@@ -167,12 +167,20 @@ fn TransformUv(uv: vec2<f32>, transform: vec4<f32>) -> vec2<f32>
 }
 
 // TODO: Rework texture blending to match the in game behavior.
-// TODO: How to handle no texture vs missing required texture?
+// The game usually uses white for missing required textures.
+// We use a single shader for all possible shaders.
+// This requires a conditional check for each texture to render correctly.
+// TODO: Ignore textures not used by the shader?
+// This could probably be loaded from Rust as has_attribute & requires_attribute.
 fn GetEmissionColor(uv1: vec2<f32>, uv2: vec2<f32>, transform1: vec4<f32>, transform2: vec4<f32>) -> vec4<f32> {
-    let uvLayer1 = TransformUv(uv1, transform1);
-    var emissionColor = textureSample(texture5, sampler5, uvLayer1);
+    var emissionColor = vec4<f32>(0.0, 0.0, 0.0, 1.0);
+    
+    if (uniforms.has_texture[5].x == 1.0) {
+        let uvLayer1 = TransformUv(uv1, transform1);
+        emissionColor = textureSample(texture5, sampler5, uvLayer1);
+    }
 
-    if (uniforms.has_texture[1].x == 1.0) {
+    if (uniforms.has_texture[14].x == 1.0) {
         let uvLayer2 = TransformUv(uv2, transform2);
         let emission2Color = textureSample(texture14, sampler14, uvLayer2);
         return vec4<f32>(Blend(emissionColor.rgb, emission2Color), emissionColor.a);
@@ -192,11 +200,15 @@ fn GetAlbedoColor(uv1: vec2<f32>, uv2: vec2<f32>, uv3: vec2<f32>, R: vec3<f32>, 
     let uvLayer2 = TransformUv(uv2, transform2);
     let uvLayer3 = TransformUv(uv3, transform3);
 
-    let albedoColor = textureSample(texture0, sampler0, uvLayer1);
+    var outRgb = vec3<f32>(0.0);
+    var outAlpha = 1.0;
 
-    var outRgb = albedoColor.rgb;
-    let outAlpha = albedoColor.a;
-
+    // TODO: Do additional layers affect alpha?
+    if (uniforms.has_texture[0].x == 1.0) {
+        let albedoColor = textureSample(texture0, sampler0, uvLayer1);
+        outRgb = Blend(outRgb, albedoColor);
+        outAlpha = albedoColor.a;
+    }
 
     // colorSet5.w is used to blend between the two col map layers.
     if (uniforms.has_texture[1].x == 1.0) {
@@ -617,6 +629,5 @@ fn fs_main(in: VertexOutput) -> [[location(0)]] vec4<f32> {
     outColor = GetRimBlend(outColor, albedoColorFinal, nDotV, max(nDotL, 0.0), 1.0, shColor);
 
     // TODO: Set alpha?
-    // let albedoColor = textureSample(texture0, sampler0, in.uvs);
     return vec4<f32>(outColor, outAlpha);
 }
