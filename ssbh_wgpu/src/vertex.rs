@@ -42,6 +42,15 @@ fn buffer0(mesh_data: &MeshObjectData) -> Vec<VertexInput0> {
     vertices
 }
 
+fn float_to_u8(f: f32) -> u8 {
+    (f * 255.0).clamp(0.0, 255.0) as u8
+}
+
+fn floats_to_u32(f: &[f32; 4]) -> u32 {
+    // TODO: Does gpu memory enforce an endianness?
+    u32::from_le_bytes([float_to_u8(f[0]), float_to_u8(f[1]), float_to_u8(f[2]), float_to_u8(f[3])])
+}
+
 // TODO: Support other lengths?
 macro_rules! set_attribute {
     ($v:ident, $data:expr, $field:ident, $dst1: literal, $dst2:literal) => {
@@ -58,8 +67,21 @@ macro_rules! set_attribute {
     };
 }
 
+macro_rules! set_color_attribute {
+    ($v:ident, $data:expr, $field:ident, $dst: literal) => {
+        match $data {
+            ssbh_data::mesh_data::VectorData::Vector2(_) => todo!(),
+            ssbh_data::mesh_data::VectorData::Vector3(_) => todo!(),
+            ssbh_data::mesh_data::VectorData::Vector4(values) => {
+                for (i, value) in values.iter().enumerate() {
+                    $v[i].$field[$dst] = floats_to_u32(&value);
+                }
+            },
+        }
+    };
+}
+
 fn buffer1(mesh_data: &MeshObjectData) -> Vec<VertexInput1> {
-    // TODO: Actually check the attribute names.
     // TODO: How to assign attributes efficiently?
     // TODO: More robustly determine vertex count?
     let vertex_count = mesh_data.positions[0].data.len();
@@ -74,7 +96,22 @@ fn buffer1(mesh_data: &MeshObjectData) -> Vec<VertexInput1> {
             "uvSet1" => set_attribute!(vertices, &attribute.data, uv_set1_uv_set2, 0, 1),
             "uvSet2" => set_attribute!(vertices, &attribute.data, uv_set1_uv_set2, 2, 3),
             "bake1" => set_attribute!(vertices, &attribute.data, bake1, 0, 1),
-            // TODO: color sets
+            _ => (),
+        }
+    }
+
+    for attribute in &mesh_data.color_sets {
+        match attribute.name.as_str() {
+            "colorSet1" => set_color_attribute!(vertices, &attribute.data, color_set1345_packed, 0),
+            "colorSet3" => set_color_attribute!(vertices, &attribute.data, color_set1345_packed, 1),
+            "colorSet4" => set_color_attribute!(vertices, &attribute.data, color_set1345_packed, 2),
+            "colorSet5" => set_color_attribute!(vertices, &attribute.data, color_set1345_packed, 3),
+            "colorSet2" => set_color_attribute!(vertices, &attribute.data, color_set2_packed, 0),
+            "colorSet2_1" => set_color_attribute!(vertices, &attribute.data, color_set2_packed, 1),
+            "colorSet2_2" => set_color_attribute!(vertices, &attribute.data, color_set2_packed, 2),
+            "colorSet2_3" => set_color_attribute!(vertices, &attribute.data, color_set2_packed, 3),
+            "colorSet6" => set_color_attribute!(vertices, &attribute.data, color_set67_packed, 0),
+            "colorSet7" => set_color_attribute!(vertices, &attribute.data, color_set67_packed, 1),
             _ => (),
         }
     }

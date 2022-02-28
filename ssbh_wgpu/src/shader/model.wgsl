@@ -136,6 +136,7 @@ struct VertexOutput {
     [[location(3)]] map1_uvset: vec4<f32>;
     [[location(4)]] uv_set1_uv_set2: vec4<f32>;
     [[location(5)]] bake1: vec4<f32>;
+    // TODO: These need to be interpolated but we only have 60 scalar components available.
     [[location(6)]] color_set1345_packed: vec4<u32>;
     [[location(7)]] color_set2_packed: vec4<u32>;
     [[location(8)]] color_set67_packed: vec4<u32>;
@@ -194,11 +195,6 @@ fn GetEmissionColor(uv1: vec2<f32>, uv2: vec2<f32>, transform1: vec4<f32>, trans
 
 fn GetAlbedoColor(uv1: vec2<f32>, uv2: vec2<f32>, uv3: vec2<f32>, R: vec3<f32>, transform1: vec4<f32>, transform2: vec4<f32>, transform3: vec4<f32>, colorSet5: vec4<f32>) -> vec4<f32>
 {
-    // HACK: The default albedo color is white, which won't work with emission.
-    // if (emissionOverride == 1) {
-    //     return vec4<f32>(0.0, 0.0, 0.0, 1.0);
-    // }
-
     let uvLayer1 = TransformUv(uv1, transform1);
     let uvLayer2 = TransformUv(uv2, transform2);
     let uvLayer3 = TransformUv(uv3, transform3);
@@ -428,7 +424,12 @@ fn SpecularTerm(tangent: vec4<f32>, nDotH: f32, nDotL: f32, nDotV: f32, halfAngl
 
 fn EmissionTerm(emissionColor: vec4<f32>) -> vec3<f32>
 {
-    return emissionColor.rgb;// * uniforms.custom_vector[3].rgb;
+    var result = emissionColor.rgb;
+    if (uniforms.has_vector[3].x == 1.0) {
+        result = result * uniforms.custom_vector[3].rgb;
+    }
+
+    return result;
 }
 
 fn GetF0FromIor(ior: f32) -> f32
@@ -565,16 +566,38 @@ fn fs_main(in: VertexOutput) -> [[location(0)]] vec4<f32> {
     let uvSet1 = in.uv_set1_uv_set2.xy;
     let uvSet2 = in.uv_set1_uv_set2.wz;
     let bake1 = in.bake1.xy;
-    // TODO: Unpack color sets.
 
-    // TODO: Some of these textures are sampled more than once.
-    let nor = textureSample(texture4, sampler4, map1);
-    let prm = textureSample(texture6, sampler6, map1);
+    // Color sets are packed to use fewer attributes.
+    let colorSet1 = unpack4x8unorm(in.color_set1345_packed.x);
+    let colorSet3 = unpack4x8unorm(in.color_set1345_packed.y);
+    let colorSet4 = unpack4x8unorm(in.color_set1345_packed.z);
+    let colorSet5 = unpack4x8unorm(in.color_set1345_packed.w);
+
+    let colorSet2 = unpack4x8unorm(in.color_set2_packed.x);
+    let colorSet2_11 = unpack4x8unorm(in.color_set2_packed.y);
+    let colorSet2_2 = unpack4x8unorm(in.color_set2_packed.z);
+    let colorSet2_3 = unpack4x8unorm(in.color_set2_packed.w);
+
+    let colorSet6 = unpack4x8unorm(in.color_set67_packed.x);
+    let colorSet7 = unpack4x8unorm(in.color_set67_packed.y);
+
+    // TODO: Some of these textures are sampled more than once?
+    var nor = vec4<f32>(0.5, 0.5, 1.0, 1.0);
+    if (uniforms.has_texture[4].x == 1.0) {
+        nor = textureSample(texture4, sampler4, map1);
+    }
+
+    var prm = vec4<f32>(0.0, 0.0, 1.0, 0.0);
+    if (uniforms.has_texture[6].x == 1.0) {
+        prm = textureSample(texture6, sampler6, map1);
+    }
+
     var metalness = prm.r;
     let roughness = prm.g;
     let ao = prm.b;
     let spec = prm.a;
 
+    // Skin shaders use metalness for masking the fake SSS effect.
     if (uniforms.custom_vector[30].x > 0.0) {
         metalness = 0.0;
     }
@@ -600,9 +623,23 @@ fn fs_main(in: VertexOutput) -> [[location(0)]] vec4<f32> {
     let nDotH = clamp(dot(fragmentNormal, halfAngle), 0.0, 1.0);
     let nDotL = dot(fragmentNormal, normalize(chrLightDir));
 
-    // TODO: Set up necessary inputs
-    let albedoColor = GetAlbedoColor(map1, uvSet, uvSet1, reflectionVector, vec4<f32>(1.0, 1.0, 0.0, 0.0), vec4<f32>(1.0, 1.0, 0.0, 0.0), vec4<f32>(1.0, 1.0, 0.0, 0.0), vec4<f32>(0.0));
-    let emissionColor = GetEmissionColor(map1, uvSet, vec4<f32>(1.0, 1.0, 0.0, 0.0), vec4<f32>(1.0, 1.0, 0.0, 0.0));
+    var uvTransform1 = vec4<f32>(1.0, 1.0, 0.0, 0.0);
+    if (uniforms.has_vector[6].x == 1.0) {
+        uvTransform1 = uniforms.custom_vector[6];
+    }
+
+    var uvTransform2 = vec4<f32>(1.0, 1.0, 0.0, 0.0);
+    if (uniforms.has_vector[31].x == 1.0) {
+        uvTransform1 = uniforms.custom_vector[31];
+    }
+
+    var uvTransform3 = vec4<f32>(1.0, 1.0, 0.0, 0.0);
+    if (uniforms.has_vector[32].x == 1.0) {
+        uvTransform1 = uniforms.custom_vector[32];
+    }
+
+    let albedoColor = GetAlbedoColor(map1, uvSet, uvSet1, reflectionVector, uvTransform1, uvTransform2, uvTransform3, colorSet5);
+    let emissionColor = GetEmissionColor(map1, uvSet, uvTransform1, uvTransform2);
 
     var outAlpha = max(albedoColor.a * emissionColor.a, uniforms.custom_vector[0].x);
     if (outAlpha < 0.5) {
@@ -642,6 +679,7 @@ fn fs_main(in: VertexOutput) -> [[location(0)]] vec4<f32> {
     outColor = outColor + EmissionTerm(emissionColor) * 0.5;
     outColor = GetRimBlend(outColor, albedoColorFinal, nDotV, max(nDotL, 0.0), 1.0, shColor);
 
-    // TODO: Set alpha?
+    // TODO: Color sets?
+
     return vec4<f32>(outColor, outAlpha);
 }

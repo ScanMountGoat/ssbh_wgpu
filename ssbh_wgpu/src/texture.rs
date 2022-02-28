@@ -342,7 +342,7 @@ pub fn create_default_textures(
             solid_color_texture_2d(device, queue, [128, 128, 255, 255]),
         ),
         (
-            "/common/shader/sfxpbs/fighter/default_normal",
+            "/common/shader/sfxpbs/fighter/default_params",
             solid_color_texture_2d(device, queue, [0, 255, 255, 58]),
         ),
     ]
