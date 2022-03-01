@@ -3,7 +3,7 @@ use std::{iter, path::Path};
 use ssbh_wgpu::shader::model::bind_groups::CameraTransforms;
 use ssbh_wgpu::texture::create_default_textures;
 use ssbh_wgpu::{
-    camera::create_camera_bind_group, load_model_folders, load_models, RenderMesh, SsbhRenderer,
+    camera::create_camera_bind_group, load_render_meshes, load_model_folders, RenderMesh, SsbhRenderer,
 };
 
 use winit::{
@@ -99,8 +99,8 @@ impl State {
             create_camera_bind_group(size, model_view, mvp, &device);
 
         let default_textures = create_default_textures(&device, &queue);
-        let models = load_models(folder);
-        let render_meshes = load_model_folders(&device, &queue, surface_format, &models, &default_textures);
+        let models = load_model_folders(folder);
+        let render_meshes = load_render_meshes(&device, &queue, surface_format, &models, &default_textures);
 
         // TODO: Move this to the lib?
         let renderer = SsbhRenderer::new(&device, &queue, size.width, size.height);

@@ -1,11 +1,12 @@
 use crate::{
     pipeline::create_pipeline,
     texture::{
-        load_texture_sampler, load_texture_sampler_cube, solid_color_texture_2d, load_default_cube,
+        load_default_cube, load_texture_sampler, load_texture_sampler_cube, solid_color_texture_2d,
     },
     uniforms::create_uniforms_buffer,
     vertex::mesh_object_buffers,
 };
+use nutexb_wgpu::NutexbFile;
 use ssbh_data::{
     matl_data::{MatlData, ParamId},
     mesh_data::MeshData,
@@ -13,7 +14,7 @@ use ssbh_data::{
     skel_data::SkelData,
 };
 use std::sync::Arc;
-use wgpu::util::DeviceExt;
+use wgpu::{util::DeviceExt, SamplerDescriptor, TextureViewDescriptor, TextureViewDimension};
 
 pub fn create_render_meshes(
     device: &wgpu::Device,
@@ -26,6 +27,7 @@ pub fn create_render_meshes(
     skel: &Option<SkelData>,
     matl: &Option<MatlData>,
     modl: &Option<ModlData>,
+    textures: &[(String, NutexbFile)],
     default_textures: &[(&'static str, wgpu::Texture)],
 ) -> Vec<RenderMesh> {
     let mut meshes = get_render_meshes_and_shader_tags(
@@ -39,6 +41,7 @@ pub fn create_render_meshes(
         skel,
         matl,
         modl,
+        textures,
         default_textures,
     );
     // TODO: Does the order the sorting is applied matter here?
@@ -60,6 +63,7 @@ fn get_render_meshes_and_shader_tags(
     skel: &Option<SkelData>,
     matl: &Option<MatlData>,
     modl: &Option<ModlData>,
+    textures: &[(String, NutexbFile)],
     default_textures: &[(&'static str, wgpu::Texture)],
 ) -> Vec<(RenderMesh, String)> {
     // TODO: Find a way to organize this.
@@ -117,28 +121,43 @@ fn get_render_meshes_and_shader_tags(
                     folder,
                     texture_id,
                     sampler_id,
+                    textures,
                     default_textures,
                 )
             };
 
-            let load_texture_sampler_cube = |texture_id, sampler_id| {
-                load_texture_sampler_cube(material, device, queue, folder, texture_id, sampler_id)
-            };
-
             // TODO: Do all textures default to white if the path isn't correct?
             // TODO: Default cube map?
-            let white = solid_color_texture_2d(device, queue, [255, 255, 255, 255]);
+            let (_, default_white) = default_textures
+                .iter()
+                .find(|d| d.0 == "/common/shader/sfxpbs/default_white")
+                .unwrap();
             let default_white = (
-                white.create_view(&wgpu::TextureViewDescriptor::default()),
-                device.create_sampler(&wgpu::SamplerDescriptor::default()),
+                default_white.create_view(&TextureViewDescriptor::default()),
+                device.create_sampler(&SamplerDescriptor::default()),
             );
 
             // TODO: Better cube map handling.
-            let stage_cube = load_default_cube(device, queue).unwrap();
+            // TODO: This should be part of the default textures?
+            // let stage_cube = load_default_cube(device, queue).unwrap();
+            // TODO: Default texture for other cube maps?
+            let (_, stage_cube) = default_textures
+                .iter()
+                .find(|d| d.0 == "#replace_cubemap")
+                .unwrap();
+            let stage_cube = (
+                stage_cube.create_view(&TextureViewDescriptor {
+                    dimension: Some(TextureViewDimension::Cube),
+                    ..Default::default()
+                }),
+                device.create_sampler(&SamplerDescriptor::default()),
+            );
 
-            // TODO: Have accurate defaults but also accurate texture blending?
-            // TODO: Generate this using a macro?
             // TODO: Avoid loading texture files more than once.
+            // This can be done by creating a HashMap<Path, Texture>.
+            // Most textures will be used, so it doesn't make sense to lazy load them.
+
+            // TODO: Generate this using a macro?
             let texture0 = load_texture_sampler(ParamId::Texture0, ParamId::Sampler0);
             let texture1 = load_texture_sampler(ParamId::Texture1, ParamId::Sampler1);
             // let texture2 = load_texture_sampler_cube(ParamId::Texture2, ParamId::Sampler2).unwrap();

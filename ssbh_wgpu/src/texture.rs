@@ -1,4 +1,7 @@
-use std::num::{NonZeroU32, NonZeroU8};
+use std::{
+    num::{NonZeroU32, NonZeroU8},
+    path::{Path, PathBuf},
+};
 
 use nutexb_wgpu::NutexbFile;
 use ssbh_data::matl_data::{MagFilter, MatlEntryData, MinFilter, ParamId, SamplerData, WrapMode};
@@ -15,6 +18,7 @@ pub fn load_texture_sampler_or_default(
     texture_id: ParamId,
     sampler_id: ParamId,
     default: [u8; 4],
+    textures: &[(String, NutexbFile)],
     default_textures: &[(&'static str, Texture)],
 ) -> (TextureView, Sampler) {
     load_texture_sampler(
@@ -24,6 +28,7 @@ pub fn load_texture_sampler_or_default(
         folder,
         texture_id,
         sampler_id,
+        textures,
         default_textures,
     )
     .unwrap_or_else(|| {
@@ -43,6 +48,7 @@ pub fn load_texture_sampler(
     folder: &str,
     texture_id: ParamId,
     sampler_id: ParamId,
+    textures: &[(String, NutexbFile)],
     default_textures: &[(&'static str, Texture)],
 ) -> Option<(TextureView, Sampler)> {
     // TODO: Add proper path and parameter handling.
@@ -68,12 +74,18 @@ pub fn load_texture_sampler(
     let view = match default {
         Some((_, texture)) => texture.create_view(&TextureViewDescriptor::default()),
         None => {
-            let absolute_path = std::path::Path::new(folder)
-                .join(material_path)
-                .with_extension("nutexb");
-
+            // TODO: Handle relative paths like "../texture_001"?
+            // This shouldn't require an actual file system for better portability.
             // TODO: This function should return an error.
-            let nutexb = NutexbFile::read_from_file(absolute_path).unwrap();
+            // TODO: Case sensitive?
+            let nutexb = &textures
+                .iter()
+                .find(|(p, _)| {
+                    Path::new(&p.to_lowercase()).with_extension("")
+                        == Path::new(&material_path.to_lowercase())
+                })
+                .unwrap()
+                .1;
             let texture = nutexb_wgpu::get_nutexb_data(&nutexb).create_texture(device, queue);
             texture.create_view(&TextureViewDescriptor::default())
         }
@@ -156,7 +168,11 @@ pub fn load_texture_sampler_cube(
     Some((view, sampler))
 }
 
-pub fn load_default_cube(device: &Device, queue: &Queue) -> Option<(TextureView, Sampler)> {
+// TODO: Rework return type?
+pub fn load_default_cube(
+    device: &Device,
+    queue: &Queue,
+) -> Option<(TextureView, Sampler, Texture)> {
     // TODO: Is there an actual default texture used in game?
     // TODO: This should only be used for texture7?
     let absolute_path = std::path::Path::new("reflection_cubemap.nutexb");
@@ -182,7 +198,7 @@ pub fn load_default_cube(device: &Device, queue: &Queue) -> Option<(TextureView,
         ..Default::default()
     });
 
-    Some((view, sampler))
+    Some((view, sampler, texture))
 }
 
 pub fn load_texture_sampler_3d(
@@ -272,6 +288,11 @@ pub fn create_default_textures(
     // TODO: Avoid duplicates.
     // TODO: Return a dictionary?
     vec![
+        (
+            // TODO: This will change if the current stage changes?
+            "#replace_cubemap",
+            load_default_cube(device, queue).unwrap().2,
+        ),
         (
             "/common/shader/sfxpbs/default_black",
             solid_color_texture_2d(device, queue, [0, 0, 0, 255]),

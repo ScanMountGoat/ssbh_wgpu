@@ -10,6 +10,7 @@ pub mod camera;
 mod renderer;
 mod rendermesh;
 
+use nutexb_wgpu::NutexbFile;
 pub use renderer::SsbhRenderer;
 pub use rendermesh::RenderMesh;
 
@@ -26,21 +27,25 @@ pub const RGBA_COLOR_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Bgra8Uno
 
 pub const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
 
+// Store the file data for a single folder.
+// This helps ensure files are loaded exactly once.
+// Applications can instantiate this struct directly instead of using the filesystem.
 pub struct ModelFolder {
     pub name: String,
     pub mesh: MeshData,
     pub skel: Option<SkelData>,
     pub matl: Option<MatlData>,
     pub modl: Option<ModlData>,
+    // TODO: Will a hashmap be faster for this many items?
+    pub textures_by_file_name: Vec<(String, NutexbFile)>,
 }
 
-// TODO: Come up with a buffer function name.
-pub fn load_model_folders(
+pub fn load_render_meshes(
     device: &wgpu::Device,
     queue: &wgpu::Queue,
     surface_format: wgpu::TextureFormat,
     models: &[ModelFolder],
-    default_textures: &[(&'static str, wgpu::Texture)]
+    default_textures: &[(&'static str, wgpu::Texture)],
 ) -> Vec<rendermesh::RenderMesh> {
     // TODO: Not all models can reuse the same pipeline?
     // TODO: Use wgsl_to_wgpu to automate this?
@@ -53,6 +58,7 @@ pub fn load_model_folders(
     // TODO: Should the camera go in the push constants?
     let render_pipeline_layout = crate::shader::model::create_pipeline_layout(device);
 
+    // TODO: Just pass the model folder in a convenience function?
     let start = std::time::Instant::now();
     let render_meshes: Vec<_> = models
         .iter()
@@ -68,7 +74,8 @@ pub fn load_model_folders(
                 &model.skel,
                 &model.matl,
                 &model.modl,
-                default_textures
+                &model.textures_by_file_name,
+                default_textures,
             )
         })
         .flatten()
@@ -81,14 +88,14 @@ pub fn load_model_folders(
     render_meshes
 }
 
-pub fn load_models<P: AsRef<Path>>(folder: P) -> Vec<ModelFolder> {
+pub fn load_model_folders<P: AsRef<Path>>(root: P) -> Vec<ModelFolder> {
     // TODO: Load files in parallel.
     // TODO: This should just walk directories?
 
     // TODO: This could be made more robust.
     // TODO: Determine the minimum files required for a renderable model?
-
-    let model_paths = globwalk::GlobWalkerBuilder::from_patterns(folder, &["*.{numshb}"])
+    // TODO: Also check for numdlb?
+    let model_paths = globwalk::GlobWalkerBuilder::from_patterns(root, &["*.{numshb}"])
         .build()
         .unwrap()
         .into_iter()
@@ -103,13 +110,34 @@ pub fn load_models<P: AsRef<Path>>(folder: P) -> Vec<ModelFolder> {
             let matl = MatlData::from_file(p.path().with_extension("numatb")).ok();
             let modl = ModlData::from_file(p.path().with_extension("numdlb")).ok();
 
-            let folder = p.path().parent().unwrap().to_str().unwrap().to_string();
+            // TODO: Get all nutexb files in current directory?
+            let parent = p.path().parent().unwrap();
+            let textures = std::fs::read_dir(parent)
+                .unwrap()
+                .into_iter()
+                .filter_map(|p| {
+                    if p.as_ref().unwrap().path().extension().unwrap().to_str() == Some("nutexb") {
+                        Some(p.as_ref().unwrap().path())
+                    } else {
+                        None
+                    }
+                })
+                .map(|p| {
+                    (
+                        p.file_name().unwrap().to_string_lossy().to_string(),
+                        NutexbFile::read_from_file(p).unwrap(),
+                    )
+                })
+                .collect();
+
+            let folder = parent.to_str().unwrap().to_string();
             Some(ModelFolder {
                 name: folder,
                 mesh,
                 skel,
                 matl,
                 modl,
+                textures_by_file_name: textures,
             })
         })
         .collect();
