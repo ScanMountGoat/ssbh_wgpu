@@ -79,7 +79,7 @@ pub fn create_uniforms_buffer(
                     _ => panic!("Unsupported vector param ID"),
                 };
 
-                custom_vector[index] = vector.data.to_array().into();
+                custom_vector[index] = vector.data.to_array();
                 has_vector[index][0] = 1.0;
             }
 

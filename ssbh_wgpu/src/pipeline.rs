@@ -1,6 +1,5 @@
 use ssbh_data::{
     matl_data::{BlendFactor, BlendStateData, MatlEntryData},
-    mesh_data::MeshObjectData,
 };
 
 // TODO: Create a function create_pipeline(mesh_object, material) -> RenderPipeline
@@ -10,8 +9,9 @@ pub fn create_pipeline(
     render_pipeline_layout: &wgpu::PipelineLayout,
     shader: &wgpu::ShaderModule,
     surface_format: wgpu::TextureFormat,
-    mesh_object: &MeshObjectData,
     material: Option<&MatlEntryData>,
+    depth_write: bool,
+    depth_test: bool
 ) -> wgpu::RenderPipeline {
     // Pipeline state takes most of its settings from the material.
     // The mesh object is just used for depth settings.
@@ -70,18 +70,16 @@ pub fn create_pipeline(
                 .flatten(),
             // Setting this to anything other than Fill requires Features::NON_FILL_POLYGON_MODE
             polygon_mode: wgpu::PolygonMode::Fill, // TODO: set by rasterizer state
-            // Requires Features::DEPTH_CLAMPING
-            // Requires Features::CONSERVATIVE_RASTERIZATION
             conservative: false,
             unclipped_depth: false,
         },
         depth_stencil: Some(wgpu::DepthStencilState {
-            format: wgpu::TextureFormat::Depth32Float, // TODO: make this a constant?
-            depth_write_enabled: !mesh_object.disable_depth_write,
-            depth_compare: if mesh_object.disable_depth_test {
-                wgpu::CompareFunction::Always
-            } else {
+            format: crate::DEPTH_FORMAT,
+            depth_write_enabled: depth_write,
+            depth_compare: if depth_test {
                 wgpu::CompareFunction::LessEqual
+            } else {
+                wgpu::CompareFunction::Always
             },
             stencil: wgpu::StencilState::default(),
             bias: wgpu::DepthBiasState::default(),

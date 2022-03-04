@@ -86,7 +86,7 @@ pub fn load_texture_sampler(
                 })
                 .unwrap()
                 .1;
-            let texture = nutexb_wgpu::get_nutexb_data(&nutexb).create_texture(device, queue);
+            let texture = nutexb_wgpu::get_nutexb_data(nutexb).create_texture(device, queue);
             texture.create_view(&TextureViewDescriptor::default())
         }
     };
