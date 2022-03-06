@@ -14,12 +14,15 @@ use wgpu::{util::DeviceExt, SamplerDescriptor, TextureViewDescriptor, TextureVie
 
 pub struct RenderMesh {
     // TODO: It may be worth sharing buffers in the future.
+    vertex_buffer0_source: wgpu::Buffer,
     vertex_buffer0: wgpu::Buffer,
     vertex_buffer1: wgpu::Buffer,
     index_buffer: wgpu::Buffer,
+    vertex_count: u32,
     vertex_index_count: u32,
     sort_bias: i32,
     transforms_bind_group: crate::shader::model::bind_groups::BindGroup1,
+    skinning_bind_group: wgpu::BindGroup, // TODO: Make this strongly typed?
     // Use Arc so that meshes can share a pipeline.
     // TODO: Comparing arc pointers to reduce set_pipeline calls?
     pipeline: Arc<PipelineData>,
@@ -172,16 +175,67 @@ fn get_render_meshes_and_shader_tags(
                     )
                 });
 
-            let (vertex_buffer0, vertex_buffer1, index_buffer, vertex_index_count) =
-                mesh_object_buffers(mesh_object, device);
-
-            let transforms_buffer = create_transforms_buffer(mesh_object, skel, device);
-
-            let mesh = RenderMesh {
-                pipeline: pipeline.clone(),
+            let (
+                vertex_buffer0_source,
                 vertex_buffer0,
                 vertex_buffer1,
                 index_buffer,
+                vertex_count,
+                vertex_index_count,
+            ) = mesh_object_buffers(mesh_object, device);
+
+            let transforms_buffer = create_transforms_buffer(mesh_object, skel, device);
+
+            // TODO: wgsl_to_wgpu for compute?
+            let skinning_bind_group_layout =
+                device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                    label: None,
+                    entries: &[
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 0,
+                            visibility: wgpu::ShaderStages::COMPUTE,
+                            ty: wgpu::BindingType::Buffer {
+                                ty: wgpu::BufferBindingType::Storage { read_only: true },
+                                has_dynamic_offset: false,
+                                min_binding_size: None,
+                            },
+                            count: None,
+                        },
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 1,
+                            visibility: wgpu::ShaderStages::COMPUTE,
+                            ty: wgpu::BindingType::Buffer {
+                                ty: wgpu::BufferBindingType::Storage { read_only: false },
+                                has_dynamic_offset: false,
+                                min_binding_size: None,
+                            },
+                            count: None,
+                        },
+                    ],
+                });
+            // TODO: Figure out why vulkan validation is failing.
+            let skinning_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+                label: None,
+                layout: &skinning_bind_group_layout,
+                entries: &[
+                    wgpu::BindGroupEntry {
+                        binding: 0,
+                        resource: vertex_buffer0_source.as_entire_binding(),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 1,
+                        resource: vertex_buffer0.as_entire_binding(),
+                    },
+                ],
+            });
+
+            let mesh = RenderMesh {
+                pipeline: pipeline.clone(),
+                vertex_buffer0_source,
+                vertex_buffer0,
+                vertex_buffer1,
+                index_buffer,
+                vertex_count,
                 vertex_index_count,
                 sort_bias: mesh_object.sort_bias,
                 transforms_bind_group: crate::shader::model::bind_groups::BindGroup1::from_bindings(
@@ -190,6 +244,7 @@ fn get_render_meshes_and_shader_tags(
                         transforms: &transforms_buffer,
                     },
                 ),
+                skinning_bind_group,
             };
 
             // The end of the shader label is used to determine draw order.
@@ -372,6 +427,18 @@ fn render_pass_index(tag: &str) -> usize {
     }
 }
 
+pub fn skin_render_meshes<'a>(meshes: &'a [RenderMesh], compute_pass: &mut wgpu::ComputePass<'a>) {
+    // Assume the pipeline is already set.
+    for mesh in meshes {
+        compute_pass.set_bind_group(0, &mesh.skinning_bind_group, &[]);
+
+        // The shader's local workgroup size is (256, 1, 1).
+        // Round up to avoid skipping vertices.
+        let workgroup_count = (mesh.vertex_count as f64 / 256.0).ceil() as u32;
+        compute_pass.dispatch(workgroup_count, 1, 1);
+    }
+}
+
 pub fn draw_render_meshes<'a>(
     meshes: &'a [RenderMesh],
     render_pass: &mut wgpu::RenderPass<'a>,
@@ -380,7 +447,6 @@ pub fn draw_render_meshes<'a>(
     // TODO: A future optimization is to reuse pipelines.
     // This requires testing to ensure state is correctly set.
     for mesh in meshes {
-        // let start = std::time::Instant::now();
         render_pass.set_pipeline(&mesh.pipeline.as_ref().pipeline);
 
         crate::shader::model::bind_groups::set_bind_groups(
@@ -396,7 +462,6 @@ pub fn draw_render_meshes<'a>(
         mesh.set_vertex_buffers(render_pass);
         mesh.set_index_buffer(render_pass);
 
-        // println!("Set Render State: {:?}", start.elapsed());
         render_pass.draw_indexed(0..mesh.vertex_index_count, 0, 0..1);
     }
 }

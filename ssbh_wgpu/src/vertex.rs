@@ -119,16 +119,30 @@ fn buffer1(mesh_data: &MeshObjectData) -> Vec<VertexInput1> {
     vertices
 }
 
+// TODO: Return a struct.
 pub fn mesh_object_buffers(
     mesh_object: &MeshObjectData,
     device: &Device,
-) -> (Buffer, Buffer, Buffer, u32) {
+) -> (Buffer, Buffer, Buffer, Buffer, u32, u32) {
     // TODO: Clean this up.
+    // TODO: Validate the vertex count and indices?
+
+    // The buffer0 is skinned in a compute shader later, so it must support STORAGE.
+    // Keep a separate copy of the non transformed data.
     let buffer0_vertices = buffer0(mesh_object);
-    let vertex_buffer0 = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+    let buffer0_data = bytemuck::cast_slice(&buffer0_vertices);
+    let vertex_buffer0_source = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
         label: Some("vertex buffer 0"),
-        contents: bytemuck::cast_slice(&buffer0_vertices),
-        usage: wgpu::BufferUsages::VERTEX,
+        contents: buffer0_data,
+        usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::STORAGE,
+    });
+
+    // This buffer will be filled by the compute shader later.
+    let vertex_buffer0 = device.create_buffer(&wgpu::BufferDescriptor {
+        label: Some("vertex buffer 0"),
+        size: buffer0_data.len() as u64,
+        usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::STORAGE,
+        mapped_at_creation: false
     });
 
     let buffer1_vertices = buffer1(mesh_object);
@@ -144,9 +158,11 @@ pub fn mesh_object_buffers(
         usage: wgpu::BufferUsages::INDEX,
     });
     (
+        vertex_buffer0_source,
         vertex_buffer0,
         vertex_buffer1,
         index_buffer,
+        buffer0_vertices.len() as u32,
         mesh_object.vertex_indices.len() as u32,
     )
 }
