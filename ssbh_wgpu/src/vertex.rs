@@ -1,6 +1,6 @@
-use ssbh_data::mesh_data::MeshObjectData;
-use wgpu::{util::DeviceExt, Buffer, Device};
 use crate::shader::model::vertex::{VertexInput0, VertexInput1};
+use ssbh_data::{mesh_data::MeshObjectData, skel_data::SkelData};
+use wgpu::{util::DeviceExt, Buffer, Device};
 
 // TODO: Create a function and tests that groups attributes into two buffers
 // TODO: Crevice for std140/430 layout to avoid alignment issues?
@@ -48,7 +48,12 @@ fn float_to_u8(f: f32) -> u8 {
 
 fn floats_to_u32(f: &[f32; 4]) -> u32 {
     // TODO: Does gpu memory enforce an endianness?
-    u32::from_le_bytes([float_to_u8(f[0]), float_to_u8(f[1]), float_to_u8(f[2]), float_to_u8(f[3])])
+    u32::from_le_bytes([
+        float_to_u8(f[0]),
+        float_to_u8(f[1]),
+        float_to_u8(f[2]),
+        float_to_u8(f[3]),
+    ])
 }
 
 // TODO: Support other lengths?
@@ -76,7 +81,7 @@ macro_rules! set_color_attribute {
                 for (i, value) in values.iter().enumerate() {
                     $v[i].$field[$dst] = floats_to_u32(&value);
                 }
-            },
+            }
         }
     };
 }
@@ -88,7 +93,7 @@ fn buffer1(mesh_data: &MeshObjectData) -> Vec<VertexInput1> {
 
     // TODO: This could be done by zeroing memory but probably isn't worth it.
     let mut vertices = vec![VertexInput1::default(); vertex_count];
-    
+
     for attribute in &mesh_data.texture_coordinates {
         match attribute.name.as_str() {
             "map1" => set_attribute!(vertices, &attribute.data, map1_uvset, 0, 1),
@@ -119,11 +124,115 @@ fn buffer1(mesh_data: &MeshObjectData) -> Vec<VertexInput1> {
     vertices
 }
 
-// TODO: Return a struct.
+// TODO: Use generated structs from shader.
+#[repr(C)]
+#[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
+struct Transforms {
+    transforms: [glam::Mat4; 512],
+    transforms_inv_transpose: [glam::Mat4; 512],
+}
+
+#[repr(C)]
+#[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
+struct VertexWeight {
+    bone_indices: [i32; 4],
+    weights: [f32; 4],
+}
+
+impl VertexWeight {
+    fn add_weight(&mut self, index: i32, weight: f32) {
+        // Assume unitialized indices have an index of -1.
+        // TODO: How does in game ignore more than 4 influences?
+        for i in 0..4 {
+            if self.bone_indices[i] < 0 {
+                self.bone_indices[i] = index;
+                self.weights[i] = weight;
+                break;
+            }
+        }
+    }
+}
+
+impl Default for VertexWeight {
+    fn default() -> Self {
+        Self {
+            bone_indices: [-1; 4],
+            weights: [0.0; 4],
+        }
+    }
+}
+
+fn skin_weights(
+    mesh_data: &MeshObjectData,
+    skel: &Option<SkelData>,
+    vertex_count: usize,
+) -> Vec<VertexWeight> {
+    match skel {
+        Some(skel) => {
+            if mesh_data.bone_influences.is_empty() {
+                // Weight each vertex to the parent bone.
+                // TODO: Check if this gives the right visual result compared to skinning.
+                // TODO: How to combine this with the vertex shader?
+                let parent_bone_index = skel
+                    .bones
+                    .iter()
+                    .position(|b| b.name == mesh_data.parent_bone_name)
+                    .map(|i| i as i32)
+                    .unwrap_or(-1);
+
+                vec![
+                    VertexWeight {
+                        bone_indices: [parent_bone_index, -1, -1, -1],
+                        weights: [1.0, 0.0, 0.0, 0.0]
+                    };
+                    vertex_count
+                ]
+                // vec![VertexWeight::default(); vertex_count]
+
+            } else {
+                // Collect influences per vertex.
+                let mut weights = vec![VertexWeight::default(); vertex_count];
+
+                for influence in &mesh_data.bone_influences {
+                    if let Some(bone_index) = skel
+                        .bones
+                        .iter()
+                        .position(|b| b.name == influence.bone_name)
+                    {
+                        // TODO: How to handle meshes with no influences but a parent bone?
+                        for w in &influence.vertex_weights {
+                            weights[w.vertex_index as usize]
+                                .add_weight(bone_index as i32, w.vertex_weight)
+                        }
+                    }
+                }
+
+                weights
+            }
+        }
+        None => {
+            // TODO: How to handle a missing skel?
+            vec![VertexWeight::default(); vertex_count]
+        },
+    }
+}
+
+pub struct MeshObjectBufferData {
+    pub vertex_buffer0_source: wgpu::Buffer,
+    pub vertex_buffer0: wgpu::Buffer,
+    pub vertex_buffer1: wgpu::Buffer,
+    pub skinning_buffer: wgpu::Buffer,
+    pub bone_transforms_buffer: wgpu::Buffer,
+    pub index_buffer: wgpu::Buffer,
+    pub vertex_count: usize,
+    pub vertex_index_count: usize,
+}
+
 pub fn mesh_object_buffers(
-    mesh_object: &MeshObjectData,
     device: &Device,
-) -> (Buffer, Buffer, Buffer, Buffer, u32, u32) {
+    mesh_object: &MeshObjectData,
+    skel: &Option<SkelData>,
+) -> MeshObjectBufferData {
     // TODO: Clean this up.
     // TODO: Validate the vertex count and indices?
 
@@ -134,22 +243,43 @@ pub fn mesh_object_buffers(
     let vertex_buffer0_source = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
         label: Some("vertex buffer 0"),
         contents: buffer0_data,
-        usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::STORAGE,
+        usage: wgpu::BufferUsages::STORAGE,
     });
 
     // This buffer will be filled by the compute shader later.
     let vertex_buffer0 = device.create_buffer(&wgpu::BufferDescriptor {
-        label: Some("vertex buffer 0"),
+        label: Some("Vertex Buffer 0"),
         size: buffer0_data.len() as u64,
         usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::STORAGE,
-        mapped_at_creation: false
+        mapped_at_creation: false,
     });
 
     let buffer1_vertices = buffer1(mesh_object);
     let vertex_buffer1 = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-        label: Some("vertex buffer 1"),
+        label: Some("Vertex Buffer 1"),
         contents: bytemuck::cast_slice(&buffer1_vertices),
         usage: wgpu::BufferUsages::VERTEX,
+    });
+
+    let vertex_count = buffer0_vertices.len();
+    let skin_weights = skin_weights(mesh_object, skel, vertex_count);
+
+    let skinning_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        label: Some("Skinning Buffer"),
+        contents: bytemuck::cast_slice(&skin_weights),
+        usage: wgpu::BufferUsages::STORAGE,
+    });
+
+    // TODO: Enforce bone count being at most 511?
+    // TODO: How to initialize the animation transforms?
+    // TODO: How to efficiently share this data between RenderMesh with the same skel?
+    let bone_transforms_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        label: Some("Bone Transforms Buffer"),
+        contents: bytemuck::cast_slice(&[Transforms {
+            transforms: [glam::Mat4::IDENTITY; 512],
+            transforms_inv_transpose: [glam::Mat4::IDENTITY; 512],
+        }]),
+        usage: wgpu::BufferUsages::UNIFORM,
     });
 
     let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -157,12 +287,15 @@ pub fn mesh_object_buffers(
         contents: bytemuck::cast_slice(&mesh_object.vertex_indices),
         usage: wgpu::BufferUsages::INDEX,
     });
-    (
+
+    MeshObjectBufferData {
         vertex_buffer0_source,
         vertex_buffer0,
         vertex_buffer1,
+        skinning_buffer,
+        bone_transforms_buffer,
         index_buffer,
-        buffer0_vertices.len() as u32,
-        mesh_object.vertex_indices.len() as u32,
-    )
+        vertex_count,
+        vertex_index_count: mesh_object.vertex_indices.len(),
+    }
 }

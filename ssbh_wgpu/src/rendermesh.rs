@@ -175,14 +175,7 @@ fn get_render_meshes_and_shader_tags(
                     )
                 });
 
-            let (
-                vertex_buffer0_source,
-                vertex_buffer0,
-                vertex_buffer1,
-                index_buffer,
-                vertex_count,
-                vertex_index_count,
-            ) = mesh_object_buffers(mesh_object, device);
+            let buffer_data = mesh_object_buffers(device, mesh_object, skel);
 
             let transforms_buffer = create_transforms_buffer(mesh_object, skel, device);
 
@@ -205,7 +198,27 @@ fn get_render_meshes_and_shader_tags(
                             binding: 1,
                             visibility: wgpu::ShaderStages::COMPUTE,
                             ty: wgpu::BindingType::Buffer {
+                                ty: wgpu::BufferBindingType::Storage { read_only: true },
+                                has_dynamic_offset: false,
+                                min_binding_size: None,
+                            },
+                            count: None,
+                        },
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 2,
+                            visibility: wgpu::ShaderStages::COMPUTE,
+                            ty: wgpu::BindingType::Buffer {
                                 ty: wgpu::BufferBindingType::Storage { read_only: false },
+                                has_dynamic_offset: false,
+                                min_binding_size: None,
+                            },
+                            count: None,
+                        },
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 3,
+                            visibility: wgpu::ShaderStages::COMPUTE,
+                            ty: wgpu::BindingType::Buffer {
+                                ty: wgpu::BufferBindingType::Uniform,
                                 has_dynamic_offset: false,
                                 min_binding_size: None,
                             },
@@ -220,23 +233,31 @@ fn get_render_meshes_and_shader_tags(
                 entries: &[
                     wgpu::BindGroupEntry {
                         binding: 0,
-                        resource: vertex_buffer0_source.as_entire_binding(),
+                        resource: buffer_data.vertex_buffer0_source.as_entire_binding(),
                     },
                     wgpu::BindGroupEntry {
                         binding: 1,
-                        resource: vertex_buffer0.as_entire_binding(),
+                        resource: buffer_data.skinning_buffer.as_entire_binding(),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 2,
+                        resource: buffer_data.vertex_buffer0.as_entire_binding(),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 3,
+                        resource: buffer_data.bone_transforms_buffer.as_entire_binding(),
                     },
                 ],
             });
 
             let mesh = RenderMesh {
                 pipeline: pipeline.clone(),
-                vertex_buffer0_source,
-                vertex_buffer0,
-                vertex_buffer1,
-                index_buffer,
-                vertex_count,
-                vertex_index_count,
+                vertex_buffer0_source: buffer_data.vertex_buffer0_source,
+                vertex_buffer0: buffer_data.vertex_buffer0,
+                vertex_buffer1: buffer_data.vertex_buffer1,
+                index_buffer: buffer_data.index_buffer,
+                vertex_count: buffer_data.vertex_count as u32,
+                vertex_index_count: buffer_data.vertex_index_count as u32,
                 sort_bias: mesh_object.sort_bias,
                 transforms_bind_group: crate::shader::model::bind_groups::BindGroup1::from_bindings(
                     device,
