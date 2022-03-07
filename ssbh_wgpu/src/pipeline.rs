@@ -34,14 +34,14 @@ pub fn create_pipeline(
             buffers: &[
                 // Assume tightly packed elements with no additional padding or alignment.
                 wgpu::VertexBufferLayout {
-                    array_stride: crate::shader::model::vertex::VertexInput0::SIZE_IN_BYTES,
+                    array_stride: crate::shader::model::VertexInput0::SIZE_IN_BYTES,
                     step_mode: wgpu::VertexStepMode::Vertex,
-                    attributes: &crate::shader::model::vertex::VertexInput0::VERTEX_ATTRIBUTES,
+                    attributes: &crate::shader::model::VertexInput0::VERTEX_ATTRIBUTES,
                 },
                 wgpu::VertexBufferLayout {
-                    array_stride: crate::shader::model::vertex::VertexInput1::SIZE_IN_BYTES,
+                    array_stride: crate::shader::model::VertexInput1::SIZE_IN_BYTES,
                     step_mode: wgpu::VertexStepMode::Vertex,
-                    attributes: &crate::shader::model::vertex::VertexInput1::VERTEX_ATTRIBUTES,
+                    attributes: &crate::shader::model::VertexInput1::VERTEX_ATTRIBUTES,
                 },
             ],
         },

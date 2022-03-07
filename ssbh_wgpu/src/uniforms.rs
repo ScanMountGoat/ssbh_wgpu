@@ -175,7 +175,7 @@ pub fn create_uniforms_buffer(
                 has_texture[index][0] = 1.0;
             }
 
-            crate::shader::model::bind_groups::MaterialUniforms {
+            crate::shader::model::MaterialUniforms {
                 custom_vector,
                 custom_boolean,
                 custom_float,
@@ -186,7 +186,7 @@ pub fn create_uniforms_buffer(
         })
         .unwrap_or(
             // Missing values are always set to zero.
-            crate::shader::model::bind_groups::MaterialUniforms {
+            crate::shader::model::MaterialUniforms {
                 custom_vector: [[0.0; 4]; 64],
                 custom_boolean: [[0.0; 4]; 20],
                 custom_float: [[0.0; 4]; 20],

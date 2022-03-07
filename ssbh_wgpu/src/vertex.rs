@@ -1,4 +1,4 @@
-use crate::shader::model::vertex::{VertexInput0, VertexInput1};
+use crate::shader::model::{VertexInput0, VertexInput1};
 use ssbh_data::{mesh_data::MeshObjectData, skel_data::SkelData};
 use wgpu::{util::DeviceExt, Buffer, Device};
 
@@ -92,7 +92,17 @@ fn buffer1(mesh_data: &MeshObjectData) -> Vec<VertexInput1> {
     let vertex_count = mesh_data.positions[0].data.len();
 
     // TODO: This could be done by zeroing memory but probably isn't worth it.
-    let mut vertices = vec![VertexInput1::default(); vertex_count];
+    let mut vertices = vec![
+        VertexInput1 {
+            map1_uvset: [0.0; 4],
+            uv_set1_uv_set2: [0.0; 4],
+            bake1: [0.0; 4],
+            color_set1345_packed: [0; 4],
+            color_set2_packed: [0; 4],
+            color_set67_packed: [0; 4]
+        };
+        vertex_count
+    ];
 
     for attribute in &mesh_data.texture_coordinates {
         match attribute.name.as_str() {
@@ -122,14 +132,6 @@ fn buffer1(mesh_data: &MeshObjectData) -> Vec<VertexInput1> {
     }
 
     vertices
-}
-
-// TODO: Use generated structs from shader.
-#[repr(C)]
-#[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
-struct Transforms {
-    transforms: [glam::Mat4; 512],
-    transforms_inv_transpose: [glam::Mat4; 512],
 }
 
 #[repr(C)]
@@ -173,22 +175,21 @@ fn skin_weights(
                 // Weight each vertex to the parent bone.
                 // TODO: Check if this gives the right visual result compared to skinning.
                 // TODO: How to combine this with the vertex shader?
-                let parent_bone_index = skel
-                    .bones
-                    .iter()
-                    .position(|b| b.name == mesh_data.parent_bone_name)
-                    .map(|i| i as i32)
-                    .unwrap_or(-1);
+                // let parent_bone_index = skel
+                //     .bones
+                //     .iter()
+                //     .position(|b| b.name == mesh_data.parent_bone_name)
+                //     .map(|i| i as i32)
+                //     .unwrap_or(-1);
 
-                vec![
-                    VertexWeight {
-                        bone_indices: [parent_bone_index, -1, -1, -1],
-                        weights: [1.0, 0.0, 0.0, 0.0]
-                    };
-                    vertex_count
-                ]
-                // vec![VertexWeight::default(); vertex_count]
-
+                // vec![
+                //     VertexWeight {
+                //         bone_indices: [parent_bone_index, -1, -1, -1],
+                //         weights: [1.0, 0.0, 0.0, 0.0]
+                //     };
+                //     vertex_count
+                // ]
+                vec![VertexWeight::default(); vertex_count]
             } else {
                 // Collect influences per vertex.
                 let mut weights = vec![VertexWeight::default(); vertex_count];
@@ -213,7 +214,7 @@ fn skin_weights(
         None => {
             // TODO: How to handle a missing skel?
             vec![VertexWeight::default(); vertex_count]
-        },
+        }
     }
 }
 
@@ -222,7 +223,6 @@ pub struct MeshObjectBufferData {
     pub vertex_buffer0: wgpu::Buffer,
     pub vertex_buffer1: wgpu::Buffer,
     pub skinning_buffer: wgpu::Buffer,
-    pub bone_transforms_buffer: wgpu::Buffer,
     pub index_buffer: wgpu::Buffer,
     pub vertex_count: usize,
     pub vertex_index_count: usize,
@@ -270,18 +270,6 @@ pub fn mesh_object_buffers(
         usage: wgpu::BufferUsages::STORAGE,
     });
 
-    // TODO: Enforce bone count being at most 511?
-    // TODO: How to initialize the animation transforms?
-    // TODO: How to efficiently share this data between RenderMesh with the same skel?
-    let bone_transforms_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-        label: Some("Bone Transforms Buffer"),
-        contents: bytemuck::cast_slice(&[Transforms {
-            transforms: [glam::Mat4::IDENTITY; 512],
-            transforms_inv_transpose: [glam::Mat4::IDENTITY; 512],
-        }]),
-        usage: wgpu::BufferUsages::UNIFORM,
-    });
-
     let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
         label: Some("Index Buffer"),
         contents: bytemuck::cast_slice(&mesh_object.vertex_indices),
@@ -293,7 +281,6 @@ pub fn mesh_object_buffers(
         vertex_buffer0,
         vertex_buffer1,
         skinning_buffer,
-        bone_transforms_buffer,
         index_buffer,
         vertex_count,
         vertex_index_count: mesh_object.vertex_indices.len(),

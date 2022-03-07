@@ -9,6 +9,7 @@ mod vertex;
 pub mod camera;
 mod renderer;
 mod rendermesh;
+mod animation;
 
 use nutexb_wgpu::NutexbFile;
 pub use renderer::SsbhRenderer;

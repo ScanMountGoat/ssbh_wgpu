@@ -1,10 +1,9 @@
-use wgpu::{
-    include_wgsl, BindGroupLayout, BindGroupLayoutDescriptor, BindGroupLayoutEntry,
-    ComputePipelineDescriptor, PipelineLayoutDescriptor, RenderPipelineDescriptor, ShaderStages, ComputePassDescriptor,
-};
+use wgpu::{ComputePassDescriptor, ComputePipelineDescriptor};
 
 use crate::{rendermesh::RenderMesh, texture::load_texture_sampler_3d};
 
+// TODO: Add multiple animation "slots"?
+// TODO: Should animations be a parameter or field?
 pub struct SsbhRenderer {
     bloom_threshold_pipeline: wgpu::RenderPipeline,
     bloom_blur_pipeline: wgpu::RenderPipeline,
@@ -127,60 +126,9 @@ impl SsbhRenderer {
                 multiview: None,
             });
 
-        // TODO: Support compute shaders in wgsl_to_wgpu.
-        // TODO: Min binding size?
-        let shader = include_wgsl!("shader/skinning.wgsl");
-        let module = device.create_shader_module(&shader);
-        let bind_group0 = device.create_bind_group_layout(&BindGroupLayoutDescriptor {
-            label: None,
-            entries: &[
-                BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: true },
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                },
-                BindGroupLayoutEntry {
-                    binding: 1,
-                    visibility: ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: true },
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                },
-                BindGroupLayoutEntry {
-                    binding: 2,
-                    visibility: ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: false },
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                },
-                BindGroupLayoutEntry {
-                    binding: 3,
-                    visibility: ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                },
-            ],
-        });
-        let pipeline_layout = device.create_pipeline_layout(&PipelineLayoutDescriptor {
-            label: None,
-            bind_group_layouts: &[&bind_group0],
-            push_constant_ranges: &[],
-        });
+        let module = crate::shader::skinning::create_shader_module(device);
+        let pipeline_layout = crate::shader::skinning::create_pipeline_layout(device);
+        // TODO: Better support compute shaders in wgsl_to_wgpu.
         let skinning_pipeline = device.create_compute_pipeline(&ComputePipelineDescriptor {
             label: Some("Vertex Skinning Compute"),
             layout: Some(&pipeline_layout),
@@ -206,6 +154,7 @@ impl SsbhRenderer {
         self.pass_info = PassInfo::new(device, queue, width, height);
     }
 
+    // TODO: Animation?
     pub fn render_ssbh_passes(
         &self,
         encoder: &mut wgpu::CommandEncoder,
@@ -223,7 +172,6 @@ impl SsbhRenderer {
         crate::rendermesh::skin_render_meshes(render_meshes, &mut skinning_pass);
 
         drop(skinning_pass);
-
 
         // TODO: Force having a color attachment for each fragment shader output in wgsl_to_wgpu?
         let mut model_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {

@@ -1,14 +1,9 @@
 use crate::{
-    pipeline::create_pipeline, texture::load_texture_sampler, uniforms::create_uniforms_buffer,
-    vertex::mesh_object_buffers,
+    animation::apply_animation, pipeline::create_pipeline, texture::load_texture_sampler,
+    uniforms::create_uniforms_buffer, vertex::mesh_object_buffers,
 };
 use nutexb_wgpu::NutexbFile;
-use ssbh_data::{
-    matl_data::{MatlData, ParamId},
-    mesh_data::MeshData,
-    modl_data::ModlData,
-    skel_data::SkelData,
-};
+use ssbh_data::{anim_data::TrackValues, matl_data::ParamId, prelude::*};
 use std::{collections::HashMap, sync::Arc};
 use wgpu::{util::DeviceExt, SamplerDescriptor, TextureViewDescriptor, TextureViewDimension};
 
@@ -22,7 +17,7 @@ pub struct RenderMesh {
     vertex_index_count: u32,
     sort_bias: i32,
     transforms_bind_group: crate::shader::model::bind_groups::BindGroup1,
-    skinning_bind_group: wgpu::BindGroup, // TODO: Make this strongly typed?
+    skinning_bind_group: crate::shader::skinning::bind_groups::BindGroup0,
     // Use Arc so that meshes can share a pipeline.
     // TODO: Comparing arc pointers to reduce set_pipeline calls?
     pipeline: Arc<PipelineData>,
@@ -83,6 +78,15 @@ pub fn create_render_meshes(
     meshes.into_iter().map(|(m, _)| m).collect()
 }
 
+// TODO: Separate module for skinning/animation?
+// TODO: Use generated structs from shader.
+#[repr(C)]
+#[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
+struct Transforms {
+    transforms: [glam::Mat4; 512],
+    transforms_inv_transpose: [glam::Mat4; 512],
+}
+
 fn get_render_meshes_and_shader_tags(
     device: &wgpu::Device,
     queue: &wgpu::Queue,
@@ -129,6 +133,28 @@ fn get_render_meshes_and_shader_tags(
     // TODO: Split into PerMaterial, PerObject, etc in the shaders?
 
     let mut pipelines = HashMap::new();
+
+    // TODO: Share buffers?
+
+    // TODO: Where to store/load anim files?
+    let anim = AnimData::from_file("a00wait1.nuanmb").unwrap();
+
+    // TODO: Where to update the current frame?
+    let (anim_world_transforms, transforms, transforms_inv_transpose) =
+        apply_animation(skel, &anim, 0.0);
+
+    // transforms_inv_transpose: [glam::Mat4::IDENTITY; 512],
+    // TODO: Enforce bone count being at most 511?
+    // TODO: How to initialize the animation transforms?
+    // TODO: How to efficiently share this data between RenderMesh with the same skel?
+    let bone_transforms_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        label: Some("Bone Transforms Buffer"),
+        contents: bytemuck::cast_slice(&[Transforms {
+            transforms: *transforms,
+            transforms_inv_transpose: *transforms_inv_transpose,
+        }]),
+        usage: wgpu::BufferUsages::UNIFORM,
+    });
 
     mesh.objects
         .iter() // TODO: par_iter?
@@ -177,78 +203,20 @@ fn get_render_meshes_and_shader_tags(
 
             let buffer_data = mesh_object_buffers(device, mesh_object, skel);
 
-            let transforms_buffer = create_transforms_buffer(mesh_object, skel, device);
+            // TODO: Just pass the parent bone index instead of the entire skel?
+            let transforms_buffer =
+                create_transforms_buffer(device, mesh_object, skel, &anim_world_transforms);
 
-            // TODO: wgsl_to_wgpu for compute?
-            let skinning_bind_group_layout =
-                device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                    label: None,
-                    entries: &[
-                        wgpu::BindGroupLayoutEntry {
-                            binding: 0,
-                            visibility: wgpu::ShaderStages::COMPUTE,
-                            ty: wgpu::BindingType::Buffer {
-                                ty: wgpu::BufferBindingType::Storage { read_only: true },
-                                has_dynamic_offset: false,
-                                min_binding_size: None,
-                            },
-                            count: None,
-                        },
-                        wgpu::BindGroupLayoutEntry {
-                            binding: 1,
-                            visibility: wgpu::ShaderStages::COMPUTE,
-                            ty: wgpu::BindingType::Buffer {
-                                ty: wgpu::BufferBindingType::Storage { read_only: true },
-                                has_dynamic_offset: false,
-                                min_binding_size: None,
-                            },
-                            count: None,
-                        },
-                        wgpu::BindGroupLayoutEntry {
-                            binding: 2,
-                            visibility: wgpu::ShaderStages::COMPUTE,
-                            ty: wgpu::BindingType::Buffer {
-                                ty: wgpu::BufferBindingType::Storage { read_only: false },
-                                has_dynamic_offset: false,
-                                min_binding_size: None,
-                            },
-                            count: None,
-                        },
-                        wgpu::BindGroupLayoutEntry {
-                            binding: 3,
-                            visibility: wgpu::ShaderStages::COMPUTE,
-                            ty: wgpu::BindingType::Buffer {
-                                ty: wgpu::BufferBindingType::Uniform,
-                                has_dynamic_offset: false,
-                                min_binding_size: None,
-                            },
-                            count: None,
-                        },
-                    ],
-                });
-            // TODO: Figure out why vulkan validation is failing.
-            let skinning_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-                label: None,
-                layout: &skinning_bind_group_layout,
-                entries: &[
-                    wgpu::BindGroupEntry {
-                        binding: 0,
-                        resource: buffer_data.vertex_buffer0_source.as_entire_binding(),
+            let skinning_bind_group =
+                crate::shader::skinning::bind_groups::BindGroup0::from_bindings(
+                    device,
+                    crate::shader::skinning::bind_groups::BindGroupLayout0 {
+                        src: &buffer_data.vertex_buffer0_source,
+                        vertex_weights: &buffer_data.skinning_buffer,
+                        dst: &buffer_data.vertex_buffer0,
+                        transforms: &bone_transforms_buffer,
                     },
-                    wgpu::BindGroupEntry {
-                        binding: 1,
-                        resource: buffer_data.skinning_buffer.as_entire_binding(),
-                    },
-                    wgpu::BindGroupEntry {
-                        binding: 2,
-                        resource: buffer_data.vertex_buffer0.as_entire_binding(),
-                    },
-                    wgpu::BindGroupEntry {
-                        binding: 3,
-                        resource: buffer_data.bone_transforms_buffer.as_entire_binding(),
-                    },
-                ],
-            });
+                );
 
             let mesh = RenderMesh {
                 pipeline: pipeline.clone(),
@@ -399,19 +367,19 @@ fn create_textures_bind_group(
     )
 }
 
+// TODO: Where to put this?
 fn create_transforms_buffer(
+    device: &wgpu::Device,
     mesh_object: &ssbh_data::mesh_data::MeshObjectData,
     skel: &Option<SkelData>,
-    device: &wgpu::Device,
+    animated_world_transforms: &[glam::Mat4; 512],
 ) -> wgpu::Buffer {
-    // TODO: Store animation data as well?
-    let parent_transform = find_parent_transform(mesh_object, skel).unwrap_or(glam::Mat4::IDENTITY);
+    let parent_transform = find_parent_transform(mesh_object, skel, animated_world_transforms)
+        .unwrap_or(glam::Mat4::IDENTITY);
 
     device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
         label: Some("Transforms Buffer"),
-        contents: bytemuck::cast_slice(&[crate::shader::model::bind_groups::Transforms {
-            parent_transform,
-        }]),
+        contents: bytemuck::cast_slice(&[crate::shader::model::Transforms { parent_transform }]),
         usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
     })
 }
@@ -419,18 +387,16 @@ fn create_transforms_buffer(
 fn find_parent_transform(
     mesh_object: &ssbh_data::mesh_data::MeshObjectData,
     skel: &Option<SkelData>,
+    animated_world_transforms: &[glam::Mat4; 512],
 ) -> Option<glam::Mat4> {
     if mesh_object.bone_influences.is_empty() {
         if let Some(skel_data) = skel {
-            if let Some(parent_bone) = skel_data
+            if let Some(parent_bone_index) = skel_data
                 .bones
                 .iter()
-                .find(|b| b.name == mesh_object.parent_bone_name)
+                .position(|b| b.name == mesh_object.parent_bone_name)
             {
-                // TODO: Why do we not transpose here?
-                return Some(glam::Mat4::from_cols_array_2d(
-                    &skel_data.calculate_world_transform(parent_bone).unwrap(),
-                ));
+                return Some(animated_world_transforms[parent_bone_index]);
             }
         }
     }
@@ -448,10 +414,16 @@ fn render_pass_index(tag: &str) -> usize {
     }
 }
 
+// TODO: Animations?
 pub fn skin_render_meshes<'a>(meshes: &'a [RenderMesh], compute_pass: &mut wgpu::ComputePass<'a>) {
     // Assume the pipeline is already set.
     for mesh in meshes {
-        compute_pass.set_bind_group(0, &mesh.skinning_bind_group, &[]);
+        crate::shader::skinning::bind_groups::set_bind_groups(
+            compute_pass,
+            crate::shader::skinning::bind_groups::BindGroups::<'a> {
+                bind_group0: &mesh.skinning_bind_group,
+            },
+        );
 
         // The shader's local workgroup size is (256, 1, 1).
         // Round up to avoid skipping vertices.
@@ -474,7 +446,7 @@ pub fn draw_render_meshes<'a>(
             render_pass,
             crate::shader::model::bind_groups::BindGroups::<'a> {
                 bind_group0: camera_bind_group,
-                bind_group1: &mesh.transforms_bind_group,
+                bind_group1: &mesh.transforms_bind_group, // TODO: Animations?
                 bind_group2: &mesh.pipeline.as_ref().textures_bind_group,
                 bind_group3: &mesh.pipeline.as_ref().material_uniforms_bind_group,
             },

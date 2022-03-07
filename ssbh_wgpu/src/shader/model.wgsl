@@ -12,9 +12,8 @@ struct Transforms {
 // TODO: Investigate std140/std430
 // TODO: Does wgsl/wgpu require a specific layout/alignment?
 struct MaterialUniforms {
-    // TODO: Merge values into a single vec4?
-    // TODO: Add has_vector?
     custom_vector: array<vec4<f32>, 64>;
+    // TODO: Merge values into a single vec4?
     custom_boolean: array<vec4<f32>, 20>;
     custom_float: array<vec4<f32>, 20>;
     has_float: array<vec4<f32>, 20>;
@@ -215,7 +214,7 @@ fn GetAlbedoColor(uv1: vec2<f32>, uv2: vec2<f32>, uv3: vec2<f32>, R: vec3<f32>, 
         outRgb = Blend(outRgb, albedoColor2 * vec4<f32>(1.0, 1.0, 1.0, colorSet5.w));
     }
 
-    // // Materials won't have col and diffuse cube maps.
+    // Materials won't have col and diffuse cube maps.
     if (uniforms.has_texture[8].x == 1.0) {
         outRgb = textureSample(texture8, sampler8, R).rgb;
     }
@@ -496,7 +495,6 @@ fn RoughnessToLod(roughness: f32) -> f32
 // fn GetInvalidCheckerBoard() -> f32
 // {
 //     // TODO: Account for screen resolution and use the values from in game for scaling.
-//     // TODO: Add proper bloom.
 //     let screenPosition = gl_FragCoord.xyz;
 //     let checkSize = 0.15;
 //     let checkerBoard = mod(floor(screenPosition.x * checkSize) + floor(screenPosition.y * checkSize), 2.0);
@@ -539,6 +537,8 @@ fn vs_main(
     buffer0: VertexInput0,
     buffer1: VertexInput1
 ) -> VertexOutput {
+    // Apply the parent transform for meshes without bone influences.
+    // Assume meshes with vertex skinning use the identity matrix.
     let transformed_position = transforms.parent_transform * vec4<f32>(buffer0.position0.xyz, 1.0);
     let transformed_normal = transforms.parent_transform * vec4<f32>(buffer0.normal0.xyz, 0.0);
     let transformed_tangent = transforms.parent_transform * vec4<f32>(buffer0.tangent0.xyz, 0.0);

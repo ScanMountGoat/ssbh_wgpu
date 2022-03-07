@@ -11,7 +11,7 @@ pub fn create_camera_bind_group(
 ) -> (wgpu::Buffer, crate::shader::model::bind_groups::BindGroup0) {
     let camera_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
         label: Some("Camera Buffer"),
-        contents: bytemuck::cast_slice(&[crate::shader::model::bind_groups::CameraTransforms {
+        contents: bytemuck::cast_slice(&[crate::shader::model::CameraTransforms {
             mvp_matrix,
             camera_pos: camera_pos.to_array(),
         }]),

@@ -41,40 +41,48 @@ fn main([[builtin(global_invocation_id)]] global_invocation_id: vec3<u32>) {
         return;
     }
 
-    // TODO: Should vertices with no influences be handled differently.
-    // The in game normals appear to be slightly different compared to skinning.
     var vertex = src.vertices[index];
     let influence = vertex_weights.vertices[index];
     
-    var position = vec3<f32>(0.0);
-    var normal = vec3<f32>(0.0);
-    var tangent = vec3<f32>(0.0);
+    // Some mesh objects are parented to a bone and don't use skinning.
+    // This transform is currently applied in the vertex shader.
+    // TODO: Should vertices with no influences be handled differently.
+    // The in game normals appear to be slightly different compared to skinning.
+    var position = vertex.position0.xyz;
+    var normal = vertex.normal0.xyz;
+    var tangent = vertex.tangent0.xyz;
 
     // TODO: Index vector4 in loop?
     // TODO: Restrict to 511 bones like in game?
     if (influence.bone_indices.x >= 0 && influence.bone_indices.x < 512) {
+        position = vec3<f32>(0.0);
+        normal = vec3<f32>(0.0);
+        tangent = vec3<f32>(0.0);
+
         position = position + (transforms.transforms[influence.bone_indices.x] * vec4<f32>(vertex.position0.xyz, 1.0) * influence.weights.x).xyz;
-        normal = normal + (transforms.transforms_inv_transpose[influence.bone_indices.x] * vec4<f32>(vertex.normal0.xyz, 1.0) * influence.weights.x).xyz;
-        tangent = tangent + (transforms.transforms_inv_transpose[influence.bone_indices.x] * vec4<f32>(vertex.tangent0.xyz, 1.0) * influence.weights.x).xyz;
+        normal = normal + (transforms.transforms_inv_transpose[influence.bone_indices.x] * vec4<f32>(vertex.normal0.xyz, 0.0) * influence.weights.x).xyz;
+        tangent = tangent + (transforms.transforms_inv_transpose[influence.bone_indices.x] * vec4<f32>(vertex.tangent0.xyz, 0.0) * influence.weights.x).xyz;
+    
+        if (influence.bone_indices.y >= 0 && influence.bone_indices.y < 512) {
+            position = position + (transforms.transforms[influence.bone_indices.y] * vec4<f32>(vertex.position0.xyz, 1.0) * influence.weights.y).xyz;
+            normal = normal + (transforms.transforms_inv_transpose[influence.bone_indices.y] * vec4<f32>(vertex.normal0.xyz, 0.0) * influence.weights.y).xyz;
+            tangent = tangent + (transforms.transforms_inv_transpose[influence.bone_indices.y] * vec4<f32>(vertex.tangent0.xyz, 0.0) * influence.weights.y).xyz;
+        }
+
+        if (influence.bone_indices.z >= 0 && influence.bone_indices.z < 512) {
+            position = position + (transforms.transforms[influence.bone_indices.z] * vec4<f32>(vertex.position0.xyz, 1.0) * influence.weights.z).xyz;
+            normal = normal + (transforms.transforms_inv_transpose[influence.bone_indices.z] * vec4<f32>(vertex.normal0.xyz, 0.0) * influence.weights.z).xyz;
+            tangent = tangent + (transforms.transforms_inv_transpose[influence.bone_indices.z] * vec4<f32>(vertex.tangent0.xyz, 0.0) * influence.weights.z).xyz;
+        }
+
+        if (influence.bone_indices.w >= 0 && influence.bone_indices.w < 512) {
+            position = position + (transforms.transforms[influence.bone_indices.w] * vec4<f32>(vertex.position0.xyz, 1.0) * influence.weights.w).xyz;
+            normal = normal + (transforms.transforms_inv_transpose[influence.bone_indices.w] * vec4<f32>(vertex.normal0.xyz, 0.0) * influence.weights.w).xyz;
+            tangent = tangent + (transforms.transforms_inv_transpose[influence.bone_indices.w] * vec4<f32>(vertex.tangent0.xyz, 0.0) * influence.weights.w).xyz;
+        }
     }
     
-    if (influence.bone_indices.y >= 0 && influence.bone_indices.y < 512) {
-        position = position + (transforms.transforms[influence.bone_indices.y] * vec4<f32>(vertex.position0.xyz, 1.0) * influence.weights.y).xyz;
-        normal = normal + (transforms.transforms_inv_transpose[influence.bone_indices.y] * vec4<f32>(vertex.normal0.xyz, 1.0) * influence.weights.y).xyz;
-        tangent = tangent + (transforms.transforms_inv_transpose[influence.bone_indices.y] * vec4<f32>(vertex.tangent0.xyz, 1.0) * influence.weights.y).xyz;
-    }
 
-    if (influence.bone_indices.z >= 0 && influence.bone_indices.z < 512) {
-        position = position + (transforms.transforms[influence.bone_indices.z] * vec4<f32>(vertex.position0.xyz, 1.0) * influence.weights.z).xyz;
-        normal = normal + (transforms.transforms_inv_transpose[influence.bone_indices.z] * vec4<f32>(vertex.normal0.xyz, 1.0) * influence.weights.z).xyz;
-        tangent = tangent + (transforms.transforms_inv_transpose[influence.bone_indices.z] * vec4<f32>(vertex.tangent0.xyz, 1.0) * influence.weights.z).xyz;
-    }
-
-    if (influence.bone_indices.w >= 0 && influence.bone_indices.w < 512) {
-        position = position + (transforms.transforms[influence.bone_indices.w] * vec4<f32>(vertex.position0.xyz, 1.0) * influence.weights.w).xyz;
-        normal = normal + (transforms.transforms_inv_transpose[influence.bone_indices.w] * vec4<f32>(vertex.normal0.xyz, 1.0) * influence.weights.w).xyz;
-        tangent = tangent + (transforms.transforms_inv_transpose[influence.bone_indices.w] * vec4<f32>(vertex.tangent0.xyz, 1.0) * influence.weights.w).xyz;
-    }
     // TODO: Transform each vertex by the parent transform
     // TODO: Transform each vertex by the animation transform
     // TODO: sync to make sure writes happen?
@@ -82,7 +90,7 @@ fn main([[builtin(global_invocation_id)]] global_invocation_id: vec3<u32>) {
 
     var out: VertexInput0;
     out.position0 = vec4<f32>(position, 1.0);
-    out.normal0 = vec4<f32>(normal, 0.0);
-    out.tangent0 = vec4<f32>(tangent, vertex.tangent0.w);
+    out.normal0 = vec4<f32>(normalize(normal), 0.0);
+    out.tangent0 = vec4<f32>(normalize(tangent), vertex.tangent0.w);
     dst.vertices[index] = out;
 }

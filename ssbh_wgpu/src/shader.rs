@@ -5,3 +5,4 @@ pub mod bloom_threshold;
 pub mod bloom_upscale;
 pub mod model;
 pub mod post_process;
+pub mod skinning;

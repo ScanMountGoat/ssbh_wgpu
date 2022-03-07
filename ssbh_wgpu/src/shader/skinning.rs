@@ -2,66 +2,82 @@
 // Changes made to this file will not be saved.
 #[repr(C)]
 #[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
-pub struct VertexOutput {
-    pub position: [f32; 4],
-    pub uvs: [f32; 2],
+pub struct VertexInput0 {
+    pub position0: [f32; 4],
+    pub normal0: [f32; 4],
+    pub tangent0: [f32; 4],
+}
+#[repr(C)]
+#[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
+pub struct VertexWeight {
+    pub bone_indices: [i32; 4],
+    pub weights: [f32; 4],
+}
+#[repr(C)]
+#[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
+pub struct Vertices {
+    pub vertices: [VertexInput0; 0],
+}
+#[repr(C)]
+#[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
+pub struct VertexWeights {
+    pub vertices: [VertexWeight; 0],
+}
+#[repr(C)]
+#[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
+pub struct Transforms {
+    pub transforms: [glam::Mat4; 512],
+    pub transforms_inv_transpose: [glam::Mat4; 512],
 }
 pub mod bind_groups {
     pub struct BindGroup0(wgpu::BindGroup);
     pub struct BindGroupLayout0<'a> {
-        pub bloom0_texture: &'a wgpu::TextureView,
-        pub bloom1_texture: &'a wgpu::TextureView,
-        pub bloom2_texture: &'a wgpu::TextureView,
-        pub bloom3_texture: &'a wgpu::TextureView,
-        pub bloom_sampler: &'a wgpu::Sampler,
+        pub src: &'a wgpu::Buffer,
+        pub vertex_weights: &'a wgpu::Buffer,
+        pub dst: &'a wgpu::Buffer,
+        pub transforms: &'a wgpu::Buffer,
     }
     const LAYOUT_DESCRIPTOR0: wgpu::BindGroupLayoutDescriptor = wgpu::BindGroupLayoutDescriptor {
         label: None,
         entries: &[
             wgpu::BindGroupLayoutEntry {
                 binding: 0u32,
-                visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
-                ty: wgpu::BindingType::Texture {
-                    multisampled: false,
-                    view_dimension: wgpu::TextureViewDimension::D2,
-                    sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                visibility: wgpu::ShaderStages::COMPUTE,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Storage { read_only: true },
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
                 },
                 count: None,
             },
             wgpu::BindGroupLayoutEntry {
                 binding: 1u32,
-                visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
-                ty: wgpu::BindingType::Texture {
-                    multisampled: false,
-                    view_dimension: wgpu::TextureViewDimension::D2,
-                    sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                visibility: wgpu::ShaderStages::COMPUTE,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Storage { read_only: true },
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
                 },
                 count: None,
             },
             wgpu::BindGroupLayoutEntry {
                 binding: 2u32,
-                visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
-                ty: wgpu::BindingType::Texture {
-                    multisampled: false,
-                    view_dimension: wgpu::TextureViewDimension::D2,
-                    sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                visibility: wgpu::ShaderStages::COMPUTE,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Storage { read_only: false },
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
                 },
                 count: None,
             },
             wgpu::BindGroupLayoutEntry {
                 binding: 3u32,
-                visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
-                ty: wgpu::BindingType::Texture {
-                    multisampled: false,
-                    view_dimension: wgpu::TextureViewDimension::D2,
-                    sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                visibility: wgpu::ShaderStages::COMPUTE,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
                 },
-                count: None,
-            },
-            wgpu::BindGroupLayoutEntry {
-                binding: 4u32,
-                visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
-                ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
                 count: None,
             },
         ]
@@ -78,23 +94,19 @@ pub mod bind_groups {
                 entries: &[
                     wgpu::BindGroupEntry {
                         binding: 0u32,
-                        resource: wgpu::BindingResource::TextureView(bindings.bloom0_texture),
+                        resource: bindings.src.as_entire_binding(),
                     },
                     wgpu::BindGroupEntry {
                         binding: 1u32,
-                        resource: wgpu::BindingResource::TextureView(bindings.bloom1_texture),
+                        resource: bindings.vertex_weights.as_entire_binding(),
                     },
                     wgpu::BindGroupEntry {
                         binding: 2u32,
-                        resource: wgpu::BindingResource::TextureView(bindings.bloom2_texture),
+                        resource: bindings.dst.as_entire_binding(),
                     },
                     wgpu::BindGroupEntry {
                         binding: 3u32,
-                        resource: wgpu::BindingResource::TextureView(bindings.bloom3_texture),
-                    },
-                    wgpu::BindGroupEntry {
-                        binding: 4u32,
-                        resource: wgpu::BindingResource::Sampler(bindings.bloom_sampler),
+                        resource: bindings.transforms.as_entire_binding(),
                     },
                 ],
                 label: None,
@@ -102,7 +114,7 @@ pub mod bind_groups {
             Self(bind_group)
         }
     
-        pub fn set<'a>(&'a self, render_pass: &mut wgpu::RenderPass<'a>) {
+        pub fn set<'a>(&'a self, render_pass: &mut wgpu::ComputePass<'a>) {
             render_pass.set_bind_group(0u32, &self.0, &[]);
         }
     }
@@ -110,18 +122,16 @@ pub mod bind_groups {
         pub bind_group0: &'a BindGroup0,
     }
     pub fn set_bind_groups<'a>(
-        pass: &mut wgpu::RenderPass<'a>,
+        pass: &mut wgpu::ComputePass<'a>,
         bind_groups: BindGroups<'a>,
     ) {
         pass.set_bind_group(0u32, &bind_groups.bind_group0.0, &[]);
     }
 }
-pub mod vertex {
-}
 pub fn create_shader_module(device: &wgpu::Device) -> wgpu::ShaderModule {
     device.create_shader_module(&wgpu::ShaderModuleDescriptor {
         label: None,
-        source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(include_str!("bloom_combine.wgsl")))
+        source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(include_str!("skinning.wgsl")))
     })
 }
 pub fn create_pipeline_layout(device: &wgpu::Device) -> wgpu::PipelineLayout {

@@ -1,9 +1,10 @@
 use std::{iter, path::Path};
 
-use ssbh_wgpu::shader::model::bind_groups::CameraTransforms;
+use ssbh_wgpu::shader::model::CameraTransforms;
 use ssbh_wgpu::texture::create_default_textures;
 use ssbh_wgpu::{
-    camera::create_camera_bind_group, load_render_meshes, load_model_folders, RenderMesh, SsbhRenderer,
+    camera::create_camera_bind_group, load_model_folders, load_render_meshes, RenderMesh,
+    SsbhRenderer,
 };
 
 use winit::{
@@ -100,7 +101,8 @@ impl State {
 
         let default_textures = create_default_textures(&device, &queue);
         let models = load_model_folders(folder);
-        let render_meshes = load_render_meshes(&device, &queue, surface_format, &models, &default_textures);
+        let render_meshes =
+            load_render_meshes(&device, &queue, surface_format, &models, &default_textures);
 
         // TODO: Move this to the lib?
         let renderer = SsbhRenderer::new(&device, &queue, size.width, size.height);
@@ -233,6 +235,8 @@ impl State {
         // This means only the output view needs to be set for each pass.
         let _start = std::time::Instant::now();
 
+        // TODO: Calculate delta time from last frame?
+
         let output = self.surface.get_current_texture()?;
         let output_view = output
             .texture
@@ -244,6 +248,15 @@ impl State {
                 label: Some("Render Encoder"),
             });
 
+        // 1) update animation state here and pass to the renderer
+        // or
+        // 2) have the renderer update its own state from the animation
+        // The issue is that we don't know which rendermesh corresponds to which mesh object.
+        // We only need to update transform buffers, and recreating rendermeshes is too slow.
+
+        // Each render mesh is associated with a skel and material.
+        // Animations update the skel and material data.
+        // TODO: How to do this if the render meshes get reordered?
         self.renderer.render_ssbh_passes(
             &mut encoder,
             &output_view,

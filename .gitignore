@@ -11,3 +11,4 @@ Cargo.lock
 
 # Don't accidentally distribute game assets
 *.nutexb
+*.nuanmb
