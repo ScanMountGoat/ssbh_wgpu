@@ -1,6 +1,4 @@
-use ssbh_data::{
-    matl_data::{BlendFactor, BlendStateData, MatlEntryData},
-};
+use ssbh_data::matl_data::{BlendFactor, BlendStateData, MatlEntryData};
 
 // TODO: Create a function create_pipeline(mesh_object, material) -> RenderPipeline
 // TODO: Could this be a method on the struct for holding mesh, matl, modl, etc?
@@ -11,7 +9,7 @@ pub fn create_pipeline(
     surface_format: wgpu::TextureFormat,
     material: Option<&MatlEntryData>,
     depth_write: bool,
-    depth_test: bool
+    depth_test: bool,
 ) -> wgpu::RenderPipeline {
     // Pipeline state takes most of its settings from the material.
     // The mesh object is just used for depth settings.

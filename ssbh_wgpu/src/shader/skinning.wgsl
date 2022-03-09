@@ -70,7 +70,7 @@ fn main([[builtin(global_invocation_id)]] global_invocation_id: vec3<u32>) {
     // Assume the object won't also have vertex weights.
     // The application of vertex weights "resets" the vectors.
     let parent_index = mesh_object_info.parent_index.x;
-    if (parent_index >= 0) {
+    if (parent_index >= 0 && parent_index < 512) {
         position = (world_transforms.transforms[parent_index] * vec4<f32>(position, 1.0)).xyz;
         normal = (world_transforms.transforms[parent_index] * vec4<f32>(normal, 0.0)).xyz;
         tangent = (world_transforms.transforms[parent_index] * vec4<f32>(tangent, 0.0)).xyz;

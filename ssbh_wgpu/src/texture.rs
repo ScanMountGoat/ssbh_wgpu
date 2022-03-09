@@ -1,6 +1,6 @@
 use std::{
     num::{NonZeroU32, NonZeroU8},
-    path::{Path, PathBuf},
+    path::Path,
 };
 
 use nutexb_wgpu::NutexbFile;
@@ -10,42 +10,10 @@ use wgpu::{
     TextureViewDescriptor, TextureViewDimension,
 };
 
-pub fn load_texture_sampler_or_default(
-    device: &Device,
-    queue: &Queue,
-    material: Option<&MatlEntryData>,
-    folder: &str,
-    texture_id: ParamId,
-    sampler_id: ParamId,
-    default: [u8; 4],
-    textures: &[(String, NutexbFile)],
-    default_textures: &[(&'static str, Texture)],
-) -> (TextureView, Sampler) {
-    load_texture_sampler(
-        material,
-        device,
-        queue,
-        folder,
-        texture_id,
-        sampler_id,
-        textures,
-        default_textures,
-    )
-    .unwrap_or_else(|| {
-        let default = solid_color_texture_2d(device, queue, default);
-        // TODO: Avoid duplicates.
-        (
-            default.create_view(&TextureViewDescriptor::default()),
-            device.create_sampler(&SamplerDescriptor::default()),
-        )
-    })
-}
-
 pub fn load_texture_sampler(
     material: Option<&MatlEntryData>,
     device: &Device,
     queue: &Queue,
-    folder: &str,
     texture_id: ParamId,
     sampler_id: ParamId,
     textures: &[(String, NutexbFile)],

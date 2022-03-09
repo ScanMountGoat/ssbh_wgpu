@@ -113,8 +113,14 @@ impl State {
 
         let default_textures = create_default_textures(&device, &queue);
         let models = load_model_folders(folder);
-        let render_meshes =
-            load_render_meshes(&device, &queue, surface_format, &models, &default_textures, &animation);
+        let render_meshes = load_render_meshes(
+            &device,
+            &queue,
+            surface_format,
+            &models,
+            &default_textures,
+            &animation,
+        );
 
         // TODO: Move this to the lib?
         let renderer = SsbhRenderer::new(&device, &queue, size.width, size.height);
@@ -284,14 +290,26 @@ impl State {
         // TODO: Associate each skel with its buffer.
         // Updating a skel/buffer pair should then be reflected in all effected rendermeshes.
 
-        for (meshes, skel, skinning_buffer, world_transforms_buffer) in &mut self.render_meshes {
-            apply_anim(&self.queue, skinning_buffer, world_transforms_buffer, &skel, &self.animation, self.current_frame);
+        for (_, skel, skinning_buffer, world_transforms_buffer) in &mut self.render_meshes {
+            apply_anim(
+                &self.queue,
+                skinning_buffer,
+                world_transforms_buffer,
+                skel,
+                &self.animation,
+                self.current_frame,
+            );
         }
 
         // Each render mesh is associated with a skel and material.
         // Animations update the skel and material data.
         // TODO: How to do this if the render meshes get reordered?
-        let render_meshes_temp: Vec<_> = self.render_meshes.iter().map(|(m, _, _, _)| m).flatten().collect();
+        let render_meshes_temp: Vec<_> = self
+            .render_meshes
+            .iter()
+            .map(|(m, _, _, _)| m)
+            .flatten()
+            .collect();
         self.renderer.render_ssbh_passes(
             &mut encoder,
             &output_view,

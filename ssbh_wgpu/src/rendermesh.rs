@@ -1,6 +1,6 @@
 use crate::{
     animation::apply_animation, pipeline::create_pipeline, texture::load_texture_sampler,
-    uniforms::create_uniforms_buffer, vertex::mesh_object_buffers,
+    uniforms::create_uniforms_buffer, vertex::mesh_object_buffers, ModelFolder,
 };
 use nutexb_wgpu::NutexbFile;
 use ssbh_data::{matl_data::ParamId, prelude::*};
@@ -33,22 +33,18 @@ pub fn apply_anim(
 ) {
     // Update the buffers associated with each skel.
     // This avoids updating per mesh object and allocating new buffers.
-    let (anim_world_transforms, transforms, transforms_inv_transpose) =
-        apply_animation(skel, &anim, frame);
+    let animation_transforms = apply_animation(skel, anim, frame);
 
     queue.write_buffer(
         skinning_buffer,
         0,
-        bytemuck::cast_slice(&[Transforms {
-            transforms: *transforms,
-            transforms_inv_transpose: *transforms_inv_transpose,
-        }]),
+        bytemuck::cast_slice(&[*animation_transforms.transforms]),
     );
 
     queue.write_buffer(
         world_transforms_buffer,
         0,
-        bytemuck::cast_slice(&(*anim_world_transforms)),
+        bytemuck::cast_slice(&(*animation_transforms.world_transforms)),
     );
 }
 
@@ -88,12 +84,7 @@ pub fn create_render_meshes(
     layout: &wgpu::PipelineLayout,
     shader: &wgpu::ShaderModule,
     surface_format: wgpu::TextureFormat,
-    folder: &str,
-    mesh: &MeshData,
-    skel: &Option<SkelData>,
-    matl: &Option<MatlData>,
-    modl: &Option<ModlData>,
-    textures: &[(String, NutexbFile)],
+    model: &ModelFolder,
     default_textures: &[(&'static str, wgpu::Texture)],
     anim: &AnimData,
 ) -> (Vec<RenderMesh>, SkelData, wgpu::Buffer, wgpu::Buffer) {
@@ -101,23 +92,20 @@ pub fn create_render_meshes(
 
     // We want to share the animation buffer to avoid redundant updates.
     // TODO: Where to update the current frame?
-    let (anim_world_transforms, transforms, transforms_inv_transpose) =
-        apply_animation(skel.as_ref().unwrap(), &anim, 0.0);
+    let anim_transforms = apply_animation(model.skel.as_ref().unwrap(), anim, 0.0);
 
     // TODO: Enforce bone count being at most 511?
     // TODO: How to initialize the animation transforms?
     // TODO: How to efficiently share this data between RenderMesh with the same skel?
     let skinning_transforms_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
         label: Some("Bone Transforms Buffer"),
-        contents: bytemuck::cast_slice(&[Transforms {
-            transforms: *transforms,
-            transforms_inv_transpose: *transforms_inv_transpose,
-        }]),
+        contents: bytemuck::cast_slice(&[*anim_transforms.transforms]),
         // COPY_DST allows applying animations without allocating new buffers
         usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
     });
 
-    let world_transforms_buffer = create_world_transforms_buffer(device, &anim_world_transforms);
+    let world_transforms_buffer =
+        create_world_transforms_buffer(device, &anim_transforms.world_transforms);
 
     let mut meshes = create_render_meshes_and_shader_tags(
         device,
@@ -125,12 +113,7 @@ pub fn create_render_meshes(
         layout,
         shader,
         surface_format,
-        folder,
-        mesh,
-        skel,
-        matl,
-        modl,
-        textures,
+        model,
         default_textures,
         &skinning_transforms_buffer,
         &world_transforms_buffer,
@@ -142,36 +125,22 @@ pub fn create_render_meshes(
             .cmp(&(render_pass_index(&b.1) as i32 + b.0.sort_bias))
     });
 
-    // TODO: Avoid cloning here?
     (
         meshes.into_iter().map(|(m, _)| m).collect(),
-        skel.as_ref().unwrap().clone(),
+        model.skel.as_ref().unwrap().clone(), // TODO: Avoid cloning here?
         skinning_transforms_buffer,
         world_transforms_buffer,
     )
 }
 
 // TODO: Separate module for skinning/animation?
-// TODO: Use generated structs from shader.
-#[repr(C)]
-#[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
-struct Transforms {
-    transforms: [glam::Mat4; 512],
-    transforms_inv_transpose: [glam::Mat4; 512],
-}
-
 fn create_render_meshes_and_shader_tags(
     device: &wgpu::Device,
     queue: &wgpu::Queue,
     layout: &wgpu::PipelineLayout,
     shader: &wgpu::ShaderModule,
     surface_format: wgpu::TextureFormat,
-    folder: &str,
-    mesh: &MeshData,
-    skel: &Option<SkelData>,
-    matl: &Option<MatlData>,
-    modl: &Option<ModlData>,
-    textures: &[(String, NutexbFile)],
+    model: &ModelFolder,
     default_textures: &[(&'static str, wgpu::Texture)],
     skinning_transforms_buffer: &wgpu::Buffer,
     world_transforms_buffer: &wgpu::Buffer,
@@ -194,12 +163,17 @@ fn create_render_meshes_and_shader_tags(
             depth_test,
         );
 
-        let textures_bind_group =
-            create_textures_bind_group(material, device, queue, folder, textures, default_textures);
+        let textures_bind_group = create_textures_bind_group(
+            material,
+            device,
+            queue,
+            &model.textures_by_file_name,
+            default_textures,
+        );
         let material_uniforms_bind_group = create_uniforms_bind_group(material, device);
 
         Arc::new(PipelineData {
-            pipeline: pipeline,
+            pipeline,
             textures_bind_group,
             material_uniforms_bind_group,
         })
@@ -210,11 +184,14 @@ fn create_render_meshes_and_shader_tags(
     let mut pipelines = HashMap::new();
 
     // TODO: Share buffers?
-    mesh.objects
+    model
+        .mesh
+        .objects
         .iter() // TODO: par_iter?
         .map(|mesh_object| {
             // TODO: These could be cleaner as functions.
-            let material_label = modl
+            let material_label = model
+                .modl
                 .as_ref()
                 .map(|m| {
                     m.entries
@@ -229,7 +206,7 @@ fn create_render_meshes_and_shader_tags(
 
             let material = material_label
                 .map(|material_label| {
-                    matl.as_ref().map(|matl| {
+                    model.matl.as_ref().map(|matl| {
                         matl.entries
                             .iter()
                             .find(|e| &e.material_label == material_label)
@@ -255,7 +232,7 @@ fn create_render_meshes_and_shader_tags(
                     )
                 });
 
-            let buffer_data = mesh_object_buffers(device, mesh_object, skel);
+            let buffer_data = mesh_object_buffers(device, mesh_object, &model.skel);
 
             let skinning_bind_group =
                 crate::shader::skinning::bind_groups::BindGroup0::from_bindings(
@@ -276,7 +253,7 @@ fn create_render_meshes_and_shader_tags(
                     },
                 );
 
-            let parent_index = find_parent_index(mesh_object, skel);
+            let parent_index = find_parent_index(mesh_object, &model.skel);
             let mesh_object_info_buffer =
                 device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
                     label: Some("Mesh Object Info Buffer"),
@@ -339,7 +316,6 @@ fn create_textures_bind_group(
     material: Option<&ssbh_data::matl_data::MatlEntryData>,
     device: &wgpu::Device,
     queue: &wgpu::Queue,
-    folder: &str,
     textures: &[(String, NutexbFile)],
     default_textures: &[(&'static str, wgpu::Texture)],
 ) -> crate::shader::model::bind_groups::BindGroup1 {
@@ -349,7 +325,6 @@ fn create_textures_bind_group(
             material,
             device,
             queue,
-            folder,
             texture_id,
             sampler_id,
             textures,
@@ -401,6 +376,7 @@ fn create_textures_bind_group(
     let texture13 = load_texture_sampler(ParamId::Texture13, ParamId::Sampler13);
     let texture14 = load_texture_sampler(ParamId::Texture14, ParamId::Sampler14);
 
+    // TODO: How to enforce certain textures being cube maps?
     crate::shader::model::bind_groups::BindGroup1::from_bindings(
         device,
         crate::shader::model::bind_groups::BindGroupLayout1 {

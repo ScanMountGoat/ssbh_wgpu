@@ -1,21 +1,22 @@
 use ssbh_data::{anim_data::TrackValues, prelude::*};
 
+use crate::shader::skinning::Transforms;
+
+pub struct AnimationTransforms {
+    // Box large arrays to avoid stack overflows in debug mode.
+    pub transforms: Box<Transforms>,
+    pub world_transforms: Box<[glam::Mat4; 512]>,
+}
+
 // TODO: How to test this?
 // TODO: Create test cases for test animations on short bone chains?
-pub fn apply_animation(
-    skel: &SkelData,
-    anim: &AnimData,
-    frame: f32,
-) -> (
-    Box<[glam::Mat4; 512]>,
-    Box<[glam::Mat4; 512]>,
-    Box<[glam::Mat4; 512]>,
-) {
+pub fn apply_animation(skel: &SkelData, anim: &AnimData, frame: f32) -> AnimationTransforms {
+    // TODO: Make the skel optional?
+
     // TODO: Is this redundant?
     let mut anim_world_transforms = [glam::Mat4::IDENTITY; 512];
     let mut transforms = [glam::Mat4::IDENTITY; 512];
-    // TODO: Handle errors?
-    // if let Some(skel) = skel {
+
     // HACK: Duplicate the bone heirachy and override with the anim nodes.
     // A proper solution will take into account scaling, interpolation, etc.
     // This should be its own module or potentially a separate package.
@@ -45,22 +46,26 @@ pub fn apply_animation(
                         let next = values[next_frame];
 
                         let translation = glam::Mat4::from_translation(
-                            glam::Vec3::from(current.translation.to_array()).lerp(
-                                glam::Vec3::from(next.translation.to_array()),
+                            glam::Vec3::from(current.translation.to_array())
+                                .lerp(glam::Vec3::from(next.translation.to_array()), factor),
+                        );
+                        let rotation = glam::Mat4::from_quat(
+                            glam::Quat::from_xyzw(
+                                current.rotation.x,
+                                current.rotation.y,
+                                current.rotation.z,
+                                current.rotation.w,
+                            )
+                            .lerp(
+                                glam::Quat::from_xyzw(
+                                    next.rotation.x,
+                                    next.rotation.y,
+                                    next.rotation.z,
+                                    next.rotation.w,
+                                ),
                                 factor,
                             ),
                         );
-                        let rotation = glam::Mat4::from_quat(glam::Quat::from_xyzw(
-                            current.rotation.x,
-                            current.rotation.y,
-                            current.rotation.z,
-                            current.rotation.w,
-                        ).lerp(glam::Quat::from_xyzw(
-                            next.rotation.x,
-                            next.rotation.y,
-                            next.rotation.z,
-                            next.rotation.w,
-                        ), factor));
                         let anim_transform = translation * rotation;
 
                         // TODO: Why do we not transpose here?
@@ -73,7 +78,7 @@ pub fn apply_animation(
 
     for (i, bone) in skel.bones.iter().enumerate() {
         // Smash is row-major but glam is column-major.
-        let bone_world = skel.calculate_world_transform(&bone).unwrap();
+        let bone_world = skel.calculate_world_transform(bone).unwrap();
         let bone_world = glam::Mat4::from_cols_array_2d(&bone_world).transpose();
 
         // TODO: Apply animations?
@@ -81,7 +86,7 @@ pub fn apply_animation(
 
         let bone_anim_world = animated_skel
             .calculate_world_transform(
-                &animated_skel
+                animated_skel
                     .bones
                     .iter()
                     .find(|b| b.name == bone.name)
@@ -94,13 +99,14 @@ pub fn apply_animation(
         transforms[i] = (bone_world.inverse() * bone_anim_world).transpose();
         anim_world_transforms[i] = bone_anim_world.transpose();
     }
-    // }
+
     let transforms_inv_transpose = transforms.map(|t| t.inverse().transpose());
 
-    // Heap allocate to avoid using excessive stack memory.
-    (
-        Box::new(anim_world_transforms),
-        Box::new(transforms),
-        Box::new(transforms_inv_transpose),
-    )
+    AnimationTransforms {
+        world_transforms: Box::new(anim_world_transforms),
+        transforms: Box::new(Transforms {
+            transforms,
+            transforms_inv_transpose,
+        }),
+    }
 }

@@ -6,10 +6,10 @@ pub mod texture;
 mod uniforms;
 mod vertex;
 
+mod animation;
 pub mod camera;
 mod renderer;
 pub mod rendermesh;
-mod animation;
 
 use nutexb_wgpu::NutexbFile;
 pub use renderer::SsbhRenderer;
@@ -30,7 +30,7 @@ pub const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
 // This helps ensure files are loaded exactly once.
 // Applications can instantiate this struct directly instead of using the filesystem.
 pub struct ModelFolder {
-    pub name: String,
+    pub folder_name: String,
     pub mesh: MeshData,
     pub skel: Option<SkelData>,
     pub matl: Option<MatlData>,
@@ -45,8 +45,13 @@ pub fn load_render_meshes(
     surface_format: wgpu::TextureFormat,
     models: &[ModelFolder],
     default_textures: &[(&'static str, wgpu::Texture)],
-    anim: &AnimData
-) -> Vec<(Vec<rendermesh::RenderMesh>, SkelData, wgpu::Buffer, wgpu::Buffer)> {
+    anim: &AnimData,
+) -> Vec<(
+    Vec<rendermesh::RenderMesh>,
+    SkelData,
+    wgpu::Buffer,
+    wgpu::Buffer,
+)> {
     // TODO: Not all models can reuse the same pipeline?
     // TODO: Use wgsl_to_wgpu to automate this?
 
@@ -69,14 +74,9 @@ pub fn load_render_meshes(
                 &render_pipeline_layout,
                 &shader,
                 surface_format,
-                &model.name,
-                &model.mesh,
-                &model.skel,
-                &model.matl,
-                &model.modl,
-                &model.textures_by_file_name,
+                model,
                 default_textures,
-                anim
+                anim,
             )
         })
         // .flatten()
@@ -133,7 +133,7 @@ pub fn load_model_folders<P: AsRef<Path>>(root: P) -> Vec<ModelFolder> {
 
             let folder = parent.to_str().unwrap().to_string();
             Some(ModelFolder {
-                name: folder,
+                folder_name: folder,
                 mesh,
                 skel,
                 matl,
