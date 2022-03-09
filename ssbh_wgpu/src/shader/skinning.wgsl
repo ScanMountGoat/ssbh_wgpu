@@ -28,10 +28,24 @@ struct Transforms {
     transforms_inv_transpose: array<mat4x4<f32>, 512>;
 };
 
+struct WorldTransforms {
+    transforms: array<mat4x4<f32>, 512>;
+};
+
+struct MeshObjectInfo {
+    // TODO: Alignment?
+    // Just use X for now.
+    parent_index: vec4<i32>;
+};
+
 [[group(0), binding(0)]] var<storage, read> src : Vertices;
 [[group(0), binding(1)]] var<storage, read> vertex_weights : VertexWeights;
 [[group(0), binding(2)]] var<storage, read_write> dst : Vertices;
-[[group(0), binding(3)]] var<uniform> transforms: Transforms;
+
+[[group(1), binding(0)]] var<uniform> transforms: Transforms;
+[[group(1), binding(1)]] var<uniform> world_transforms: WorldTransforms;
+
+[[group(2), binding(0)]] var<uniform> mesh_object_info: MeshObjectInfo;
 
 [[stage(compute), workgroup_size(256)]]
 fn main([[builtin(global_invocation_id)]] global_invocation_id: vec3<u32>) {
@@ -51,6 +65,16 @@ fn main([[builtin(global_invocation_id)]] global_invocation_id: vec3<u32>) {
     var position = vertex.position0.xyz;
     var normal = vertex.normal0.xyz;
     var tangent = vertex.tangent0.xyz;
+
+    // Apply parent transforms.
+    // Assume the object won't also have vertex weights.
+    // The application of vertex weights "resets" the vectors.
+    let parent_index = mesh_object_info.parent_index.x;
+    if (parent_index >= 0) {
+        position = (world_transforms.transforms[parent_index] * vec4<f32>(position, 1.0)).xyz;
+        normal = (world_transforms.transforms[parent_index] * vec4<f32>(normal, 0.0)).xyz;
+        tangent = (world_transforms.transforms[parent_index] * vec4<f32>(tangent, 0.0)).xyz;
+    }
 
     // TODO: Index vector4 in loop?
     // TODO: Restrict to 511 bones like in game?

@@ -1,11 +1,14 @@
 use std::{iter, path::Path};
 
+use ssbh_wgpu::rendermesh::apply_anim;
 use ssbh_wgpu::shader::model::CameraTransforms;
 use ssbh_wgpu::texture::create_default_textures;
 use ssbh_wgpu::{
     camera::create_camera_bind_group, load_model_folders, load_render_meshes, RenderMesh,
     SsbhRenderer,
 };
+
+use ssbh_data::prelude::*;
 
 use winit::{
     dpi::PhysicalPosition,
@@ -35,7 +38,7 @@ struct State {
     device: wgpu::Device,
     queue: wgpu::Queue,
     config: wgpu::SurfaceConfiguration,
-    render_meshes: Vec<RenderMesh>,
+    render_meshes: Vec<(Vec<RenderMesh>, SkelData, wgpu::Buffer, wgpu::Buffer)>, // TODO: Better way to store skinning buffer?
     camera_buffer: wgpu::Buffer,
     // TODO: Make this part of the public API?
     // TODO: Organize the passes somehow?
@@ -50,6 +53,12 @@ struct State {
     is_mouse_right_clicked: bool,
     translation_xyz: glam::Vec3,
     rotation_xyz: glam::Vec3,
+
+    // Animations
+    animation: AnimData,
+    // TODO: How to handle overflow if left running too long?
+    current_frame: f32,
+    previous_frame_start: std::time::Instant,
 }
 
 impl State {
@@ -99,10 +108,13 @@ impl State {
         let (camera_buffer, camera_bind_group) =
             create_camera_bind_group(size, model_view, mvp, &device);
 
+        // TODO: Where to store/load anim files?
+        let animation = AnimData::from_file("a00wait1.nuanmb").unwrap();
+
         let default_textures = create_default_textures(&device, &queue);
         let models = load_model_folders(folder);
         let render_meshes =
-            load_render_meshes(&device, &queue, surface_format, &models, &default_textures);
+            load_render_meshes(&device, &queue, surface_format, &models, &default_textures, &animation);
 
         // TODO: Move this to the lib?
         let renderer = SsbhRenderer::new(&device, &queue, size.width, size.height);
@@ -122,6 +134,9 @@ impl State {
             is_mouse_right_clicked: false,
             translation_xyz: camera_position,
             rotation_xyz: glam::Vec3::new(0.0, 0.0, 0.0),
+            animation,
+            current_frame: 0.0,
+            previous_frame_start: std::time::Instant::now(),
         }
     }
 
@@ -231,12 +246,24 @@ impl State {
     }
 
     fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
-        // Bind groups are preconfigured outside the render loop for performance.
-        // This means only the output view needs to be set for each pass.
-        let _start = std::time::Instant::now();
+        // Animate at 60 fps regardless of the rendering framerate.
+        // This relies on interpolation or frame skipping.
+        // TODO: How robust is this timing implementation?
+        let current_frame_start = std::time::Instant::now();
+        let delta_t = current_frame_start.duration_since(self.previous_frame_start);
+        self.previous_frame_start = current_frame_start;
+
+        let millis_per_frame = 1000.0f64 / 60.0f64;
+        let delta_t_frames = delta_t.as_millis() as f64 / millis_per_frame;
 
         // TODO: Calculate delta time from last frame?
+        self.current_frame += delta_t_frames as f32;
+        if self.current_frame > self.animation.final_frame_index {
+            self.current_frame = 0.0;
+        }
 
+        // Bind groups are preconfigured outside the render loop for performance.
+        // This means only the output view needs to be set for each pass.
         let output = self.surface.get_current_texture()?;
         let output_view = output
             .texture
@@ -254,13 +281,21 @@ impl State {
         // The issue is that we don't know which rendermesh corresponds to which mesh object.
         // We only need to update transform buffers, and recreating rendermeshes is too slow.
 
+        // TODO: Associate each skel with its buffer.
+        // Updating a skel/buffer pair should then be reflected in all effected rendermeshes.
+
+        for (meshes, skel, skinning_buffer, world_transforms_buffer) in &mut self.render_meshes {
+            apply_anim(&self.queue, skinning_buffer, world_transforms_buffer, &skel, &self.animation, self.current_frame);
+        }
+
         // Each render mesh is associated with a skel and material.
         // Animations update the skel and material data.
         // TODO: How to do this if the render meshes get reordered?
+        let render_meshes_temp: Vec<_> = self.render_meshes.iter().map(|(m, _, _, _)| m).flatten().collect();
         self.renderer.render_ssbh_passes(
             &mut encoder,
             &output_view,
-            &self.render_meshes,
+            &render_meshes_temp,
             &self.camera_bind_group,
         );
 

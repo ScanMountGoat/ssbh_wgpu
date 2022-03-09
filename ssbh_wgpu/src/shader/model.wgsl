@@ -3,10 +3,6 @@ struct CameraTransforms {
     camera_pos: vec4<f32>;
 };
 
-struct Transforms {
-    parent_transform: mat4x4<f32>;
-};
-
 // Align everything to 16 bytes to avoid alignment issues.
 // Smash Ultimate's shaders also use this alignment.
 // TODO: Investigate std140/std430
@@ -24,88 +20,85 @@ struct MaterialUniforms {
 [[group(0), binding(0)]]
 var<uniform> camera: CameraTransforms;
 
-[[group(1), binding(0)]]
-var<uniform> transforms: Transforms;
-
 // TODO: Is there a better way of organizing this?
-[[group(2), binding(0)]]
+[[group(1), binding(0)]]
 var texture0: texture_2d<f32>;
-[[group(2), binding(1)]]
+[[group(1), binding(1)]]
 var sampler0: sampler;
 
-[[group(2), binding(2)]]
+[[group(1), binding(2)]]
 var texture1: texture_2d<f32>;
-[[group(2), binding(3)]]
+[[group(1), binding(3)]]
 var sampler1: sampler;
 
-[[group(2), binding(4)]]
+[[group(1), binding(4)]]
 var texture2: texture_cube<f32>;
-[[group(2), binding(5)]]
+[[group(1), binding(5)]]
 var sampler2: sampler;
 
-[[group(2), binding(6)]]
+[[group(1), binding(6)]]
 var texture3: texture_2d<f32>;
-[[group(2), binding(7)]]
+[[group(1), binding(7)]]
 var sampler3: sampler;
 
-[[group(2), binding(8)]]
+[[group(1), binding(8)]]
 var texture4: texture_2d<f32>;
-[[group(2), binding(9)]]
+[[group(1), binding(9)]]
 var sampler4: sampler;
 
-[[group(2), binding(10)]]
+[[group(1), binding(10)]]
 var texture5: texture_2d<f32>;
-[[group(2), binding(11)]]
+[[group(1), binding(11)]]
 var sampler5: sampler;
 
-[[group(2), binding(12)]]
+[[group(1), binding(12)]]
 var texture6: texture_2d<f32>;
-[[group(2), binding(13)]]
+[[group(1), binding(13)]]
 var sampler6: sampler;
 
-[[group(2), binding(14)]]
+[[group(1), binding(14)]]
 var texture7: texture_cube<f32>;
-[[group(2), binding(15)]]
+[[group(1), binding(15)]]
 var sampler7: sampler;
 
-[[group(2), binding(16)]]
+[[group(1), binding(16)]]
 var texture8: texture_cube<f32>;
-[[group(2), binding(17)]]
+[[group(1), binding(17)]]
 var sampler8: sampler;
 
-[[group(2), binding(18)]]
+[[group(1), binding(18)]]
 var texture9: texture_2d<f32>;
-[[group(2), binding(19)]]
+[[group(1), binding(19)]]
 var sampler9: sampler;
 
-[[group(2), binding(20)]]
+[[group(1), binding(20)]]
 var texture10: texture_2d<f32>;
-[[group(2), binding(21)]]
+[[group(1), binding(21)]]
 var sampler10: sampler;
 
-[[group(2), binding(22)]]
+[[group(1), binding(22)]]
 var texture11: texture_2d<f32>;
-[[group(2), binding(23)]]
+[[group(1), binding(23)]]
 var sampler11: sampler;
 
-[[group(2), binding(24)]]
+[[group(1), binding(24)]]
 var texture12: texture_2d<f32>;
-[[group(2), binding(25)]]
+[[group(1), binding(25)]]
 var sampler12: sampler;
 
-[[group(2), binding(26)]]
+[[group(1), binding(26)]]
 var texture13: texture_2d<f32>;
-[[group(2), binding(27)]]
+[[group(1), binding(27)]]
 var sampler13: sampler;
 
-[[group(2), binding(28)]]
+[[group(1), binding(28)]]
 var texture14: texture_2d<f32>;
-[[group(2), binding(29)]]
+[[group(1), binding(29)]]
 var sampler14: sampler;
 
 // TODO: How many textures can we have?
 
-[[group(3), binding(0)]]
+[[group(2), binding(0)]]
 var<uniform> uniforms: MaterialUniforms;
 
 
@@ -537,18 +530,11 @@ fn vs_main(
     buffer0: VertexInput0,
     buffer1: VertexInput1
 ) -> VertexOutput {
-    // Apply the parent transform for meshes without bone influences.
-    // Assume meshes with vertex skinning use the identity matrix.
-    let transformed_position = transforms.parent_transform * vec4<f32>(buffer0.position0.xyz, 1.0);
-    let transformed_normal = transforms.parent_transform * vec4<f32>(buffer0.normal0.xyz, 0.0);
-    let transformed_tangent = transforms.parent_transform * vec4<f32>(buffer0.tangent0.xyz, 0.0);
-
     var out: VertexOutput;
-    out.position = transformed_position.xyz;
-    out.clip_position = camera.mvp_matrix * vec4<f32>(transformed_position.xyz, 1.0);
-    out.normal = transformed_normal.xyz;
-    // Make sure to preserve the tangent sign.
-    out.tangent = vec4<f32>(transformed_tangent.xyz, buffer0.tangent0.w);
+    out.position = buffer0.position0.xyz;
+    out.clip_position = camera.mvp_matrix * vec4<f32>(buffer0.position0.xyz, 1.0);
+    out.normal = buffer0.normal0.xyz;
+    out.tangent = buffer0.tangent0;
     
     out.map1_uvset = buffer1.map1_uvset;
     out.uv_set1_uv_set2 = buffer1.uv_set1_uv_set2;

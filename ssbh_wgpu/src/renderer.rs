@@ -159,7 +159,7 @@ impl SsbhRenderer {
         &self,
         encoder: &mut wgpu::CommandEncoder,
         output_view: &wgpu::TextureView,
-        render_meshes: &[RenderMesh],
+        render_meshes: &[&RenderMesh],
         // TODO: Avoid exposing the bind group publicly?
         camera_bind_group: &crate::shader::model::bind_groups::BindGroup0,
     ) {

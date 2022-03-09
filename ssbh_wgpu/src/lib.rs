@@ -8,16 +8,14 @@ mod vertex;
 
 pub mod camera;
 mod renderer;
-mod rendermesh;
+pub mod rendermesh;
 mod animation;
 
 use nutexb_wgpu::NutexbFile;
 pub use renderer::SsbhRenderer;
 pub use rendermesh::RenderMesh;
 
-use ssbh_data::{
-    matl_data::MatlData, mesh_data::MeshData, modl_data::ModlData, skel_data::SkelData, SsbhData,
-};
+use ssbh_data::prelude::*;
 
 // Rgba16Float is widely supported.
 // The in game format uses less precision.
@@ -47,7 +45,8 @@ pub fn load_render_meshes(
     surface_format: wgpu::TextureFormat,
     models: &[ModelFolder],
     default_textures: &[(&'static str, wgpu::Texture)],
-) -> Vec<rendermesh::RenderMesh> {
+    anim: &AnimData
+) -> Vec<(Vec<rendermesh::RenderMesh>, SkelData, wgpu::Buffer, wgpu::Buffer)> {
     // TODO: Not all models can reuse the same pipeline?
     // TODO: Use wgsl_to_wgpu to automate this?
 
@@ -77,9 +76,10 @@ pub fn load_render_meshes(
                 &model.modl,
                 &model.textures_by_file_name,
                 default_textures,
+                anim
             )
         })
-        .flatten()
+        // .flatten()
         .collect();
     println!(
         "Create {:?} render meshes: {:?}",

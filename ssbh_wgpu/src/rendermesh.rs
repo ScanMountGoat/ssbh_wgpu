@@ -3,30 +3,59 @@ use crate::{
     uniforms::create_uniforms_buffer, vertex::mesh_object_buffers,
 };
 use nutexb_wgpu::NutexbFile;
-use ssbh_data::{anim_data::TrackValues, matl_data::ParamId, prelude::*};
+use ssbh_data::{matl_data::ParamId, prelude::*};
 use std::{collections::HashMap, sync::Arc};
 use wgpu::{util::DeviceExt, SamplerDescriptor, TextureViewDescriptor, TextureViewDimension};
 
 pub struct RenderMesh {
     // TODO: It may be worth sharing buffers in the future.
-    vertex_buffer0_source: wgpu::Buffer,
     vertex_buffer0: wgpu::Buffer,
     vertex_buffer1: wgpu::Buffer,
     index_buffer: wgpu::Buffer,
     vertex_count: u32,
     vertex_index_count: u32,
     sort_bias: i32,
-    transforms_bind_group: crate::shader::model::bind_groups::BindGroup1,
     skinning_bind_group: crate::shader::skinning::bind_groups::BindGroup0,
+    skinning_transforms_bind_group: crate::shader::skinning::bind_groups::BindGroup1,
+    mesh_object_info_bind_group: crate::shader::skinning::bind_groups::BindGroup2,
     // Use Arc so that meshes can share a pipeline.
     // TODO: Comparing arc pointers to reduce set_pipeline calls?
     pipeline: Arc<PipelineData>,
 }
 
+pub fn apply_anim(
+    queue: &wgpu::Queue,
+    skinning_buffer: &wgpu::Buffer,
+    world_transforms_buffer: &wgpu::Buffer,
+    skel: &SkelData,
+    anim: &AnimData,
+    frame: f32,
+) {
+    // Update the buffers associated with each skel.
+    // This avoids updating per mesh object and allocating new buffers.
+    let (anim_world_transforms, transforms, transforms_inv_transpose) =
+        apply_animation(skel, &anim, frame);
+
+    queue.write_buffer(
+        skinning_buffer,
+        0,
+        bytemuck::cast_slice(&[Transforms {
+            transforms: *transforms,
+            transforms_inv_transpose: *transforms_inv_transpose,
+        }]),
+    );
+
+    queue.write_buffer(
+        world_transforms_buffer,
+        0,
+        bytemuck::cast_slice(&(*anim_world_transforms)),
+    );
+}
+
 pub struct PipelineData {
     pub pipeline: wgpu::RenderPipeline,
-    pub textures_bind_group: crate::shader::model::bind_groups::BindGroup2,
-    pub material_uniforms_bind_group: crate::shader::model::bind_groups::BindGroup3,
+    pub textures_bind_group: crate::shader::model::bind_groups::BindGroup1,
+    pub material_uniforms_bind_group: crate::shader::model::bind_groups::BindGroup2,
 }
 
 impl RenderMesh {
@@ -42,6 +71,17 @@ impl RenderMesh {
     }
 }
 
+// TODO: Create a RenderModel to hold shared state for render meshes?
+// This would include skel and matl data.
+// The goal is to reduce memory and more efficiently apply animations/updates.
+// TODO: How to render the flattened RenderModels in render pass sorted order?
+// draw all opaque in all models -> draw all sort in all models, etc without explicitly sorting?
+// TODO: How to include sort bias?
+// TODO: Avoid self referential structs?
+struct RenderModel {
+    meshes: Vec<RenderMesh>,
+}
+
 pub fn create_render_meshes(
     device: &wgpu::Device,
     queue: &wgpu::Queue,
@@ -55,8 +95,31 @@ pub fn create_render_meshes(
     modl: &Option<ModlData>,
     textures: &[(String, NutexbFile)],
     default_textures: &[(&'static str, wgpu::Texture)],
-) -> Vec<RenderMesh> {
-    let mut meshes = get_render_meshes_and_shader_tags(
+    anim: &AnimData,
+) -> (Vec<RenderMesh>, SkelData, wgpu::Buffer, wgpu::Buffer) {
+    // TODO: Return the animation buffer here?
+
+    // We want to share the animation buffer to avoid redundant updates.
+    // TODO: Where to update the current frame?
+    let (anim_world_transforms, transforms, transforms_inv_transpose) =
+        apply_animation(skel.as_ref().unwrap(), &anim, 0.0);
+
+    // TODO: Enforce bone count being at most 511?
+    // TODO: How to initialize the animation transforms?
+    // TODO: How to efficiently share this data between RenderMesh with the same skel?
+    let skinning_transforms_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        label: Some("Bone Transforms Buffer"),
+        contents: bytemuck::cast_slice(&[Transforms {
+            transforms: *transforms,
+            transforms_inv_transpose: *transforms_inv_transpose,
+        }]),
+        // COPY_DST allows applying animations without allocating new buffers
+        usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+    });
+
+    let world_transforms_buffer = create_world_transforms_buffer(device, &anim_world_transforms);
+
+    let mut meshes = create_render_meshes_and_shader_tags(
         device,
         queue,
         layout,
@@ -69,13 +132,23 @@ pub fn create_render_meshes(
         modl,
         textures,
         default_textures,
+        &skinning_transforms_buffer,
+        &world_transforms_buffer,
     );
     // TODO: Does the order the sorting is applied matter here?
+    // TODO: This sorting should be applied over all render meshes regardless of model.
     meshes.sort_by(|a, b| {
         (render_pass_index(&a.1) as i32 + a.0.sort_bias)
             .cmp(&(render_pass_index(&b.1) as i32 + b.0.sort_bias))
     });
-    meshes.into_iter().map(|(m, _)| m).collect()
+
+    // TODO: Avoid cloning here?
+    (
+        meshes.into_iter().map(|(m, _)| m).collect(),
+        skel.as_ref().unwrap().clone(),
+        skinning_transforms_buffer,
+        world_transforms_buffer,
+    )
 }
 
 // TODO: Separate module for skinning/animation?
@@ -87,7 +160,7 @@ struct Transforms {
     transforms_inv_transpose: [glam::Mat4; 512],
 }
 
-fn get_render_meshes_and_shader_tags(
+fn create_render_meshes_and_shader_tags(
     device: &wgpu::Device,
     queue: &wgpu::Queue,
     layout: &wgpu::PipelineLayout,
@@ -100,6 +173,8 @@ fn get_render_meshes_and_shader_tags(
     modl: &Option<ModlData>,
     textures: &[(String, NutexbFile)],
     default_textures: &[(&'static str, wgpu::Texture)],
+    skinning_transforms_buffer: &wgpu::Buffer,
+    world_transforms_buffer: &wgpu::Buffer,
 ) -> Vec<(RenderMesh, String)> {
     // TODO: Find a way to organize this.
 
@@ -135,27 +210,6 @@ fn get_render_meshes_and_shader_tags(
     let mut pipelines = HashMap::new();
 
     // TODO: Share buffers?
-
-    // TODO: Where to store/load anim files?
-    let anim = AnimData::from_file("a00wait1.nuanmb").unwrap();
-
-    // TODO: Where to update the current frame?
-    let (anim_world_transforms, transforms, transforms_inv_transpose) =
-        apply_animation(skel, &anim, 0.0);
-
-    // transforms_inv_transpose: [glam::Mat4::IDENTITY; 512],
-    // TODO: Enforce bone count being at most 511?
-    // TODO: How to initialize the animation transforms?
-    // TODO: How to efficiently share this data between RenderMesh with the same skel?
-    let bone_transforms_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-        label: Some("Bone Transforms Buffer"),
-        contents: bytemuck::cast_slice(&[Transforms {
-            transforms: *transforms,
-            transforms_inv_transpose: *transforms_inv_transpose,
-        }]),
-        usage: wgpu::BufferUsages::UNIFORM,
-    });
-
     mesh.objects
         .iter() // TODO: par_iter?
         .map(|mesh_object| {
@@ -203,10 +257,6 @@ fn get_render_meshes_and_shader_tags(
 
             let buffer_data = mesh_object_buffers(device, mesh_object, skel);
 
-            // TODO: Just pass the parent bone index instead of the entire skel?
-            let transforms_buffer =
-                create_transforms_buffer(device, mesh_object, skel, &anim_world_transforms);
-
             let skinning_bind_group =
                 crate::shader::skinning::bind_groups::BindGroup0::from_bindings(
                     device,
@@ -214,26 +264,47 @@ fn get_render_meshes_and_shader_tags(
                         src: &buffer_data.vertex_buffer0_source,
                         vertex_weights: &buffer_data.skinning_buffer,
                         dst: &buffer_data.vertex_buffer0,
-                        transforms: &bone_transforms_buffer,
+                    },
+                );
+
+            let skinning_transforms_bind_group =
+                crate::shader::skinning::bind_groups::BindGroup1::from_bindings(
+                    device,
+                    crate::shader::skinning::bind_groups::BindGroupLayout1 {
+                        transforms: skinning_transforms_buffer,
+                        world_transforms: world_transforms_buffer,
+                    },
+                );
+
+            let parent_index = find_parent_index(mesh_object, skel);
+            let mesh_object_info_buffer =
+                device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                    label: Some("Mesh Object Info Buffer"),
+                    contents: bytemuck::cast_slice(&[crate::shader::skinning::MeshObjectInfo {
+                        parent_index: [parent_index, -1, -1, -1],
+                    }]),
+                    usage: wgpu::BufferUsages::UNIFORM,
+                });
+
+            let mesh_object_info_bind_group =
+                crate::shader::skinning::bind_groups::BindGroup2::from_bindings(
+                    device,
+                    crate::shader::skinning::bind_groups::BindGroupLayout2 {
+                        mesh_object_info: &mesh_object_info_buffer,
                     },
                 );
 
             let mesh = RenderMesh {
                 pipeline: pipeline.clone(),
-                vertex_buffer0_source: buffer_data.vertex_buffer0_source,
                 vertex_buffer0: buffer_data.vertex_buffer0,
                 vertex_buffer1: buffer_data.vertex_buffer1,
                 index_buffer: buffer_data.index_buffer,
                 vertex_count: buffer_data.vertex_count as u32,
                 vertex_index_count: buffer_data.vertex_index_count as u32,
                 sort_bias: mesh_object.sort_bias,
-                transforms_bind_group: crate::shader::model::bind_groups::BindGroup1::from_bindings(
-                    device,
-                    crate::shader::model::bind_groups::BindGroupLayout1 {
-                        transforms: &transforms_buffer,
-                    },
-                ),
                 skinning_bind_group,
+                skinning_transforms_bind_group,
+                mesh_object_info_bind_group,
             };
 
             // The end of the shader label is used to determine draw order.
@@ -254,11 +325,11 @@ fn get_render_meshes_and_shader_tags(
 fn create_uniforms_bind_group(
     material: Option<&ssbh_data::matl_data::MatlEntryData>,
     device: &wgpu::Device,
-) -> crate::shader::model::bind_groups::BindGroup3 {
+) -> crate::shader::model::bind_groups::BindGroup2 {
     let uniforms_buffer = create_uniforms_buffer(material, device);
-    crate::shader::model::bind_groups::BindGroup3::from_bindings(
+    crate::shader::model::bind_groups::BindGroup2::from_bindings(
         device,
-        crate::shader::model::bind_groups::BindGroupLayout3 {
+        crate::shader::model::bind_groups::BindGroupLayout2 {
             uniforms: &uniforms_buffer,
         },
     )
@@ -271,7 +342,7 @@ fn create_textures_bind_group(
     folder: &str,
     textures: &[(String, NutexbFile)],
     default_textures: &[(&'static str, wgpu::Texture)],
-) -> crate::shader::model::bind_groups::BindGroup2 {
+) -> crate::shader::model::bind_groups::BindGroup1 {
     // TODO: Avoid creating defaults more than once?
     let load_texture_sampler = |texture_id, sampler_id| {
         load_texture_sampler(
@@ -330,9 +401,9 @@ fn create_textures_bind_group(
     let texture13 = load_texture_sampler(ParamId::Texture13, ParamId::Sampler13);
     let texture14 = load_texture_sampler(ParamId::Texture14, ParamId::Sampler14);
 
-    crate::shader::model::bind_groups::BindGroup2::from_bindings(
+    crate::shader::model::bind_groups::BindGroup1::from_bindings(
         device,
-        crate::shader::model::bind_groups::BindGroupLayout2 {
+        crate::shader::model::bind_groups::BindGroupLayout1 {
             texture0: &texture0.as_ref().unwrap_or(&default_white).0,
             sampler0: &texture0.as_ref().unwrap_or(&default_white).1,
             texture1: &texture1.as_ref().unwrap_or(&default_white).0,
@@ -368,40 +439,35 @@ fn create_textures_bind_group(
 }
 
 // TODO: Where to put this?
-fn create_transforms_buffer(
+// TODO: Module for skinning buffers?
+fn create_world_transforms_buffer(
     device: &wgpu::Device,
-    mesh_object: &ssbh_data::mesh_data::MeshObjectData,
-    skel: &Option<SkelData>,
     animated_world_transforms: &[glam::Mat4; 512],
 ) -> wgpu::Buffer {
-    let parent_transform = find_parent_transform(mesh_object, skel, animated_world_transforms)
-        .unwrap_or(glam::Mat4::IDENTITY);
-
     device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-        label: Some("Transforms Buffer"),
-        contents: bytemuck::cast_slice(&[crate::shader::model::Transforms { parent_transform }]),
+        label: Some("World Transforms Buffer"),
+        contents: bytemuck::cast_slice(animated_world_transforms),
         usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
     })
 }
 
-fn find_parent_transform(
+fn find_parent_index(
     mesh_object: &ssbh_data::mesh_data::MeshObjectData,
     skel: &Option<SkelData>,
-    animated_world_transforms: &[glam::Mat4; 512],
-) -> Option<glam::Mat4> {
+) -> i32 {
     if mesh_object.bone_influences.is_empty() {
-        if let Some(skel_data) = skel {
-            if let Some(parent_bone_index) = skel_data
-                .bones
-                .iter()
-                .position(|b| b.name == mesh_object.parent_bone_name)
-            {
-                return Some(animated_world_transforms[parent_bone_index]);
-            }
-        }
+        skel.as_ref()
+            .map(|skel| {
+                skel.bones
+                    .iter()
+                    .position(|b| b.name == mesh_object.parent_bone_name)
+            })
+            .flatten()
+            .map(|i| i as i32)
+            .unwrap_or(-1)
+    } else {
+        -1
     }
-
-    None
 }
 
 fn render_pass_index(tag: &str) -> usize {
@@ -415,13 +481,15 @@ fn render_pass_index(tag: &str) -> usize {
 }
 
 // TODO: Animations?
-pub fn skin_render_meshes<'a>(meshes: &'a [RenderMesh], compute_pass: &mut wgpu::ComputePass<'a>) {
+pub fn skin_render_meshes<'a>(meshes: &'a [&RenderMesh], compute_pass: &mut wgpu::ComputePass<'a>) {
     // Assume the pipeline is already set.
     for mesh in meshes {
         crate::shader::skinning::bind_groups::set_bind_groups(
             compute_pass,
             crate::shader::skinning::bind_groups::BindGroups::<'a> {
                 bind_group0: &mesh.skinning_bind_group,
+                bind_group1: &mesh.skinning_transforms_bind_group,
+                bind_group2: &mesh.mesh_object_info_bind_group,
             },
         );
 
@@ -433,7 +501,7 @@ pub fn skin_render_meshes<'a>(meshes: &'a [RenderMesh], compute_pass: &mut wgpu:
 }
 
 pub fn draw_render_meshes<'a>(
-    meshes: &'a [RenderMesh],
+    meshes: &'a [&RenderMesh],
     render_pass: &mut wgpu::RenderPass<'a>,
     camera_bind_group: &'a crate::shader::model::bind_groups::BindGroup0,
 ) {
@@ -446,9 +514,8 @@ pub fn draw_render_meshes<'a>(
             render_pass,
             crate::shader::model::bind_groups::BindGroups::<'a> {
                 bind_group0: camera_bind_group,
-                bind_group1: &mesh.transforms_bind_group, // TODO: Animations?
-                bind_group2: &mesh.pipeline.as_ref().textures_bind_group,
-                bind_group3: &mesh.pipeline.as_ref().material_uniforms_bind_group,
+                bind_group1: &mesh.pipeline.as_ref().textures_bind_group,
+                bind_group2: &mesh.pipeline.as_ref().material_uniforms_bind_group,
             },
         );
 

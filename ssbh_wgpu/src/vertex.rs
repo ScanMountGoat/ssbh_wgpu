@@ -1,6 +1,6 @@
 use crate::shader::model::{VertexInput0, VertexInput1};
 use ssbh_data::{mesh_data::MeshObjectData, skel_data::SkelData};
-use wgpu::{util::DeviceExt, Buffer, Device};
+use wgpu::{util::DeviceExt, Device};
 
 // TODO: Create a function and tests that groups attributes into two buffers
 // TODO: Crevice for std140/430 layout to avoid alignment issues?
@@ -172,23 +172,6 @@ fn skin_weights(
     match skel {
         Some(skel) => {
             if mesh_data.bone_influences.is_empty() {
-                // Weight each vertex to the parent bone.
-                // TODO: Check if this gives the right visual result compared to skinning.
-                // TODO: How to combine this with the vertex shader?
-                // let parent_bone_index = skel
-                //     .bones
-                //     .iter()
-                //     .position(|b| b.name == mesh_data.parent_bone_name)
-                //     .map(|i| i as i32)
-                //     .unwrap_or(-1);
-
-                // vec![
-                //     VertexWeight {
-                //         bone_indices: [parent_bone_index, -1, -1, -1],
-                //         weights: [1.0, 0.0, 0.0, 0.0]
-                //     };
-                //     vertex_count
-                // ]
                 vec![VertexWeight::default(); vertex_count]
             } else {
                 // Collect influences per vertex.
