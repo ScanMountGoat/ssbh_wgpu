@@ -2,44 +2,44 @@ fn main() {
     // TODO: Only rerun if the shaders change?
     // TODO: Apply this automatically to all wgsl files in directory?
     wgsl_to_wgpu::write_module_file(
-        "src/shader/model.rs",
         "src/shader/model.wgsl",
+        "src/shader/model.rs",
         "model.wgsl",
         false,
     );
     wgsl_to_wgpu::write_module_file(
-        "src/shader/post_process.rs",
         "src/shader/post_process.wgsl",
+        "src/shader/post_process.rs",
         "post_process.wgsl",
         false,
     );
     wgsl_to_wgpu::write_module_file(
-        "src/shader/bloom_blur.rs",
         "src/shader/bloom_blur.wgsl",
+        "src/shader/bloom_blur.rs",
         "bloom_blur.wgsl",
         false,
     );
     wgsl_to_wgpu::write_module_file(
-        "src/shader/bloom_threshold.rs",
         "src/shader/bloom_threshold.wgsl",
+        "src/shader/bloom_threshold.rs",
         "bloom_threshold.wgsl",
         false,
     );
     wgsl_to_wgpu::write_module_file(
-        "src/shader/bloom_combine.rs",
         "src/shader/bloom_combine.wgsl",
+        "src/shader/bloom_combine.rs",
         "bloom_combine.wgsl",
         false,
     );
     wgsl_to_wgpu::write_module_file(
-        "src/shader/bloom_upscale.rs",
         "src/shader/bloom_upscale.wgsl",
+        "src/shader/bloom_upscale.rs",
         "bloom_upscale.wgsl",
         false,
     );
     wgsl_to_wgpu::write_module_file(
-        "src/shader/skinning.rs",
         "src/shader/skinning.wgsl",
+        "src/shader/skinning.rs",
         "skinning.wgsl",
         true,
     );

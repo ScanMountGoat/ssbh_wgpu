@@ -1,9 +1,15 @@
 use wgpu::{ComputePassDescriptor, ComputePipelineDescriptor};
 
-use crate::{rendermesh::RenderMesh, texture::load_texture_sampler_3d};
+use crate::{
+    camera::create_camera_bind_group, rendermesh::RenderMesh, texture::load_texture_sampler_3d,
+    CameraTransforms,
+};
 
 // TODO: Add multiple animation "slots"?
 // TODO: Should animations be a parameter or field?
+// TODO: Explicitly store the camera state?
+// This avoids exposing shader or bind group details.
+// TODO: fn update_camera(&mut self, camera_transforms: Transforms)?
 pub struct SsbhRenderer {
     bloom_threshold_pipeline: wgpu::RenderPipeline,
     bloom_blur_pipeline: wgpu::RenderPipeline,
@@ -11,6 +17,10 @@ pub struct SsbhRenderer {
     bloom_upscale_pipeline: wgpu::RenderPipeline,
     post_process_pipeline: wgpu::RenderPipeline,
     skinning_pipeline: wgpu::ComputePipeline,
+    // Store camera state for efficiently updating it later.
+    // This avoids exposing shader implementations like bind groups.
+    camera_buffer: wgpu::Buffer,
+    camera_bind_group: crate::shader::model::bind_groups::BindGroup0,
     pass_info: PassInfo,
 }
 
@@ -138,6 +148,9 @@ impl SsbhRenderer {
 
         let pass_info = PassInfo::new(device, queue, width, height);
 
+        let (camera_buffer, camera_bind_group) =
+            create_camera_bind_group(device, glam::Vec4::ZERO, glam::Mat4::IDENTITY);
+
         Self {
             bloom_threshold_pipeline,
             bloom_blur_pipeline,
@@ -145,13 +158,20 @@ impl SsbhRenderer {
             bloom_upscale_pipeline,
             post_process_pipeline,
             skinning_pipeline,
+            camera_buffer,
+            camera_bind_group,
             pass_info,
         }
     }
 
     // Faster alternative to recreating the entire object.
+    // TODO: Document that this doesn't change the camera?
     pub fn resize(&mut self, device: &wgpu::Device, queue: &wgpu::Queue, width: u32, height: u32) {
         self.pass_info = PassInfo::new(device, queue, width, height);
+    }
+
+    pub fn update_camera(&mut self, queue: &wgpu::Queue, transforms: CameraTransforms) {
+        queue.write_buffer(&self.camera_buffer, 0, bytemuck::cast_slice(&[transforms]));
     }
 
     // TODO: Animation?
@@ -160,8 +180,6 @@ impl SsbhRenderer {
         encoder: &mut wgpu::CommandEncoder,
         output_view: &wgpu::TextureView,
         render_meshes: &[&RenderMesh],
-        // TODO: Avoid exposing the bind group publicly?
-        camera_bind_group: &crate::shader::model::bind_groups::BindGroup0,
     ) {
         let mut skinning_pass = encoder.begin_compute_pass(&ComputePassDescriptor {
             label: Some("Skinning Pass"),
@@ -194,7 +212,11 @@ impl SsbhRenderer {
             }),
         });
 
-        crate::rendermesh::draw_render_meshes(render_meshes, &mut model_pass, camera_bind_group);
+        crate::rendermesh::draw_render_meshes(
+            render_meshes,
+            &mut model_pass,
+            &self.camera_bind_group,
+        );
         drop(model_pass);
 
         let mut bloom_threshold_pass = create_color_pass(
@@ -348,7 +370,6 @@ impl PassInfo {
 
 // TODO: Move this to another module?
 struct TextureSamplerView {
-    texture: wgpu::Texture,
     sampler: wgpu::Sampler,
     view: wgpu::TextureView,
 }
@@ -382,11 +403,7 @@ fn create_depth(device: &wgpu::Device, width: u32, height: u32) -> TextureSample
         ..Default::default()
     });
 
-    TextureSamplerView {
-        texture,
-        view,
-        sampler,
-    }
+    TextureSamplerView { view, sampler }
 }
 
 // TODO: Organize this?
@@ -414,11 +431,7 @@ fn create_color_texture(device: &wgpu::Device, width: u32, height: u32) -> Textu
         ..Default::default()
     });
 
-    TextureSamplerView {
-        texture,
-        view,
-        sampler,
-    }
+    TextureSamplerView { view, sampler }
 }
 
 fn create_bloom_threshold_bind_group(
@@ -462,14 +475,7 @@ fn create_bloom_threshold_bind_group(
         },
     );
 
-    (
-        TextureSamplerView {
-            texture,
-            view,
-            sampler,
-        },
-        bind_group,
-    )
+    (TextureSamplerView { view, sampler }, bind_group)
 }
 
 fn create_bloom_blur_bind_groups(
@@ -540,14 +546,7 @@ fn create_blur_data(
             color_sampler: &input.sampler,
         },
     );
-    (
-        TextureSamplerView {
-            texture,
-            view,
-            sampler,
-        },
-        bind_group,
-    )
+    (TextureSamplerView { view, sampler }, bind_group)
 }
 
 fn create_bloom_combine_bind_group(
@@ -593,14 +592,7 @@ fn create_bloom_combine_bind_group(
         },
     );
 
-    (
-        TextureSamplerView {
-            texture,
-            view,
-            sampler,
-        },
-        bind_group,
-    )
+    (TextureSamplerView { view, sampler }, bind_group)
 }
 
 fn create_bloom_upscale_bind_group(
@@ -642,14 +634,7 @@ fn create_bloom_upscale_bind_group(
         },
     );
 
-    (
-        TextureSamplerView {
-            texture,
-            view,
-            sampler,
-        },
-        bind_group,
-    )
+    (TextureSamplerView { view, sampler }, bind_group)
 }
 
 fn create_post_process_bind_group(

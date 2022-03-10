@@ -4,10 +4,10 @@ use wgpu::util::DeviceExt;
 // This is tricky to support since data is passed to wgpu as a byte buffer.
 // This will almost always be a struct with fields in wgsl, however.
 pub fn create_camera_bind_group(
-    _size: winit::dpi::PhysicalSize<u32>,
+    device: &wgpu::Device,
+    // TODO: Borrow here?
     camera_pos: glam::Vec4,
     mvp_matrix: glam::Mat4,
-    device: &wgpu::Device,
 ) -> (wgpu::Buffer, crate::shader::model::bind_groups::BindGroup0) {
     let camera_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
         label: Some("Camera Buffer"),

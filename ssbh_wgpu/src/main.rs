@@ -1,12 +1,9 @@
 use std::{iter, path::Path};
 
-use ssbh_wgpu::rendermesh::apply_anim;
-use ssbh_wgpu::shader::model::CameraTransforms;
-use ssbh_wgpu::texture::create_default_textures;
-use ssbh_wgpu::{
-    camera::create_camera_bind_group, load_model_folders, load_render_meshes, RenderMesh,
-    SsbhRenderer,
-};
+use ssbh_wgpu::create_default_textures;
+use ssbh_wgpu::CameraTransforms;
+use ssbh_wgpu::RenderModel;
+use ssbh_wgpu::{load_model_folders, load_render_models, SsbhRenderer};
 
 use ssbh_data::prelude::*;
 
@@ -17,7 +14,7 @@ use winit::{
     window::{Window, WindowBuilder},
 };
 
-fn calculate_mvp(
+fn calculate_camera_pos_mvp(
     size: winit::dpi::PhysicalSize<u32>,
     translation: glam::Vec3,
     rotation: glam::Vec3,
@@ -38,16 +35,12 @@ struct State {
     device: wgpu::Device,
     queue: wgpu::Queue,
     config: wgpu::SurfaceConfiguration,
-    render_meshes: Vec<(Vec<RenderMesh>, SkelData, wgpu::Buffer, wgpu::Buffer)>, // TODO: Better way to store skinning buffer?
-    camera_buffer: wgpu::Buffer,
-    // TODO: Make this part of the public API?
-    // TODO: Organize the passes somehow?
+    render_models: Vec<RenderModel>,
     renderer: SsbhRenderer,
-    camera_bind_group: ssbh_wgpu::shader::model::bind_groups::BindGroup0,
     // TODO: Separate camera/window state struct?
     size: winit::dpi::PhysicalSize<u32>,
 
-    // Camera stuff.
+    // Camera input stuff.
     previous_cursor_position: PhysicalPosition<f64>,
     is_mouse_left_clicked: bool,
     is_mouse_right_clicked: bool,
@@ -102,18 +95,12 @@ impl State {
 
         // TODO: Frame bounding spheres?
 
-        let camera_position = glam::Vec3::new(0.0, -8.0, -60.0);
-        let (model_view, mvp) =
-            calculate_mvp(size, camera_position, glam::Vec3::new(0.0, 0.0, 0.0));
-        let (camera_buffer, camera_bind_group) =
-            create_camera_bind_group(size, model_view, mvp, &device);
-
         // TODO: Where to store/load anim files?
         let animation = AnimData::from_file("a00wait1.nuanmb").unwrap();
 
         let default_textures = create_default_textures(&device, &queue);
         let models = load_model_folders(folder);
-        let render_meshes = load_render_meshes(
+        let render_meshes = load_render_models(
             &device,
             &queue,
             surface_format,
@@ -131,14 +118,12 @@ impl State {
             queue,
             config,
             size,
-            render_meshes,
-            camera_buffer,
-            camera_bind_group,
+            render_models: render_meshes,
             renderer,
             previous_cursor_position: PhysicalPosition { x: 0.0, y: 0.0 },
             is_mouse_left_clicked: false,
             is_mouse_right_clicked: false,
-            translation_xyz: camera_position,
+            translation_xyz: glam::Vec3::new(0.0, -8.0, -60.0),
             rotation_xyz: glam::Vec3::new(0.0, 0.0, 0.0),
             animation,
             current_frame: 0.0,
@@ -153,16 +138,7 @@ impl State {
             self.config.height = new_size.height;
             self.surface.configure(&self.device, &self.config);
 
-            let (camera_pos, mvp_matrix) =
-                calculate_mvp(new_size, self.translation_xyz, self.rotation_xyz);
-            self.queue.write_buffer(
-                &self.camera_buffer,
-                0,
-                bytemuck::cast_slice(&[CameraTransforms {
-                    mvp_matrix,
-                    camera_pos: camera_pos.to_array(),
-                }]),
-            );
+            self.update_camera();
 
             // We also need to recreate the attachments if the size changes.
             self.renderer
@@ -239,22 +215,24 @@ impl State {
     }
 
     fn update(&mut self) {
+        self.update_camera();
+    }
+
+    fn update_camera(&mut self) {
         let (camera_pos, mvp_matrix) =
-            calculate_mvp(self.size, self.translation_xyz, self.rotation_xyz);
-        self.queue.write_buffer(
-            &self.camera_buffer,
-            0,
-            bytemuck::cast_slice(&[CameraTransforms {
-                mvp_matrix,
-                camera_pos: camera_pos.to_array(),
-            }]),
-        );
+            calculate_camera_pos_mvp(self.size, self.translation_xyz, self.rotation_xyz);
+        let transforms = CameraTransforms {
+            mvp_matrix,
+            camera_pos: camera_pos.to_array(),
+        };
+        self.renderer.update_camera(&self.queue, transforms);
     }
 
     fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
         // Animate at 60 fps regardless of the rendering framerate.
         // This relies on interpolation or frame skipping.
         // TODO: How robust is this timing implementation?
+        // TODO: Create a module/tests for this?
         let current_frame_start = std::time::Instant::now();
         let delta_t = current_frame_start.duration_since(self.previous_frame_start);
         self.previous_frame_start = current_frame_start;
@@ -262,7 +240,6 @@ impl State {
         let millis_per_frame = 1000.0f64 / 60.0f64;
         let delta_t_frames = delta_t.as_millis() as f64 / millis_per_frame;
 
-        // TODO: Calculate delta time from last frame?
         self.current_frame += delta_t_frames as f32;
         if self.current_frame > self.animation.final_frame_index {
             self.current_frame = 0.0;
@@ -281,41 +258,24 @@ impl State {
                 label: Some("Render Encoder"),
             });
 
-        // 1) update animation state here and pass to the renderer
-        // or
-        // 2) have the renderer update its own state from the animation
-        // The issue is that we don't know which rendermesh corresponds to which mesh object.
-        // We only need to update transform buffers, and recreating rendermeshes is too slow.
-
-        // TODO: Associate each skel with its buffer.
-        // Updating a skel/buffer pair should then be reflected in all effected rendermeshes.
-
-        for (_, skel, skinning_buffer, world_transforms_buffer) in &mut self.render_meshes {
-            apply_anim(
-                &self.queue,
-                skinning_buffer,
-                world_transforms_buffer,
-                skel,
-                &self.animation,
-                self.current_frame,
-            );
+        // Apply animations for each model.
+        // This is more efficient since state is shared between render meshes.
+        for model in &self.render_models {
+            model.apply_anim(&self.queue, &self.animation, self.current_frame);
         }
 
         // Each render mesh is associated with a skel and material.
         // Animations update the skel and material data.
         // TODO: How to do this if the render meshes get reordered?
         let render_meshes_temp: Vec<_> = self
-            .render_meshes
+            .render_models
             .iter()
-            .map(|(m, _, _, _)| m)
+            .map(|m| &m.meshes)
             .flatten()
             .collect();
-        self.renderer.render_ssbh_passes(
-            &mut encoder,
-            &output_view,
-            &render_meshes_temp,
-            &self.camera_bind_group,
-        );
+
+        self.renderer
+            .render_ssbh_passes(&mut encoder, &output_view, &render_meshes_temp);
 
         self.queue.submit(iter::once(encoder.finish()));
         // Actually draw the frame.
@@ -367,17 +327,8 @@ fn main() {
                 }
 
                 if state.handle_input(event) {
-                    let (camera_pos, mvp_matrix) =
-                        calculate_mvp(state.size, state.translation_xyz, state.rotation_xyz);
                     // TODO: Avoid requiring bytemuck in the application itself?
-                    state.queue.write_buffer(
-                        &state.camera_buffer,
-                        0,
-                        bytemuck::cast_slice(&[CameraTransforms {
-                            mvp_matrix,
-                            camera_pos: camera_pos.to_array(),
-                        }]),
-                    );
+                    state.update_camera();
                 }
             }
             Event::RedrawRequested(_) => {

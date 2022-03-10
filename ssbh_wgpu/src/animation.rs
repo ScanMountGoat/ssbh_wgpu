@@ -1,4 +1,7 @@
-use ssbh_data::{anim_data::TrackValues, prelude::*};
+use ssbh_data::{
+    anim_data::{GroupType, TrackValues, Vector3, Vector4},
+    prelude::*,
+};
 
 use crate::shader::skinning::Transforms;
 
@@ -10,6 +13,7 @@ pub struct AnimationTransforms {
 
 // TODO: How to test this?
 // TODO: Create test cases for test animations on short bone chains?
+// TODO: Also apply visibility and material animation?
 pub fn apply_animation(skel: &SkelData, anim: &AnimData, frame: f32) -> AnimationTransforms {
     // TODO: Make the skel optional?
 
@@ -25,54 +29,27 @@ pub fn apply_animation(skel: &SkelData, anim: &AnimData, frame: f32) -> Animatio
     // We won't worry about redundant matrix multiplications for now.
     let mut animated_skel = skel.clone();
     for group in &anim.groups {
-        for node in &group.nodes {
-            if let Some(track) = node.tracks.first() {
-                if let TrackValues::Transform(values) = &track.values {
-                    // TODO: Set the frame/interpolation?
-                    // TODO: Faster to use SIMD types?
-                    if let Some(bone) = animated_skel.bones.iter_mut().find(|b| b.name == node.name)
-                    {
-                        // Force the frame to be in bounds.
-                        // TODO: Is this the correct way to handle single frame const animations?
-                        // TODO: Tests for interpolation?
-                        let current_frame =
-                            (frame.floor() as usize).clamp(0, track.values.len() - 1);
-                        let next_frame = (frame.ceil() as usize).clamp(0, track.values.len() - 1);
-
-                        // TODO: Not all animations interpolate?
-                        let factor = frame.fract();
-
-                        let current = values[current_frame];
-                        let next = values[next_frame];
-
-                        let translation = glam::Mat4::from_translation(
-                            glam::Vec3::from(current.translation.to_array())
-                                .lerp(glam::Vec3::from(next.translation.to_array()), factor),
-                        );
-                        let rotation = glam::Mat4::from_quat(
-                            glam::Quat::from_xyzw(
-                                current.rotation.x,
-                                current.rotation.y,
-                                current.rotation.z,
-                                current.rotation.w,
-                            )
-                            .lerp(
-                                glam::Quat::from_xyzw(
-                                    next.rotation.x,
-                                    next.rotation.y,
-                                    next.rotation.z,
-                                    next.rotation.w,
-                                ),
-                                factor,
-                            ),
-                        );
-                        let anim_transform = translation * rotation;
-
-                        // TODO: Why do we not transpose here?
-                        bone.transform = anim_transform.to_cols_array_2d();
+        match group.group_type {
+            GroupType::Transform => {
+                for node in &group.nodes {
+                    if let Some(track) = node.tracks.first() {
+                        if let TrackValues::Transform(values) = &track.values {
+                            // TODO: Set the frame/interpolation?
+                            // TODO: Faster to use SIMD types?
+                            if let Some(bone) =
+                                animated_skel.bones.iter_mut().find(|b| b.name == node.name)
+                            {
+                                apply_transform_track(frame, track, values, bone);
+                            }
+                        }
                     }
                 }
             }
+            // TODO: Handle other animation types?
+            GroupType::Visibility => (),
+            GroupType::Material => (),
+            // TODO: Camera animations should apply to the scene camera?
+            GroupType::Camera => (),
         }
     }
 
@@ -109,6 +86,48 @@ pub fn apply_animation(skel: &SkelData, anim: &AnimData, frame: f32) -> Animatio
             transforms_inv_transpose,
         }),
     }
+}
+
+fn interp_quat(a: &Vector4, b: &Vector4, factor: f32) -> glam::Quat {
+    glam::Quat::from_xyzw(a.x, a.y, a.z, a.w)
+        .lerp(glam::Quat::from_xyzw(b.x, b.y, b.z, b.w), factor)
+}
+
+fn interp_vec3(a: &Vector3, b: &Vector3, factor: f32) -> glam::Vec3 {
+    // TODO: SIMD type here?
+    glam::Vec3::from(a.to_array()).lerp(glam::Vec3::from(b.to_array()), factor)
+}
+
+fn apply_transform_track(
+    frame: f32,
+    track: &ssbh_data::anim_data::TrackData,
+    values: &[ssbh_data::anim_data::Transform],
+    bone: &mut ssbh_data::skel_data::BoneData,
+) {
+    let (current_frame, next_frame, factor) = frame_values(frame, track);
+
+    let current = values[current_frame];
+    let next = values[next_frame];
+
+    let translation =
+        glam::Mat4::from_translation(interp_vec3(&current.translation, &next.translation, factor));
+
+    let rotation = glam::Mat4::from_quat(interp_quat(&current.rotation, &next.rotation, factor));
+    let anim_transform = translation * rotation;
+    // TODO: Why do we not transpose here?
+    bone.transform = anim_transform.to_cols_array_2d();
+}
+
+fn frame_values(frame: f32, track: &ssbh_data::anim_data::TrackData) -> (usize, usize, f32) {
+    // Force the frame to be in bounds.
+    // TODO: Is this the correct way to handle single frame const animations?
+    // TODO: Tests for interpolation?
+    let current_frame = (frame.floor() as usize).clamp(0, track.values.len() - 1);
+    let next_frame = (frame.ceil() as usize).clamp(0, track.values.len() - 1);
+    // TODO: Not all animations interpolate?
+    let factor = frame.fract();
+
+    (current_frame, next_frame, factor)
 }
 
 #[cfg(test)]

@@ -7,6 +7,19 @@ use ssbh_data::{matl_data::ParamId, prelude::*};
 use std::{collections::HashMap, sync::Arc};
 use wgpu::{util::DeviceExt, SamplerDescriptor, TextureViewDescriptor, TextureViewDimension};
 
+// Group resources shared between mesh objects.
+// Shared resources can be updated once per model instead of per mesh.
+// TODO: How to render the flattened RenderModels in render pass sorted order?
+// draw all opaque in all models -> draw all sort in all models, etc without explicitly sorting?
+// TODO: How to include sort bias in sorting?
+// Keep most fields private since the buffer layout is an implementation detail.
+pub struct RenderModel {
+    pub meshes: Vec<RenderMesh>,
+    skel: SkelData,
+    skinning_transforms_buffer: wgpu::Buffer,
+    world_transforms_buffer: wgpu::Buffer,
+}
+
 pub struct RenderMesh {
     // TODO: It may be worth sharing buffers in the future.
     vertex_buffer0: wgpu::Buffer,
@@ -23,35 +36,30 @@ pub struct RenderMesh {
     pipeline: Arc<PipelineData>,
 }
 
-pub fn apply_anim(
-    queue: &wgpu::Queue,
-    skinning_buffer: &wgpu::Buffer,
-    world_transforms_buffer: &wgpu::Buffer,
-    skel: &SkelData,
-    anim: &AnimData,
-    frame: f32,
-) {
-    // Update the buffers associated with each skel.
-    // This avoids updating per mesh object and allocating new buffers.
-    let animation_transforms = apply_animation(skel, anim, frame);
-
-    queue.write_buffer(
-        skinning_buffer,
-        0,
-        bytemuck::cast_slice(&[*animation_transforms.transforms]),
-    );
-
-    queue.write_buffer(
-        world_transforms_buffer,
-        0,
-        bytemuck::cast_slice(&(*animation_transforms.world_transforms)),
-    );
-}
-
 pub struct PipelineData {
     pub pipeline: wgpu::RenderPipeline,
     pub textures_bind_group: crate::shader::model::bind_groups::BindGroup1,
     pub material_uniforms_bind_group: crate::shader::model::bind_groups::BindGroup2,
+}
+
+impl RenderModel {
+    pub fn apply_anim(&self, queue: &wgpu::Queue, anim: &AnimData, frame: f32) {
+        // Update the buffers associated with each skel.
+        // This avoids updating per mesh object and allocating new buffers.
+        let animation_transforms = apply_animation(&self.skel, anim, frame);
+
+        queue.write_buffer(
+            &self.skinning_transforms_buffer,
+            0,
+            bytemuck::cast_slice(&[*animation_transforms.transforms]),
+        );
+
+        queue.write_buffer(
+            &self.world_transforms_buffer,
+            0,
+            bytemuck::cast_slice(&(*animation_transforms.world_transforms)),
+        );
+    }
 }
 
 impl RenderMesh {
@@ -67,17 +75,6 @@ impl RenderMesh {
     }
 }
 
-// TODO: Create a RenderModel to hold shared state for render meshes?
-// This would include skel and matl data.
-// The goal is to reduce memory and more efficiently apply animations/updates.
-// TODO: How to render the flattened RenderModels in render pass sorted order?
-// draw all opaque in all models -> draw all sort in all models, etc without explicitly sorting?
-// TODO: How to include sort bias?
-// TODO: Avoid self referential structs?
-struct RenderModel {
-    meshes: Vec<RenderMesh>,
-}
-
 pub fn create_render_meshes(
     device: &wgpu::Device,
     queue: &wgpu::Queue,
@@ -87,7 +84,7 @@ pub fn create_render_meshes(
     model: &ModelFolder,
     default_textures: &[(&'static str, wgpu::Texture)],
     anim: &AnimData,
-) -> (Vec<RenderMesh>, SkelData, wgpu::Buffer, wgpu::Buffer) {
+) -> RenderModel {
     // TODO: Return the animation buffer here?
 
     // We want to share the animation buffer to avoid redundant updates.
@@ -125,12 +122,12 @@ pub fn create_render_meshes(
             .cmp(&(render_pass_index(&b.1) as i32 + b.0.sort_bias))
     });
 
-    (
-        meshes.into_iter().map(|(m, _)| m).collect(),
-        model.skel.as_ref().unwrap().clone(), // TODO: Avoid cloning here?
+    RenderModel {
+        meshes: meshes.into_iter().map(|(m, _)| m).collect(),
+        skel: model.skel.as_ref().unwrap().clone(), // TODO: Avoid cloning here?
         skinning_transforms_buffer,
         world_transforms_buffer,
-    )
+    }
 }
 
 // TODO: Separate module for skinning/animation?

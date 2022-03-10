@@ -1,19 +1,23 @@
 use std::path::Path;
 
 mod pipeline;
-pub mod shader;
-pub mod texture;
+mod shader;
+mod texture;
 mod uniforms;
 mod vertex;
 
 mod animation;
-pub mod camera;
+mod camera;
 mod renderer;
-pub mod rendermesh;
+mod rendermesh;
 
 use nutexb_wgpu::NutexbFile;
+
+// TODO: Still organize these into modules?
 pub use renderer::SsbhRenderer;
-pub use rendermesh::RenderMesh;
+pub use rendermesh::{RenderMesh, RenderModel};
+pub use shader::model::CameraTransforms;
+pub use texture::create_default_textures;
 
 use ssbh_data::prelude::*;
 
@@ -39,19 +43,14 @@ pub struct ModelFolder {
     pub textures_by_file_name: Vec<(String, NutexbFile)>,
 }
 
-pub fn load_render_meshes(
+pub fn load_render_models(
     device: &wgpu::Device,
     queue: &wgpu::Queue,
     surface_format: wgpu::TextureFormat,
     models: &[ModelFolder],
     default_textures: &[(&'static str, wgpu::Texture)],
     anim: &AnimData,
-) -> Vec<(
-    Vec<rendermesh::RenderMesh>,
-    SkelData,
-    wgpu::Buffer,
-    wgpu::Buffer,
-)> {
+) -> Vec<RenderModel> {
     // TODO: Not all models can reuse the same pipeline?
     // TODO: Use wgsl_to_wgpu to automate this?
 

@@ -70,20 +70,6 @@ pub fn load_texture_sampler(
     Some((view, sampler))
 }
 
-// TODO: Share code with above?
-pub fn load_texture_sampler_cube_or_default(
-    device: &Device,
-    queue: &Queue,
-    material: Option<&MatlEntryData>,
-    folder: &str,
-    texture_id: ParamId,
-    sampler_id: ParamId,
-    _default: [u8; 4],
-) -> (TextureView, Sampler) {
-    // TODO: Create a default texture?
-    load_texture_sampler_cube(material, device, queue, folder, texture_id, sampler_id).unwrap()
-}
-
 pub fn load_texture_sampler_cube(
     _material: Option<&MatlEntryData>,
     device: &Device,

@@ -228,7 +228,6 @@ fn boolean_index(boolean: &BooleanParam) -> Option<usize> {
 mod tests {
     use super::*;
 
-
     // TODO: Test has_value, values, etc
 
     #[test]
