@@ -110,3 +110,18 @@ pub fn apply_animation(skel: &SkelData, anim: &AnimData, frame: f32) -> Animatio
         }),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn test() {
+        // TODO: How to test animations?
+        // Compare the matrices to the expected matrix (use approx).
+        // Construct AnimData and SkelData?
+        // Test scale inheritance, scale compensation, etc
+        // Test with a three bone chain based on known test anims?
+        // Cycle detection in the skeleton?
+        // Out of range frame indices (negative, too large, etc)
+        // Interpolation behavior
+    }
+}

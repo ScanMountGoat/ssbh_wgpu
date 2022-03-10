@@ -269,3 +269,15 @@ pub fn mesh_object_buffers(
         vertex_index_count: mesh_object.vertex_indices.len(),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn test() {
+        // TODO: Test vertex buffer creation
+        // Just test the vertices themselves.
+        // Assign each attribute
+        // Additional attributes should be ignored.
+        // Missing attributes set to 0.
+    }
+}
