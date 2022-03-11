@@ -3,7 +3,7 @@ use ssbh_data::{
     prelude::*,
 };
 
-use crate::shader::skinning::Transforms;
+use crate::{shader::skinning::Transforms, RenderMesh};
 
 pub struct AnimationTransforms {
     // Box large arrays to avoid stack overflows in debug mode.
@@ -14,7 +14,13 @@ pub struct AnimationTransforms {
 // TODO: How to test this?
 // TODO: Create test cases for test animations on short bone chains?
 // TODO: Also apply visibility and material animation?
-pub fn apply_animation(skel: &SkelData, anim: &AnimData, frame: f32) -> AnimationTransforms {
+// TODO: Make this return the visibility info to make it easier to test?
+pub fn apply_animation(
+    skel: &SkelData,
+    anim: &AnimData,
+    frame: f32,
+    meshes: &mut [RenderMesh],
+) -> AnimationTransforms {
     // TODO: Make the skel optional?
 
     // TODO: Is this redundant?
@@ -46,7 +52,26 @@ pub fn apply_animation(skel: &SkelData, anim: &AnimData, frame: f32) -> Animatio
                 }
             }
             // TODO: Handle other animation types?
-            GroupType::Visibility => (),
+            GroupType::Visibility => {
+                for node in &group.nodes {
+                    if let Some(track) = node.tracks.first() {
+                        if let TrackValues::Boolean(values) = &track.values {
+                            // TODO: Is this the correct way to process mesh names?
+                            // TODO: Test visibility anims?
+                            // Ignore the _VIS_....
+                            // An Eye track toggles EyeL and EyeR?
+                            for mesh in meshes.iter_mut().filter(|m| m.name.starts_with(&node.name))
+                            {
+                                // TODO: Share this between tracks?
+                                let (current_frame, next_frame, factor) =
+                                    frame_values(frame, track);
+                                // dbg!(&node.name, values[current_frame]);
+                                mesh.is_visible = values[current_frame];
+                            }
+                        }
+                    }
+                }
+            }
             GroupType::Material => (),
             // TODO: Camera animations should apply to the scene camera?
             GroupType::Camera => (),

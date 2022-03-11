@@ -201,10 +201,11 @@ fn GetAlbedoColor(uv1: vec2<f32>, uv2: vec2<f32>, uv3: vec2<f32>, R: vec3<f32>, 
         outAlpha = albedoColor.a;
     }
 
-    // colorSet5.w is used to blend between the two col map layers.
+    // TODO: colorSet5.w is used to blend between the two col map layers.
+    // TODO: Add has_color_set.
     if (uniforms.has_texture[1].x == 1.0) {
         let albedoColor2 = textureSample(texture1, sampler1, uvLayer2);
-        outRgb = Blend(outRgb, albedoColor2 * vec4<f32>(1.0, 1.0, 1.0, colorSet5.w));
+        outRgb = Blend(outRgb, albedoColor2 * vec4<f32>(1.0, 1.0, 1.0, 1.0));
     }
 
     // Materials won't have col and diffuse cube maps.
@@ -548,9 +549,9 @@ fn vs_main(
 [[stage(fragment)]]
 fn fs_main(in: VertexOutput) -> [[location(0)]] vec4<f32> {
     let map1 = in.map1_uvset.xy;
-    let uvSet = in.map1_uvset.wz;
+    let uvSet = in.map1_uvset.zw;
     let uvSet1 = in.uv_set1_uv_set2.xy;
-    let uvSet2 = in.uv_set1_uv_set2.wz;
+    let uvSet2 = in.uv_set1_uv_set2.zw;
     let bake1 = in.bake1.xy;
 
     // Color sets are packed to use fewer attributes.
@@ -616,12 +617,12 @@ fn fs_main(in: VertexOutput) -> [[location(0)]] vec4<f32> {
 
     var uvTransform2 = vec4<f32>(1.0, 1.0, 0.0, 0.0);
     if (uniforms.has_vector[31].x == 1.0) {
-        uvTransform1 = uniforms.custom_vector[31];
+        uvTransform2 = uniforms.custom_vector[31];
     }
 
     var uvTransform3 = vec4<f32>(1.0, 1.0, 0.0, 0.0);
     if (uniforms.has_vector[32].x == 1.0) {
-        uvTransform1 = uniforms.custom_vector[32];
+        uvTransform3 = uniforms.custom_vector[32];
     }
 
     let albedoColor = GetAlbedoColor(map1, uvSet, uvSet1, reflectionVector, uvTransform1, uvTransform2, uvTransform3, colorSet5);

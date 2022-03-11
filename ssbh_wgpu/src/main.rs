@@ -96,7 +96,7 @@ impl State {
         // TODO: Frame bounding spheres?
 
         // TODO: Where to store/load anim files?
-        let animation = AnimData::from_file("a00wait1.nuanmb").unwrap();
+        let animation = AnimData::from_file("a00wait2.nuanmb").unwrap();
 
         let default_textures = create_default_textures(&device, &queue);
         let models = load_model_folders(folder);
@@ -109,7 +109,6 @@ impl State {
             &animation,
         );
 
-        // TODO: Move this to the lib?
         let renderer = SsbhRenderer::new(&device, &queue, size.width, size.height);
 
         Self {
@@ -260,7 +259,7 @@ impl State {
 
         // Apply animations for each model.
         // This is more efficient since state is shared between render meshes.
-        for model in &self.render_models {
+        for model in &mut self.render_models {
             model.apply_anim(&self.queue, &self.animation, self.current_frame);
         }
 
@@ -289,7 +288,6 @@ fn main() {
     let args: Vec<_> = std::env::args().collect();
     let folder = std::path::Path::new(&args[1]);
 
-    // TODO: Load the mesh and skel data.
     let event_loop = EventLoop::new();
     let window = WindowBuilder::new()
         .with_title("ssbh_wgpu")
@@ -320,14 +318,13 @@ fn main() {
                         state.resize(*physical_size);
                     }
                     WindowEvent::ScaleFactorChanged { new_inner_size, .. } => {
-                        // new_inner_size is &mut so w have to dereference it twice
+                        // new_inner_size is &mut so we have to dereference it twice
                         state.resize(**new_inner_size);
                     }
                     _ => {}
                 }
 
                 if state.handle_input(event) {
-                    // TODO: Avoid requiring bytemuck in the application itself?
                     state.update_camera();
                 }
             }

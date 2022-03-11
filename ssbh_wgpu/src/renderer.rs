@@ -5,11 +5,9 @@ use crate::{
     CameraTransforms,
 };
 
+// TODO: Document the renderer.
 // TODO: Add multiple animation "slots"?
 // TODO: Should animations be a parameter or field?
-// TODO: Explicitly store the camera state?
-// This avoids exposing shader or bind group details.
-// TODO: fn update_camera(&mut self, camera_transforms: Transforms)?
 pub struct SsbhRenderer {
     bloom_threshold_pipeline: wgpu::RenderPipeline,
     bloom_blur_pipeline: wgpu::RenderPipeline,
@@ -25,7 +23,7 @@ pub struct SsbhRenderer {
 }
 
 impl SsbhRenderer {
-    pub fn new(device: &wgpu::Device, queue: &wgpu::Queue, width: u32, height: u32) -> Self {
+    pub fn new(device: &wgpu::Device, queue: &wgpu::Queue, initial_width: u32, initial_height: u32) -> Self {
         let shader = crate::shader::post_process::create_shader_module(device);
         let pipeline_layout = crate::shader::post_process::create_pipeline_layout(device);
         let post_process_pipeline =
@@ -146,7 +144,7 @@ impl SsbhRenderer {
             entry_point: "main",
         });
 
-        let pass_info = PassInfo::new(device, queue, width, height);
+        let pass_info = PassInfo::new(device, queue, initial_width, initial_height);
 
         let (camera_buffer, camera_bind_group) =
             create_camera_bind_group(device, glam::Vec4::ZERO, glam::Mat4::IDENTITY);

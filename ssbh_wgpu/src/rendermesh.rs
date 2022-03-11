@@ -21,6 +21,8 @@ pub struct RenderModel {
 }
 
 pub struct RenderMesh {
+    pub name: String,
+    pub is_visible: bool,
     // TODO: It may be worth sharing buffers in the future.
     vertex_buffer0: wgpu::Buffer,
     vertex_buffer1: wgpu::Buffer,
@@ -43,10 +45,10 @@ pub struct PipelineData {
 }
 
 impl RenderModel {
-    pub fn apply_anim(&self, queue: &wgpu::Queue, anim: &AnimData, frame: f32) {
+    pub fn apply_anim(&mut self, queue: &wgpu::Queue, anim: &AnimData, frame: f32) {
         // Update the buffers associated with each skel.
         // This avoids updating per mesh object and allocating new buffers.
-        let animation_transforms = apply_animation(&self.skel, anim, frame);
+        let animation_transforms = apply_animation(&self.skel, anim, frame, &mut self.meshes);
 
         queue.write_buffer(
             &self.skinning_transforms_buffer,
@@ -89,7 +91,8 @@ pub fn create_render_meshes(
 
     // We want to share the animation buffer to avoid redundant updates.
     // TODO: Where to update the current frame?
-    let anim_transforms = apply_animation(model.skel.as_ref().unwrap(), anim, 0.0);
+    // TODO: This shouldn't take the animation as an argument.
+    let anim_transforms = apply_animation(model.skel.as_ref().unwrap(), anim, 0.0, &mut []);
 
     // TODO: Enforce bone count being at most 511?
     // TODO: How to initialize the animation transforms?
@@ -269,6 +272,8 @@ fn create_render_meshes_and_shader_tags(
                 );
 
             let mesh = RenderMesh {
+                name: mesh_object.name.clone(),
+                is_visible: true,
                 pipeline: pipeline.clone(),
                 vertex_buffer0: buffer_data.vertex_buffer0,
                 vertex_buffer1: buffer_data.vertex_buffer1,
@@ -480,7 +485,7 @@ pub fn draw_render_meshes<'a>(
 ) {
     // TODO: A future optimization is to reuse pipelines.
     // This requires testing to ensure state is correctly set.
-    for mesh in meshes {
+    for mesh in meshes.iter().filter(|m| m.is_visible) {
         render_pass.set_pipeline(&mesh.pipeline.as_ref().pipeline);
 
         crate::shader::model::bind_groups::set_bind_groups(
