@@ -228,6 +228,8 @@ pub mod bind_groups {
         pass.set_bind_group(2u32, &bind_groups.bind_group2.0, &[]);
     }
 }
+pub mod vertex {
+}
 pub fn create_shader_module(device: &wgpu::Device) -> wgpu::ShaderModule {
     device.create_shader_module(&wgpu::ShaderModuleDescriptor {
         label: None,
