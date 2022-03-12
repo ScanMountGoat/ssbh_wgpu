@@ -23,7 +23,16 @@ pub struct SsbhRenderer {
 }
 
 impl SsbhRenderer {
-    pub fn new(device: &wgpu::Device, queue: &wgpu::Queue, initial_width: u32, initial_height: u32) -> Self {
+    /// Initializes the renderer for the given dimensions.
+    ///
+    /// This is an expensive operation, so applications should create and reuse a single [SsbhRenderer].
+    /// Use [SsbhRenderer::resize] and [SsbhRenderer::update_camera] for changing window sizes and user interaction.
+    pub fn new(
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        initial_width: u32,
+        initial_height: u32,
+    ) -> Self {
         let shader = crate::shader::post_process::create_shader_module(device);
         let pipeline_layout = crate::shader::post_process::create_pipeline_layout(device);
         let post_process_pipeline =
@@ -162,17 +171,23 @@ impl SsbhRenderer {
         }
     }
 
-    // Faster alternative to recreating the entire object.
-    // TODO: Document that this doesn't change the camera?
+    /// A faster alternative to recreating the entire object.
+    ///
+    /// Prefer this method over calling [SsbhRenderer::new] with the updated dimensions.
+    /// To update the camera to a potentially new aspect ratio,
+    /// pass the appropriate matrix to [SsbhRenderer::update_camera].
     pub fn resize(&mut self, device: &wgpu::Device, queue: &wgpu::Queue, width: u32, height: u32) {
         self.pass_info = PassInfo::new(device, queue, width, height);
     }
 
+    /// Updates the camera transforms.
+    /// This method is lightweight, so it can be called each frame if necessary in the main renderloop.
     pub fn update_camera(&mut self, queue: &wgpu::Queue, transforms: CameraTransforms) {
         queue.write_buffer(&self.camera_buffer, 0, bytemuck::cast_slice(&[transforms]));
     }
 
     // TODO: Animation?
+    /// Renders the `render_meshes` uses the standard rendering passes for Smash Ultimate.
     pub fn render_ssbh_passes(
         &self,
         encoder: &mut wgpu::CommandEncoder,

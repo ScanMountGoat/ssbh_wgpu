@@ -75,7 +75,6 @@ fn create_uniforms(material: Option<&MatlEntryData>) -> MaterialUniforms {
         )
 }
 
-// TODO: Return an Option instead?
 fn vector_index(vector: &Vector4Param) -> Option<usize> {
     match vector.param_id {
         ParamId::CustomVector0 => Some(0),
@@ -228,8 +227,6 @@ fn boolean_index(boolean: &BooleanParam) -> Option<usize> {
 mod tests {
     use super::*;
 
-    // TODO: Test has_value, values, etc
-
     #[test]
     fn create_uniforms_no_material() {
         assert_eq!(
@@ -312,6 +309,65 @@ mod tests {
                 }],
                 textures: vec![TextureParam {
                     param_id: ParamId::Sampler0,
+                    data: String::new()
+                }],
+            }))
+        );
+    }
+
+    #[test]
+    fn create_uniforms_valid_parameters() {
+        let mut expected = MaterialUniforms {
+            custom_vector: [[0.0; 4]; 64],
+            custom_boolean: [[0.0; 4]; 20],
+            custom_float: [[0.0; 4]; 20],
+            has_float: [[0.0; 4]; 20],
+            has_texture: [[0.0; 4]; 19],
+            has_vector: [[0.0; 4]; 64],
+        };
+        expected.custom_vector[8] = [1.0; 4];
+        expected.has_vector[8] = [1.0, 0.0, 0.0, 0.0];
+        expected.custom_boolean[5] = [1.0, 0.0, 0.0, 0.0];
+        expected.custom_float[3] = [0.7, 0.0, 0.0, 0.0];
+        expected.has_float[3] = [1.0, 0.0, 0.0, 0.0];
+        expected.has_texture[1] = [1.0, 0.0, 0.0, 0.0];
+
+        assert_eq!(
+            expected,
+            create_uniforms(Some(&MatlEntryData {
+                material_label: String::new(),
+                shader_label: String::new(),
+                blend_states: vec![BlendStateParam {
+                    param_id: ParamId::BlendState0,
+                    data: BlendStateData::default()
+                }],
+                floats: vec![FloatParam {
+                    param_id: ParamId::CustomFloat3,
+                    data: 0.7
+                }],
+                booleans: vec![BooleanParam {
+                    param_id: ParamId::CustomBoolean5,
+                    data: true
+                }],
+                vectors: vec![Vector4Param {
+                    param_id: ParamId::CustomVector8,
+                    data: Vector4 {
+                        x: 1.0,
+                        y: 1.0,
+                        z: 1.0,
+                        w: 1.0
+                    }
+                }],
+                rasterizer_states: vec![RasterizerStateParam {
+                    param_id: ParamId::RasterizerState0,
+                    data: RasterizerStateData::default()
+                }],
+                samplers: vec![SamplerParam {
+                    param_id: ParamId::Sampler1,
+                    data: SamplerData::default()
+                }],
+                textures: vec![TextureParam {
+                    param_id: ParamId::Texture1,
                     data: String::new()
                 }],
             }))

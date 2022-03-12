@@ -21,7 +21,7 @@ impl NutexbImage {
                 size: wgpu::Extent3d {
                     width: self.width,
                     height: self.height,
-                    depth_or_array_layers: std::cmp::max(self.array_count, self.depth), // TODO: 3d textures?
+                    depth_or_array_layers: std::cmp::max(self.array_count, self.depth),
                 },
                 mip_level_count: self.mipmap_count,
                 sample_count: 1,

@@ -3,13 +3,17 @@ use ssbh_data::{mesh_data::MeshObjectData, skel_data::SkelData};
 use wgpu::{util::DeviceExt, Device};
 
 // TODO: Create a function and tests that groups attributes into two buffers
-// TODO: Crevice for std140/430 layout to avoid alignment issues?
 fn buffer0(mesh_data: &MeshObjectData) -> Vec<VertexInput0> {
+    let vertex_count = mesh_data.vertex_count().unwrap();
+    if vertex_count == 0 {
+        return Vec::new();
+    }
+
     let mut vertices = Vec::new();
 
     // TODO: Refactor this to be cleaner.
 
-    // Always pad to the same size to reuse the program pipeline.
+    // Always pad to Vec4 to avoid needing separate pipelines.
     // TODO: Handle this case by returning no vertices?
     // TODO: Make sure everything has the same length.
     let positions: Vec<_> = mesh_data.positions[0].data.to_vec4_with_w(1.0);
@@ -56,7 +60,7 @@ fn floats_to_u32(f: &[f32; 4]) -> u32 {
     ])
 }
 
-// TODO: Support other lengths?
+// TODO: Support and test other lengths?
 macro_rules! set_attribute {
     ($v:ident, $data:expr, $field:ident, $dst1: literal, $dst2:literal) => {
         match $data {
@@ -89,7 +93,7 @@ macro_rules! set_color_attribute {
 fn buffer1(mesh_data: &MeshObjectData) -> Vec<VertexInput1> {
     // TODO: How to assign attributes efficiently?
     // TODO: More robustly determine vertex count?
-    let vertex_count = mesh_data.positions[0].data.len();
+    let vertex_count = mesh_data.vertex_count().unwrap();
 
     // TODO: This could be done by zeroing memory but probably isn't worth it.
     let mut vertices = vec![
@@ -218,6 +222,7 @@ pub fn mesh_object_buffers(
 ) -> MeshObjectBufferData {
     // TODO: Clean this up.
     // TODO: Validate the vertex count and indices?
+    let vertex_count = mesh_object.vertex_count().unwrap();
 
     // The buffer0 is skinned in a compute shader later, so it must support STORAGE.
     // Keep a separate copy of the non transformed data.
@@ -244,7 +249,6 @@ pub fn mesh_object_buffers(
         usage: wgpu::BufferUsages::VERTEX,
     });
 
-    let vertex_count = buffer0_vertices.len();
     let skin_weights = skin_weights(mesh_object, skel, vertex_count);
 
     let skinning_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -272,6 +276,8 @@ pub fn mesh_object_buffers(
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+
     #[test]
     fn test() {
         // TODO: Test vertex buffer creation
@@ -279,5 +285,16 @@ mod tests {
         // Assign each attribute
         // Additional attributes should be ignored.
         // Missing attributes set to 0.
+        // TODO: Test invalid vertex counts.
+    }
+
+    #[test]
+    fn buffer0_empty() {
+        assert!(buffer0(&MeshObjectData::default()).is_empty());
+    }
+
+    #[test]
+    fn buffer1_empty() {
+        assert!(buffer1(&MeshObjectData::default()).is_empty());
     }
 }
