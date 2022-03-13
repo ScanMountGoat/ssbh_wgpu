@@ -14,5 +14,8 @@ crevice = "0.7.1"
 globwalk = "0.8.0"
 nutexb_wgpu = { path = "../nutexb_wgpu" }
 
+[dev-dependencies]
+approx = "0.5.1"
+
 [build-dependencies]
 wgsl_to_wgpu = { git = "https://github.com/ScanMountGoat/wgsl_to_wgpu" }

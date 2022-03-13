@@ -136,9 +136,15 @@ fn apply_transform_track(
 
     let translation =
         glam::Mat4::from_translation(interp_vec3(&current.translation, &next.translation, factor));
-
     let rotation = glam::Mat4::from_quat(interp_quat(&current.rotation, &next.rotation, factor));
-    let anim_transform = translation * rotation;
+
+    // TODO: Scaling is more complicated and depends on the scale options.
+    let scale = glam::Mat4::from_scale(interp_vec3(&current.scale, &next.scale, factor));
+
+    // The application order is scale -> rotation -> translation.
+    // The order is reversed here since glam is column-major.
+    let anim_transform = translation * rotation * scale;
+
     // TODO: Why do we not transpose here?
     bone.transform = anim_transform.to_cols_array_2d();
 }
@@ -157,6 +163,28 @@ fn frame_values(frame: f32, track: &ssbh_data::anim_data::TrackData) -> (usize, 
 
 #[cfg(test)]
 mod tests {
+    use approx::relative_eq;
+    use ssbh_data::{
+        anim_data::{GroupData, NodeData, ScaleOptions, TrackData, Transform},
+        skel_data::BoneData,
+    };
+
+    use super::*;
+
+    macro_rules! assert_matrix_relative_eq {
+        ($a:expr, $b:expr) => {
+            assert!(
+                $a.iter()
+                    .flatten()
+                    .zip($b.iter().flatten())
+                    .all(|(a, b)| relative_eq!(a, b, epsilon = 0.0001f32)),
+                "Matrices not equal to within 0.0001.\nleft = {:?}\nright = {:?}",
+                $a,
+                $b
+            );
+        };
+    }
+
     #[test]
     fn test() {
         // TODO: How to test animations?
@@ -167,5 +195,107 @@ mod tests {
         // Cycle detection in the skeleton?
         // Out of range frame indices (negative, too large, etc)
         // Interpolation behavior
+    }
+
+    #[test]
+    fn apply_animation_empty() {
+        apply_animation(
+            &SkelData {
+                major_version: 1,
+                minor_version: 0,
+                bones: Vec::new(),
+            },
+            &AnimData {
+                major_version: 2,
+                minor_version: 0,
+                final_frame_index: 0.0,
+                groups: Vec::new(),
+            },
+            0.0,
+            &mut [],
+        );
+    }
+
+    #[test]
+    fn apply_animation_single_animated_bone() {
+        // Check that the appropriate bones are set.
+        // Check the construction of transformation matrices.
+        let transforms = apply_animation(
+            &SkelData {
+                major_version: 1,
+                minor_version: 0,
+                bones: vec![BoneData {
+                    name: "A".to_string(),
+                    // Start with the identity to make this simpler.
+                    transform: [
+                        [1.0, 0.0, 0.0, 0.0],
+                        [0.0, 1.0, 0.0, 0.0],
+                        [0.0, 0.0, 1.0, 0.0],
+                        [0.0, 0.0, 0.0, 1.0],
+                    ],
+                    parent_index: None,
+                }],
+            },
+            &AnimData {
+                major_version: 2,
+                minor_version: 0,
+                final_frame_index: 0.0,
+                groups: vec![GroupData {
+                    group_type: GroupType::Transform,
+                    nodes: vec![NodeData {
+                        name: "A".to_string(),
+                        tracks: vec![TrackData {
+                            name: "Transform".to_string(),
+                            scale_options: ScaleOptions::default(),
+                            values: TrackValues::Transform(vec![Transform {
+                                scale: Vector3::new(1.0, 2.0, 3.0),
+                                // TODO: Use a separate Quaternion type?
+                                // Is it worth checking for the zero vector here?
+                                rotation: Vector4::new(1.0, 0.0, 0.0, 0.0),
+                                translation: Vector3::new(4.0, 5.0, 6.0),
+                            }]),
+                        }],
+                    }],
+                }],
+            },
+            0.0,
+            &mut [],
+        );
+
+        // TODO: Test the unused indices?
+        // TODO: No transpose?
+        assert_matrix_relative_eq!(
+            [
+                [1.0, 0.0, 0.0, 0.0],
+                [0.0, -2.0, 0.0, 0.0],
+                [0.0, 0.0, -3.0, 0.0],
+                [4.0, 5.0, 6.0, 1.0],
+            ],
+            transforms.transforms.transforms[0]
+                // .transpose()
+                .to_cols_array_2d()
+        );
+        assert_matrix_relative_eq!(
+            [
+                [1.0 / 1.0, 0.0, 0.0, 4.0 / -1.0],
+                [0.0, -1.0 / 2.0, 0.0, 5.0 / 2.0],
+                [0.0, 0.0, -1.0 / 3.0, 6.0 / 3.0],
+                [0.0, 0.0, 0.0, 1.0],
+            ],
+            transforms.transforms.transforms_inv_transpose[0]
+                // .transpose()
+                .to_cols_array_2d()
+        );
+        assert_matrix_relative_eq!(
+            [
+                [1.0, 0.0, 0.0, 0.0],
+                [0.0, -2.0, 0.0, 0.0],
+                [0.0, 0.0, -3.0, 0.0],
+                [4.0, 5.0, 6.0, 1.0],
+            ],
+            transforms.world_transforms[0]
+                // .transpose()
+                .to_cols_array_2d()
+        );
     }
 }
