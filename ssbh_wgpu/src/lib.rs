@@ -50,13 +50,9 @@ pub fn load_render_models(
     surface_format: wgpu::TextureFormat,
     models: &[ModelFolder],
     default_textures: &[(&'static str, wgpu::Texture)],
-    anim: &AnimData,
 ) -> Vec<RenderModel> {
     // TODO: Not all models can reuse the same pipeline?
-    // TODO: Use wgsl_to_wgpu to automate this?
 
-    // TODO: Move this into library code and use with egui?
-    // TODO: Not all of this needs to be recreated each frame?
     let shader = crate::shader::model::create_shader_module(device);
 
     // TODO: Reuse this for all pipelines?
@@ -77,13 +73,12 @@ pub fn load_render_models(
                 surface_format,
                 model,
                 default_textures,
-                anim,
             )
         })
         .collect();
     println!(
         "Create {:?} render meshes: {:?}",
-        render_meshes.len(),
+        render_meshes.iter().map(|m| m.meshes.len()).sum::<usize>(),
         start.elapsed()
     );
     render_meshes

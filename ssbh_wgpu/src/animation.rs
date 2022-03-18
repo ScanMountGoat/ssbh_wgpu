@@ -17,7 +17,7 @@ pub struct AnimationTransforms {
 // TODO: Make this return the visibility info to make it easier to test?
 pub fn apply_animation(
     skel: &SkelData,
-    anim: &AnimData,
+    anim: Option<&AnimData>,
     frame: f32,
     meshes: &mut [RenderMesh],
 ) -> AnimationTransforms {
@@ -34,48 +34,8 @@ pub fn apply_animation(
     // There might not be enough bones to benefit from parallel execution.
     // We won't worry about redundant matrix multiplications for now.
     let mut animated_skel = skel.clone();
-    for group in &anim.groups {
-        match group.group_type {
-            GroupType::Transform => {
-                for node in &group.nodes {
-                    if let Some(track) = node.tracks.first() {
-                        if let TrackValues::Transform(values) = &track.values {
-                            // TODO: Set the frame/interpolation?
-                            // TODO: Faster to use SIMD types?
-                            if let Some(bone) =
-                                animated_skel.bones.iter_mut().find(|b| b.name == node.name)
-                            {
-                                apply_transform_track(frame, track, values, bone);
-                            }
-                        }
-                    }
-                }
-            }
-            // TODO: Handle other animation types?
-            GroupType::Visibility => {
-                for node in &group.nodes {
-                    if let Some(track) = node.tracks.first() {
-                        if let TrackValues::Boolean(values) = &track.values {
-                            // TODO: Is this the correct way to process mesh names?
-                            // TODO: Test visibility anims?
-                            // Ignore the _VIS_....
-                            // An Eye track toggles EyeL and EyeR?
-                            for mesh in meshes.iter_mut().filter(|m| m.name.starts_with(&node.name))
-                            {
-                                // TODO: Share this between tracks?
-                                let (current_frame, next_frame, factor) =
-                                    frame_values(frame, track);
-                                // dbg!(&node.name, values[current_frame]);
-                                mesh.is_visible = values[current_frame];
-                            }
-                        }
-                    }
-                }
-            }
-            GroupType::Material => (),
-            // TODO: Camera animations should apply to the scene camera?
-            GroupType::Camera => (),
-        }
+    if let Some(anim) = anim {
+        animate_skel(anim, &mut animated_skel, frame, meshes);
     }
 
     for (i, bone) in skel.bones.iter().enumerate() {
@@ -110,6 +70,51 @@ pub fn apply_animation(
             transforms,
             transforms_inv_transpose,
         }),
+    }
+}
+
+fn animate_skel(anim: &AnimData, skel: &mut SkelData, frame: f32, meshes: &mut [RenderMesh]) {
+    for group in &anim.groups {
+        match group.group_type {
+            GroupType::Transform => {
+                for node in &group.nodes {
+                    if let Some(track) = node.tracks.first() {
+                        if let TrackValues::Transform(values) = &track.values {
+                            // TODO: Set the frame/interpolation?
+                            // TODO: Faster to use SIMD types?
+                            if let Some(bone) = skel.bones.iter_mut().find(|b| b.name == node.name)
+                            {
+                                apply_transform_track(frame, track, values, bone);
+                            }
+                        }
+                    }
+                }
+            }
+            // TODO: Handle other animation types?
+            GroupType::Visibility => {
+                for node in &group.nodes {
+                    if let Some(track) = node.tracks.first() {
+                        if let TrackValues::Boolean(values) = &track.values {
+                            // TODO: Is this the correct way to process mesh names?
+                            // TODO: Test visibility anims?
+                            // Ignore the _VIS_....
+                            // An Eye track toggles EyeL and EyeR?
+                            for mesh in meshes.iter_mut().filter(|m| m.name.starts_with(&node.name))
+                            {
+                                // TODO: Share this between tracks?
+                                let (current_frame, next_frame, factor) =
+                                    frame_values(frame, track);
+                                // dbg!(&node.name, values[current_frame]);
+                                mesh.is_visible = values[current_frame];
+                            }
+                        }
+                    }
+                }
+            }
+            GroupType::Material => (),
+            // TODO: Camera animations should apply to the scene camera?
+            GroupType::Camera => (),
+        }
     }
 }
 
@@ -205,12 +210,12 @@ mod tests {
                 minor_version: 0,
                 bones: Vec::new(),
             },
-            &AnimData {
+            Some(&AnimData {
                 major_version: 2,
                 minor_version: 0,
                 final_frame_index: 0.0,
                 groups: Vec::new(),
-            },
+            }),
             0.0,
             &mut [],
         );
@@ -236,7 +241,7 @@ mod tests {
                     parent_index: None,
                 }],
             },
-            &AnimData {
+            Some(&AnimData {
                 major_version: 2,
                 minor_version: 0,
                 final_frame_index: 0.0,
@@ -257,7 +262,7 @@ mod tests {
                         }],
                     }],
                 }],
-            },
+            }),
             0.0,
             &mut [],
         );

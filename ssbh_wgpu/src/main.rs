@@ -100,14 +100,8 @@ impl State {
 
         let default_textures = create_default_textures(&device, &queue);
         let models = load_model_folders(folder);
-        let render_meshes = load_render_models(
-            &device,
-            &queue,
-            surface_format,
-            &models,
-            &default_textures,
-            &animation,
-        );
+        let render_meshes =
+            load_render_models(&device, &queue, surface_format, &models, &default_textures);
 
         let renderer = SsbhRenderer::new(&device, &queue, size.width, size.height);
 
@@ -260,7 +254,7 @@ impl State {
         // Apply animations for each model.
         // This is more efficient since state is shared between render meshes.
         for model in &mut self.render_models {
-            model.apply_anim(&self.queue, &self.animation, self.current_frame);
+            model.apply_anim(&self.queue, Some(&self.animation), self.current_frame);
         }
 
         // Each render mesh is associated with a skel and material.

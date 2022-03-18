@@ -45,7 +45,8 @@ pub struct PipelineData {
 }
 
 impl RenderModel {
-    pub fn apply_anim(&mut self, queue: &wgpu::Queue, anim: &AnimData, frame: f32) {
+    // TODO: Does it make sense to just pass None to "reset" the animation?
+    pub fn apply_anim(&mut self, queue: &wgpu::Queue, anim: Option<&AnimData>, frame: f32) {
         // Update the buffers associated with each skel.
         // This avoids updating per mesh object and allocating new buffers.
         let animation_transforms = apply_animation(&self.skel, anim, frame, &mut self.meshes);
@@ -85,18 +86,11 @@ pub fn create_render_meshes(
     surface_format: wgpu::TextureFormat,
     model: &ModelFolder,
     default_textures: &[(&'static str, wgpu::Texture)],
-    anim: &AnimData,
 ) -> RenderModel {
-    // TODO: Return the animation buffer here?
-
-    // We want to share the animation buffer to avoid redundant updates.
-    // TODO: Where to update the current frame?
-    // TODO: This shouldn't take the animation as an argument.
-    let anim_transforms = apply_animation(model.skel.as_ref().unwrap(), anim, 0.0, &mut []);
+    // Share the transforms buffer to avoid redundant updates.
+    let anim_transforms = apply_animation(model.skel.as_ref().unwrap(), None, 0.0, &mut []);
 
     // TODO: Enforce bone count being at most 511?
-    // TODO: How to initialize the animation transforms?
-    // TODO: How to efficiently share this data between RenderMesh with the same skel?
     let skinning_transforms_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
         label: Some("Bone Transforms Buffer"),
         contents: bytemuck::cast_slice(&[*anim_transforms.transforms]),
@@ -170,6 +164,7 @@ fn create_render_meshes_and_shader_tags(
             &model.textures_by_file_name,
             default_textures,
         );
+
         let material_uniforms_bind_group = create_uniforms_bind_group(material, device);
 
         Arc::new(PipelineData {
