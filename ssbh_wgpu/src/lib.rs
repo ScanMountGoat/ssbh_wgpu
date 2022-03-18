@@ -1,3 +1,4 @@
+use rayon::prelude::*;
 use std::path::Path;
 
 mod pipeline;
@@ -63,6 +64,7 @@ pub fn load_render_models(
     let render_pipeline_layout = crate::shader::model::create_pipeline_layout(device);
 
     // TODO: Just pass the model folder in a convenience function?
+    // TODO: Find a way to efficiently parallelize render mesh creation?
     let start = std::time::Instant::now();
     let render_meshes: Vec<_> = models
         .iter()
@@ -78,7 +80,6 @@ pub fn load_render_models(
                 anim,
             )
         })
-        // .flatten()
         .collect();
     println!(
         "Create {:?} render meshes: {:?}",
@@ -102,6 +103,7 @@ pub fn load_model_folders<P: AsRef<Path>>(root: P) -> Vec<ModelFolder> {
         .filter_map(Result::ok);
     let start = std::time::Instant::now();
     let models: Vec<_> = model_paths
+        .par_bridge()
         .filter_map(|p| {
             // TODO: Some folders don't have a numshb?
             // TODO: Can the mesh be optional?
@@ -114,7 +116,7 @@ pub fn load_model_folders<P: AsRef<Path>>(root: P) -> Vec<ModelFolder> {
             let parent = p.path().parent().unwrap();
             let textures = std::fs::read_dir(parent)
                 .unwrap()
-                .into_iter()
+                .par_bridge()
                 .filter_map(|p| {
                     if p.as_ref().unwrap().path().extension().unwrap().to_str() == Some("nutexb") {
                         Some(p.as_ref().unwrap().path())
