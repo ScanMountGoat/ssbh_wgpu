@@ -68,7 +68,7 @@ pub mod bind_groups {
         pass: &mut wgpu::RenderPass<'a>,
         bind_groups: BindGroups<'a>,
     ) {
-        pass.set_bind_group(0u32, &bind_groups.bind_group0.0, &[]);
+        bind_groups.bind_group0.set(pass);
     }
 }
 pub mod vertex {

@@ -23,7 +23,8 @@ fn calculate_camera_pos_mvp(
     let model_view_matrix = glam::Mat4::from_translation(translation)
         * glam::Mat4::from_rotation_x(rotation.x)
         * glam::Mat4::from_rotation_y(rotation.y);
-    let perspective_matrix = glam::Mat4::perspective_rh_gl(0.5, aspect, 1.0, 100000.0);
+    // Use a large far clip distance to include stage skyboxes.
+    let perspective_matrix = glam::Mat4::perspective_rh_gl(0.5, aspect, 1.0, 400000.0);
 
     let camera_pos = model_view_matrix.inverse().col(3);
 
@@ -68,11 +69,12 @@ impl State {
             .await
             .unwrap();
 
+        // TODO: Document the features somewhere?
         let (device, queue) = adapter
             .request_device(
                 &wgpu::DeviceDescriptor {
                     label: None,
-                    features: wgpu::Features::TEXTURE_COMPRESSION_BC,
+                    features: wgpu::Features::TEXTURE_COMPRESSION_BC | wgpu::Features::ADDRESS_MODE_CLAMP_TO_BORDER,
                     limits: wgpu::Limits::default(),
                 },
                 None, // Trace path

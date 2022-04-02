@@ -223,9 +223,9 @@ pub mod bind_groups {
         pass: &mut wgpu::ComputePass<'a>,
         bind_groups: BindGroups<'a>,
     ) {
-        pass.set_bind_group(0u32, &bind_groups.bind_group0.0, &[]);
-        pass.set_bind_group(1u32, &bind_groups.bind_group1.0, &[]);
-        pass.set_bind_group(2u32, &bind_groups.bind_group2.0, &[]);
+        bind_groups.bind_group0.set(pass);
+        bind_groups.bind_group1.set(pass);
+        bind_groups.bind_group2.set(pass);
     }
 }
 pub mod vertex {
