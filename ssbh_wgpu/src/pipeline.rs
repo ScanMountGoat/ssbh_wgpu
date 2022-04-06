@@ -63,7 +63,7 @@ pub fn create_pipeline(
                 .map(|r| match r.cull_mode {
                     ssbh_data::matl_data::CullMode::Back => Some(wgpu::Face::Back),
                     ssbh_data::matl_data::CullMode::Front => Some(wgpu::Face::Front),
-                    ssbh_data::matl_data::CullMode::None => None,
+                    ssbh_data::matl_data::CullMode::Disabled => None,
                 })
                 .flatten(),
             // Setting this to anything other than Fill requires Features::NON_FILL_POLYGON_MODE
