@@ -54,7 +54,7 @@ impl RenderModel {
         queue.write_buffer(
             &self.skinning_transforms_buffer,
             0,
-            bytemuck::cast_slice(&[*animation_transforms.transforms]),
+            bytemuck::cast_slice(&[*animation_transforms.animated_world_transforms]),
         );
 
         queue.write_buffer(
@@ -93,7 +93,7 @@ pub fn create_render_meshes(
     // TODO: Enforce bone count being at most 511?
     let skinning_transforms_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
         label: Some("Bone Transforms Buffer"),
-        contents: bytemuck::cast_slice(&[*anim_transforms.transforms]),
+        contents: bytemuck::cast_slice(&[*anim_transforms.animated_world_transforms]),
         // COPY_DST allows applying animations without allocating new buffers
         usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
     });

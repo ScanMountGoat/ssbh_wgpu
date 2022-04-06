@@ -25,7 +25,7 @@ pub struct VertexWeights {
 }
 #[repr(C)]
 #[derive(Debug, Copy, Clone, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
-pub struct Transforms {
+pub struct AnimatedWorldTransforms {
     pub transforms: [glam::Mat4; 512],
     pub transforms_inv_transpose: [glam::Mat4; 512],
 }

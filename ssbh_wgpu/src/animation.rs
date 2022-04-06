@@ -6,7 +6,7 @@ use ssbh_data::{
     skel_data::{BoneData, BoneTransformError},
 };
 
-use crate::{shader::skinning::Transforms, RenderMesh};
+use crate::{shader::skinning::AnimatedWorldTransforms, RenderMesh};
 
 // Animation process is Skel, Anim -> Vec<AnimatedBone> -> [Mat4; 512], [Mat4; 512] -> Buffers?
 // Associate an optional transform to override each bone?
@@ -36,7 +36,10 @@ struct AnimTransform {
 
 pub struct AnimationTransforms {
     // Box large arrays to avoid stack overflows in debug mode.
-    pub transforms: Box<Transforms>,
+    /// The animated world transform of each bone relative to its resting pose.
+    /// This is equal to `bone_world.inv() * animated_bone_world`.
+    pub animated_world_transforms: Box<AnimatedWorldTransforms>,
+    /// The world transform of each bone in the skeleton.
     pub world_transforms: Box<[glam::Mat4; 512]>,
 }
 
@@ -112,7 +115,7 @@ pub fn apply_animation(
 
     AnimationTransforms {
         world_transforms: Box::new(anim_world_transforms),
-        transforms: Box::new(Transforms {
+        animated_world_transforms: Box::new(AnimatedWorldTransforms {
             transforms,
             transforms_inv_transpose,
         }),
@@ -377,7 +380,7 @@ mod tests {
                 [0.0, 0.0, -3.0, 0.0],
                 [4.0, 5.0, 6.0, 1.0],
             ],
-            transforms.transforms.transforms[0]
+            transforms.animated_world_transforms.transforms[0]
                 // .transpose()
                 .to_cols_array_2d()
         );
@@ -388,7 +391,9 @@ mod tests {
                 [0.0, 0.0, -1.0 / 3.0, 6.0 / 3.0],
                 [0.0, 0.0, 0.0, 1.0],
             ],
-            transforms.transforms.transforms_inv_transpose[0]
+            transforms
+                .animated_world_transforms
+                .transforms_inv_transpose[0]
                 // .transpose()
                 .to_cols_array_2d()
         );

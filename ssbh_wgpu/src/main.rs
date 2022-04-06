@@ -74,7 +74,8 @@ impl State {
             .request_device(
                 &wgpu::DeviceDescriptor {
                     label: None,
-                    features: wgpu::Features::TEXTURE_COMPRESSION_BC | wgpu::Features::ADDRESS_MODE_CLAMP_TO_BORDER,
+                    features: wgpu::Features::TEXTURE_COMPRESSION_BC
+                        | wgpu::Features::ADDRESS_MODE_CLAMP_TO_BORDER,
                     limits: wgpu::Limits::default(),
                 },
                 None, // Trace path

@@ -23,12 +23,16 @@ struct VertexWeights {
 // TODO: What two matrices are stored per bone?
 // Remove the length field to improve compatibility.
 // This gives a more generous alignment without exceeding 65536 bytes.
-struct Transforms {
+struct AnimatedWorldTransforms {
+    // bone_world.inv() * animated_bone_world
     transforms: array<mat4x4<f32>, 512>;
+    // Inverse transpose of above to use for normals and tangents.
     transforms_inv_transpose: array<mat4x4<f32>, 512>;
 };
 
 struct WorldTransforms {
+    // The world transform of each bone.
+    // This is used for parenting objects to bones.
     transforms: array<mat4x4<f32>, 512>;
 };
 
@@ -42,7 +46,7 @@ struct MeshObjectInfo {
 [[group(0), binding(1)]] var<storage, read> vertex_weights : VertexWeights;
 [[group(0), binding(2)]] var<storage, read_write> dst : Vertices;
 
-[[group(1), binding(0)]] var<uniform> transforms: Transforms;
+[[group(1), binding(0)]] var<uniform> transforms: AnimatedWorldTransforms;
 [[group(1), binding(1)]] var<uniform> world_transforms: WorldTransforms;
 
 [[group(2), binding(0)]] var<uniform> mesh_object_info: MeshObjectInfo;
@@ -106,11 +110,9 @@ fn main([[builtin(global_invocation_id)]] global_invocation_id: vec3<u32>) {
         }
     }
     
-
-    // TODO: Transform each vertex by the parent transform
-    // TODO: Transform each vertex by the animation transform
     // TODO: sync to make sure writes happen?
     // TODO: Recalculate normals and tangents for renormal?
+    // TODO: What format to use for adjb data?
 
     var out: VertexInput0;
     out.position0 = vec4<f32>(position, 1.0);
