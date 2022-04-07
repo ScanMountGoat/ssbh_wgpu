@@ -78,16 +78,12 @@ pub fn apply_animation(
 
     // Set the animation transform for all effected bones.
     if let Some(anim) = anim {
-        animate_skel(anim, &mut animated_bones, frame, meshes);
+        animate_transform(anim, &mut animated_bones, frame);
+        animate_visibility(anim, frame, meshes);
     }
 
-    // TODO: Create a second skel clone here?
-    // Apply scale compensation now that parent values are known?
-
-    // TODO: Reimplement calculate_world to take into account scale inheritance.
     // TODO: Should scale inheritance be part of ssbh_data itself?
     // TODO: Is there a more efficient way of calculating this?
-
     for (i, bone) in skel.bones.iter().enumerate() {
         // Smash is row-major but glam is column-major.
         // TODO: Is there an efficient way to calculate world transforms of all bones?
@@ -141,7 +137,6 @@ fn calculate_anim_world_transform(
     let mut inherit_scale = current.inherit_scale;
 
     // Check for cycles by keeping track of previously visited locations.
-
     let mut visited = HashSet::new();
 
     // Accumulate transforms by travelling up the bone heirarchy.
@@ -183,20 +178,13 @@ fn calculate_anim_world_transform(
     Ok(transform.transpose().to_cols_array_2d())
 }
 
-fn animate_skel(
-    anim: &AnimData,
-    bones: &mut [AnimatedBone],
-    frame: f32,
-    meshes: &mut [RenderMesh],
-) {
+fn animate_transform(anim: &AnimData, bones: &mut [AnimatedBone], frame: f32) {
     for group in &anim.groups {
         match group.group_type {
             GroupType::Transform => {
                 for node in &group.nodes {
                     if let Some(track) = node.tracks.first() {
                         if let TrackValues::Transform(values) = &track.values {
-                            // TODO: Set the frame/interpolation?
-                            // TODO: Faster to use SIMD types?
                             if let Some(bone) = bones.iter_mut().find(|b| b.bone.name == node.name)
                             {
                                 apply_transform_track(frame, track, values, bone);
@@ -205,7 +193,16 @@ fn animate_skel(
                     }
                 }
             }
-            // TODO: Handle other animation types?
+            _ => (),
+        }
+    }
+}
+
+// TODO: Add tests for this?
+// TODO: Add a trait to avoid constructing render meshes in tests?
+fn animate_visibility(anim: &AnimData, frame: f32, meshes: &mut [RenderMesh]) {
+    for group in &anim.groups {
+        match group.group_type {
             GroupType::Visibility => {
                 for node in &group.nodes {
                     if let Some(track) = node.tracks.first() {
@@ -219,19 +216,18 @@ fn animate_skel(
                                 // TODO: Share this between tracks?
                                 let (current_frame, next_frame, factor) =
                                     frame_values(frame, track);
-                                // dbg!(&node.name, values[current_frame]);
                                 mesh.is_visible = values[current_frame];
                             }
                         }
                     }
                 }
             }
-            GroupType::Material => (),
-            // TODO: Camera animations should apply to the scene camera?
-            GroupType::Camera => (),
+            _ => (),
         }
     }
 }
+
+// TODO: Other animation group types?
 
 fn interp_quat(a: &Vector4, b: &Vector4, factor: f32) -> glam::Quat {
     glam::Quat::from_xyzw(a.x, a.y, a.z, a.w)
