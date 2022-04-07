@@ -113,8 +113,11 @@ pub fn load_model_folders<P: AsRef<Path>>(root: P) -> Vec<ModelFolder> {
                 .unwrap()
                 .par_bridge()
                 .filter_map(|p| {
-                    if p.as_ref().unwrap().path().extension().unwrap().to_str() == Some("nutexb") {
-                        Some(p.as_ref().unwrap().path())
+                    // TODO: Make this more robust?
+                    let path = p.as_ref().unwrap().path();
+                    // Some entries may be directories, which don't have an extension.
+                    if path.is_file() && path.extension().unwrap().to_str() == Some("nutexb") {
+                        Some(path)
                     } else {
                         None
                     }

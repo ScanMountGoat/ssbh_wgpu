@@ -49,14 +49,14 @@ struct State {
     rotation_xyz: glam::Vec3,
 
     // Animations
-    animation: AnimData,
+    animation: Option<AnimData>,
     // TODO: How to handle overflow if left running too long?
     current_frame: f32,
     previous_frame_start: std::time::Instant,
 }
 
 impl State {
-    async fn new(window: &Window, folder: &Path) -> Self {
+    async fn new(window: &Window, folder: &Path, anim_path: Option<&Path>) -> Self {
         // The instance is a handle to our GPU
         let instance = wgpu::Instance::new(wgpu::Backends::all());
         let surface = unsafe { instance.create_surface(window) };
@@ -99,7 +99,7 @@ impl State {
         // TODO: Frame bounding spheres?
 
         // TODO: Where to store/load anim files?
-        let animation = AnimData::from_file("a00wait2.nuanmb").unwrap();
+        let animation = anim_path.map(|anim_path| AnimData::from_file(anim_path).unwrap());
 
         let default_textures = create_default_textures(&device, &queue);
         let models = load_model_folders(folder);
@@ -236,9 +236,14 @@ impl State {
         let millis_per_frame = 1000.0f64 / 60.0f64;
         let delta_t_frames = delta_t.as_millis() as f64 / millis_per_frame;
 
-        self.current_frame += delta_t_frames as f32;
-        if self.current_frame > self.animation.final_frame_index {
-            self.current_frame = 0.0;
+        let playback_speed = 1.0;
+
+        self.current_frame += (delta_t_frames * playback_speed) as f32;
+
+        if let Some(animation) = &self.animation {
+            if self.current_frame > animation.final_frame_index {
+                self.current_frame = 0.0;
+            }
         }
 
         // Bind groups are preconfigured outside the render loop for performance.
@@ -257,7 +262,7 @@ impl State {
         // Apply animations for each model.
         // This is more efficient since state is shared between render meshes.
         for model in &mut self.render_models {
-            model.apply_anim(&self.queue, Some(&self.animation), self.current_frame);
+            model.apply_anim(&self.queue, self.animation.as_ref(), self.current_frame);
         }
 
         // Each render mesh is associated with a skel and material.
@@ -283,7 +288,8 @@ impl State {
 
 fn main() {
     let args: Vec<_> = std::env::args().collect();
-    let folder = std::path::Path::new(&args[1]);
+    let folder = Path::new(&args[1]);
+    let anim_path = args.get(2).map(Path::new);
 
     let event_loop = EventLoop::new();
     let window = WindowBuilder::new()
@@ -292,7 +298,7 @@ fn main() {
         .unwrap();
 
     // Since main can't be async, we're going to need to block
-    let mut state = futures::executor::block_on(State::new(&window, folder));
+    let mut state = futures::executor::block_on(State::new(&window, folder, anim_path));
 
     event_loop.run(move |event, _, control_flow| {
         match event {
