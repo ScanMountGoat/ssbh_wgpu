@@ -131,21 +131,21 @@ fn mat4_from_row2d(elements: &[[f32; 4]; 4]) -> glam::Mat4 {
 // TODO: Add scale inheritance here?
 fn calculate_anim_world_transform(
     bones: &[AnimatedBone],
-    bone: &AnimatedBone,
+    root: &AnimatedBone,
 ) -> Result<[[f32; 4]; 4], BoneTransformError> {
     // TODO: Always include the root bone's scale?
-    let mut bone = bone;
-    let mut transform = bone.animated_transform(true);
+    let mut current = root;
+    let mut transform = current.animated_transform(true);
 
     // TODO: Adjust this for each bone.
-    let mut inherit_scale = bone.inherit_scale;
+    let mut inherit_scale = current.inherit_scale;
 
     // Check for cycles by keeping track of previously visited locations.
 
     let mut visited = HashSet::new();
 
     // Accumulate transforms by travelling up the bone heirarchy.
-    while let Some(parent_index) = bone.bone.parent_index {
+    while let Some(parent_index) = current.bone.parent_index {
         // TODO: Validate the skel once for cycles to make this step faster?
         if !visited.insert(parent_index) {
             return Err(BoneTransformError::CycleDetected {
@@ -158,8 +158,20 @@ fn calculate_anim_world_transform(
             // TODO: Does scale compensation take into account scaling in the skeleton?
             let parent_transform = parent_bone.animated_transform(inherit_scale);
 
+            // Compensate scale only takes into account the immediate parent.
+            // TODO: Test for inheritance being set.
+            // TODO: Should this be current.inherit_scale instead?
+            // TODO: What happens if both compensate_scale and inherit_scale are false?
+            if current.compensate_scale && inherit_scale {
+                if let Some(parent_transform) = &parent_bone.anim_transform {
+                    let scale_compensation = glam::Mat4::from_scale(1.0 / parent_transform.scale);
+                    // TODO: Make the tests more specific to account for this application order?
+                    transform = transform * scale_compensation;
+                }
+            }
+
             transform = transform.mul_mat4(&parent_transform);
-            bone = parent_bone;
+            current = parent_bone;
             // Disabling scale inheritance propogates up the bone chain.
             inherit_scale &= parent_bone.inherit_scale;
         } else {
@@ -323,6 +335,7 @@ mod tests {
     }
 
     // TODO: Cycle detection in the skeleton?
+    // TODO: Validate the skeleton and convert to a new type?
     // TODO: Out of range frame indices (negative, too large, etc)
     // TODO: Interpolation behavior
 
