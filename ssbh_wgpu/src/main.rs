@@ -265,18 +265,8 @@ impl State {
             model.apply_anim(&self.queue, self.animation.as_ref(), self.current_frame);
         }
 
-        // Each render mesh is associated with a skel and material.
-        // Animations update the skel and material data.
-        // TODO: How to do this if the render meshes get reordered?
-        let render_meshes_temp: Vec<_> = self
-            .render_models
-            .iter()
-            .map(|m| &m.meshes)
-            .flatten()
-            .collect();
-
         self.renderer
-            .render_ssbh_passes(&mut encoder, &output_view, &render_meshes_temp);
+            .render_ssbh_passes(&mut encoder, &output_view, &self.render_models);
 
         self.queue.submit(iter::once(encoder.finish()));
         // Actually draw the frame.

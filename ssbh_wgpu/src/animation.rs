@@ -2,6 +2,7 @@ use std::collections::HashSet;
 
 use ssbh_data::{
     anim_data::{GroupType, TrackValues, Vector3, Vector4},
+    matl_data::MatlEntryData,
     prelude::*,
     skel_data::{BoneData, BoneTransformError},
 };
@@ -43,7 +44,7 @@ pub struct AnimationTransforms {
     pub world_transforms: Box<[glam::Mat4; 512]>,
 }
 
-trait Visibility {
+pub trait Visibility {
     fn name(&self) -> &str;
     fn set_visibility(&mut self, visibility: bool);
 }
@@ -74,12 +75,8 @@ impl Visibility for (String, bool) {
 // TODO: Create test cases for test animations on short bone chains?
 // TODO: Also apply visibility and material animation?
 // TODO: Make this return the visibility info to make it easier to test?
-pub fn apply_animation(
-    skel: &SkelData,
-    anim: Option<&AnimData>,
-    frame: f32,
-    meshes: &mut [RenderMesh],
-) -> AnimationTransforms {
+// TODO: Separate module for skeletal animation?
+pub fn animate_skel(skel: &SkelData, anim: Option<&AnimData>, frame: f32) -> AnimationTransforms {
     // TODO: Make the skel optional?
 
     // TODO: Is this redundant?
@@ -106,7 +103,6 @@ pub fn apply_animation(
     // Set the animation transform for all effected bones.
     if let Some(anim) = anim {
         animate_transform(anim, &mut animated_bones, frame);
-        animate_visibility(anim, frame, meshes);
     }
 
     // TODO: Should scale inheritance be part of ssbh_data itself?
@@ -210,6 +206,7 @@ fn animate_transform(anim: &AnimData, bones: &mut [AnimatedBone], frame: f32) {
         match group.group_type {
             GroupType::Transform => {
                 for node in &group.nodes {
+                    // TODO: Multiple transform tracks per bone?
                     if let Some(track) = node.tracks.first() {
                         if let TrackValues::Transform(values) = &track.values {
                             if let Some(bone) = bones.iter_mut().find(|b| b.bone.name == node.name)
@@ -225,12 +222,13 @@ fn animate_transform(anim: &AnimData, bones: &mut [AnimatedBone], frame: f32) {
     }
 }
 
-fn animate_visibility<V: Visibility>(anim: &AnimData, frame: f32, meshes: &mut [V]) {
+pub fn animate_visibility<V: Visibility>(anim: &AnimData, frame: f32, meshes: &mut [V]) {
     for group in &anim.groups {
         match group.group_type {
             GroupType::Visibility => {
                 for node in &group.nodes {
                     if let Some(track) = node.tracks.first() {
+                        // TODO: Multiple boolean tracks per node?
                         if let TrackValues::Boolean(values) = &track.values {
                             // TODO: Is this the correct way to process mesh names?
                             // TODO: Test visibility anims?
@@ -243,6 +241,43 @@ fn animate_visibility<V: Visibility>(anim: &AnimData, frame: f32, meshes: &mut [
                                 // TODO: Share this between tracks?
                                 let (current_frame, _, _) = frame_values(frame, track);
                                 mesh.set_visibility(values[current_frame]);
+                            }
+                        }
+                    }
+                }
+            }
+            _ => (),
+        }
+    }
+}
+
+pub fn animate_materials(anim: &AnimData, frame: f32, materials: &mut [MatlEntryData]) {
+    for group in &anim.groups {
+        match group.group_type {
+            GroupType::Material => {
+                for node in &group.nodes {
+                    // TODO: Find material based on the node name.
+                    if let Some(material) = materials.iter().find(|m| m.material_label == node.name)
+                    {
+                        for track in &node.tracks {
+                            let (current_frame, next_frame, factor) = frame_values(frame, track);
+
+                            // TODO: Update material parameters based on the type.
+                            match &track.values {
+                                TrackValues::Transform(_) => (),
+                                TrackValues::UvTransform(_) => (),
+                                TrackValues::Float(_) => (),
+                                TrackValues::PatternIndex(_) => (),
+                                TrackValues::Boolean(_) => (),
+                                TrackValues::Vector4(v) => {
+                                    if let Some(param) = material
+                                        .vectors
+                                        .iter()
+                                        .find(|p| track.name == p.param_id.to_string())
+                                    {
+                                        // TODO: Interpolate vectors?
+                                    }
+                                }
                             }
                         }
                     }
@@ -363,7 +398,7 @@ mod tests {
 
     #[test]
     fn apply_animation_empty() {
-        apply_animation(
+        animate_skel(
             &SkelData {
                 major_version: 1,
                 minor_version: 0,
@@ -376,7 +411,6 @@ mod tests {
                 groups: Vec::new(),
             }),
             0.0,
-            &mut [],
         );
     }
 
@@ -384,7 +418,7 @@ mod tests {
     fn apply_animation_single_animated_bone() {
         // Check that the appropriate bones are set.
         // Check the construction of transformation matrices.
-        let transforms = apply_animation(
+        let transforms = animate_skel(
             &SkelData {
                 major_version: 1,
                 minor_version: 0,
@@ -412,7 +446,6 @@ mod tests {
                 }],
             }),
             0.0,
-            &mut [],
         );
 
         // TODO: Test the unused indices?
@@ -457,7 +490,7 @@ mod tests {
     #[test]
     fn apply_animation_bone_chain_inherit_scale() {
         // Include parent scale up the chain until a bone disables inheritance.
-        let transforms = apply_animation(
+        let transforms = animate_skel(
             &SkelData {
                 major_version: 1,
                 minor_version: 0,
@@ -526,7 +559,6 @@ mod tests {
                 }],
             }),
             0.0,
-            &mut [],
         );
 
         // TODO: No transpose?
@@ -563,7 +595,7 @@ mod tests {
     #[test]
     fn apply_animation_bone_chain_no_inherit_scale() {
         // Test if the root bone doesn't inherit scale.
-        let transforms = apply_animation(
+        let transforms = animate_skel(
             &SkelData {
                 major_version: 1,
                 minor_version: 0,
@@ -632,7 +664,6 @@ mod tests {
                 }],
             }),
             0.0,
-            &mut [],
         );
 
         // TODO: No transpose?
@@ -669,7 +700,7 @@ mod tests {
     #[test]
     fn apply_animation_bone_chain_compensate_scale() {
         // Test an entire chain with scale compensation.
-        let transforms = apply_animation(
+        let transforms = animate_skel(
             &SkelData {
                 major_version: 1,
                 minor_version: 0,
@@ -738,7 +769,6 @@ mod tests {
                 }],
             }),
             0.0,
-            &mut [],
         );
 
         // TODO: No transpose?

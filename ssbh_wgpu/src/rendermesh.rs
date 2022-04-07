@@ -1,6 +1,10 @@
 use crate::{
-    animation::apply_animation, pipeline::create_pipeline, texture::load_texture_sampler,
-    uniforms::create_uniforms_buffer, vertex::mesh_object_buffers, ModelFolder,
+    animation::{animate_materials, animate_skel, animate_visibility},
+    pipeline::create_pipeline,
+    texture::load_texture_sampler,
+    uniforms::create_uniforms_buffer,
+    vertex::mesh_object_buffers,
+    ModelFolder,
 };
 use nutexb_wgpu::NutexbFile;
 use ssbh_data::{matl_data::ParamId, prelude::*};
@@ -13,16 +17,24 @@ use wgpu::{util::DeviceExt, SamplerDescriptor, TextureViewDescriptor, TextureVie
 // draw all opaque in all models -> draw all sort in all models, etc without explicitly sorting?
 // TODO: How to include sort bias in sorting?
 // Keep most fields private since the buffer layout is an implementation detail.
+// Assume render data is only shared within a folder.
+// TODO: Associate animation folders with model folders?
+// TODO: Is it worth allowing models to reference textures from other folders?
 pub struct RenderModel {
     pub meshes: Vec<RenderMesh>,
     skel: SkelData,
+    matl: MatlData,
     skinning_transforms_buffer: wgpu::Buffer,
     world_transforms_buffer: wgpu::Buffer,
+    pipelines: Vec<PipelineData>,
 }
 
+// A RenderMesh is view over a portion of the RenderModel data.
+// Each RenderMesh corresponds to the data for a single draw call.
 pub struct RenderMesh {
     pub name: String,
     pub is_visible: bool,
+    shader_tag: String,
     // TODO: It may be worth sharing buffers in the future.
     vertex_buffer0: wgpu::Buffer,
     vertex_buffer1: wgpu::Buffer,
@@ -38,10 +50,31 @@ pub struct RenderMesh {
     pipeline: Arc<PipelineData>,
 }
 
-pub struct PipelineData {
-    pub pipeline: wgpu::RenderPipeline,
-    pub textures_bind_group: crate::shader::model::bind_groups::BindGroup1,
-    pub material_uniforms_bind_group: crate::shader::model::bind_groups::BindGroup2,
+impl RenderMesh {
+    pub fn render_order(&self) -> isize {
+        render_pass_index(&self.shader_tag) + self.sort_bias as isize
+    }
+}
+
+// TODO: Should this be based on shader label instead?
+// Only uniform buffers need to be unique to each material label.
+// TODO: Do materials share a shader often enough for this to matter?
+#[derive(PartialEq, Eq, Hash)]
+struct PipelineIdentifier {
+    material_label: String,
+    // Depth state is set per mesh rather than per material.
+    // This means we can't always have one pipeline per material.
+    // In practice, there will usually be one pipeline per material.
+    enable_depth_write: bool,
+    enable_depth_test: bool,
+}
+
+struct PipelineData {
+    pipeline: wgpu::RenderPipeline,
+    textures_bind_group: crate::shader::model::bind_groups::BindGroup1,
+    // TODO: The PipelineIdentifier can be used to know which buffers to "animate".
+    uniforms_buffer: wgpu::Buffer, // TODO: where to put this?
+    material_uniforms_bind_group: crate::shader::model::bind_groups::BindGroup2,
 }
 
 impl RenderModel {
@@ -49,7 +82,17 @@ impl RenderModel {
     pub fn apply_anim(&mut self, queue: &wgpu::Queue, anim: Option<&AnimData>, frame: f32) {
         // Update the buffers associated with each skel.
         // This avoids updating per mesh object and allocating new buffers.
-        let animation_transforms = apply_animation(&self.skel, anim, frame, &mut self.meshes);
+        // TODO: Only write buffers if an animation is playing?
+        // TODO: How to "reset" an animation?
+        let animation_transforms = animate_skel(&self.skel, anim, frame);
+
+        if let Some(anim) = anim {
+            animate_visibility(anim, frame, &mut self.meshes);
+            // TODO: Avoid overriding the original materials?
+            animate_materials(anim, frame, &mut []);
+        }
+
+        // TODO: Material animations?
 
         queue.write_buffer(
             &self.skinning_transforms_buffer,
@@ -88,7 +131,8 @@ pub fn create_render_meshes(
     default_textures: &[(&'static str, wgpu::Texture)],
 ) -> RenderModel {
     // Share the transforms buffer to avoid redundant updates.
-    let anim_transforms = apply_animation(model.skel.as_ref().unwrap(), None, 0.0, &mut []);
+    // TODO: Make this a separate function?
+    let anim_transforms = animate_skel(model.skel.as_ref().unwrap(), None, 0.0);
 
     // TODO: Enforce bone count being at most 511?
     let skinning_transforms_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -101,7 +145,7 @@ pub fn create_render_meshes(
     let world_transforms_buffer =
         create_world_transforms_buffer(device, &anim_transforms.world_transforms);
 
-    let mut meshes = create_render_meshes_and_shader_tags(
+    let meshes = create_render_meshes_inner(
         device,
         queue,
         layout,
@@ -112,23 +156,18 @@ pub fn create_render_meshes(
         &skinning_transforms_buffer,
         &world_transforms_buffer,
     );
-    // TODO: Does the order the sorting is applied matter here?
-    // TODO: This sorting should be applied over all render meshes regardless of model.
-    meshes.sort_by(|a, b| {
-        (render_pass_index(&a.1) as i32 + a.0.sort_bias)
-            .cmp(&(render_pass_index(&b.1) as i32 + b.0.sort_bias))
-    });
 
     RenderModel {
-        meshes: meshes.into_iter().map(|(m, _)| m).collect(),
+        meshes,
         skel: model.skel.as_ref().unwrap().clone(), // TODO: Avoid cloning here?
+        matl: model.matl.as_ref().unwrap().clone(),
         skinning_transforms_buffer,
         world_transforms_buffer,
+        pipelines: Vec::new(),
     }
 }
 
-// TODO: Separate module for skinning/animation?
-fn create_render_meshes_and_shader_tags(
+fn create_render_meshes_inner(
     device: &wgpu::Device,
     queue: &wgpu::Queue,
     layout: &wgpu::PipelineLayout,
@@ -138,7 +177,7 @@ fn create_render_meshes_and_shader_tags(
     default_textures: &[(&'static str, wgpu::Texture)],
     skinning_transforms_buffer: &wgpu::Buffer,
     world_transforms_buffer: &wgpu::Buffer,
-) -> Vec<(RenderMesh, String)> {
+) -> Vec<RenderMesh> {
     // TODO: Find a way to organize this.
 
     // Ideally we only create one pipeline per used shader.
@@ -146,6 +185,8 @@ fn create_render_meshes_and_shader_tags(
     // In practice, each material/mesh pair may need a unique pipeline.
     // TODO: How to test this optimization?
     // TODO: Does it matter that these are cloned one more time than necessary?
+    // TODO: This may create duplicate uniform buffers if
+    // two meshes have different depth settings but the same material?
     let create_pipeline_data = |material, depth_write, depth_test| {
         let pipeline = create_pipeline(
             device,
@@ -165,11 +206,19 @@ fn create_render_meshes_and_shader_tags(
             default_textures,
         );
 
-        let material_uniforms_bind_group = create_uniforms_bind_group(material, device);
+        let uniforms_buffer = create_uniforms_buffer(material, device);
+        let material_uniforms_bind_group =
+            crate::shader::model::bind_groups::BindGroup2::from_bindings(
+                device,
+                crate::shader::model::bind_groups::BindGroupLayout2 {
+                    uniforms: &uniforms_buffer,
+                },
+            );
 
         Arc::new(PipelineData {
             pipeline,
             textures_bind_group,
+            uniforms_buffer,
             material_uniforms_bind_group,
         })
     };
@@ -214,11 +263,11 @@ fn create_render_meshes_and_shader_tags(
             // Lazily initialize pipelines and share pipelines when possible.
             // TODO: Handle missing materials?
             let pipeline = pipelines
-                .entry((
-                    material.unwrap().material_label.clone(),
-                    !mesh_object.disable_depth_write,
-                    !mesh_object.disable_depth_test,
-                ))
+                .entry(PipelineIdentifier {
+                    material_label: material.unwrap().material_label.clone(), // TODO: Avoid clone.
+                    enable_depth_write: !mesh_object.disable_depth_write,
+                    enable_depth_test: !mesh_object.disable_depth_test,
+                })
                 .or_insert_with(|| {
                     create_pipeline_data(
                         material,
@@ -266,8 +315,19 @@ fn create_render_meshes_and_shader_tags(
                     },
                 );
 
-            let mesh = RenderMesh {
+            // The end of the shader label is used to determine draw order.
+            // ex: "SFX_PBS_0101000008018278_sort" has a tag of "sort".
+            // The render order is opaque -> far -> sort -> near.
+            // TODO: How to handle missing tags?
+            let shader_tag = material
+                .map(|m| m.shader_label.get(25..))
+                .flatten()
+                .unwrap_or("")
+                .to_string();
+
+            RenderMesh {
                 name: mesh_object.name.clone(),
+                shader_tag,
                 is_visible: true,
                 pipeline: pipeline.clone(),
                 vertex_buffer0: buffer_data.vertex_buffer0,
@@ -279,34 +339,9 @@ fn create_render_meshes_and_shader_tags(
                 skinning_bind_group,
                 skinning_transforms_bind_group,
                 mesh_object_info_bind_group,
-            };
-
-            // The end of the shader label is used to determine draw order.
-            // ex: "SFX_PBS_0101000008018278_sort" has a tag of "sort".
-            // The render order is opaque -> far -> sort -> near.
-            // TODO: How to handle missing tags?
-            let shader_tag = material
-                .map(|m| m.shader_label.get(25..))
-                .flatten()
-                .unwrap_or("")
-                .to_string();
-
-            (mesh, shader_tag)
+            }
         })
         .collect()
-}
-
-fn create_uniforms_bind_group(
-    material: Option<&ssbh_data::matl_data::MatlEntryData>,
-    device: &wgpu::Device,
-) -> crate::shader::model::bind_groups::BindGroup2 {
-    let uniforms_buffer = create_uniforms_buffer(material, device);
-    crate::shader::model::bind_groups::BindGroup2::from_bindings(
-        device,
-        crate::shader::model::bind_groups::BindGroupLayout2 {
-            uniforms: &uniforms_buffer,
-        },
-    )
 }
 
 fn create_textures_bind_group(
@@ -443,7 +478,7 @@ fn find_parent_index(
     }
 }
 
-fn render_pass_index(tag: &str) -> usize {
+fn render_pass_index(tag: &str) -> isize {
     match tag {
         "opaque" => 0,
         "far" => 1,

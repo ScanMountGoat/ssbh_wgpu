@@ -2,7 +2,7 @@ use wgpu::{ComputePassDescriptor, ComputePipelineDescriptor};
 
 use crate::{
     camera::create_camera_bind_group, rendermesh::RenderMesh, texture::load_texture_sampler_3d,
-    CameraTransforms,
+    CameraTransforms, RenderModel,
 };
 
 // TODO: Document the renderer.
@@ -192,15 +192,20 @@ impl SsbhRenderer {
         &self,
         encoder: &mut wgpu::CommandEncoder,
         output_view: &wgpu::TextureView,
-        render_meshes: &[&RenderMesh],
+        render_models: &[RenderModel],
     ) {
+        // Render meshes are sorted globally rather than per folder.
+        // This allows all transparent draw calls to happen after opaque draw calls.
+        let mut meshes: Vec<_> = render_models.iter().map(|m| &m.meshes).flatten().collect();
+        meshes.sort_by(|a, b| a.render_order().cmp(&b.render_order()));
+
         let mut skinning_pass = encoder.begin_compute_pass(&ComputePassDescriptor {
             label: Some("Skinning Pass"),
         });
 
         skinning_pass.set_pipeline(&self.skinning_pipeline);
 
-        crate::rendermesh::skin_render_meshes(render_meshes, &mut skinning_pass);
+        crate::rendermesh::skin_render_meshes(&meshes, &mut skinning_pass);
 
         drop(skinning_pass);
 
@@ -225,11 +230,7 @@ impl SsbhRenderer {
             }),
         });
 
-        crate::rendermesh::draw_render_meshes(
-            render_meshes,
-            &mut model_pass,
-            &self.camera_bind_group,
-        );
+        crate::rendermesh::draw_render_meshes(&meshes, &mut model_pass, &self.camera_bind_group);
         drop(model_pass);
 
         let mut bloom_threshold_pass = create_color_pass(
