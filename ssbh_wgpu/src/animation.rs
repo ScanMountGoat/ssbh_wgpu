@@ -43,6 +43,33 @@ pub struct AnimationTransforms {
     pub world_transforms: Box<[glam::Mat4; 512]>,
 }
 
+trait Visibility {
+    fn name(&self) -> &str;
+    fn set_visibility(&mut self, visibility: bool);
+}
+
+impl Visibility for RenderMesh {
+    fn name(&self) -> &str {
+        &self.name
+    }
+
+    fn set_visibility(&mut self, visibility: bool) {
+        self.is_visible = visibility;
+    }
+}
+
+// Use tuples for testing since a RenderMesh is hard to construct.
+// This also avoids needing to initialize WGPU during tests.
+impl Visibility for (String, bool) {
+    fn name(&self) -> &str {
+        &self.0
+    }
+
+    fn set_visibility(&mut self, visibility: bool) {
+        self.1 = visibility;
+    }
+}
+
 // TODO: How to test this?
 // TODO: Create test cases for test animations on short bone chains?
 // TODO: Also apply visibility and material animation?
@@ -198,9 +225,7 @@ fn animate_transform(anim: &AnimData, bones: &mut [AnimatedBone], frame: f32) {
     }
 }
 
-// TODO: Add tests for this?
-// TODO: Add a trait to avoid constructing render meshes in tests?
-fn animate_visibility(anim: &AnimData, frame: f32, meshes: &mut [RenderMesh]) {
+fn animate_visibility<V: Visibility>(anim: &AnimData, frame: f32, meshes: &mut [V]) {
     for group in &anim.groups {
         match group.group_type {
             GroupType::Visibility => {
@@ -209,14 +234,15 @@ fn animate_visibility(anim: &AnimData, frame: f32, meshes: &mut [RenderMesh]) {
                         if let TrackValues::Boolean(values) = &track.values {
                             // TODO: Is this the correct way to process mesh names?
                             // TODO: Test visibility anims?
+                            // TODO: Is this case sensitive?
                             // Ignore the _VIS_....
-                            // An Eye track toggles EyeL and EyeR?
-                            for mesh in meshes.iter_mut().filter(|m| m.name.starts_with(&node.name))
+                            for mesh in meshes
+                                .iter_mut()
+                                .filter(|m| m.name().starts_with(&node.name))
                             {
                                 // TODO: Share this between tracks?
-                                let (current_frame, next_frame, factor) =
-                                    frame_values(frame, track);
-                                mesh.is_visible = values[current_frame];
+                                let (current_frame, _, _) = frame_values(frame, track);
+                                mesh.set_visibility(values[current_frame]);
                             }
                         }
                     }
@@ -744,5 +770,53 @@ mod tests {
             transforms.animated_world_transforms.transforms[2].to_cols_array_2d()
         );
         // TODO: Test other matrices?
+    }
+
+    #[test]
+    fn apply_animation_visibility() {
+        // Test that the _VIS tags are ignored in name handling.
+        let mut meshes = vec![
+            ("A_VIS_O_OBJSHAPE".to_string(), true),
+            ("B_VIS_O_OBJSHAPE".to_string(), false),
+            ("C_VIS_O_OBJSHAPE".to_string(), true),
+        ];
+
+        animate_visibility(
+            &AnimData {
+                major_version: 2,
+                minor_version: 0,
+                final_frame_index: 0.0,
+                groups: vec![GroupData {
+                    group_type: GroupType::Visibility,
+                    nodes: vec![
+                        NodeData {
+                            name: "A".to_string(),
+                            tracks: vec![TrackData {
+                                name: "Visibility".to_string(),
+                                scale_options: ScaleOptions::default(),
+                                values: TrackValues::Boolean(vec![true, false, true]),
+                                transform_flags: TransformFlags::default(),
+                            }],
+                        },
+                        NodeData {
+                            name: "B".to_string(),
+                            tracks: vec![TrackData {
+                                name: "Visibility".to_string(),
+                                scale_options: ScaleOptions::default(),
+                                values: TrackValues::Boolean(vec![false, true, false]),
+                                transform_flags: TransformFlags::default(),
+                            }],
+                        },
+                    ],
+                }],
+            },
+            1.0,
+            &mut meshes,
+        );
+
+        assert_eq!(false, meshes[0].1);
+        assert_eq!(true, meshes[1].1);
+        // The third mesh should be unchanged.
+        assert_eq!(true, meshes[2].1);
     }
 }
