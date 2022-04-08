@@ -61,11 +61,10 @@ pub fn load_render_models(
 
     // TODO: Just pass the model folder in a convenience function?
     // TODO: Find a way to efficiently parallelize render mesh creation?
-    let start = std::time::Instant::now();
-    let render_meshes: Vec<_> = models
+    let render_models: Vec<_> = models
         .iter()
         .map(|model| {
-            rendermesh::create_render_meshes(
+            rendermesh::create_render_model(
                 device,
                 queue,
                 &render_pipeline_layout,
@@ -76,12 +75,8 @@ pub fn load_render_models(
             )
         })
         .collect();
-    println!(
-        "Create {:?} render meshes: {:?}",
-        render_meshes.iter().map(|m| m.meshes.len()).sum::<usize>(),
-        start.elapsed()
-    );
-    render_meshes
+
+    render_models
 }
 
 pub fn load_model_folders<P: AsRef<Path>>(root: P) -> Vec<ModelFolder> {
