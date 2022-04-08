@@ -2,7 +2,7 @@ use crate::{
     animation::{animate_materials, animate_skel, animate_visibility},
     pipeline::create_pipeline,
     texture::load_texture_sampler,
-    uniforms::create_uniforms_buffer,
+    uniforms::{create_uniforms, create_uniforms_buffer},
     vertex::mesh_object_buffers,
     ModelFolder,
 };
@@ -29,7 +29,7 @@ pub struct RenderModel {
     matl: MatlData,
     skinning_transforms_buffer: wgpu::Buffer,
     world_transforms_buffer: wgpu::Buffer,
-    pipelines: HashMap<PipelineIdentifier, Arc<wgpu::RenderPipeline>>,
+    material_data_by_label: HashMap<String, Arc<MaterialData>>,
 }
 
 // A RenderMesh is view over a portion of the RenderModel data.
@@ -51,7 +51,6 @@ pub struct RenderMesh {
     // Use an Arc since material and pipeline data is often shared.
     pipeline: Arc<wgpu::RenderPipeline>,
     material_data: Arc<MaterialData>,
-    // TODO: Store a HashMap<String, MaterialData> for animations?
 }
 
 impl RenderMesh {
@@ -86,27 +85,34 @@ impl RenderModel {
         // This avoids updating per mesh object and allocating new buffers.
         // TODO: Only write buffers if an animation is playing?
         // TODO: How to "reset" an animation?
-        let animation_transforms = animate_skel(&self.skel, anim, frame);
 
         if let Some(anim) = anim {
             animate_visibility(anim, frame, &mut self.meshes);
-            // TODO: Avoid overriding the original materials?
-            animate_materials(anim, frame, &mut []);
+
+            let materials = animate_materials(anim, frame, &self.matl.entries);
+            for material in materials {
+                // TODO: Should this go in a separate module?
+                // Get updated uniform buffers for animated materials
+                let uniforms = create_uniforms(Some(&material));
+                if let Some(data) = self.material_data_by_label.get(&material.material_label) {
+                    // Write to the corresponding wgpu::Buffer.
+                    queue.write_buffer(&data.uniforms_buffer, 0, bytemuck::cast_slice(&[uniforms]));
+                }
+            }
+
+            let animation_transforms = animate_skel(&self.skel, Some(anim), frame);
+            queue.write_buffer(
+                &self.skinning_transforms_buffer,
+                0,
+                bytemuck::cast_slice(&[*animation_transforms.animated_world_transforms]),
+            );
+
+            queue.write_buffer(
+                &self.world_transforms_buffer,
+                0,
+                bytemuck::cast_slice(&(*animation_transforms.world_transforms)),
+            );
         }
-
-        // TODO: Material animations?
-
-        queue.write_buffer(
-            &self.skinning_transforms_buffer,
-            0,
-            bytemuck::cast_slice(&[*animation_transforms.animated_world_transforms]),
-        );
-
-        queue.write_buffer(
-            &self.world_transforms_buffer,
-            0,
-            bytemuck::cast_slice(&(*animation_transforms.world_transforms)),
-        );
     }
 }
 
@@ -149,7 +155,7 @@ pub fn create_render_model(
     let world_transforms_buffer =
         create_world_transforms_buffer(device, &anim_transforms.world_transforms);
 
-    let (meshes, pipelines) = create_render_meshes(
+    let (meshes, material_data_by_label) = create_render_meshes(
         device,
         queue,
         layout,
@@ -162,9 +168,9 @@ pub fn create_render_model(
     );
 
     println!(
-        "Create {:?} render meshes and {:?} pipelines: {:?}",
+        "Create {:?} render meshes and {:?} materials: {:?}",
         meshes.len(),
-        pipelines.len(),
+        material_data_by_label.len(),
         start.elapsed()
     );
 
@@ -174,7 +180,7 @@ pub fn create_render_model(
         matl: model.matl.as_ref().unwrap().clone(),
         skinning_transforms_buffer,
         world_transforms_buffer,
-        pipelines,
+        material_data_by_label,
     }
 }
 
@@ -218,10 +224,7 @@ fn create_render_meshes(
     default_textures: &[(&'static str, wgpu::Texture)],
     skinning_transforms_buffer: &wgpu::Buffer,
     world_transforms_buffer: &wgpu::Buffer,
-) -> (
-    Vec<RenderMesh>,
-    HashMap<PipelineIdentifier, Arc<wgpu::RenderPipeline>>,
-) {
+) -> (Vec<RenderMesh>, HashMap<String, Arc<MaterialData>>) {
     // TODO: Find a way to organize this.
 
     // Ideally we only create one pipeline per shader.
@@ -262,7 +265,7 @@ fn create_render_meshes(
         })
         .collect();
 
-    (meshes, pipelines)
+    (meshes, material_data_by_label)
 }
 
 fn create_render_mesh(
@@ -312,7 +315,12 @@ fn create_render_mesh(
         .entry(PipelineIdentifier {
             // Strip the shader tag since it doesn't effect the pipeline itself.
             // TODO: Is this always a safe assumption?
-            shader_label: material.unwrap().shader_label.get(0..24).unwrap().to_string(), // TODO: Avoid clone?
+            shader_label: material
+                .unwrap()
+                .shader_label
+                .get(0..24)
+                .unwrap()
+                .to_string(), // TODO: Avoid clone?
             enable_depth_write: !mesh_object.disable_depth_write,
             enable_depth_test: !mesh_object.disable_depth_test,
         })

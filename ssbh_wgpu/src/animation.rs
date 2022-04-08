@@ -251,7 +251,17 @@ pub fn animate_visibility<V: Visibility>(anim: &AnimData, frame: f32, meshes: &m
     }
 }
 
-pub fn animate_materials(anim: &AnimData, frame: f32, materials: &mut [MatlEntryData]) {
+// TODO: Add tests for this.
+pub fn animate_materials(
+    anim: &AnimData,
+    frame: f32,
+    materials: &[MatlEntryData],
+) -> Vec<MatlEntryData> {
+    // Return materials that were changed.
+    // This avoids modifying the original materials.
+    // TODO: Is this approach significantly slower than modifying in place?
+    let mut changed_materials = Vec::new();
+
     for group in &anim.groups {
         match group.group_type {
             GroupType::Material => {
@@ -259,6 +269,9 @@ pub fn animate_materials(anim: &AnimData, frame: f32, materials: &mut [MatlEntry
                     // TODO: Find material based on the node name.
                     if let Some(material) = materials.iter().find(|m| m.material_label == node.name)
                     {
+                        // TODO: Does the speed of cloning here matter?
+                        let mut changed_material = material.clone();
+
                         for track in &node.tracks {
                             let (current_frame, next_frame, factor) = frame_values(frame, track);
 
@@ -270,22 +283,27 @@ pub fn animate_materials(anim: &AnimData, frame: f32, materials: &mut [MatlEntry
                                 TrackValues::PatternIndex(_) => (),
                                 TrackValues::Boolean(_) => (),
                                 TrackValues::Vector4(v) => {
-                                    if let Some(param) = material
+                                    if let Some(param) = changed_material
                                         .vectors
-                                        .iter()
+                                        .iter_mut()
                                         .find(|p| track.name == p.param_id.to_string())
                                     {
                                         // TODO: Interpolate vectors?
+                                        param.data = v[current_frame];
                                     }
                                 }
                             }
                         }
+
+                        changed_materials.push(changed_material);
                     }
                 }
             }
             _ => (),
         }
     }
+
+    changed_materials
 }
 
 // TODO: Other animation group types?

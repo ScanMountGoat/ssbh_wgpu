@@ -17,7 +17,7 @@ pub fn create_uniforms_buffer(
     })
 }
 
-fn create_uniforms(material: Option<&MatlEntryData>) -> MaterialUniforms {
+pub fn create_uniforms(material: Option<&MatlEntryData>) -> MaterialUniforms {
     material
         .map(|material| {
             // Ignore invalid parameters for now to avoid an error or panic.
