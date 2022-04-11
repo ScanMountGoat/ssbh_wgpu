@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use ssbh_data::{
-    anim_data::{GroupType, TrackValues, Vector3, Vector4},
+    anim_data::{GroupType, TrackValues, TransformFlags, Vector3, Vector4},
     matl_data::MatlEntryData,
     prelude::*,
     skel_data::{BoneData, BoneTransformError},
@@ -14,17 +14,45 @@ use crate::{shader::skinning::AnimatedWorldTransforms, RenderMesh};
 // Evaluate the "tree" of Vec<AnimatedBone> to compute the final world transforms.
 struct AnimatedBone {
     bone: BoneData,
-    // TODO: Why does decomposing the bone transform itself not work?
     anim_transform: Option<AnimTransform>,
     compensate_scale: bool,
     inherit_scale: bool,
+    flags: TransformFlags,
 }
 
 impl AnimatedBone {
     fn animated_transform(&self, include_anim_scale: bool) -> glam::Mat4 {
         self.anim_transform
             .as_ref()
-            .map(|t| transform_to_mat4(t, include_anim_scale))
+            .map(|t| {
+                // Decompose the default "rest" pose from the skeleton.
+                // Transform flags allow some parts of the transform to be set externally.
+                // For example, suppose Mario throws a different fighter like Bowser.
+                // Mario's "thrown" anim needs to use some transforms from Bowser's skel.
+                let (skel_scale, skel_rot, scale_trans) =
+                    glam::Mat4::from_cols_array_2d(&self.bone.transform)
+                        .to_scale_rotation_translation();
+
+                let adjusted_transform = AnimTransform {
+                    translation: if self.flags.override_translation {
+                        scale_trans
+                    } else {
+                        t.translation
+                    },
+                    rotation: if self.flags.override_rotation {
+                        skel_rot
+                    } else {
+                        t.rotation
+                    },
+                    scale: if self.flags.override_scale {
+                        skel_scale
+                    } else {
+                        t.scale
+                    },
+                };
+
+                transform_to_mat4(&adjusted_transform, include_anim_scale)
+            })
             .unwrap_or_else(|| mat4_from_row2d(&self.bone.transform))
     }
 }
@@ -97,6 +125,7 @@ pub fn animate_skel(skel: &SkelData, anim: Option<&AnimData>, frame: f32) -> Ani
             compensate_scale: false,
             inherit_scale: true,
             anim_transform: None,
+            flags: TransformFlags::default(),
         })
         .collect();
 
@@ -152,11 +181,10 @@ fn calculate_anim_world_transform(
     bones: &[AnimatedBone],
     root: &AnimatedBone,
 ) -> Result<[[f32; 4]; 4], BoneTransformError> {
-    // TODO: Always include the root bone's scale?
+    // TODO: Should we always include the root bone's scale?
     let mut current = root;
     let mut transform = current.animated_transform(true);
 
-    // TODO: Adjust this for each bone.
     let mut inherit_scale = current.inherit_scale;
 
     // Check for cycles by keeping track of previously visited locations.
@@ -172,7 +200,6 @@ fn calculate_anim_world_transform(
         }
 
         if let Some(parent_bone) = bones.get(parent_index) {
-            // TODO: Scale compensation?
             // TODO: Does scale compensation take into account scaling in the skeleton?
             let parent_transform = parent_bone.animated_transform(inherit_scale);
 
@@ -350,6 +377,7 @@ fn apply_transform_track(
     // TODO: Where to apply transform flags?
     bone.compensate_scale = track.scale_options.compensate_scale;
     bone.inherit_scale = track.scale_options.inherit_scale;
+    bone.flags = track.transform_flags;
 
     bone.anim_transform = Some(AnimTransform {
         translation: interp_vec3(&current.translation, &next.translation, factor),
@@ -813,6 +841,125 @@ mod tests {
                 [1.0, 0.0, 0.0, 0.0],
                 [0.0, 2.0, 0.0, 0.0],
                 [0.0, 0.0, 3.0, 0.0],
+                [0.0, 0.0, 0.0, 1.0],
+            ],
+            transforms.animated_world_transforms.transforms[2].to_cols_array_2d()
+        );
+        // TODO: Test other matrices?
+    }
+
+    // TODO: Test additional TransformFlags combinations.
+    #[test]
+    fn apply_animation_bone_chain_override_transforms() {
+        // Test resetting all transforms to their "resting" pose from the skel.
+        let transforms = animate_skel(
+            &SkelData {
+                major_version: 1,
+                minor_version: 0,
+                bones: vec![
+                    // TODO: Don't use the identity here to make the test stricter?
+                    identity_bone("A", None),
+                    identity_bone("B", Some(0)),
+                    identity_bone("C", Some(1)),
+                ],
+            },
+            Some(&AnimData {
+                major_version: 2,
+                minor_version: 0,
+                final_frame_index: 0.0,
+                groups: vec![GroupData {
+                    group_type: GroupType::Transform,
+                    nodes: vec![
+                        NodeData {
+                            name: "A".to_string(),
+                            tracks: vec![TrackData {
+                                name: "Transform".to_string(),
+                                scale_options: ScaleOptions {
+                                    inherit_scale: true,
+                                    compensate_scale: false,
+                                },
+                                values: TrackValues::Transform(vec![Transform {
+                                    scale: Vector3::new(2.0, 2.0, 2.0),
+                                    rotation: Vector4::new(1.0, 0.0, 0.0, 0.0),
+                                    translation: Vector3::new(0.0, 1.0, 2.0),
+                                }]),
+                                transform_flags: TransformFlags {
+                                    override_translation: true,
+                                    override_rotation: true,
+                                    override_scale: true,
+                                },
+                            }],
+                        },
+                        NodeData {
+                            name: "B".to_string(),
+                            tracks: vec![TrackData {
+                                name: "Transform".to_string(),
+                                scale_options: ScaleOptions {
+                                    inherit_scale: true,
+                                    compensate_scale: false,
+                                },
+                                values: TrackValues::Transform(vec![Transform {
+                                    scale: Vector3::new(2.0, 2.0, 2.0),
+                                    rotation: Vector4::new(1.0, 0.0, 0.0, 0.0),
+                                    translation: Vector3::new(0.0, 1.0, 2.0),
+                                }]),
+                                transform_flags: TransformFlags {
+                                    override_translation: true,
+                                    override_rotation: true,
+                                    override_scale: true,
+                                },
+                            }],
+                        },
+                        NodeData {
+                            name: "C".to_string(),
+                            tracks: vec![TrackData {
+                                name: "Transform".to_string(),
+                                scale_options: ScaleOptions {
+                                    inherit_scale: true,
+                                    compensate_scale: false,
+                                },
+                                values: TrackValues::Transform(vec![Transform {
+                                    scale: Vector3::new(2.0, 2.0, 2.0),
+                                    rotation: Vector4::new(1.0, 0.0, 0.0, 0.0),
+                                    translation: Vector3::new(0.0, 1.0, 2.0),
+                                }]),
+                                transform_flags: TransformFlags {
+                                    override_translation: true,
+                                    override_rotation: true,
+                                    override_scale: true,
+                                },
+                            }],
+                        },
+                    ],
+                }],
+            }),
+            0.0,
+        );
+
+        // TODO: No transpose?
+        assert_matrix_relative_eq!(
+            [
+                [1.0, 0.0, 0.0, 0.0],
+                [0.0, 1.0, 0.0, 0.0],
+                [0.0, 0.0, 1.0, 0.0],
+                [0.0, 0.0, 0.0, 1.0],
+            ],
+            transforms.animated_world_transforms.transforms[0].to_cols_array_2d()
+        );
+        assert_matrix_relative_eq!(
+            [
+                [1.0, 0.0, 0.0, 0.0],
+                [0.0, 1.0, 0.0, 0.0],
+                [0.0, 0.0, 1.0, 0.0],
+                [0.0, 0.0, 0.0, 1.0],
+            ],
+            transforms.animated_world_transforms.transforms[1].to_cols_array_2d()
+        );
+        assert_matrix_relative_eq!(
+            [
+                [1.0, 0.0, 0.0, 0.0],
+                [0.0, 1.0, 0.0, 0.0],
+                [0.0, 0.0, 1.0, 0.0],
                 [0.0, 0.0, 0.0, 1.0],
             ],
             transforms.animated_world_transforms.transforms[2].to_cols_array_2d()
