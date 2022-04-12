@@ -108,7 +108,7 @@ pub fn animate_skel(skel: &SkelData, anim: Option<&AnimData>, frame: f32) -> Ani
     // TODO: Make the skel optional?
 
     // TODO: Is this redundant?
-    let mut anim_world_transforms = [glam::Mat4::IDENTITY; 512];
+    let mut world_transforms = [glam::Mat4::IDENTITY; 512];
     let mut transforms = [glam::Mat4::IDENTITY; 512];
 
     // HACK: Duplicate the bone heirachy and override with the anim nodes.
@@ -130,41 +130,40 @@ pub fn animate_skel(skel: &SkelData, anim: Option<&AnimData>, frame: f32) -> Ani
         .collect();
 
     // Set the animation transform for all effected bones.
+    // TODO: Combine this step with above?
     if let Some(anim) = anim {
         animate_transform(anim, &mut animated_bones, frame);
     }
 
+    // TODO: Avoid enumerate here?
     // TODO: Should scale inheritance be part of ssbh_data itself?
     // TODO: Is there a more efficient way of calculating this?
-    for (i, bone) in skel.bones.iter().enumerate() {
+    for (i, (bone, animated_bone)) in skel
+        .bones
+        .iter()
+        .zip(animated_bones.iter())
+        .enumerate()
+        .take(512)
+    {
         // Smash is row-major but glam is column-major.
         // TODO: Is there an efficient way to calculate world transforms of all bones?
         // TODO: This wouldn't require a skel if there was a separate calculate_world(&[BoneData]) function.
         let bone_world = skel.calculate_world_transform(bone).unwrap();
         let bone_world = glam::Mat4::from_cols_array_2d(&bone_world).transpose();
 
-        // TODO: Apply animations?
-        // TODO: Separate module with tests to check edge cases.
-
-        let bone_anim_world = calculate_anim_world_transform(
-            &animated_bones,
-            animated_bones
-                .iter()
-                .find(|b| b.bone.name == bone.name)
-                .unwrap(),
-        )
-        .unwrap();
-        let bone_anim_world = glam::Mat4::from_cols_array_2d(&bone_anim_world).transpose();
+        let bone_anim_world = animated_world_transform(&animated_bones, animated_bone).unwrap();
 
         // TODO: Is wgpu expecting row-major?
         transforms[i] = (bone_world.inverse() * bone_anim_world).transpose();
-        anim_world_transforms[i] = bone_anim_world.transpose();
+        world_transforms[i] = bone_anim_world.transpose();
     }
 
     let transforms_inv_transpose = transforms.map(|t| t.inverse().transpose());
 
+    // TODO: Does it make more sense to use vec here?
+    // This function is an implementation detail, so we can test/enforce the length.
     AnimationTransforms {
-        world_transforms: Box::new(anim_world_transforms),
+        world_transforms: Box::new(world_transforms),
         animated_world_transforms: Box::new(AnimatedWorldTransforms {
             transforms,
             transforms_inv_transpose,
@@ -176,11 +175,10 @@ fn mat4_from_row2d(elements: &[[f32; 4]; 4]) -> glam::Mat4 {
     glam::Mat4::from_cols_array_2d(elements).transpose()
 }
 
-// TODO: Add scale inheritance here?
-fn calculate_anim_world_transform(
+fn animated_world_transform(
     bones: &[AnimatedBone],
     root: &AnimatedBone,
-) -> Result<[[f32; 4]; 4], BoneTransformError> {
+) -> Result<glam::Mat4, BoneTransformError> {
     // TODO: Should we always include the root bone's scale?
     let mut current = root;
     let mut transform = current.animated_transform(true);
@@ -224,8 +222,7 @@ fn calculate_anim_world_transform(
         }
     }
 
-    // Save the result in row-major order.
-    Ok(transform.transpose().to_cols_array_2d())
+    Ok(transform)
 }
 
 fn animate_transform(anim: &AnimData, bones: &mut [AnimatedBone], frame: f32) {
@@ -341,7 +338,6 @@ fn interp_quat(a: &Vector4, b: &Vector4, factor: f32) -> glam::Quat {
 }
 
 fn interp_vec3(a: &Vector3, b: &Vector3, factor: f32) -> glam::Vec3 {
-    // TODO: SIMD type here?
     glam::Vec3::from(a.to_array()).lerp(glam::Vec3::from(b.to_array()), factor)
 }
 
@@ -443,7 +439,45 @@ mod tests {
     // TODO: Interpolation behavior
 
     #[test]
-    fn apply_animation_empty() {
+    fn apply_empty_animation_512_bones() {
+        // TODO: Should this enforce the limit in Smash Ultimate of 511 instead?
+        animate_skel(
+            &SkelData {
+                major_version: 1,
+                minor_version: 0,
+                bones: vec![identity_bone("A", None); 512],
+            },
+            Some(&AnimData {
+                major_version: 2,
+                minor_version: 0,
+                final_frame_index: 0.0,
+                groups: Vec::new(),
+            }),
+            0.0,
+        );
+    }
+
+    #[test]
+    fn apply_empty_animation_too_many_bones() {
+        // TODO: Should this be an error?
+        animate_skel(
+            &SkelData {
+                major_version: 1,
+                minor_version: 0,
+                bones: vec![identity_bone("A", None); 600],
+            },
+            Some(&AnimData {
+                major_version: 2,
+                minor_version: 0,
+                final_frame_index: 0.0,
+                groups: Vec::new(),
+            }),
+            0.0,
+        );
+    }
+
+    #[test]
+    fn apply_empty_animation_no_bones() {
         animate_skel(
             &SkelData {
                 major_version: 1,
