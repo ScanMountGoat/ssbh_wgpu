@@ -1,5 +1,5 @@
 use crate::{
-    animation::{animate_materials, animate_skel, animate_visibility},
+    animation::{animate_materials, animate_skel, animate_visibility, AnimationTransforms},
     pipeline::create_pipeline,
     texture::load_texture_sampler,
     uniforms::{create_uniforms, create_uniforms_buffer},
@@ -100,7 +100,7 @@ impl RenderModel {
                 }
             }
 
-            let animation_transforms = animate_skel(&self.skel, Some(anim), frame);
+            let animation_transforms = animate_skel(&self.skel, anim, frame);
             queue.write_buffer(
                 &self.skinning_transforms_buffer,
                 0,
@@ -140,10 +140,9 @@ pub fn create_render_model(
 ) -> RenderModel {
     let start = std::time::Instant::now();
 
-    // Share the transforms buffer to avoid redundant updates.
-    // TODO: Make this a separate function?
-    let anim_transforms = animate_skel(model.skel.as_ref().unwrap(), None, 0.0);
+    let anim_transforms = AnimationTransforms::identity();
 
+    // Share the transforms buffer to avoid redundant updates.
     // TODO: Enforce bone count being at most 511?
     let skinning_transforms_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
         label: Some("Bone Transforms Buffer"),

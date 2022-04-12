@@ -72,6 +72,20 @@ pub struct AnimationTransforms {
     pub world_transforms: Box<[glam::Mat4; 512]>,
 }
 
+impl AnimationTransforms {
+    pub fn identity() -> Self {
+        // We can just use the identity transform to represent no animation.
+        // The skel pose should already match the "pose" in the mesh geometry.
+        Self {
+            animated_world_transforms: Box::new(AnimatedWorldTransforms {
+                transforms: [glam::Mat4::IDENTITY; 512],
+                transforms_inv_transpose: [glam::Mat4::IDENTITY; 512],
+            }),
+            world_transforms: Box::new([glam::Mat4::IDENTITY; 512]),
+        }
+    }
+}
+
 pub trait Visibility {
     fn name(&self) -> &str;
     fn set_visibility(&mut self, visibility: bool);
@@ -99,15 +113,9 @@ impl Visibility for (String, bool) {
     }
 }
 
-// TODO: How to test this?
-// TODO: Create test cases for test animations on short bone chains?
-// TODO: Also apply visibility and material animation?
-// TODO: Make this return the visibility info to make it easier to test?
 // TODO: Separate module for skeletal animation?
-pub fn animate_skel(skel: &SkelData, anim: Option<&AnimData>, frame: f32) -> AnimationTransforms {
-    // TODO: Make the skel optional?
-
-    // TODO: Is this redundant?
+pub fn animate_skel(skel: &SkelData, anim: &AnimData, frame: f32) -> AnimationTransforms {
+    // TODO: Is this redundant with the initialization below?
     let mut world_transforms = [glam::Mat4::IDENTITY; 512];
     let mut transforms = [glam::Mat4::IDENTITY; 512];
 
@@ -131,9 +139,7 @@ pub fn animate_skel(skel: &SkelData, anim: Option<&AnimData>, frame: f32) -> Ani
 
     // Set the animation transform for all effected bones.
     // TODO: Combine this step with above?
-    if let Some(anim) = anim {
-        animate_transform(anim, &mut animated_bones, frame);
-    }
+    animate_transform(anim, &mut animated_bones, frame);
 
     // TODO: Avoid enumerate here?
     // TODO: Should scale inheritance be part of ssbh_data itself?
