@@ -125,21 +125,19 @@ pub fn animate_skel(skel: &SkelData, anim: &AnimData, frame: f32) -> AnimationTr
     // TODO: There's probably an efficient execution order using the heirarchy.
     // There might not be enough bones to benefit from parallel execution.
     // We won't worry about redundant matrix multiplications for now.
-    let mut animated_bones: Vec<_> = skel
+    let animated_bones: Vec<_> = skel
         .bones
         .iter()
-        .map(|b| AnimatedBone {
-            bone: b.clone(),
-            compensate_scale: false,
-            inherit_scale: true,
-            anim_transform: None,
-            flags: TransformFlags::default(),
+        .map(|b| {
+            find_transform(anim, b.clone(), frame).unwrap_or(AnimatedBone {
+                bone: b.clone(),
+                compensate_scale: false,
+                inherit_scale: true,
+                anim_transform: None,
+                flags: TransformFlags::default(),
+            })
         })
         .collect();
-
-    // Set the animation transform for all effected bones.
-    // TODO: Combine this step with above?
-    animate_transform(anim, &mut animated_bones, frame);
 
     // TODO: Avoid enumerate here?
     // TODO: Should scale inheritance be part of ssbh_data itself?
@@ -231,25 +229,24 @@ fn animated_world_transform(
     Ok(transform)
 }
 
-fn animate_transform(anim: &AnimData, bones: &mut [AnimatedBone], frame: f32) {
+fn find_transform(anim: &AnimData, bone: BoneData, frame: f32) -> Option<AnimatedBone> {
     for group in &anim.groups {
-        match group.group_type {
-            GroupType::Transform => {
-                for node in &group.nodes {
+        if group.group_type == GroupType::Transform {
+            for node in &group.nodes {
+                // TODO: Multiple nodes with the bone's name?
+                if node.name == bone.name {
                     // TODO: Multiple transform tracks per bone?
                     if let Some(track) = node.tracks.first() {
                         if let TrackValues::Transform(values) = &track.values {
-                            if let Some(bone) = bones.iter_mut().find(|b| b.bone.name == node.name)
-                            {
-                                apply_transform_track(frame, track, values, bone);
-                            }
+                            return Some(create_animated_bone(frame, bone, track, values));
                         }
                     }
                 }
             }
-            _ => (),
         }
     }
+
+    None
 }
 
 pub fn animate_visibility<V: Visibility>(anim: &AnimData, frame: f32, meshes: &mut [V]) {
@@ -364,28 +361,28 @@ fn transform_to_mat4(transform: &AnimTransform, include_scale: bool) -> glam::Ma
     (translation * rotation * scale).transpose()
 }
 
-fn apply_transform_track(
+fn create_animated_bone(
     frame: f32,
+    bone: BoneData,
     track: &ssbh_data::anim_data::TrackData,
     values: &[ssbh_data::anim_data::Transform],
-    bone: &mut AnimatedBone,
-) {
+) -> AnimatedBone {
     let (current_frame, next_frame, factor) = frame_values(frame, track);
 
     let current = values[current_frame];
     let next = values[next_frame];
 
-    // TODO: Override with rest pose based on transform flags?
-    // TODO: Where to apply transform flags?
-    bone.compensate_scale = track.scale_options.compensate_scale;
-    bone.inherit_scale = track.scale_options.inherit_scale;
-    bone.flags = track.transform_flags;
-
-    bone.anim_transform = Some(AnimTransform {
-        translation: interp_vec3(&current.translation, &next.translation, factor),
-        rotation: interp_quat(&current.rotation, &next.rotation, factor),
-        scale: interp_vec3(&current.scale, &next.scale, factor),
-    });
+    AnimatedBone {
+        bone,
+        anim_transform: Some(AnimTransform {
+            translation: interp_vec3(&current.translation, &next.translation, factor),
+            rotation: interp_quat(&current.rotation, &next.rotation, factor),
+            scale: interp_vec3(&current.scale, &next.scale, factor),
+        }),
+        compensate_scale: track.scale_options.compensate_scale,
+        inherit_scale: track.scale_options.inherit_scale,
+        flags: track.transform_flags,
+    }
 }
 
 fn frame_values(frame: f32, track: &ssbh_data::anim_data::TrackData) -> (usize, usize, f32) {
