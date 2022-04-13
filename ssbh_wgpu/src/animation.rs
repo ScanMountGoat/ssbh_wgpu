@@ -74,13 +74,34 @@ pub struct AnimationTransforms {
 impl AnimationTransforms {
     pub fn identity() -> Self {
         // We can just use the identity transform to represent no animation.
-        // The skel pose should already match the "pose" in the mesh geometry.
+        // Mesh objects parented to a parent bone will likely be positioned at the origin.
         Self {
             animated_world_transforms: Box::new(AnimatedWorldTransforms {
                 transforms: [glam::Mat4::IDENTITY; 512],
                 transforms_inv_transpose: [glam::Mat4::IDENTITY; 512],
             }),
             world_transforms: Box::new([glam::Mat4::IDENTITY; 512]),
+        }
+    }
+
+    pub fn from_skel(skel: &SkelData) -> Self {
+        // Calculate the world transforms for parenting mesh objects to bones.
+        // The skel pose should already match the "pose" in the mesh geometry.
+        let mut world_transforms = [glam::Mat4::IDENTITY; 512];
+
+        // TODO: Add tests to make sure this is transposed correctly?
+        for (i, bone) in skel.bones.iter().enumerate().take(512) {
+            let bone_world = skel.calculate_world_transform(bone).unwrap();
+            let bone_world = glam::Mat4::from_cols_array_2d(&bone_world);
+            world_transforms[i] = bone_world;
+        }
+
+        Self {
+            animated_world_transforms: Box::new(AnimatedWorldTransforms {
+                transforms: [glam::Mat4::IDENTITY; 512],
+                transforms_inv_transpose: [glam::Mat4::IDENTITY; 512],
+            }),
+            world_transforms: Box::new(world_transforms),
         }
     }
 }
@@ -426,6 +447,25 @@ mod tests {
             parent_index,
             billboard_type: BillboardType::Disabled,
         }
+    }
+
+    #[test]
+    fn animation_transforms_from_skel_512_bones() {
+        AnimationTransforms::from_skel(&SkelData {
+            major_version: 1,
+            minor_version: 0,
+            bones: vec![identity_bone("A", None); 512],
+        });
+    }
+
+    #[test]
+    fn animation_transforms_from_skel_600_bones() {
+        // Make sure that this doesn't panic.
+        AnimationTransforms::from_skel(&SkelData {
+            major_version: 1,
+            minor_version: 0,
+            bones: vec![identity_bone("A", None); 600],
+        });
     }
 
     // TODO: Cycle detection in the skeleton?

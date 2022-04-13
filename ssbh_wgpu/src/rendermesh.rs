@@ -147,10 +147,16 @@ pub fn create_render_model(
 ) -> RenderModel {
     let start = std::time::Instant::now();
 
-    // TODO: This needs to take the skel into consideration.
-    // If there is no skel, then use the identity?
-    // AnimationTransforms::from_skel?
-    let anim_transforms = AnimationTransforms::identity();
+    // Attempt to initialize transforms using the skel.
+    // This correctly positions mesh objects parented to a bone.
+    // Otherwise, don't apply any transformations.
+    // TODO: Is it worth matching the in game behavior for a missing skel?
+    // "Invisible" models might be more confusing for users to understand.
+    let anim_transforms = model
+        .skel
+        .as_ref()
+        .map(AnimationTransforms::from_skel)
+        .unwrap_or_else(AnimationTransforms::identity);
 
     // Share the transforms buffer to avoid redundant updates.
     // TODO: Enforce bone count being at most 511?
