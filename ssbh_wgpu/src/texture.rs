@@ -13,15 +13,13 @@ use wgpu::{
 pub fn load_texture_sampler(
     material: Option<&MatlEntryData>,
     device: &Device,
-    queue: &Queue,
     texture_id: ParamId,
     sampler_id: ParamId,
-    textures: &[(String, NutexbFile)],
+    textures: &[(String, Texture)],
     default_textures: &[(&'static str, Texture)],
 ) -> Option<(TextureView, Sampler)> {
     // TODO: Add proper path and parameter handling.
     // TODO: Handle missing paths.
-    // TODO: Cache the texture creation?
     let material = material?;
 
     // TODO: Find a way to test texture path loading.
@@ -46,7 +44,7 @@ pub fn load_texture_sampler(
             // This shouldn't require an actual file system for better portability.
             // TODO: This function should return an error.
             // TODO: Case sensitive?
-            let nutexb = &textures
+            let texture = &textures
                 .iter()
                 .find(|(p, _)| {
                     Path::new(&p.to_lowercase()).with_extension("")
@@ -54,7 +52,10 @@ pub fn load_texture_sampler(
                 })
                 .unwrap()
                 .1;
-            let texture = nutexb_wgpu::get_nutexb_data(nutexb).create_texture(device, queue);
+
+            // TODO: Missing textures should use the in game default of white?
+            // TODO: Log/return this error?
+
             texture.create_view(&TextureViewDescriptor::default())
         }
     };

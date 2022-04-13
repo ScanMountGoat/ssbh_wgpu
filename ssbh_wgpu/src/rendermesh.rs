@@ -6,7 +6,6 @@ use crate::{
     vertex::mesh_object_buffers,
     ModelFolder,
 };
-use nutexb_wgpu::NutexbFile;
 use ssbh_data::{
     matl_data::{MatlEntryData, ParamId},
     prelude::*,
@@ -107,7 +106,7 @@ impl RenderModel {
             }
 
             if let Some(skel) = &self.skel {
-                let animation_transforms = animate_skel(&skel, anim, frame);
+                let animation_transforms = animate_skel(skel, anim, frame);
                 queue.write_buffer(
                     &self.skinning_transforms_buffer,
                     0,
@@ -196,18 +195,12 @@ pub fn create_render_model(
 
 fn create_material_data(
     device: &wgpu::Device,
-    queue: &wgpu::Queue,
-    model: &ModelFolder,
     material: Option<&MatlEntryData>,
-    default_textures: &[(&'static str, wgpu::Texture)],
+    textures: &[(String, wgpu::Texture)], // TODO: document that this uses file name?
+    default_textures: &[(&'static str, wgpu::Texture)], // TODO: document that this is an absolute path?
 ) -> MaterialData {
-    let textures_bind_group = create_textures_bind_group(
-        material,
-        device,
-        queue,
-        &model.textures_by_file_name,
-        default_textures,
-    );
+    let textures_bind_group =
+        create_textures_bind_group(material, device, textures, default_textures);
 
     let uniforms_buffer = create_uniforms_buffer(material, device);
     let material_uniforms_bind_group = crate::shader::model::bind_groups::BindGroup2::from_bindings(
@@ -237,7 +230,19 @@ fn create_render_meshes(
 ) -> (Vec<RenderMesh>, HashMap<String, Arc<MaterialData>>) {
     // TODO: Find a way to organize this.
 
-    // Ideally we only create one pipeline per shader.
+    // Initialize textures exactly once for performance.
+    // Unused textures are rare, so we won't lazy load them.
+    let textures: Vec<_> = model
+        .textures_by_file_name
+        .iter()
+        .map(|(name, nutexb)| {
+            (
+                name.clone(),
+                nutexb_wgpu::get_nutexb_data(nutexb).create_texture(device, queue),
+            )
+        })
+        .collect();
+
     // Mesh objects control the depth state of the pipeline.
     // In practice, each (shader,mesh) pair may need a unique pipeline.
     // TODO: How to test this optimization?
@@ -246,13 +251,13 @@ fn create_render_meshes(
     // Similarly, materials can be shared between mesh objects.
     // All the pipelines use the same shader code,
     // so any MaterialData can be used with any pipeline.
-    // The goal is to create and maintain fewer GPU resources.
     // TODO: Should red/yellow checkerboard errors just be separate pipelines?
     // It doesn't make sense to complicate the shader any further.
     // TODO: Split into PerMaterial, PerObject, etc in the shaders?
     let mut material_data_by_label = HashMap::new();
 
-    // TODO: Share buffers?
+    // TODO: Share vertex buffers?
+    // TODO: Find a way to have fewer function parameters?
     let meshes: Vec<_> = model
         .mesh
         .objects
@@ -264,12 +269,12 @@ fn create_render_meshes(
                 &mut material_data_by_label,
                 mesh_object,
                 device,
-                queue,
                 layout,
                 shader,
                 surface_format,
                 skinning_transforms_buffer,
                 world_transforms_buffer,
+                &textures,
                 default_textures,
             )
         })
@@ -284,21 +289,21 @@ fn create_render_mesh(
     material_data_by_label: &mut HashMap<String, Arc<MaterialData>>,
     mesh_object: &ssbh_data::mesh_data::MeshObjectData,
     device: &wgpu::Device,
-    queue: &wgpu::Queue,
     layout: &wgpu::PipelineLayout,
     shader: &wgpu::ShaderModule,
     surface_format: wgpu::TextureFormat,
     skinning_transforms_buffer: &wgpu::Buffer,
     world_transforms_buffer: &wgpu::Buffer,
+    textures: &[(String, wgpu::Texture)],
     default_textures: &[(&'static str, wgpu::Texture)],
 ) -> RenderMesh {
     // TODO: These could be cleaner as functions.
-    // TODO: Is using a default for the material label ok?
+    // TODO: Is using a default for the materialxf label ok?
     // TODO: How does a missing material work in game for missing matl/modl entry?
     let material_label = model
         .modl
         .as_ref()
-        .map(|m| {
+        .and_then(|m| {
             m.entries
                 .iter()
                 .find(|e| {
@@ -307,19 +312,14 @@ fn create_render_mesh(
                 })
                 .map(|e| &e.material_label)
         })
-        .flatten()
         .unwrap_or(&String::new())
         .to_string();
 
-    let material = model
-        .matl
-        .as_ref()
-        .map(|matl| {
-            matl.entries
-                .iter()
-                .find(|e| e.material_label == material_label)
-        })
-        .flatten();
+    let material = model.matl.as_ref().and_then(|matl| {
+        matl.entries
+            .iter()
+            .find(|e| e.material_label == material_label)
+    });
 
     // Pipeline creation is expensive.
     // Lazily initialize pipelines and share pipelines when possible.
@@ -328,8 +328,7 @@ fn create_render_mesh(
             // Strip the shader tag since it doesn't effect the pipeline itself.
             // TODO: Is this always a safe assumption?
             shader_label: material
-                .map(|material| material.shader_label.get(0..24))
-                .flatten()
+                .and_then(|material| material.shader_label.get(0..24))
                 .unwrap_or_default()
                 .to_string(),
             enable_depth_write: !mesh_object.disable_depth_write,
@@ -356,9 +355,8 @@ fn create_render_mesh(
         .or_insert_with(|| {
             Arc::new(create_material_data(
                 device,
-                queue,
-                model,
                 material,
+                textures,
                 default_textures,
             ))
         });
@@ -373,7 +371,7 @@ fn create_render_mesh(
             dst: &buffer_data.vertex_buffer0,
         },
     );
-    
+
     let skinning_transforms_bind_group =
         crate::shader::skinning::bind_groups::BindGroup1::from_bindings(
             device,
@@ -405,8 +403,7 @@ fn create_render_mesh(
     // The render order is opaque -> far -> sort -> near.
     // TODO: How to handle missing tags?
     let shader_tag = material
-        .map(|m| m.shader_label.get(25..))
-        .flatten()
+        .and_then(|m| m.shader_label.get(25..))
         .unwrap_or("")
         .to_string();
     RenderMesh {
@@ -430,16 +427,16 @@ fn create_render_mesh(
 fn create_textures_bind_group(
     material: Option<&ssbh_data::matl_data::MatlEntryData>,
     device: &wgpu::Device,
-    queue: &wgpu::Queue,
-    textures: &[(String, NutexbFile)],
+    textures: &[(String, wgpu::Texture)],
     default_textures: &[(&'static str, wgpu::Texture)],
 ) -> crate::shader::model::bind_groups::BindGroup1 {
     // TODO: Avoid creating defaults more than once?
+    // TODO: Each nutexb should be converted to a wgpu texture only once.
+    // TODO: Change parameter above to (String, wgpu::Texture)?
     let load_texture_sampler = |texture_id, sampler_id| {
         load_texture_sampler(
             material,
             device,
-            queue,
             texture_id,
             sampler_id,
             textures,
@@ -548,12 +545,11 @@ fn find_parent_index(
 ) -> i32 {
     if mesh_object.bone_influences.is_empty() {
         skel.as_ref()
-            .map(|skel| {
+            .and_then(|skel| {
                 skel.bones
                     .iter()
                     .position(|b| b.name == mesh_object.parent_bone_name)
             })
-            .flatten()
             .map(|i| i as i32)
             .unwrap_or(-1)
     } else {

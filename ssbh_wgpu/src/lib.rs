@@ -14,7 +14,6 @@ mod rendermesh;
 
 use nutexb_wgpu::NutexbFile;
 
-// TODO: Still organize these into modules?
 pub use renderer::SsbhRenderer;
 pub use rendermesh::{RenderMesh, RenderModel};
 pub use shader::model::CameraTransforms;
@@ -86,9 +85,6 @@ pub fn load_render_models(
 }
 
 pub fn load_model_folders<P: AsRef<Path>>(root: P) -> Vec<ModelFolder> {
-    // TODO: Load files in parallel.
-    // TODO: This should just walk directories?
-
     // TODO: This could be made more robust.
     // TODO: Determine the minimum files required for a renderable model?
     // TODO: Also check for numdlb?
@@ -109,40 +105,36 @@ pub fn load_model_folders<P: AsRef<Path>>(root: P) -> Vec<ModelFolder> {
             let matl = MatlData::from_file(p.path().with_extension("numatb")).ok();
             let modl = ModlData::from_file(p.path().with_extension("numdlb")).ok();
 
-            // TODO: Get all nutexb files in current directory?
+            // TODO: Handle missing parent folder?
             let parent = p.path().parent().unwrap();
-            let textures = std::fs::read_dir(parent)
-                .unwrap()
-                .par_bridge()
-                .filter_map(|p| {
-                    // TODO: Make this more robust?
-                    let path = p.as_ref().unwrap().path();
-                    // Some entries may be directories, which don't have an extension.
-                    if path.extension().map(|p| p.to_str()).flatten() == Some("nutexb") {
-                        Some(path)
-                    } else {
-                        None
-                    }
-                })
-                .map(|p| {
-                    (
-                        p.file_name().unwrap().to_string_lossy().to_string(),
-                        NutexbFile::read_from_file(p).unwrap(),
-                    )
-                })
-                .collect();
+            let textures_by_file_name = textures_by_file_name(parent);
 
-            let folder = parent.to_str().unwrap().to_string();
+            let folder = parent.to_string_lossy().to_string();
             Some(ModelFolder {
                 folder_name: folder,
                 mesh,
                 skel,
                 matl,
                 modl,
-                textures_by_file_name: textures,
+                textures_by_file_name,
             })
         })
         .collect();
     println!("Load {:?} model(s): {:?}", models.len(), start.elapsed());
     models
+}
+
+fn textures_by_file_name(parent: &Path) -> Vec<(String, NutexbFile)> {
+    std::fs::read_dir(parent)
+        .unwrap() // TODO: Avoid unwrap?
+        .par_bridge()
+        .filter_map(|p| p.ok().map(|p| p.path()))
+        .filter(|p| p.extension().and_then(|p| p.to_str()) == Some("nutexb"))
+        .filter_map(|p| {
+            Some((
+                p.file_name()?.to_string_lossy().to_string(),
+                NutexbFile::read_from_file(p).ok()?,
+            ))
+        })
+        .collect()
 }

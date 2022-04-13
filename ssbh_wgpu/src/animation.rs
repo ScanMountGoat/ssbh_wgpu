@@ -212,7 +212,7 @@ fn animated_world_transform(
                 if let Some(parent_transform) = &parent_bone.anim_transform {
                     let scale_compensation = glam::Mat4::from_scale(1.0 / parent_transform.scale);
                     // TODO: Make the tests more specific to account for this application order?
-                    transform = transform * scale_compensation;
+                    transform *= scale_compensation;
                 }
             }
 
@@ -250,29 +250,26 @@ fn find_transform(anim: &AnimData, bone: BoneData, frame: f32) -> Option<Animate
 
 pub fn animate_visibility<V: Visibility>(anim: &AnimData, frame: f32, meshes: &mut [V]) {
     for group in &anim.groups {
-        match group.group_type {
-            GroupType::Visibility => {
-                for node in &group.nodes {
-                    if let Some(track) = node.tracks.first() {
-                        // TODO: Multiple boolean tracks per node?
-                        if let TrackValues::Boolean(values) = &track.values {
-                            // TODO: Is this the correct way to process mesh names?
-                            // TODO: Test visibility anims?
-                            // TODO: Is this case sensitive?
-                            // Ignore the _VIS_....
-                            for mesh in meshes
-                                .iter_mut()
-                                .filter(|m| m.name().starts_with(&node.name))
-                            {
-                                // TODO: Share this between tracks?
-                                let (current_frame, _, _) = frame_values(frame, track);
-                                mesh.set_visibility(values[current_frame]);
-                            }
+        if group.group_type == GroupType::Visibility {
+            for node in &group.nodes {
+                if let Some(track) = node.tracks.first() {
+                    // TODO: Multiple boolean tracks per node?
+                    if let TrackValues::Boolean(values) = &track.values {
+                        // TODO: Is this the correct way to process mesh names?
+                        // TODO: Test visibility anims?
+                        // TODO: Is this case sensitive?
+                        // Ignore the _VIS_....
+                        for mesh in meshes
+                            .iter_mut()
+                            .filter(|m| m.name().starts_with(&node.name))
+                        {
+                            // TODO: Share this between tracks?
+                            let (current_frame, _, _) = frame_values(frame, track);
+                            mesh.set_visibility(values[current_frame]);
                         }
                     }
                 }
             }
-            _ => (),
         }
     }
 }
@@ -289,43 +286,39 @@ pub fn animate_materials(
     let mut changed_materials = Vec::new();
 
     for group in &anim.groups {
-        match group.group_type {
-            GroupType::Material => {
-                for node in &group.nodes {
-                    // TODO: Find material based on the node name.
-                    if let Some(material) = materials.iter().find(|m| m.material_label == node.name)
-                    {
-                        // TODO: Does the speed of cloning here matter?
-                        let mut changed_material = material.clone();
+        if group.group_type == GroupType::Material {
+            for node in &group.nodes {
+                // TODO: Find material based on the node name.
+                if let Some(material) = materials.iter().find(|m| m.material_label == node.name) {
+                    // TODO: Does the speed of cloning here matter?
+                    let mut changed_material = material.clone();
 
-                        for track in &node.tracks {
-                            let (current_frame, next_frame, factor) = frame_values(frame, track);
+                    for track in &node.tracks {
+                        let (current_frame, _next_frame, _factor) = frame_values(frame, track);
 
-                            // TODO: Update material parameters based on the type.
-                            match &track.values {
-                                TrackValues::Transform(_) => (),
-                                TrackValues::UvTransform(_) => (),
-                                TrackValues::Float(_) => (),
-                                TrackValues::PatternIndex(_) => (),
-                                TrackValues::Boolean(_) => (),
-                                TrackValues::Vector4(v) => {
-                                    if let Some(param) = changed_material
-                                        .vectors
-                                        .iter_mut()
-                                        .find(|p| track.name == p.param_id.to_string())
-                                    {
-                                        // TODO: Interpolate vectors?
-                                        param.data = v[current_frame];
-                                    }
+                        // TODO: Update material parameters based on the type.
+                        match &track.values {
+                            TrackValues::Transform(_) => (),
+                            TrackValues::UvTransform(_) => (),
+                            TrackValues::Float(_) => (),
+                            TrackValues::PatternIndex(_) => (),
+                            TrackValues::Boolean(_) => (),
+                            TrackValues::Vector4(v) => {
+                                if let Some(param) = changed_material
+                                    .vectors
+                                    .iter_mut()
+                                    .find(|p| track.name == p.param_id.to_string())
+                                {
+                                    // TODO: Interpolate vectors?
+                                    param.data = v[current_frame];
                                 }
                             }
                         }
-
-                        changed_materials.push(changed_material);
                     }
+
+                    changed_materials.push(changed_material);
                 }
             }
-            _ => (),
         }
     }
 
@@ -449,12 +442,12 @@ mod tests {
                 minor_version: 0,
                 bones: vec![identity_bone("A", None); 512],
             },
-            Some(&AnimData {
+            &AnimData {
                 major_version: 2,
                 minor_version: 0,
                 final_frame_index: 0.0,
                 groups: Vec::new(),
-            }),
+            },
             0.0,
         );
     }
@@ -468,12 +461,12 @@ mod tests {
                 minor_version: 0,
                 bones: vec![identity_bone("A", None); 600],
             },
-            Some(&AnimData {
+            &AnimData {
                 major_version: 2,
                 minor_version: 0,
                 final_frame_index: 0.0,
                 groups: Vec::new(),
-            }),
+            },
             0.0,
         );
     }
@@ -486,12 +479,12 @@ mod tests {
                 minor_version: 0,
                 bones: Vec::new(),
             },
-            Some(&AnimData {
+            &AnimData {
                 major_version: 2,
                 minor_version: 0,
                 final_frame_index: 0.0,
                 groups: Vec::new(),
-            }),
+            },
             0.0,
         );
     }
@@ -506,7 +499,7 @@ mod tests {
                 minor_version: 0,
                 bones: vec![identity_bone("A", None)],
             },
-            Some(&AnimData {
+            &AnimData {
                 major_version: 2,
                 minor_version: 0,
                 final_frame_index: 0.0,
@@ -526,7 +519,7 @@ mod tests {
                         }],
                     }],
                 }],
-            }),
+            },
             0.0,
         );
 
@@ -582,7 +575,7 @@ mod tests {
                     identity_bone("C", Some(1)),
                 ],
             },
-            Some(&AnimData {
+            &AnimData {
                 major_version: 2,
                 minor_version: 0,
                 final_frame_index: 0.0,
@@ -639,7 +632,7 @@ mod tests {
                         },
                     ],
                 }],
-            }),
+            },
             0.0,
         );
 
@@ -687,7 +680,7 @@ mod tests {
                     identity_bone("C", Some(1)),
                 ],
             },
-            Some(&AnimData {
+            &AnimData {
                 major_version: 2,
                 minor_version: 0,
                 final_frame_index: 0.0,
@@ -744,7 +737,7 @@ mod tests {
                         },
                     ],
                 }],
-            }),
+            },
             0.0,
         );
 
@@ -792,7 +785,7 @@ mod tests {
                     identity_bone("C", Some(1)),
                 ],
             },
-            Some(&AnimData {
+            &AnimData {
                 major_version: 2,
                 minor_version: 0,
                 final_frame_index: 0.0,
@@ -849,7 +842,7 @@ mod tests {
                         },
                     ],
                 }],
-            }),
+            },
             0.0,
         );
 
@@ -899,7 +892,7 @@ mod tests {
                     identity_bone("C", Some(1)),
                 ],
             },
-            Some(&AnimData {
+            &AnimData {
                 major_version: 2,
                 minor_version: 0,
                 final_frame_index: 0.0,
@@ -968,7 +961,7 @@ mod tests {
                         },
                     ],
                 }],
-            }),
+            },
             0.0,
         );
 

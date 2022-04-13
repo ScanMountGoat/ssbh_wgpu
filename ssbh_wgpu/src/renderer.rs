@@ -1,7 +1,7 @@
 use wgpu::{ComputePassDescriptor, ComputePipelineDescriptor};
 
 use crate::{
-    camera::create_camera_bind_group, rendermesh::RenderMesh, texture::load_texture_sampler_3d,
+    camera::create_camera_bind_group, texture::load_texture_sampler_3d,
     CameraTransforms, RenderModel,
 };
 
@@ -196,8 +196,8 @@ impl SsbhRenderer {
     ) {
         // Render meshes are sorted globally rather than per folder.
         // This allows all transparent draw calls to happen after opaque draw calls.
-        let mut meshes: Vec<_> = render_models.iter().map(|m| &m.meshes).flatten().collect();
-        meshes.sort_by(|a, b| a.render_order().cmp(&b.render_order()));
+        let mut meshes: Vec<_> = render_models.iter().flat_map(|m| &m.meshes).collect();
+        meshes.sort_by_key(|m| m.render_order());
 
         let mut skinning_pass = encoder.begin_compute_pass(&ComputePassDescriptor {
             label: Some("Skinning Pass"),
