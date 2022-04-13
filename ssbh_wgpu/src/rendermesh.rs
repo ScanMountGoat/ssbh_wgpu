@@ -25,8 +25,8 @@ use wgpu::{util::DeviceExt, SamplerDescriptor, TextureViewDescriptor, TextureVie
 // TODO: Is it worth allowing models to reference textures from other folders?
 pub struct RenderModel {
     pub meshes: Vec<RenderMesh>,
-    skel: SkelData,
-    matl: MatlData,
+    skel: Option<SkelData>,
+    matl: Option<MatlData>,
     skinning_transforms_buffer: wgpu::Buffer,
     world_transforms_buffer: wgpu::Buffer,
     material_data_by_label: HashMap<String, Arc<MaterialData>>,
@@ -89,29 +89,37 @@ impl RenderModel {
         if let Some(anim) = anim {
             animate_visibility(anim, frame, &mut self.meshes);
 
-            let materials = animate_materials(anim, frame, &self.matl.entries);
-            for material in materials {
-                // TODO: Should this go in a separate module?
-                // Get updated uniform buffers for animated materials
-                let uniforms = create_uniforms(Some(&material));
-                if let Some(data) = self.material_data_by_label.get(&material.material_label) {
-                    // Write to the corresponding wgpu::Buffer.
-                    queue.write_buffer(&data.uniforms_buffer, 0, bytemuck::cast_slice(&[uniforms]));
+            if let Some(matl) = &self.matl {
+                let materials = animate_materials(anim, frame, &matl.entries);
+                for material in materials {
+                    // TODO: Should this go in a separate module?
+                    // Get updated uniform buffers for animated materials
+                    let uniforms = create_uniforms(Some(&material));
+                    if let Some(data) = self.material_data_by_label.get(&material.material_label) {
+                        // Write to the corresponding wgpu::Buffer.
+                        queue.write_buffer(
+                            &data.uniforms_buffer,
+                            0,
+                            bytemuck::cast_slice(&[uniforms]),
+                        );
+                    }
                 }
             }
 
-            let animation_transforms = animate_skel(&self.skel, anim, frame);
-            queue.write_buffer(
-                &self.skinning_transforms_buffer,
-                0,
-                bytemuck::cast_slice(&[*animation_transforms.animated_world_transforms]),
-            );
+            if let Some(skel) = &self.skel {
+                let animation_transforms = animate_skel(&skel, anim, frame);
+                queue.write_buffer(
+                    &self.skinning_transforms_buffer,
+                    0,
+                    bytemuck::cast_slice(&[*animation_transforms.animated_world_transforms]),
+                );
 
-            queue.write_buffer(
-                &self.world_transforms_buffer,
-                0,
-                bytemuck::cast_slice(&(*animation_transforms.world_transforms)),
-            );
+                queue.write_buffer(
+                    &self.world_transforms_buffer,
+                    0,
+                    bytemuck::cast_slice(&(*animation_transforms.world_transforms)),
+                );
+            }
         }
     }
 }
@@ -140,6 +148,9 @@ pub fn create_render_model(
 ) -> RenderModel {
     let start = std::time::Instant::now();
 
+    // TODO: This needs to take the skel into consideration.
+    // If there is no skel, then use the identity?
+    // AnimationTransforms::from_skel?
     let anim_transforms = AnimationTransforms::identity();
 
     // Share the transforms buffer to avoid redundant updates.
@@ -175,8 +186,8 @@ pub fn create_render_model(
 
     RenderModel {
         meshes,
-        skel: model.skel.as_ref().unwrap().clone(), // TODO: Avoid cloning here?
-        matl: model.matl.as_ref().unwrap().clone(),
+        skel: model.skel.clone(),
+        matl: model.matl.clone(),
         skinning_transforms_buffer,
         world_transforms_buffer,
         material_data_by_label,
@@ -282,6 +293,8 @@ fn create_render_mesh(
     default_textures: &[(&'static str, wgpu::Texture)],
 ) -> RenderMesh {
     // TODO: These could be cleaner as functions.
+    // TODO: Is using a default for the material label ok?
+    // TODO: How does a missing material work in game for missing matl/modl entry?
     let material_label = model
         .modl
         .as_ref()
@@ -294,32 +307,31 @@ fn create_render_mesh(
                 })
                 .map(|e| &e.material_label)
         })
-        .flatten();
-
-    let material = material_label
-        .map(|material_label| {
-            model.matl.as_ref().map(|matl| {
-                matl.entries
-                    .iter()
-                    .find(|e| &e.material_label == material_label)
-            })
-        })
         .flatten()
+        .unwrap_or(&String::new())
+        .to_string();
+
+    let material = model
+        .matl
+        .as_ref()
+        .map(|matl| {
+            matl.entries
+                .iter()
+                .find(|e| e.material_label == material_label)
+        })
         .flatten();
 
     // Pipeline creation is expensive.
     // Lazily initialize pipelines and share pipelines when possible.
-    // TODO: Handle missing materials?
     let pipeline = pipelines
         .entry(PipelineIdentifier {
             // Strip the shader tag since it doesn't effect the pipeline itself.
             // TODO: Is this always a safe assumption?
             shader_label: material
-                .unwrap()
-                .shader_label
-                .get(0..24)
-                .unwrap()
-                .to_string(), // TODO: Avoid clone?
+                .map(|material| material.shader_label.get(0..24))
+                .flatten()
+                .unwrap_or_default()
+                .to_string(),
             enable_depth_write: !mesh_object.disable_depth_write,
             enable_depth_test: !mesh_object.disable_depth_test,
         })
@@ -338,8 +350,9 @@ fn create_render_mesh(
     // Share uniform buffers and textures.
     // This simplifies material animations and avoids costly resource creation.
     // TODO: Handle missing materials?
+    // TODO: The creation function requires a material, but we index using the material name?
     let material_data = material_data_by_label
-        .entry(material.unwrap().material_label.clone()) // TODO: Avoid clone?
+        .entry(material_label) // TODO: Avoid clone?
         .or_insert_with(|| {
             Arc::new(create_material_data(
                 device,
@@ -351,6 +364,7 @@ fn create_render_mesh(
         });
 
     let buffer_data = mesh_object_buffers(device, mesh_object, &model.skel);
+
     let skinning_bind_group = crate::shader::skinning::bind_groups::BindGroup0::from_bindings(
         device,
         crate::shader::skinning::bind_groups::BindGroupLayout0 {
@@ -359,6 +373,7 @@ fn create_render_mesh(
             dst: &buffer_data.vertex_buffer0,
         },
     );
+    
     let skinning_transforms_bind_group =
         crate::shader::skinning::bind_groups::BindGroup1::from_bindings(
             device,
@@ -367,6 +382,7 @@ fn create_render_mesh(
                 world_transforms: world_transforms_buffer,
             },
         );
+
     let parent_index = find_parent_index(mesh_object, &model.skel);
     let mesh_object_info_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
         label: Some("Mesh Object Info Buffer"),
@@ -375,6 +391,7 @@ fn create_render_mesh(
         }]),
         usage: wgpu::BufferUsages::UNIFORM,
     });
+
     let mesh_object_info_bind_group =
         crate::shader::skinning::bind_groups::BindGroup2::from_bindings(
             device,
@@ -382,6 +399,7 @@ fn create_render_mesh(
                 mesh_object_info: &mesh_object_info_buffer,
             },
         );
+
     // The end of the shader label is used to determine draw order.
     // ex: "SFX_PBS_0101000008018278_sort" has a tag of "sort".
     // The render order is opaque -> far -> sort -> near.

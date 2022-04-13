@@ -9,8 +9,7 @@ use ssbh_data::{
 
 use crate::{shader::skinning::AnimatedWorldTransforms, RenderMesh};
 
-// Animation process is Skel, Anim -> Vec<AnimatedBone> -> [Mat4; 512], [Mat4; 512] -> Buffers?
-// Associate an optional transform to override each bone?
+// Animation process is Skel, Anim -> Vec<AnimatedBone> -> [Mat4; 512], [Mat4; 512] -> Buffers.
 // Evaluate the "tree" of Vec<AnimatedBone> to compute the final world transforms.
 struct AnimatedBone {
     bone: BoneData,

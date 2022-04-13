@@ -51,7 +51,7 @@ pub fn load_render_models(
     models: &[ModelFolder],
     default_textures: &[(&'static str, wgpu::Texture)],
 ) -> Vec<RenderModel> {
-    // TODO: Not all models can reuse the same pipeline?
+    let start = std::time::Instant::now();
 
     let shader = crate::shader::model::create_shader_module(device);
 
@@ -76,6 +76,12 @@ pub fn load_render_models(
         })
         .collect();
 
+    println!(
+        "Load {:?} render model(s): {:?}",
+        models.len(),
+        start.elapsed()
+    );
+
     render_models
 }
 
@@ -97,6 +103,7 @@ pub fn load_model_folders<P: AsRef<Path>>(root: P) -> Vec<ModelFolder> {
         .filter_map(|p| {
             // TODO: Some folders don't have a numshb?
             // TODO: Can the mesh be optional?
+            // TODO: Find a way to test what happens if these are None.
             let mesh = MeshData::from_file(p.path().with_extension("numshb")).ok()?;
             let skel = SkelData::from_file(p.path().with_extension("nusktb")).ok();
             let matl = MatlData::from_file(p.path().with_extension("numatb")).ok();
@@ -111,7 +118,7 @@ pub fn load_model_folders<P: AsRef<Path>>(root: P) -> Vec<ModelFolder> {
                     // TODO: Make this more robust?
                     let path = p.as_ref().unwrap().path();
                     // Some entries may be directories, which don't have an extension.
-                    if path.is_file() && path.extension().unwrap().to_str() == Some("nutexb") {
+                    if path.extension().map(|p| p.to_str()).flatten() == Some("nutexb") {
                         Some(path)
                     } else {
                         None
