@@ -4,6 +4,8 @@ use wgpu::{util::DeviceExt, Device};
 
 // TODO: Create a function and tests that groups attributes into two buffers
 fn buffer0(mesh_data: &MeshObjectData) -> Vec<VertexInput0> {
+    // Use ssbh_data's vertex count validation.
+    // TODO: Return an error if vertex count is ambiguous?
     let vertex_count = mesh_data.vertex_count().unwrap();
     if vertex_count == 0 {
         return Vec::new();
@@ -13,23 +15,33 @@ fn buffer0(mesh_data: &MeshObjectData) -> Vec<VertexInput0> {
 
     // TODO: Refactor this to be cleaner.
 
-    // Always pad to Vec4 to avoid needing separate pipelines.
-    // TODO: Handle this case by returning no vertices?
-    // TODO: Make sure everything has the same length.
-    let positions: Vec<_> = mesh_data.positions[0].data.to_vec4_with_w(1.0);
+    // Pad to vec4 to avoid needing separate pipelines for different meshes.
+    let positions: Vec<_> = mesh_data
+        .positions
+        .first()
+        .map(|a| a.data.to_vec4_with_w(1.0))
+        .unwrap_or_else(|| vec![[0.0; 4]; vertex_count]);
 
-    let normals: Vec<_> = mesh_data.normals[0].data.to_vec4_with_w(1.0);
+    let normals: Vec<_> = mesh_data
+        .normals
+        .first()
+        .map(|a| a.data.to_vec4_with_w(1.0))
+        .unwrap_or_else(|| vec![[0.0; 4]; vertex_count]);
 
     // TODO: Add a padding function that preserves w?
-    let tangents: Vec<_> = match &mesh_data.tangents[0].data {
-        ssbh_data::mesh_data::VectorData::Vector2(_) => todo!(),
-        ssbh_data::mesh_data::VectorData::Vector3(v) => {
-            v.iter().map(|[x, y, z]| [*x, *y, *z, 1.0]).collect()
-        }
-        ssbh_data::mesh_data::VectorData::Vector4(v) => {
-            v.iter().map(|[x, y, z, w]| [*x, *y, *z, *w]).collect()
-        }
-    };
+    let tangents: Vec<_> = mesh_data
+        .tangents
+        .first()
+        .map(|a| match &a.data {
+            ssbh_data::mesh_data::VectorData::Vector2(_) => todo!(),
+            ssbh_data::mesh_data::VectorData::Vector3(v) => {
+                v.iter().map(|[x, y, z]| [*x, *y, *z, 1.0]).collect()
+            }
+            ssbh_data::mesh_data::VectorData::Vector4(v) => {
+                v.iter().map(|[x, y, z, w]| [*x, *y, *z, *w]).collect()
+            }
+        })
+        .unwrap_or_else(|| vec![[0.0, 0.0, 0.0, 1.0]; vertex_count]);
 
     for ((position, normal), tangent) in positions
         .into_iter()
@@ -276,21 +288,72 @@ pub fn mesh_object_buffers(
 
 #[cfg(test)]
 mod tests {
+    use ssbh_data::mesh_data::AttributeData;
+
     use super::*;
 
-    #[test]
-    fn test() {
-        // TODO: Test vertex buffer creation
-        // Just test the vertices themselves.
-        // Assign each attribute
-        // Additional attributes should be ignored.
-        // Missing attributes set to 0.
-        // TODO: Test invalid vertex counts.
-    }
+    // TODO: Test vertex buffer creation
+    // Just test the vertices themselves.
+    // Assign each attribute
+    // Additional attributes should be ignored.
+    // Missing attributes set to 0.
+    // TODO: Test invalid vertex counts.
 
     #[test]
     fn buffer0_empty() {
         assert!(buffer0(&MeshObjectData::default()).is_empty());
+    }
+
+    #[test]
+    fn buffer0_missing_attributes() {
+        // TODO: How to handle this case?
+        // Some meshes may be missing positions, normals, or tangents.
+        // TODO: Is this an attribute error (yellow checkerboard) in Smash Ultimate?
+        let vertices = buffer0(&MeshObjectData {
+            texture_coordinates: vec![AttributeData {
+                name: "a".to_string(),
+                data: ssbh_data::mesh_data::VectorData::Vector2(vec![[0.0, 1.0]]),
+            }],
+            ..Default::default()
+        });
+
+        assert_eq!(
+            vec![VertexInput0 {
+                position0: [0.0; 4],
+                normal0: [0.0; 4],
+                tangent0: [0.0, 0.0, 0.0, 1.0]
+            }],
+            vertices
+        );
+    }
+
+    #[test]
+    fn buffer0_single_vertex() {
+        // Test padding of vectors.
+        let vertices = buffer0(&MeshObjectData {
+            positions: vec![AttributeData {
+                name: "a".to_string(),
+                data: ssbh_data::mesh_data::VectorData::Vector4(vec![[0.0, 1.0, 2.0, 3.0]]),
+            }],
+            normals: vec![AttributeData {
+                name: "a".to_string(),
+                data: ssbh_data::mesh_data::VectorData::Vector2(vec![[2.0, 3.0]]),
+            }],
+            tangents: vec![AttributeData {
+                name: "a".to_string(),
+                data: ssbh_data::mesh_data::VectorData::Vector3(vec![[4.0, 5.0, 6.0]]),
+            }],
+            ..Default::default()
+        });
+
+        assert_eq!(
+            vec![VertexInput0 {
+                position0: [0.0, 1.0, 2.0, 1.0],
+                normal0: [2.0, 3.0, 0.0, 1.0],
+                tangent0: [4.0, 5.0, 6.0, 1.0]
+            }],
+            vertices
+        );
     }
 
     #[test]
