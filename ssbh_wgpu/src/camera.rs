@@ -1,11 +1,7 @@
 use wgpu::util::DeviceExt;
 
-// TODO: Automate this using wgsl_to_wgpu?
-// This is tricky to support since data is passed to wgpu as a byte buffer.
-// This will almost always be a struct with fields in wgsl, however.
 pub fn create_camera_bind_group(
     device: &wgpu::Device,
-    // TODO: Borrow here?
     camera_pos: glam::Vec4,
     mvp_matrix: glam::Mat4,
 ) -> (wgpu::Buffer, crate::shader::model::bind_groups::BindGroup0) {

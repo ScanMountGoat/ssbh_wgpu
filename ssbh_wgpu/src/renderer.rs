@@ -6,8 +6,6 @@ use crate::{
 };
 
 // TODO: Document the renderer.
-// TODO: Add multiple animation "slots"?
-// TODO: Should animations be a parameter or field?
 pub struct SsbhRenderer {
     bloom_threshold_pipeline: wgpu::RenderPipeline,
     bloom_blur_pipeline: wgpu::RenderPipeline,
@@ -199,7 +197,6 @@ impl SsbhRenderer {
         queue.write_buffer(&self.camera_buffer, 0, bytemuck::cast_slice(&[transforms]));
     }
 
-    // TODO: Animation?
     /// Renders the `render_meshes` uses the standard rendering passes for Smash Ultimate.
     pub fn render_ssbh_passes(
         &self,

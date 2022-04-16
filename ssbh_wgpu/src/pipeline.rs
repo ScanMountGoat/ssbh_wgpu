@@ -1,7 +1,5 @@
 use ssbh_data::matl_data::{BlendFactor, BlendStateData, MatlEntryData};
 
-// TODO: Create a function create_pipeline(mesh_object, material) -> RenderPipeline
-// TODO: Could this be a method on the struct for holding mesh, matl, modl, etc?
 pub fn create_pipeline(
     device: &wgpu::Device,
     render_pipeline_layout: &wgpu::PipelineLayout,
@@ -49,7 +47,6 @@ pub fn create_pipeline(
                 write_mask: wgpu::ColorWrites::ALL,
             }],
         }),
-        // TODO: Write tests for this and move it to its own module?
         // TODO: RasterizerState settings.
         primitive: wgpu::PrimitiveState {
             topology: wgpu::PrimitiveTopology::TriangleList,

@@ -159,7 +159,7 @@ pub fn load_default_cube(
 pub fn load_texture_sampler_3d<P: AsRef<Path>>(
     device: &Device,
     queue: &wgpu::Queue,
-    path: P
+    path: P,
 ) -> (wgpu::TextureView, wgpu::Sampler) {
     // TODO: This function should return an error.
     let nutexb = NutexbFile::read_from_file(path).unwrap();

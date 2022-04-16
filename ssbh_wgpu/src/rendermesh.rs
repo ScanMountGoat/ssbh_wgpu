@@ -15,9 +15,6 @@ use wgpu::{util::DeviceExt, SamplerDescriptor, TextureViewDescriptor, TextureVie
 
 // Group resources shared between mesh objects.
 // Shared resources can be updated once per model instead of per mesh.
-// TODO: How to render the flattened RenderModels in render pass sorted order?
-// draw all opaque in all models -> draw all sort in all models, etc without explicitly sorting?
-// TODO: How to include sort bias in sorting?
 // Keep most fields private since the buffer layout is an implementation detail.
 // Assume render data is only shared within a folder.
 // TODO: Associate animation folders with model folders?
@@ -58,9 +55,6 @@ impl RenderMesh {
     }
 }
 
-// TODO: Should this be based on shader label instead?
-// Only uniform buffers need to be unique to each material label.
-// Some materials reuse the same shader label 93 times.
 #[derive(Debug, PartialEq, Eq, Hash)]
 struct PipelineIdentifier {
     shader_label: String,
@@ -82,7 +76,6 @@ impl RenderModel {
     pub fn apply_anim(&mut self, queue: &wgpu::Queue, anim: Option<&AnimData>, frame: f32) {
         // Update the buffers associated with each skel.
         // This avoids updating per mesh object and allocating new buffers.
-        // TODO: Only write buffers if an animation is playing?
         // TODO: How to "reset" an animation?
 
         if let Some(anim) = anim {
@@ -95,7 +88,6 @@ impl RenderModel {
                     // Get updated uniform buffers for animated materials
                     let uniforms = create_uniforms(Some(&material));
                     if let Some(data) = self.material_data_by_label.get(&material.material_label) {
-                        // Write to the corresponding wgpu::Buffer.
                         queue.write_buffer(
                             &data.uniforms_buffer,
                             0,
@@ -251,7 +243,8 @@ fn create_render_meshes(
 
     // Mesh objects control the depth state of the pipeline.
     // In practice, each (shader,mesh) pair may need a unique pipeline.
-    // TODO: How to test this optimization?
+    // Cache materials separately since materials may share a pipeline.
+    // TODO: How to test ese optimizations?
     let mut pipelines = HashMap::new();
 
     // Similarly, materials can be shared between mesh objects.
@@ -304,7 +297,7 @@ fn create_render_mesh(
     default_textures: &[(&'static str, wgpu::Texture)],
 ) -> RenderMesh {
     // TODO: These could be cleaner as functions.
-    // TODO: Is using a default for the materialxf label ok?
+    // TODO: Is using a default for the material label ok?
     // TODO: How does a missing material work in game for missing matl/modl entry?
     let material_label = model
         .modl
@@ -357,7 +350,7 @@ fn create_render_mesh(
     // TODO: Handle missing materials?
     // TODO: The creation function requires a material, but we index using the material name?
     let material_data = material_data_by_label
-        .entry(material_label) // TODO: Avoid clone?
+        .entry(material_label)
         .or_insert_with(|| {
             Arc::new(create_material_data(
                 device,
@@ -436,9 +429,6 @@ fn create_textures_bind_group(
     textures: &[(String, wgpu::Texture)],
     default_textures: &[(&'static str, wgpu::Texture)],
 ) -> crate::shader::model::bind_groups::BindGroup1 {
-    // TODO: Avoid creating defaults more than once?
-    // TODO: Each nutexb should be converted to a wgpu texture only once.
-    // TODO: Change parameter above to (String, wgpu::Texture)?
     let load_texture_sampler = |texture_id, sampler_id| {
         load_texture_sampler(
             material,
@@ -459,9 +449,8 @@ fn create_textures_bind_group(
         default_white.create_view(&TextureViewDescriptor::default()),
         device.create_sampler(&SamplerDescriptor::default()),
     );
+
     // TODO: Better cube map handling.
-    // TODO: This should be part of the default textures?
-    // let stage_cube = load_default_cube(device, queue).unwrap();
     // TODO: Default texture for other cube maps?
     let (_, stage_cube) = default_textures
         .iter()
@@ -573,7 +562,6 @@ fn render_pass_index(tag: &str) -> isize {
     }
 }
 
-// TODO: Animations?
 pub fn skin_render_meshes<'a>(meshes: &'a [&RenderMesh], compute_pass: &mut wgpu::ComputePass<'a>) {
     // Assume the pipeline is already set.
     for mesh in meshes {
@@ -598,8 +586,6 @@ pub fn draw_render_meshes<'a>(
     render_pass: &mut wgpu::RenderPass<'a>,
     camera_bind_group: &'a crate::shader::model::bind_groups::BindGroup0,
 ) {
-    // TODO: A future optimization is to reuse pipelines.
-    // This requires testing to ensure state is correctly set.
     for mesh in meshes.iter().filter(|m| m.is_visible) {
         render_pass.set_pipeline(mesh.pipeline.as_ref());
 

@@ -139,12 +139,7 @@ pub fn animate_skel(skel: &SkelData, anim: &AnimData, frame: f32) -> AnimationTr
     let mut world_transforms = [glam::Mat4::IDENTITY; 512];
     let mut transforms = [glam::Mat4::IDENTITY; 512];
 
-    // HACK: Duplicate the bone heirachy and override with the anim nodes.
-    // A proper solution will take into account scaling, interpolation, etc.
-    // This should be its own module or potentially a separate package.
-    // TODO: There's probably an efficient execution order using the heirarchy.
-    // There might not be enough bones to benefit from parallel execution.
-    // We won't worry about redundant matrix multiplications for now.
+    // TODO: Investigate optimizations for animations.
     let animated_bones: Vec<_> = skel
         .bones
         .iter()
