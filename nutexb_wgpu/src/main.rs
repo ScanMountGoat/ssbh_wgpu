@@ -1,6 +1,10 @@
 use std::{iter, path::Path};
 
 use futures::executor::block_on;
+use nutexb_wgpu::{
+    create_render_pipeline, create_texture_bind_group, draw_textured_triangle, NutexbFile,
+    NutexbImage,
+};
 use winit::{
     event::*,
     event_loop::{ControlFlow, EventLoop},
@@ -13,8 +17,12 @@ struct State {
     queue: wgpu::Queue,
     size: winit::dpi::PhysicalSize<u32>,
     config: wgpu::SurfaceConfiguration,
-    render_pipeline: wgpu::RenderPipeline,
-    diffuse_bind_group: wgpu::BindGroup,
+    pipeline: wgpu::RenderPipeline,
+    texture_bind_group: wgpu::BindGroup,
+    // Test conversions to RGBA.
+    rgba_pipeline: wgpu::RenderPipeline,
+    rgba_texture_bind_group: wgpu::BindGroup,
+    rgba_texture_view: wgpu::TextureView,
 }
 
 impl State {
@@ -51,19 +59,62 @@ impl State {
             present_mode: wgpu::PresentMode::Fifo,
         };
         surface.configure(&device, &config);
-        let (_, texture_bind_group_layout, diffuse_bind_group, _) =
-            create_image_texture(path, &device, &queue);
+
+        let start = std::time::Instant::now();
+        let nutexb = NutexbImage::from(&NutexbFile::read_from_file(path).unwrap());
+        println!("Load Nutexb: {:?}", start.elapsed());
+
+        // TODO: How to make this into a function that returns the rgba texture?
+        // TODO: Create a texture renderer similar to SsbhRenderer to cache pipelines?
+        let texture = nutexb.create_texture(&device, &queue);
+        let (texture_bind_group_layout, texture_bind_group) =
+            create_texture_bind_group(&texture, &device);
+
+        // Create a separate texture to test the rgba conversion.
+        // The conversion to RGBA is well supported by GPUs.
+        // TODO: This may be more efficient using compute shaders.
+        // Some applications like egui require RGBA textures.
+        let rgba_format = wgpu::TextureFormat::Rgba8UnormSrgb;
+        // Disable mipmaps or arrsys since this will be a color attachment.
+        let rgba_texture = device.create_texture(&wgpu::TextureDescriptor {
+            label: None,
+            size: wgpu::Extent3d {
+                width: nutexb.width,
+                height: nutexb.height,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: if nutexb.depth > 1 {
+                wgpu::TextureDimension::D3
+            } else {
+                wgpu::TextureDimension::D2
+            },
+            format: rgba_format,
+            usage: wgpu::TextureUsages::COPY_DST
+                | wgpu::TextureUsages::TEXTURE_BINDING
+                | wgpu::TextureUsages::RENDER_ATTACHMENT,
+        });
 
         let render_pipeline =
             create_render_pipeline(&device, texture_bind_group_layout, surface_format);
+
+        let rgba_texture_view = rgba_texture.create_view(&wgpu::TextureViewDescriptor::default());
+        let (rgba_texture_bind_group_layout, rgba_texture_bind_group) =
+            create_texture_bind_group(&rgba_texture, &device);
+        let rgba_pipeline =
+            create_render_pipeline(&device, rgba_texture_bind_group_layout, rgba_format);
 
         Self {
             surface,
             device,
             queue,
             size,
-            render_pipeline,
-            diffuse_bind_group,
+            pipeline: render_pipeline,
+            texture_bind_group,
+            rgba_texture_bind_group,
+            rgba_texture_view,
+            rgba_pipeline,
             config,
         }
     }
@@ -79,16 +130,33 @@ impl State {
 
     fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
         let output = self.surface.get_current_texture()?;
-        let view = output
+        let output_view = output
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
 
-        let encoder = draw_textured_triangle(
-            &self.device,
-            view,
-            &self.render_pipeline,
-            &self.diffuse_bind_group,
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("Render Encoder"),
+            });
+
+        // Draw the texture to a second RGBA texture.
+        // This is inefficient but tests the RGBA conversion.
+        draw_textured_triangle(
+            &mut encoder,
+            &self.rgba_texture_view,
+            &self.rgba_pipeline,
+            &self.texture_bind_group,
         );
+
+        // Now draw the RGBA texture to the screen.
+        draw_textured_triangle(
+            &mut encoder,
+            &output_view,
+            &self.pipeline,
+            &self.rgba_texture_bind_group,
+        );
+
         self.queue.submit(iter::once(encoder.finish()));
 
         // Actually draw the frame.
@@ -98,156 +166,10 @@ impl State {
     }
 }
 
-fn create_render_pipeline(
-    device: &wgpu::Device,
-    texture_bind_group_layout: wgpu::BindGroupLayout,
-    surface_format: wgpu::TextureFormat,
-) -> wgpu::RenderPipeline {
-    let shader = device.create_shader_module(&wgpu::ShaderModuleDescriptor {
-        label: Some("Shader"),
-        source: wgpu::ShaderSource::Wgsl(include_str!("shader.wgsl").into()),
-    });
-    let render_pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-        label: Some("Render Pipeline Layout"),
-        bind_group_layouts: &[&texture_bind_group_layout],
-        push_constant_ranges: &[],
-    });
+fn main() {
+    let args: Vec<_> = std::env::args().collect();
+    let image_path = std::path::Path::new(&args[1]);
 
-    device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-        label: Some("Render Pipeline"),
-        layout: Some(&render_pipeline_layout),
-        vertex: wgpu::VertexState {
-            module: &shader,
-            entry_point: "vs_main",
-            buffers: &[],
-        },
-        fragment: Some(wgpu::FragmentState {
-            module: &shader,
-            entry_point: "fs_main",
-            targets: &[surface_format.into()],
-        }),
-        primitive: wgpu::PrimitiveState::default(),
-        depth_stencil: None,
-        multisample: wgpu::MultisampleState::default(),
-        multiview: None,
-    })
-}
-
-fn draw_textured_triangle(
-    device: &wgpu::Device,
-    view: wgpu::TextureView,
-    render_pipeline: &wgpu::RenderPipeline,
-    diffuse_bind_group: &wgpu::BindGroup,
-) -> wgpu::CommandEncoder {
-    let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
-        label: Some("Render Encoder"),
-    });
-    {
-        let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-            label: Some("Render Pass"),
-            color_attachments: &[wgpu::RenderPassColorAttachment {
-                view: &view,
-                resolve_target: None,
-                ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
-                    store: true,
-                },
-            }],
-            depth_stencil_attachment: None,
-        });
-
-        render_pass.set_pipeline(render_pipeline);
-        render_pass.set_bind_group(0, diffuse_bind_group, &[]);
-        render_pass.draw(0..3, 0..1);
-    }
-
-    encoder
-}
-
-fn create_image_texture<P: AsRef<Path>>(
-    path: P,
-    device: &wgpu::Device,
-    queue: &wgpu::Queue,
-) -> (
-    wgpu::Extent3d,
-    wgpu::BindGroupLayout,
-    wgpu::BindGroup,
-    wgpu::Texture,
-) {
-    let start = std::time::Instant::now();
-
-    let nutexb = match path.as_ref().extension().unwrap().to_str().unwrap() {
-        "nutexb" => {
-            let nutexb = nutexb_wgpu::NutexbFile::read_from_file(path).unwrap();
-            nutexb_wgpu::get_nutexb_data(&nutexb)
-        }
-        _ => panic!("Unsupported file extension"),
-    };
-    println!("Load Nutexb: {:?}", start.elapsed());
-
-    let texture = nutexb.create_texture(device, queue);
-
-    let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
-
-    let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
-        address_mode_u: wgpu::AddressMode::ClampToEdge,
-        address_mode_v: wgpu::AddressMode::ClampToEdge,
-        address_mode_w: wgpu::AddressMode::ClampToEdge,
-        mag_filter: wgpu::FilterMode::Linear,
-        min_filter: wgpu::FilterMode::Linear,
-        mipmap_filter: wgpu::FilterMode::Linear,
-        ..Default::default()
-    });
-    let texture_bind_group_layout =
-        device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            entries: &[
-                wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Texture {
-                        multisampled: false,
-                        view_dimension: wgpu::TextureViewDimension::D2,
-                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
-                    },
-                    count: None,
-                },
-                wgpu::BindGroupLayoutEntry {
-                    binding: 1,
-                    visibility: wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
-                    count: None,
-                },
-            ],
-            label: Some("texture_bind_group_layout"),
-        });
-    let diffuse_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-        layout: &texture_bind_group_layout,
-        entries: &[
-            wgpu::BindGroupEntry {
-                binding: 0,
-                resource: wgpu::BindingResource::TextureView(&view),
-            },
-            wgpu::BindGroupEntry {
-                binding: 1,
-                resource: wgpu::BindingResource::Sampler(&sampler),
-            },
-        ],
-        label: Some("diffuse_bind_group"),
-    });
-    (
-        // TODO: Store this with the NutexbImage?
-        wgpu::Extent3d {
-            width: nutexb.width,
-            height: nutexb.height,
-            depth_or_array_layers: nutexb.depth,
-        },
-        texture_bind_group_layout,
-        diffuse_bind_group,
-        texture,
-    )
-}
-
-fn draw_texture_window(image_path: &Path) {
     let event_loop = EventLoop::new();
     let window = WindowBuilder::new()
         .with_title(image_path.file_name().unwrap().to_string_lossy())
@@ -289,11 +211,4 @@ fn draw_texture_window(image_path: &Path) {
         }
         _ => {}
     });
-}
-
-fn main() {
-    let args: Vec<_> = std::env::args().collect();
-    let image_path = std::path::Path::new(&args[1]);
-
-    draw_texture_window(image_path);
 }

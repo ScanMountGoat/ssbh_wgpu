@@ -236,7 +236,7 @@ fn create_render_meshes(
         .map(|(name, nutexb)| {
             (
                 name.clone(),
-                nutexb_wgpu::get_nutexb_data(nutexb).create_texture(device, queue),
+                nutexb_wgpu::NutexbImage::from(nutexb).create_texture(device, queue),
             )
         })
         .collect();

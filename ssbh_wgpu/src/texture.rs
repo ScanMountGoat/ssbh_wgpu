@@ -3,7 +3,7 @@ use std::{
     path::Path,
 };
 
-use nutexb_wgpu::NutexbFile;
+use nutexb_wgpu::{NutexbFile, NutexbImage};
 use ssbh_data::matl_data::{MagFilter, MatlEntryData, MinFilter, ParamId, SamplerData, WrapMode};
 use wgpu::{
     Device, FilterMode, Queue, Sampler, SamplerDescriptor, Texture, TextureView,
@@ -81,38 +81,17 @@ pub fn load_texture_sampler_cube(
 ) -> Option<(TextureView, Sampler)> {
     // TODO: Add proper path and parameter handling.
     // TODO: Handle missing paths.
-    // TODO: Cache the texture creation?
-    // let material = material?;
-
-    // TODO: Find a way to test texture path loading.
-    // For example, "#replace_cubemap" needs special handling.
-    // This should also handle paths like "../texture.nutexb" and "/render/shader/bin/texture.nutexb".
-    // let material_path = material
-    //     .textures
-    //     .iter()
-    //     .find(|t| t.param_id == texture_id)
-    //     .map(|t| t.data.as_str())?;
-    // let absolute_path = std::path::Path::new(folder)
-    //     .join(material_path)
-    //     .with_extension("nutexb");
-    // TODO: Handle #replace_cubemap?
     // TODO: Don't hardcode this path.
     let absolute_path = std::path::Path::new("reflection_cubemap.nutexb");
 
     // TODO: This function should return an error.
     let nutexb = NutexbFile::read_from_file(absolute_path).unwrap();
-    let texture = nutexb_wgpu::get_nutexb_data(&nutexb).create_texture(device, queue);
+    let texture = NutexbImage::from(&nutexb).create_texture(device, queue);
     let view = texture.create_view(&TextureViewDescriptor {
         dimension: Some(TextureViewDimension::Cube),
         ..Default::default()
     });
 
-    // let sampler_data = material
-    //     .samplers
-    //     .iter()
-    //     .find(|t| t.param_id == sampler_id)
-    //     .map(|t| sampler_descriptor(&t.data))?;
-    // let sampler = device.create_sampler(&sampler_data);
     let sampler = device.create_sampler(&SamplerDescriptor {
         mag_filter: FilterMode::Linear,
         min_filter: FilterMode::Linear,
@@ -134,18 +113,12 @@ pub fn load_default_cube(
 
     // TODO: This function should return an error.
     let nutexb = NutexbFile::read_from_file(absolute_path).unwrap();
-    let texture = nutexb_wgpu::get_nutexb_data(&nutexb).create_texture(device, queue);
+    let texture = NutexbImage::from(&nutexb).create_texture(device, queue);
     let view = texture.create_view(&TextureViewDescriptor {
         dimension: Some(wgpu::TextureViewDimension::Cube),
         ..Default::default()
     });
 
-    // let sampler_data = material
-    //     .samplers
-    //     .iter()
-    //     .find(|t| t.param_id == sampler_id)
-    //     .map(|t| sampler_descriptor(&t.data))?;
-    // let sampler = device.create_sampler(&sampler_data);
     let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
         mag_filter: wgpu::FilterMode::Linear,
         min_filter: wgpu::FilterMode::Linear,
@@ -163,7 +136,7 @@ pub fn load_texture_sampler_3d<P: AsRef<Path>>(
 ) -> (wgpu::TextureView, wgpu::Sampler) {
     // TODO: This function should return an error.
     let nutexb = NutexbFile::read_from_file(path).unwrap();
-    let texture = nutexb_wgpu::get_nutexb_data(&nutexb).create_texture(device, queue);
+    let texture = NutexbImage::from(&nutexb).create_texture(device, queue);
     let view = texture.create_view(&wgpu::TextureViewDescriptor {
         dimension: Some(wgpu::TextureViewDimension::D3),
         ..Default::default()
