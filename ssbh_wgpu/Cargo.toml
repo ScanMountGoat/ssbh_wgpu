@@ -10,7 +10,6 @@ wgpu = "0.12.0"
 futures = "0.3"
 bytemuck = { version = "1.7", features = [ "derive" ] }
 ssbh_data = { git = "https://github.com/ultimate-research/ssbh_lib", features = ["strum1"] }
-crevice = "0.7.1"
 globwalk = "0.8.0"
 rayon = "1.5.1"
 nutexb_wgpu = { path = "../nutexb_wgpu" }
