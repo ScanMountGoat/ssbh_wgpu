@@ -304,7 +304,6 @@ pub fn animate_materials(
     for group in &anim.groups {
         if group.group_type == GroupType::Material {
             for node in &group.nodes {
-                // TODO: Find material based on the node name.
                 if let Some(material) = materials.iter().find(|m| m.material_label == node.name) {
                     // TODO: Does the speed of cloning here matter?
                     let mut changed_material = material.clone();
@@ -314,11 +313,28 @@ pub fn animate_materials(
 
                         // TODO: Update material parameters based on the type.
                         match &track.values {
-                            TrackValues::Transform(_) => (),
-                            TrackValues::UvTransform(_) => (),
-                            TrackValues::Float(_) => (),
+                            TrackValues::Transform(_) => todo!(),
+                            TrackValues::UvTransform(_) => todo!(),
+                            TrackValues::Float(v) => {
+                                if let Some(param) = changed_material
+                                    .floats
+                                    .iter_mut()
+                                    .find(|p| track.name == p.param_id.to_string())
+                                {
+                                    // TODO: Interpolate vectors?
+                                    param.data = v[current_frame];
+                                }
+                            }
                             TrackValues::PatternIndex(_) => (),
-                            TrackValues::Boolean(_) => (),
+                            TrackValues::Boolean(v) => {
+                                if let Some(param) = changed_material
+                                    .booleans
+                                    .iter_mut()
+                                    .find(|p| track.name == p.param_id.to_string())
+                                {
+                                    param.data = v[current_frame];
+                                }
+                            }
                             TrackValues::Vector4(v) => {
                                 if let Some(param) = changed_material
                                     .vectors
