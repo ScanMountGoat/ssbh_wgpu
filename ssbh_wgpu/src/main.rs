@@ -138,7 +138,7 @@ impl State {
 
             // We also need to recreate the attachments if the size changes.
             self.renderer
-                .resize(&self.device, &self.queue, new_size.width, new_size.height);
+                .resize(&self.device, new_size.width, new_size.height);
         }
     }
 

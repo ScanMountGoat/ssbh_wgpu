@@ -156,15 +156,13 @@ pub fn load_default_cube(
     Some((view, sampler, texture))
 }
 
-pub fn load_texture_sampler_3d(
+pub fn load_texture_sampler_3d<P: AsRef<Path>>(
     device: &Device,
     queue: &wgpu::Queue,
+    path: P
 ) -> (wgpu::TextureView, wgpu::Sampler) {
-    // TODO: Don't hardcode this path.
-    let absolute_path = std::path::Path::new("color_grading_lut.nutexb");
-
     // TODO: This function should return an error.
-    let nutexb = NutexbFile::read_from_file(absolute_path).unwrap();
+    let nutexb = NutexbFile::read_from_file(path).unwrap();
     let texture = nutexb_wgpu::get_nutexb_data(&nutexb).create_texture(device, queue);
     let view = texture.create_view(&wgpu::TextureViewDescriptor {
         dimension: Some(wgpu::TextureViewDimension::D3),

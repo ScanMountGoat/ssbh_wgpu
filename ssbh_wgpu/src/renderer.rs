@@ -1,8 +1,8 @@
 use wgpu::{ComputePassDescriptor, ComputePipelineDescriptor};
 
 use crate::{
-    camera::create_camera_bind_group, texture::load_texture_sampler_3d,
-    CameraTransforms, RenderModel,
+    camera::create_camera_bind_group, texture::load_texture_sampler_3d, CameraTransforms,
+    RenderModel,
 };
 
 // TODO: Document the renderer.
@@ -20,6 +20,9 @@ pub struct SsbhRenderer {
     camera_buffer: wgpu::Buffer,
     camera_bind_group: crate::shader::model::bind_groups::BindGroup0,
     pass_info: PassInfo,
+    // TODO: Rework this to allow for updating the lut externally.
+    // TODO: What's the easiest format to allow these updates?
+    color_lut: TextureSamplerView,
 }
 
 impl SsbhRenderer {
@@ -153,7 +156,16 @@ impl SsbhRenderer {
             entry_point: "main",
         });
 
-        let pass_info = PassInfo::new(device, queue, initial_width, initial_height);
+        // TODO: Where should stage specific assets be loaded?
+        let (color_lut_view, color_lut_sampler) =
+            load_texture_sampler_3d(device, queue, "color_grading_lut.nutexb");
+        let color_lut = TextureSamplerView {
+            view: color_lut_view,
+            sampler: color_lut_sampler,
+        };
+
+        // TODO: Create a struct to store the stage rendering data?
+        let pass_info = PassInfo::new(device, initial_width, initial_height, &color_lut);
 
         let (camera_buffer, camera_bind_group) =
             create_camera_bind_group(device, glam::Vec4::ZERO, glam::Mat4::IDENTITY);
@@ -168,16 +180,17 @@ impl SsbhRenderer {
             camera_buffer,
             camera_bind_group,
             pass_info,
+            color_lut,
         }
     }
 
-    /// A faster alternative to recreating the entire object.
+    /// A faster alternative to creating a new [SsbhRenderer] with the desired size.
     ///
     /// Prefer this method over calling [SsbhRenderer::new] with the updated dimensions.
     /// To update the camera to a potentially new aspect ratio,
     /// pass the appropriate matrix to [SsbhRenderer::update_camera].
-    pub fn resize(&mut self, device: &wgpu::Device, queue: &wgpu::Queue, width: u32, height: u32) {
-        self.pass_info = PassInfo::new(device, queue, width, height);
+    pub fn resize(&mut self, device: &wgpu::Device, width: u32, height: u32) {
+        self.pass_info = PassInfo::new(device, width, height, &self.color_lut);
     }
 
     /// Updates the camera transforms.
@@ -351,7 +364,7 @@ struct PassInfo {
 }
 
 impl PassInfo {
-    fn new(device: &wgpu::Device, queue: &wgpu::Queue, width: u32, height: u32) -> Self {
+    fn new(device: &wgpu::Device, width: u32, height: u32, color_lut: &TextureSamplerView) -> Self {
         let depth = create_depth(device, width, height);
 
         let color = create_color_texture(device, width, height);
@@ -365,7 +378,7 @@ impl PassInfo {
             create_bloom_upscale_bind_group(device, width / 2, height / 2, &bloom_combined);
 
         let post_process_bind_group =
-            create_post_process_bind_group(device, queue, &color, &bloom_combined);
+            create_post_process_bind_group(device, &color, &bloom_combined, color_lut);
         Self {
             depth,
             color,
@@ -653,20 +666,17 @@ fn create_bloom_upscale_bind_group(
 
 fn create_post_process_bind_group(
     device: &wgpu::Device,
-    queue: &wgpu::Queue,
     color_input: &TextureSamplerView,
     bloom_input: &TextureSamplerView,
+    color_lut: &TextureSamplerView,
 ) -> crate::shader::post_process::bind_groups::BindGroup0 {
-    // TODO: Where should stage specific assets be loaded?
-    let (color_lut, color_lut_sampler) = load_texture_sampler_3d(device, queue);
-
     crate::shader::post_process::bind_groups::BindGroup0::from_bindings(
         device,
         crate::shader::post_process::bind_groups::BindGroupLayout0 {
             color_texture: &color_input.view,
             color_sampler: &color_input.sampler,
-            color_lut: &color_lut,
-            color_lut_sampler: &color_lut_sampler,
+            color_lut: &color_lut.view,
+            color_lut_sampler: &color_lut.sampler,
             bloom_texture: &bloom_input.view,
             bloom_sampler: &bloom_input.sampler,
         },
