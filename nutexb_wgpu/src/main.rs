@@ -1,10 +1,7 @@
 use std::{iter, path::Path};
 
 use futures::executor::block_on;
-use nutexb_wgpu::{
-    create_render_pipeline, create_texture_bind_group, draw_textured_triangle, NutexbFile,
-    NutexbImage,
-};
+use nutexb_wgpu::{NutexbFile, NutexbImage, TextureRenderer};
 use winit::{
     event::*,
     event_loop::{ControlFlow, EventLoop},
@@ -17,12 +14,8 @@ struct State {
     queue: wgpu::Queue,
     size: winit::dpi::PhysicalSize<u32>,
     config: wgpu::SurfaceConfiguration,
-    pipeline: wgpu::RenderPipeline,
-    texture_bind_group: wgpu::BindGroup,
-    // Test conversions to RGBA.
-    rgba_pipeline: wgpu::RenderPipeline,
+    renderer: TextureRenderer,
     rgba_texture_bind_group: wgpu::BindGroup,
-    rgba_texture_view: wgpu::TextureView,
 }
 
 impl State {
@@ -64,58 +57,27 @@ impl State {
         let nutexb = NutexbImage::from(&NutexbFile::read_from_file(path).unwrap());
         println!("Load Nutexb: {:?}", start.elapsed());
 
-        // TODO: How to make this into a function that returns the rgba texture?
-        // TODO: Create a texture renderer similar to SsbhRenderer to cache pipelines?
         let texture = nutexb.create_texture(&device, &queue);
-        let (texture_bind_group_layout, texture_bind_group) =
-            create_texture_bind_group(&texture, &device);
 
-        // Create a separate texture to test the rgba conversion.
-        // The conversion to RGBA is well supported by GPUs.
-        // TODO: This may be more efficient using compute shaders.
-        // Some applications like egui require RGBA textures.
-        let rgba_format = wgpu::TextureFormat::Rgba8UnormSrgb;
-        // Disable mipmaps or arrsys since this will be a color attachment.
-        let rgba_texture = device.create_texture(&wgpu::TextureDescriptor {
-            label: None,
-            size: wgpu::Extent3d {
-                width: nutexb.width,
-                height: nutexb.height,
-                depth_or_array_layers: 1,
-            },
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: if nutexb.depth > 1 {
-                wgpu::TextureDimension::D3
-            } else {
-                wgpu::TextureDimension::D2
-            },
-            format: rgba_format,
-            usage: wgpu::TextureUsages::COPY_DST
-                | wgpu::TextureUsages::TEXTURE_BINDING
-                | wgpu::TextureUsages::RENDER_ATTACHMENT,
-        });
+        let renderer = TextureRenderer::new(&device, surface_format);
 
-        let render_pipeline =
-            create_render_pipeline(&device, texture_bind_group_layout, surface_format);
+        // Use the full texture width and height.
+        // Some use cases benefit from custom dimensions like texture thumbnails.
+        let start = std::time::Instant::now();
+        let rgba_texture =
+            renderer.render_to_texture_rgba(&device, &queue, &texture, nutexb.width, nutexb.height);
+        println!("Render to RGBA: {:?}", start.elapsed());
 
-        let rgba_texture_view = rgba_texture.create_view(&wgpu::TextureViewDescriptor::default());
-        let (rgba_texture_bind_group_layout, rgba_texture_bind_group) =
-            create_texture_bind_group(&rgba_texture, &device);
-        let rgba_pipeline =
-            create_render_pipeline(&device, rgba_texture_bind_group_layout, rgba_format);
+        let rgba_texture_bind_group = renderer.create_texture_bind_group(&device, &rgba_texture);
 
         Self {
             surface,
             device,
             queue,
             size,
-            pipeline: render_pipeline,
-            texture_bind_group,
-            rgba_texture_bind_group,
-            rgba_texture_view,
-            rgba_pipeline,
+            renderer,
             config,
+            rgba_texture_bind_group,
         }
     }
 
@@ -140,22 +102,8 @@ impl State {
                 label: Some("Render Encoder"),
             });
 
-        // Draw the texture to a second RGBA texture.
-        // This is inefficient but tests the RGBA conversion.
-        draw_textured_triangle(
-            &mut encoder,
-            &self.rgba_texture_view,
-            &self.rgba_pipeline,
-            &self.texture_bind_group,
-        );
-
-        // Now draw the RGBA texture to the screen.
-        draw_textured_triangle(
-            &mut encoder,
-            &output_view,
-            &self.pipeline,
-            &self.rgba_texture_bind_group,
-        );
+        self.renderer
+            .render(&mut encoder, &output_view, &self.rgba_texture_bind_group);
 
         self.queue.submit(iter::once(encoder.finish()));
 
