@@ -308,45 +308,7 @@ pub fn animate_materials(
                     // TODO: Does the speed of cloning here matter?
                     let mut changed_material = material.clone();
 
-                    for track in &node.tracks {
-                        let (current_frame, _next_frame, _factor) = frame_values(frame, track);
-
-                        // TODO: Update material parameters based on the type.
-                        match &track.values {
-                            TrackValues::Transform(_) => todo!(),
-                            TrackValues::UvTransform(_) => todo!(),
-                            TrackValues::Float(v) => {
-                                if let Some(param) = changed_material
-                                    .floats
-                                    .iter_mut()
-                                    .find(|p| track.name == p.param_id.to_string())
-                                {
-                                    // TODO: Interpolate vectors?
-                                    param.data = v[current_frame];
-                                }
-                            }
-                            TrackValues::PatternIndex(_) => (),
-                            TrackValues::Boolean(v) => {
-                                if let Some(param) = changed_material
-                                    .booleans
-                                    .iter_mut()
-                                    .find(|p| track.name == p.param_id.to_string())
-                                {
-                                    param.data = v[current_frame];
-                                }
-                            }
-                            TrackValues::Vector4(v) => {
-                                if let Some(param) = changed_material
-                                    .vectors
-                                    .iter_mut()
-                                    .find(|p| track.name == p.param_id.to_string())
-                                {
-                                    // TODO: Interpolate vectors?
-                                    param.data = v[current_frame];
-                                }
-                            }
-                        }
-                    }
+                    apply_material_track(node, frame, &mut changed_material);
 
                     changed_materials.push(changed_material);
                 }
@@ -355,6 +317,52 @@ pub fn animate_materials(
     }
 
     changed_materials
+}
+
+fn apply_material_track(
+    node: &ssbh_data::anim_data::NodeData,
+    frame: f32,
+    changed_material: &mut MatlEntryData,
+) {
+    for track in &node.tracks {
+        let (current_frame, _next_frame, _factor) = frame_values(frame, track);
+
+        // TODO: Update material parameters based on the type.
+        match &track.values {
+            TrackValues::Transform(_) => todo!(),
+            TrackValues::UvTransform(_) => todo!(),
+            TrackValues::Float(v) => {
+                if let Some(param) = changed_material
+                    .floats
+                    .iter_mut()
+                    .find(|p| track.name == p.param_id.to_string())
+                {
+                    // TODO: Interpolate vectors?
+                    param.data = v[current_frame];
+                }
+            }
+            TrackValues::PatternIndex(_) => (),
+            TrackValues::Boolean(v) => {
+                if let Some(param) = changed_material
+                    .booleans
+                    .iter_mut()
+                    .find(|p| track.name == p.param_id.to_string())
+                {
+                    param.data = v[current_frame];
+                }
+            }
+            TrackValues::Vector4(v) => {
+                if let Some(param) = changed_material
+                    .vectors
+                    .iter_mut()
+                    .find(|p| track.name == p.param_id.to_string())
+                {
+                    // TODO: Interpolate vectors?
+                    param.data = v[current_frame];
+                }
+            }
+        }
+    }
 }
 
 // TODO: Other animation group types?

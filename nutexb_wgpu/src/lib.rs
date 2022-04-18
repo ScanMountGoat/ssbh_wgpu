@@ -120,8 +120,8 @@ impl TextureRenderer {
         });
 
         Self {
-            pipeline: create_render_pipeline(&device, &layout, surface_format),
-            rgba_pipeline: create_render_pipeline(&device, &layout, RGBA_FORMAT),
+            pipeline: create_render_pipeline(device, &layout, surface_format),
+            rgba_pipeline: create_render_pipeline(device, &layout, RGBA_FORMAT),
             layout,
         }
     }
