@@ -87,6 +87,7 @@ impl From<&NutexbFile> for NutexbImage {
 }
 
 /// The output format of [TextureRenderer::render_to_texture_rgba].
+// TODO: Does it matter if this is srgb or unorm?
 pub const RGBA_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8UnormSrgb;
 
 pub struct TextureRenderer {
@@ -126,6 +127,7 @@ impl TextureRenderer {
         }
     }
 
+    // TODO: Add an option to not render the alpha.
     // TODO: Make the BindGroup type strongly typed using wgsl_to_wgpu?
     pub fn render(
         &self,

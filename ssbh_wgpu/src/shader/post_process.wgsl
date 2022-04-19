@@ -68,7 +68,8 @@ fn fs_main(in: VertexOutput) -> [[location(0)]] vec4<f32> {
 
     var output_rgb = color.rgb + bloom;
     output_rgb = GetPostProcessingResult(output_rgb.rgb);
-    output_rgb = GetSrgbVec3(output_rgb);
+    // TODO: Assume an SRGB frame buffer?
+    // output_rgb = GetSrgbVec3(output_rgb);
 
     return vec4<f32>(output_rgb, 1.0);
 }

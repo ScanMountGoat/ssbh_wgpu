@@ -72,6 +72,19 @@ struct MaterialData {
 }
 
 impl RenderModel {
+    // TODO: Is there a clearer explanation of what this does?
+    /// Update the uniform buffer with the data from `material` based on its material label.
+    pub fn update_material_uniforms(&self, queue: &wgpu::Queue, material: &MatlEntryData) {
+        let uniforms = create_uniforms(Some(&material));
+        if let Some(data) = self.material_data_by_label.get(&material.material_label) {
+            queue.write_buffer(
+                &data.uniforms_buffer,
+                0,
+                bytemuck::cast_slice(&[uniforms]),
+            );
+        }
+    }
+
     // TODO: Does it make sense to just pass None to "reset" the animation?
     pub fn apply_anim(&mut self, queue: &wgpu::Queue, anim: Option<&AnimData>, frame: f32) {
         // Update the buffers associated with each skel.
@@ -82,18 +95,12 @@ impl RenderModel {
             animate_visibility(anim, frame, &mut self.meshes);
 
             if let Some(matl) = &self.matl {
-                let materials = animate_materials(anim, frame, &matl.entries);
-                for material in materials {
+                // Get a list of changed materials.
+                let animated_materials = animate_materials(anim, frame, &matl.entries);
+                for material in animated_materials {
                     // TODO: Should this go in a separate module?
                     // Get updated uniform buffers for animated materials
-                    let uniforms = create_uniforms(Some(&material));
-                    if let Some(data) = self.material_data_by_label.get(&material.material_label) {
-                        queue.write_buffer(
-                            &data.uniforms_buffer,
-                            0,
-                            bytemuck::cast_slice(&[uniforms]),
-                        );
-                    }
+                    self.update_material_uniforms(queue, &material);
                 }
             }
 
