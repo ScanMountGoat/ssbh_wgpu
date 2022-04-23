@@ -35,8 +35,6 @@ fn GetPostProcessingResult(linear: vec3<f32>) -> vec3<f32>
     var result = srgb * 0.9375 + 0.03125;
 
     // Color Grading.
-    // TODO: workaround for color fringing when swapping shaders.
-    // TODO: There's probably a missing clamp somewhere?
     result = textureSample(color_lut, color_lut_sampler, result).rgb;
 
     // Post Processing.

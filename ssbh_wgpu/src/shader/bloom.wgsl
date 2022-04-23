@@ -42,7 +42,25 @@ fn Blur(uvs: vec2<f32>) -> vec3<f32> {
 }
 
 [[stage(fragment)]]
-fn fs_main(in: VertexOutput) -> [[location(0)]] vec4<f32> {
+fn fs_blur(in: VertexOutput) -> [[location(0)]] vec4<f32> {
     let color = textureSample(color_texture, color_sampler, in.uvs);
     return vec4<f32>(Blur(in.uvs), color.a);
+}
+
+[[stage(fragment)]]
+fn fs_threshold(in: VertexOutput) -> [[location(0)]] vec4<f32> {
+    // Ported bloom code from fighter shaders.
+    // Uniform values are hardcoded for now.
+    // TODO: Where do these uniform buffer values come from?
+    let color = textureSample(color_texture, color_sampler, in.uvs);
+    let componentMax = max(max(color.r, max(color.g, color.b)), 0.001);
+    let scale = 1.0 / componentMax;
+    let scale2 = max(0.925 * -0.5 + componentMax, 0.0);
+
+    return vec4<f32>(color.rgb * scale * scale2 * 6.0, color.a);
+}
+
+[[stage(fragment)]]
+fn fs_upscale(in: VertexOutput) -> [[location(0)]] vec4<f32> {
+    return textureSample(color_texture, color_sampler, in.uvs);
 }

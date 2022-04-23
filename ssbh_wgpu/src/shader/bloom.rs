@@ -76,7 +76,7 @@ pub mod vertex {
 pub fn create_shader_module(device: &wgpu::Device) -> wgpu::ShaderModule {
     device.create_shader_module(&wgpu::ShaderModuleDescriptor {
         label: None,
-        source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(include_str!("bloom_threshold.wgsl")))
+        source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(include_str!("bloom.wgsl")))
     })
 }
 pub fn create_pipeline_layout(device: &wgpu::Device) -> wgpu::PipelineLayout {

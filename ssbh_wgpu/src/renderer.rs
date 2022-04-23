@@ -34,10 +34,6 @@ impl SsbhRenderer {
         initial_width: u32,
         initial_height: u32,
     ) -> Self {
-        // TODO: It may be cleaner to combine these into a single WGSL file.
-        // Each "pass" would have its own fragment entry point.
-        // This also allows sharing bind group structs and simplifies the initialization code.
-        // Another benefit is less repetitive WGSL code.
         let shader = crate::shader::post_process::create_shader_module(device);
         let pipeline_layout = crate::shader::post_process::create_pipeline_layout(device);
         let post_process_pipeline =
@@ -60,8 +56,10 @@ impl SsbhRenderer {
                 multiview: None,
             });
 
-        let shader = crate::shader::bloom_threshold::create_shader_module(device);
-        let pipeline_layout = crate::shader::bloom_threshold::create_pipeline_layout(device);
+        // Shared shaders for bloom passes.
+        // TODO: Should this be all screen texture shaders?
+        let shader = crate::shader::bloom::create_shader_module(device);
+        let pipeline_layout = crate::shader::bloom::create_pipeline_layout(device);
         let bloom_threshold_pipeline =
             device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
                 label: None,
@@ -73,7 +71,7 @@ impl SsbhRenderer {
                 },
                 fragment: Some(wgpu::FragmentState {
                     module: &shader,
-                    entry_point: "fs_main",
+                    entry_point: "fs_threshold",
                     targets: &[crate::BLOOM_COLOR_FORMAT.into()],
                 }),
                 primitive: wgpu::PrimitiveState::default(),
@@ -82,8 +80,6 @@ impl SsbhRenderer {
                 multiview: None,
             });
 
-        let shader = crate::shader::bloom_blur::create_shader_module(device);
-        let pipeline_layout = crate::shader::bloom_blur::create_pipeline_layout(device);
         let bloom_blur_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: None,
             layout: Some(&pipeline_layout),
@@ -95,7 +91,7 @@ impl SsbhRenderer {
             fragment: Some(wgpu::FragmentState {
                 // TODO: Floating point target?
                 module: &shader,
-                entry_point: "fs_main",
+                entry_point: "fs_blur",
                 targets: &[crate::BLOOM_COLOR_FORMAT.into()],
             }),
             primitive: wgpu::PrimitiveState::default(),
@@ -104,9 +100,7 @@ impl SsbhRenderer {
             multiview: None,
         });
 
-        let shader = crate::shader::bloom_combine::create_shader_module(device);
-        let pipeline_layout = crate::shader::bloom_combine::create_pipeline_layout(device);
-        let bloom_combine_pipeline =
+        let bloom_upscale_pipeline =
             device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
                 label: None,
                 layout: Some(&pipeline_layout),
@@ -117,7 +111,7 @@ impl SsbhRenderer {
                 },
                 fragment: Some(wgpu::FragmentState {
                     module: &shader,
-                    entry_point: "fs_main",
+                    entry_point: "fs_upscale",
                     targets: &[crate::RGBA_COLOR_FORMAT.into()],
                 }),
                 primitive: wgpu::PrimitiveState::default(),
@@ -126,9 +120,9 @@ impl SsbhRenderer {
                 multiview: None,
             });
 
-        let shader = crate::shader::bloom_upscale::create_shader_module(device);
-        let pipeline_layout = crate::shader::bloom_upscale::create_pipeline_layout(device);
-        let bloom_upscale_pipeline =
+        let shader = crate::shader::bloom_combine::create_shader_module(device);
+        let pipeline_layout = crate::shader::bloom_combine::create_pipeline_layout(device);
+        let bloom_combine_pipeline =
             device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
                 label: None,
                 layout: Some(&pipeline_layout),
@@ -254,9 +248,9 @@ impl SsbhRenderer {
         );
 
         bloom_threshold_pass.set_pipeline(&self.bloom_threshold_pipeline);
-        crate::shader::bloom_threshold::bind_groups::set_bind_groups(
+        crate::shader::bloom::bind_groups::set_bind_groups(
             &mut bloom_threshold_pass,
-            crate::shader::bloom_threshold::bind_groups::BindGroups {
+            crate::shader::bloom::bind_groups::BindGroups {
                 bind_group0: &self.pass_info.bloom_threshold_bind_group,
             },
         );
@@ -267,9 +261,9 @@ impl SsbhRenderer {
             let mut bloom_blur_pass = create_color_pass(encoder, &texture.view, None);
 
             bloom_blur_pass.set_pipeline(&self.bloom_blur_pipeline);
-            crate::shader::bloom_blur::bind_groups::set_bind_groups(
+            crate::shader::bloom::bind_groups::set_bind_groups(
                 &mut bloom_blur_pass,
-                crate::shader::bloom_blur::bind_groups::BindGroups { bind_group0 },
+                crate::shader::bloom::bind_groups::BindGroups { bind_group0 },
             );
             bloom_blur_pass.draw(0..3, 0..1);
         }
@@ -297,9 +291,9 @@ impl SsbhRenderer {
         );
 
         bloom_upscale_pass.set_pipeline(&self.bloom_upscale_pipeline);
-        crate::shader::bloom_upscale::bind_groups::set_bind_groups(
+        crate::shader::bloom::bind_groups::set_bind_groups(
             &mut bloom_upscale_pass,
-            crate::shader::bloom_upscale::bind_groups::BindGroups {
+            crate::shader::bloom::bind_groups::BindGroups {
                 bind_group0: &self.pass_info.bloom_upscale_bind_group,
             },
         );
@@ -347,18 +341,18 @@ struct PassInfo {
     color: TextureSamplerView,
     bloom_threshold: TextureSamplerView,
 
-    bloom_threshold_bind_group: crate::shader::bloom_threshold::bind_groups::BindGroup0,
+    bloom_threshold_bind_group: crate::shader::bloom::bind_groups::BindGroup0,
 
     bloom_blur_colors: [(
         TextureSamplerView,
-        crate::shader::bloom_blur::bind_groups::BindGroup0,
+        crate::shader::bloom::bind_groups::BindGroup0,
     ); 4],
 
     bloom_combined: TextureSamplerView,
     bloom_combine_bind_group: crate::shader::bloom_combine::bind_groups::BindGroup0,
 
     bloom_upscaled: TextureSamplerView,
-    bloom_upscale_bind_group: crate::shader::bloom_upscale::bind_groups::BindGroup0,
+    bloom_upscale_bind_group: crate::shader::bloom::bind_groups::BindGroup0,
 
     post_process_bind_group: crate::shader::post_process::bind_groups::BindGroup0,
 }
@@ -368,14 +362,27 @@ impl PassInfo {
         let depth = create_depth(device, width, height);
 
         let color = create_texture_sampler(device, width, height, crate::RGBA_COLOR_FORMAT);
-        let (bloom_threshold, bloom_threshold_bind_group) =
-            create_bloom_threshold_bind_group(device, width / 4, height / 4, &color);
+
+        // Bloom uses successively smaller render targets to increase the blur.
+        let (bloom_threshold, bloom_threshold_bind_group) = create_bloom_bind_group(
+            device,
+            width / 4,
+            height / 4,
+            &color,
+            crate::BLOOM_COLOR_FORMAT,
+        );
         let bloom_blur_colors =
             create_bloom_blur_bind_groups(device, width / 4, height / 4, &bloom_threshold);
         let (bloom_combined, bloom_combine_bind_group) =
             create_bloom_combine_bind_group(device, width / 4, height / 4, &bloom_blur_colors);
-        let (bloom_upscaled, bloom_upscale_bind_group) =
-            create_bloom_upscale_bind_group(device, width / 2, height / 2, &bloom_combined);
+        // A 2x bilinear upscale smooths the overall result.
+        let (bloom_upscaled, bloom_upscale_bind_group) = create_bloom_bind_group(
+            device,
+            width / 2,
+            height / 2,
+            &bloom_combined,
+            crate::RGBA_COLOR_FORMAT,
+        );
 
         let post_process_bind_group =
             create_post_process_bind_group(device, &color, &bloom_combined, color_lut);
@@ -463,52 +470,26 @@ fn create_texture_sampler(
 }
 
 // TODO: Find a way to generate this from render pass descriptions.
-fn create_bloom_threshold_bind_group(
+fn create_bloom_blur_bind_groups(
     device: &wgpu::Device,
     width: u32,
     height: u32,
     input: &TextureSamplerView,
-) -> (
-    TextureSamplerView,
-    crate::shader::bloom_threshold::bind_groups::BindGroup0,
-) {
-    let texture = create_texture_sampler(device, width, height, crate::BLOOM_COLOR_FORMAT);
-
-    let bind_group = crate::shader::bloom_threshold::bind_groups::BindGroup0::from_bindings(
-        device,
-        crate::shader::bloom_threshold::bind_groups::BindGroupLayout0 {
-            color_texture: &input.view,
-            color_sampler: &input.sampler,
-        },
-    );
-
-    (texture, bind_group)
-}
-
-fn create_bloom_blur_bind_groups(
-    device: &wgpu::Device,
-    threshold_width: u32,
-    threshold_height: u32,
-    input: &TextureSamplerView,
 ) -> [(
     TextureSamplerView,
-    crate::shader::bloom_blur::bind_groups::BindGroup0,
+    crate::shader::bloom::bind_groups::BindGroup0,
 ); 4] {
     // Create successively smaller images to increase the blur strength.
-    // For a standard 1920x1080 window, the input is 480x270.
+    // For a standard 1920x1080 window, the thresholded input is 480x270.
     // This gives sizes of 240x135 -> 120x67 -> 60x33 -> 30x16
-    let (texture0, bind_group0) =
-        create_blur_data(device, threshold_width / 2, threshold_height / 2, input);
-    let (texture1, bind_group1) =
-        create_blur_data(device, threshold_width / 4, threshold_height / 4, &texture0);
-    let (texture2, bind_group2) =
-        create_blur_data(device, threshold_width / 8, threshold_height / 8, &texture1);
-    let (texture3, bind_group3) = create_blur_data(
-        device,
-        threshold_width / 16,
-        threshold_height / 16,
-        &texture2,
-    );
+    let create_bind_group = |width, height, input| {
+        create_bloom_bind_group(device, width, height, input, crate::BLOOM_COLOR_FORMAT)
+    };
+
+    let (texture0, bind_group0) = create_bind_group(width / 2, height / 2, input);
+    let (texture1, bind_group1) = create_bind_group(width / 4, height / 4, &texture0);
+    let (texture2, bind_group2) = create_bind_group(width / 8, height / 8, &texture1);
+    let (texture3, bind_group3) = create_bind_group(width / 16, height / 16, &texture2);
 
     [
         (texture0, bind_group0),
@@ -518,34 +499,13 @@ fn create_bloom_blur_bind_groups(
     ]
 }
 
-fn create_blur_data(
-    device: &wgpu::Device,
-    width: u32,
-    height: u32,
-    input: &TextureSamplerView,
-) -> (
-    TextureSamplerView,
-    crate::shader::bloom_blur::bind_groups::BindGroup0,
-) {
-    let texture = create_texture_sampler(device, width, height, crate::BLOOM_COLOR_FORMAT);
-
-    let bind_group = crate::shader::bloom_blur::bind_groups::BindGroup0::from_bindings(
-        device,
-        crate::shader::bloom_blur::bind_groups::BindGroupLayout0 {
-            color_texture: &input.view,
-            color_sampler: &input.sampler,
-        },
-    );
-    (texture, bind_group)
-}
-
 fn create_bloom_combine_bind_group(
     device: &wgpu::Device,
     width: u32,
     height: u32,
     bloom_inputs: &[(
         TextureSamplerView,
-        crate::shader::bloom_blur::bind_groups::BindGroup0,
+        crate::shader::bloom::bind_groups::BindGroup0,
     ); 4],
 ) -> (
     TextureSamplerView,
@@ -567,20 +527,21 @@ fn create_bloom_combine_bind_group(
     (texture, bind_group)
 }
 
-fn create_bloom_upscale_bind_group(
+fn create_bloom_bind_group(
     device: &wgpu::Device,
     width: u32,
     height: u32,
     input: &TextureSamplerView,
+    format: wgpu::TextureFormat,
 ) -> (
     TextureSamplerView,
-    crate::shader::bloom_upscale::bind_groups::BindGroup0,
+    crate::shader::bloom::bind_groups::BindGroup0,
 ) {
-    let texture = create_texture_sampler(device, width, height, crate::RGBA_COLOR_FORMAT);
+    let texture = create_texture_sampler(device, width, height, format);
 
-    let bind_group = crate::shader::bloom_upscale::bind_groups::BindGroup0::from_bindings(
+    let bind_group = crate::shader::bloom::bind_groups::BindGroup0::from_bindings(
         device,
-        crate::shader::bloom_upscale::bind_groups::BindGroupLayout0 {
+        crate::shader::bloom::bind_groups::BindGroupLayout0 {
             color_texture: &input.view,
             color_sampler: &input.sampler,
         },
