@@ -5,7 +5,7 @@ use crate::{
     RenderModel,
 };
 
-// TODO: Document the renderer.
+/// A renderer for drawing a collection of [RenderModel].
 pub struct SsbhRenderer {
     bloom_threshold_pipeline: wgpu::RenderPipeline,
     bloom_blur_pipeline: wgpu::RenderPipeline,
@@ -195,7 +195,8 @@ impl SsbhRenderer {
         queue.write_buffer(&self.camera_buffer, 0, bytemuck::cast_slice(&[transforms]));
     }
 
-    /// Renders the `render_meshes` uses the standard rendering passes for Smash Ultimate.
+    /// Renders the `render_meshes` to `output_view` using the standard rendering passes for Smash Ultimate.
+    /// The `output_view` should have the format [crate::RGBA_COLOR_FORMAT].
     pub fn render_ssbh_passes(
         &self,
         encoder: &mut wgpu::CommandEncoder,
@@ -207,6 +208,9 @@ impl SsbhRenderer {
         let mut meshes: Vec<_> = render_models.iter().flat_map(|m| &m.meshes).collect();
         meshes.sort_by_key(|m| m.render_order());
 
+        // Skin the render meshes using a compute pass instead of in the vertex shader.
+        // Compute shaders give more flexibility compared to vertex shaders.
+        // Modifying the vertex buffers once avoids redundant work in later passes.
         let mut skinning_pass = encoder.begin_compute_pass(&ComputePassDescriptor {
             label: Some("Skinning Pass"),
         });
@@ -218,6 +222,9 @@ impl SsbhRenderer {
         drop(skinning_pass);
 
         // TODO: Force having a color attachment for each fragment shader output in wgsl_to_wgpu?
+        // Draw the models to the initial color buffer.
+        // TODO: Should this pass draw to a floating point target?
+        // The in game format isn't 8-bit yet.
         let mut model_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("Model Pass"),
             color_attachments: &[wgpu::RenderPassColorAttachment {
@@ -241,33 +248,27 @@ impl SsbhRenderer {
         crate::rendermesh::draw_render_meshes(&meshes, &mut model_pass, &self.camera_bind_group);
         drop(model_pass);
 
-        let mut bloom_threshold_pass = create_color_pass(
+        // Extract the portions of the image that contribute to bloom.
+        bloom_pass(
             encoder,
+            "Bloom Threshold Pass",
+            &self.bloom_threshold_pipeline,
             &self.pass_info.bloom_threshold.view,
-            Some("Bloom Threshold Pass"),
+            &self.pass_info.bloom_threshold_bind_group,
         );
 
-        bloom_threshold_pass.set_pipeline(&self.bloom_threshold_pipeline);
-        crate::shader::bloom::bind_groups::set_bind_groups(
-            &mut bloom_threshold_pass,
-            crate::shader::bloom::bind_groups::BindGroups {
-                bind_group0: &self.pass_info.bloom_threshold_bind_group,
-            },
-        );
-        bloom_threshold_pass.draw(0..3, 0..1);
-        drop(bloom_threshold_pass);
-
+        // Repeatedly downsample and blur the thresholded bloom colors.
         for (texture, bind_group0) in &self.pass_info.bloom_blur_colors {
-            let mut bloom_blur_pass = create_color_pass(encoder, &texture.view, None);
-
-            bloom_blur_pass.set_pipeline(&self.bloom_blur_pipeline);
-            crate::shader::bloom::bind_groups::set_bind_groups(
-                &mut bloom_blur_pass,
-                crate::shader::bloom::bind_groups::BindGroups { bind_group0 },
+            bloom_pass(
+                encoder,
+                "Bloom Blur Pass",
+                &self.bloom_blur_pipeline,
+                &texture.view,
+                bind_group0,
             );
-            bloom_blur_pass.draw(0..3, 0..1);
         }
 
+        // Combine the bloom textures into a single texture.
         let mut bloom_combine_pass = create_color_pass(
             encoder,
             &self.pass_info.bloom_combined.view,
@@ -284,24 +285,17 @@ impl SsbhRenderer {
         bloom_combine_pass.draw(0..3, 0..1);
         drop(bloom_combine_pass);
 
-        let mut bloom_upscale_pass = create_color_pass(
+        // Upscale with bilinear filtering to smooth the result.
+        bloom_pass(
             encoder,
+            "Bloom Upscale Pass",
+            &self.bloom_upscale_pipeline,
             &self.pass_info.bloom_upscaled.view,
-            Some("Bloom Upscale Pass"),
+            &self.pass_info.bloom_upscale_bind_group,
         );
-
-        bloom_upscale_pass.set_pipeline(&self.bloom_upscale_pipeline);
-        crate::shader::bloom::bind_groups::set_bind_groups(
-            &mut bloom_upscale_pass,
-            crate::shader::bloom::bind_groups::BindGroups {
-                bind_group0: &self.pass_info.bloom_upscale_bind_group,
-            },
-        );
-        bloom_upscale_pass.draw(0..3, 0..1);
-        drop(bloom_upscale_pass);
 
         // TODO: Models with _near should be drawn after bloom but before post processing?
-
+        // Combine the model and bloom contributions and apply color grading.
         let mut post_processing_pass =
             create_color_pass(encoder, output_view, Some("Post Processing Pass"));
 
@@ -315,6 +309,24 @@ impl SsbhRenderer {
         post_processing_pass.draw(0..3, 0..1);
         drop(post_processing_pass);
     }
+}
+
+fn bloom_pass(
+    encoder: &mut wgpu::CommandEncoder,
+    name: &str,
+    pipeline: &wgpu::RenderPipeline,
+    view: &wgpu::TextureView,
+    bind_group: &crate::shader::bloom::bind_groups::BindGroup0,
+) {
+    let mut pass = create_color_pass(encoder, view, Some(name));
+    pass.set_pipeline(pipeline);
+    crate::shader::bloom::bind_groups::set_bind_groups(
+        &mut pass,
+        crate::shader::bloom::bind_groups::BindGroups {
+            bind_group0: bind_group,
+        },
+    );
+    pass.draw(0..3, 0..1);
 }
 
 fn create_color_pass<'a>(
