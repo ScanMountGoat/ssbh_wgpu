@@ -34,6 +34,10 @@ impl SsbhRenderer {
         initial_width: u32,
         initial_height: u32,
     ) -> Self {
+        // TODO: It may be cleaner to combine these into a single WGSL file.
+        // Each "pass" would have its own fragment entry point.
+        // This also allows sharing bind group structs and simplifies the initialization code.
+        // Another benefit is less repetitive WGSL code.
         let shader = crate::shader::post_process::create_shader_module(device);
         let pipeline_layout = crate::shader::post_process::create_pipeline_layout(device);
         let post_process_pipeline =
@@ -48,7 +52,7 @@ impl SsbhRenderer {
                 fragment: Some(wgpu::FragmentState {
                     module: &shader,
                     entry_point: "fs_main",
-                    targets: &[crate::RGBA_COLOR_FORMAT.into()], // formats can be made targets?
+                    targets: &[crate::RGBA_COLOR_FORMAT.into()],
                 }),
                 primitive: wgpu::PrimitiveState::default(),
                 depth_stencil: None,
@@ -70,7 +74,7 @@ impl SsbhRenderer {
                 fragment: Some(wgpu::FragmentState {
                     module: &shader,
                     entry_point: "fs_main",
-                    targets: &[crate::BLOOM_COLOR_FORMAT.into()], // formats can be made targets?
+                    targets: &[crate::BLOOM_COLOR_FORMAT.into()],
                 }),
                 primitive: wgpu::PrimitiveState::default(),
                 depth_stencil: None,
@@ -92,7 +96,7 @@ impl SsbhRenderer {
                 // TODO: Floating point target?
                 module: &shader,
                 entry_point: "fs_main",
-                targets: &[crate::BLOOM_COLOR_FORMAT.into()], // formats can be made targets?
+                targets: &[crate::BLOOM_COLOR_FORMAT.into()],
             }),
             primitive: wgpu::PrimitiveState::default(),
             depth_stencil: None,
@@ -259,16 +263,13 @@ impl SsbhRenderer {
         bloom_threshold_pass.draw(0..3, 0..1);
         drop(bloom_threshold_pass);
 
-        for i in 0..4 {
-            let mut bloom_blur_pass =
-                create_color_pass(encoder, &self.pass_info.bloom_blur_colors[i].view, None);
+        for (texture, bind_group0) in &self.pass_info.bloom_blur_colors {
+            let mut bloom_blur_pass = create_color_pass(encoder, &texture.view, None);
 
             bloom_blur_pass.set_pipeline(&self.bloom_blur_pipeline);
             crate::shader::bloom_blur::bind_groups::set_bind_groups(
                 &mut bloom_blur_pass,
-                crate::shader::bloom_blur::bind_groups::BindGroups {
-                    bind_group0: &self.pass_info.bloom_blur_bind_groups[i],
-                },
+                crate::shader::bloom_blur::bind_groups::BindGroups { bind_group0 },
             );
             bloom_blur_pass.draw(0..3, 0..1);
         }
@@ -348,8 +349,10 @@ struct PassInfo {
 
     bloom_threshold_bind_group: crate::shader::bloom_threshold::bind_groups::BindGroup0,
 
-    bloom_blur_colors: [TextureSamplerView; 4],
-    bloom_blur_bind_groups: [crate::shader::bloom_blur::bind_groups::BindGroup0; 4],
+    bloom_blur_colors: [(
+        TextureSamplerView,
+        crate::shader::bloom_blur::bind_groups::BindGroup0,
+    ); 4],
 
     bloom_combined: TextureSamplerView,
     bloom_combine_bind_group: crate::shader::bloom_combine::bind_groups::BindGroup0,
@@ -364,13 +367,13 @@ impl PassInfo {
     fn new(device: &wgpu::Device, width: u32, height: u32, color_lut: &TextureSamplerView) -> Self {
         let depth = create_depth(device, width, height);
 
-        let color = create_color_texture(device, width, height);
+        let color = create_texture_sampler(device, width, height, crate::RGBA_COLOR_FORMAT);
         let (bloom_threshold, bloom_threshold_bind_group) =
             create_bloom_threshold_bind_group(device, width / 4, height / 4, &color);
-        let (bright_blur_colors, bloom_blur_bind_groups) =
+        let bloom_blur_colors =
             create_bloom_blur_bind_groups(device, width / 4, height / 4, &bloom_threshold);
         let (bloom_combined, bloom_combine_bind_group) =
-            create_bloom_combine_bind_group(device, width / 4, height / 4, &bright_blur_colors);
+            create_bloom_combine_bind_group(device, width / 4, height / 4, &bloom_blur_colors);
         let (bloom_upscaled, bloom_upscale_bind_group) =
             create_bloom_upscale_bind_group(device, width / 2, height / 2, &bloom_combined);
 
@@ -381,8 +384,7 @@ impl PassInfo {
             color,
             bloom_threshold,
             bloom_threshold_bind_group,
-            bloom_blur_colors: bright_blur_colors,
-            bloom_blur_bind_groups,
+            bloom_blur_colors,
             bloom_combined,
             bloom_combine_bind_group,
             bloom_upscaled,
@@ -392,7 +394,6 @@ impl PassInfo {
     }
 }
 
-// TODO: Move this to another module?
 struct TextureSamplerView {
     sampler: wgpu::Sampler,
     view: wgpu::TextureView,
@@ -419,7 +420,6 @@ fn create_depth(device: &wgpu::Device, width: u32, height: u32) -> TextureSample
     let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
         address_mode_u: wgpu::AddressMode::ClampToEdge,
         address_mode_v: wgpu::AddressMode::ClampToEdge,
-        address_mode_w: wgpu::AddressMode::ClampToEdge,
         mag_filter: wgpu::FilterMode::Linear,
         min_filter: wgpu::FilterMode::Linear,
         mipmap_filter: wgpu::FilterMode::Nearest,
@@ -430,8 +430,12 @@ fn create_depth(device: &wgpu::Device, width: u32, height: u32) -> TextureSample
     TextureSamplerView { view, sampler }
 }
 
-// TODO: Organize this?
-fn create_color_texture(device: &wgpu::Device, width: u32, height: u32) -> TextureSamplerView {
+fn create_texture_sampler(
+    device: &wgpu::Device,
+    width: u32,
+    height: u32,
+    format: wgpu::TextureFormat,
+) -> TextureSamplerView {
     let texture = device.create_texture(&wgpu::TextureDescriptor {
         label: Some("color texture"),
         size: wgpu::Extent3d {
@@ -442,7 +446,7 @@ fn create_color_texture(device: &wgpu::Device, width: u32, height: u32) -> Textu
         mip_level_count: 1,
         sample_count: 1,
         dimension: wgpu::TextureDimension::D2,
-        format: crate::RGBA_COLOR_FORMAT,
+        format,
         usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
     });
 
@@ -458,6 +462,7 @@ fn create_color_texture(device: &wgpu::Device, width: u32, height: u32) -> Textu
     TextureSamplerView { view, sampler }
 }
 
+// TODO: Find a way to generate this from render pass descriptions.
 fn create_bloom_threshold_bind_group(
     device: &wgpu::Device,
     width: u32,
@@ -467,30 +472,8 @@ fn create_bloom_threshold_bind_group(
     TextureSamplerView,
     crate::shader::bloom_threshold::bind_groups::BindGroup0,
 ) {
-    let texture = device.create_texture(&wgpu::TextureDescriptor {
-        label: Some("color bright texture"),
-        size: wgpu::Extent3d {
-            width,
-            height,
-            depth_or_array_layers: 1,
-        },
-        mip_level_count: 1,
-        sample_count: 1,
-        dimension: wgpu::TextureDimension::D2,
-        format: crate::BLOOM_COLOR_FORMAT,
-        usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
-    });
-    let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
-    let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
-        mag_filter: wgpu::FilterMode::Linear,
-        min_filter: wgpu::FilterMode::Linear,
-        mipmap_filter: wgpu::FilterMode::Nearest,
-        ..Default::default()
-    });
+    let texture = create_texture_sampler(device, width, height, crate::BLOOM_COLOR_FORMAT);
 
-    // TODO: There are additional blur passes.
-    // TODO: Refactor this to be cleaner?
-    // model color -> threshold -> blur -> apply bloom
     let bind_group = crate::shader::bloom_threshold::bind_groups::BindGroup0::from_bindings(
         device,
         crate::shader::bloom_threshold::bind_groups::BindGroupLayout0 {
@@ -499,7 +482,7 @@ fn create_bloom_threshold_bind_group(
         },
     );
 
-    (TextureSamplerView { view, sampler }, bind_group)
+    (texture, bind_group)
 }
 
 fn create_bloom_blur_bind_groups(
@@ -507,10 +490,10 @@ fn create_bloom_blur_bind_groups(
     threshold_width: u32,
     threshold_height: u32,
     input: &TextureSamplerView,
-) -> (
-    [TextureSamplerView; 4],
-    [crate::shader::bloom_blur::bind_groups::BindGroup0; 4],
-) {
+) -> [(
+    TextureSamplerView,
+    crate::shader::bloom_blur::bind_groups::BindGroup0,
+); 4] {
     // Create successively smaller images to increase the blur strength.
     // For a standard 1920x1080 window, the input is 480x270.
     // This gives sizes of 240x135 -> 120x67 -> 60x33 -> 30x16
@@ -527,10 +510,12 @@ fn create_bloom_blur_bind_groups(
         &texture2,
     );
 
-    (
-        [texture0, texture1, texture2, texture3],
-        [bind_group0, bind_group1, bind_group2, bind_group3],
-    )
+    [
+        (texture0, bind_group0),
+        (texture1, bind_group1),
+        (texture2, bind_group2),
+        (texture3, bind_group3),
+    ]
 }
 
 fn create_blur_data(
@@ -542,26 +527,7 @@ fn create_blur_data(
     TextureSamplerView,
     crate::shader::bloom_blur::bind_groups::BindGroup0,
 ) {
-    let texture = device.create_texture(&wgpu::TextureDescriptor {
-        label: Some("color blur texture"),
-        size: wgpu::Extent3d {
-            width,
-            height,
-            depth_or_array_layers: 1,
-        },
-        mip_level_count: 1,
-        sample_count: 1,
-        dimension: wgpu::TextureDimension::D2,
-        format: crate::BLOOM_COLOR_FORMAT,
-        usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
-    });
-    let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
-    let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
-        mag_filter: wgpu::FilterMode::Linear,
-        min_filter: wgpu::FilterMode::Linear,
-        mipmap_filter: wgpu::FilterMode::Nearest,
-        ..Default::default()
-    });
+    let texture = create_texture_sampler(device, width, height, crate::BLOOM_COLOR_FORMAT);
 
     let bind_group = crate::shader::bloom_blur::bind_groups::BindGroup0::from_bindings(
         device,
@@ -570,53 +536,35 @@ fn create_blur_data(
             color_sampler: &input.sampler,
         },
     );
-    (TextureSamplerView { view, sampler }, bind_group)
+    (texture, bind_group)
 }
 
 fn create_bloom_combine_bind_group(
     device: &wgpu::Device,
     width: u32,
     height: u32,
-    bloom_inputs: &[TextureSamplerView; 4],
+    bloom_inputs: &[(
+        TextureSamplerView,
+        crate::shader::bloom_blur::bind_groups::BindGroup0,
+    ); 4],
 ) -> (
     TextureSamplerView,
     crate::shader::bloom_combine::bind_groups::BindGroup0,
 ) {
-    // TODO: This creation can can be reused?
-    let texture = device.create_texture(&wgpu::TextureDescriptor {
-        label: Some("color blur texture"),
-        size: wgpu::Extent3d {
-            width,
-            height,
-            depth_or_array_layers: 1,
-        },
-        mip_level_count: 1,
-        sample_count: 1,
-        dimension: wgpu::TextureDimension::D2,
-        format: crate::RGBA_COLOR_FORMAT, // TODO: Why doesn't the game use float here?
-        usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
-    });
-    let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
-    let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
-        mag_filter: wgpu::FilterMode::Linear,
-        min_filter: wgpu::FilterMode::Linear,
-        mipmap_filter: wgpu::FilterMode::Nearest,
-        ..Default::default()
-    });
+    let texture = create_texture_sampler(device, width, height, crate::RGBA_COLOR_FORMAT);
 
     let bind_group = crate::shader::bloom_combine::bind_groups::BindGroup0::from_bindings(
         device,
         crate::shader::bloom_combine::bind_groups::BindGroupLayout0 {
-            bloom0_texture: &bloom_inputs[0].view,
-            bloom1_texture: &bloom_inputs[1].view,
-            bloom2_texture: &bloom_inputs[2].view,
-            bloom3_texture: &bloom_inputs[3].view,
-            // TODO: Avoid creating multiple samplers?
-            bloom_sampler: &bloom_inputs[0].sampler,
+            bloom0_texture: &bloom_inputs[0].0.view,
+            bloom1_texture: &bloom_inputs[1].0.view,
+            bloom2_texture: &bloom_inputs[2].0.view,
+            bloom3_texture: &bloom_inputs[3].0.view,
+            bloom_sampler: &bloom_inputs[0].0.sampler,
         },
     );
 
-    (TextureSamplerView { view, sampler }, bind_group)
+    (texture, bind_group)
 }
 
 fn create_bloom_upscale_bind_group(
@@ -628,27 +576,7 @@ fn create_bloom_upscale_bind_group(
     TextureSamplerView,
     crate::shader::bloom_upscale::bind_groups::BindGroup0,
 ) {
-    // TODO: This creation can can be reused?
-    let texture = device.create_texture(&wgpu::TextureDescriptor {
-        label: Some("bloom upscale texture"),
-        size: wgpu::Extent3d {
-            width,
-            height,
-            depth_or_array_layers: 1,
-        },
-        mip_level_count: 1,
-        sample_count: 1,
-        dimension: wgpu::TextureDimension::D2,
-        format: crate::RGBA_COLOR_FORMAT, // TODO: Why doesn't the game use float here?
-        usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
-    });
-    let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
-    let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
-        mag_filter: wgpu::FilterMode::Linear,
-        min_filter: wgpu::FilterMode::Linear,
-        mipmap_filter: wgpu::FilterMode::Nearest,
-        ..Default::default()
-    });
+    let texture = create_texture_sampler(device, width, height, crate::RGBA_COLOR_FORMAT);
 
     let bind_group = crate::shader::bloom_upscale::bind_groups::BindGroup0::from_bindings(
         device,
@@ -658,7 +586,7 @@ fn create_bloom_upscale_bind_group(
         },
     );
 
-    (TextureSamplerView { view, sampler }, bind_group)
+    (texture, bind_group)
 }
 
 fn create_post_process_bind_group(

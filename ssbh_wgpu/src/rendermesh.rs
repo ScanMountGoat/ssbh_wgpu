@@ -75,13 +75,9 @@ impl RenderModel {
     // TODO: Is there a clearer explanation of what this does?
     /// Update the uniform buffer with the data from `material` based on its material label.
     pub fn update_material_uniforms(&self, queue: &wgpu::Queue, material: &MatlEntryData) {
-        let uniforms = create_uniforms(Some(&material));
+        let uniforms = create_uniforms(Some(material));
         if let Some(data) = self.material_data_by_label.get(&material.material_label) {
-            queue.write_buffer(
-                &data.uniforms_buffer,
-                0,
-                bytemuck::cast_slice(&[uniforms]),
-            );
+            queue.write_buffer(&data.uniforms_buffer, 0, bytemuck::cast_slice(&[uniforms]));
         }
     }
 
