@@ -84,6 +84,51 @@ pub fn create_pipeline(
     })
 }
 
+pub fn create_depth_pipeline(device: &wgpu::Device) -> wgpu::RenderPipeline {
+    let shader = crate::shader::model_depth::create_shader_module(device);
+    let render_pipeline_layout = crate::shader::model_depth::create_pipeline_layout(device);
+
+    // TODO: Some of these values should come from wgsl_to_wgpu
+    // TODO: Get entry points from wgsl shader.
+    device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+        label: Some("Render Pipeline Depth"),
+        layout: Some(&render_pipeline_layout),
+        vertex: wgpu::VertexState {
+            module: &shader,
+            entry_point: "vs_main",
+            buffers: &[
+                // TODO: Can this be derived by wgsl_to_wgpu?
+                // Assume tightly packed elements with no additional padding or alignment.
+                wgpu::VertexBufferLayout {
+                    array_stride: crate::shader::model_depth::VertexInput0::SIZE_IN_BYTES,
+                    step_mode: wgpu::VertexStepMode::Vertex,
+                    attributes: &crate::shader::model_depth::VertexInput0::VERTEX_ATTRIBUTES,
+                },
+                wgpu::VertexBufferLayout {
+                    array_stride: crate::shader::model_depth::VertexInput1::SIZE_IN_BYTES,
+                    step_mode: wgpu::VertexStepMode::Vertex,
+                    attributes: &crate::shader::model_depth::VertexInput1::VERTEX_ATTRIBUTES,
+                },
+            ],
+        },
+        fragment: None,
+        primitive: wgpu::PrimitiveState::default(),
+        depth_stencil: Some(wgpu::DepthStencilState {
+            format: crate::DEPTH_FORMAT,
+            depth_write_enabled: true,
+            depth_compare: wgpu::CompareFunction::Less,
+            stencil: wgpu::StencilState::default(),
+            bias: wgpu::DepthBiasState {
+                constant: 2, // corresponds to bilinear filtering
+                slope_scale: 2.0,
+                clamp: 0.0,
+            },
+        }),
+        multisample: wgpu::MultisampleState::default(),
+        multiview: None,
+    })
+}
+
 // TODO: These can be easily unit tested.
 fn blend_state(blend_state: &BlendStateData) -> wgpu::BlendState {
     wgpu::BlendState {

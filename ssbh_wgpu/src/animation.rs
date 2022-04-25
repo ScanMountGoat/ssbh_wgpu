@@ -330,7 +330,9 @@ fn apply_material_track(
         // TODO: Update material parameters based on the type.
         match &track.values {
             TrackValues::Transform(_) => todo!(),
-            TrackValues::UvTransform(_) => todo!(),
+            TrackValues::UvTransform(_) => {
+                // TODO: UV transforms?
+            },
             TrackValues::Float(v) => {
                 if let Some(param) = changed_material
                     .floats

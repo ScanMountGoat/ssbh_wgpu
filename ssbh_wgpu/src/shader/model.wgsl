@@ -3,6 +3,10 @@ struct CameraTransforms {
     camera_pos: vec4<f32>;
 };
 
+struct LightTransforms {
+    light_transform: mat4x4<f32>;
+};
+
 // Align everything to 16 bytes to avoid alignment issues.
 // Smash Ultimate's shaders also use this alignment.
 // TODO: Investigate std140/std430
@@ -17,6 +21,7 @@ struct MaterialUniforms {
     has_vector: array<vec4<f32>, 64>;
 };
 
+// TODO: These should be sorted by how frequently they change for performance.
 [[group(0), binding(0)]]
 var<uniform> camera: CameraTransforms;
 
@@ -101,6 +106,16 @@ var sampler14: sampler;
 [[group(2), binding(0)]]
 var<uniform> uniforms: MaterialUniforms;
 
+// TODO: Where to store depth information.
+[[group(3), binding(0)]]
+var texture_shadow: texture_depth_2d;
+// TODO: wgsl_to_wgpu doesn't support comparison samplers yet.
+[[group(3), binding(1)]]
+var sampler_shadow: sampler_comparison;
+// TODO: Specify that this is just the main character light?
+// TODO: Does Smash Ultimate support shadow casting from multiple lights?
+[[group(3), binding(2)]]
+var<uniform> light: LightTransforms;
 
 struct VertexInput0 {
     [[location(0)]] position0: vec4<f32>;
@@ -132,6 +147,7 @@ struct VertexOutput {
     [[location(6)]] color_set1345_packed: vec4<u32>;
     [[location(7)]] color_set2_packed: vec4<u32>;
     [[location(8)]] color_set67_packed: vec4<u32>;
+    [[location(9)]] light_position: vec4<f32>;
 };
 
 fn Blend(a: vec3<f32>, b: vec4<f32>) -> vec3<f32> {
@@ -335,9 +351,14 @@ fn GgxAnisotropic(nDotH: f32, h: vec3<f32>, tangent: vec3<f32>, bitangent: vec3<
     return 1.0 / (normalization * denominator * denominator);
 }
 
-fn DiffuseTerm(bake1: vec2<f32>, albedo: vec3<f32>, 
-    nDotL: f32, ambientLight: vec3<f32>, ao: vec3<f32>, 
-    sssBlend: f32) -> vec3<f32>
+fn DiffuseTerm(
+    bake1: vec2<f32>, 
+    albedo: vec3<f32>, 
+    nDotL: f32, 
+    ambientLight: vec3<f32>, 
+    ao: vec3<f32>, 
+    sssBlend: f32, 
+    shadow: f32) -> vec3<f32>
 {
     // TODO: This can be cleaned up.
     var directShading = albedo * max(nDotL, 0.0);
@@ -366,7 +387,7 @@ fn DiffuseTerm(bake1: vec2<f32>, albedo: vec3<f32>,
 
     ambientTerm = ambientTerm * mix(albedo, uniforms.custom_vector[11].rgb, sssBlend);
 
-    let result = directLight * 1.0 + ambientTerm * 1.0;
+    let result = directLight * shadow + ambientTerm;
 
     // Baked stage lighting.
     //if (renderVertexColor == 1 && hasColorSet2 == 1)
@@ -403,14 +424,16 @@ fn SpecularBrdf(tangent: vec4<f32>, nDotH: f32, nDotL: f32, nDotV: f32, halfAngl
     }
 }
 
-fn SpecularTerm(tangent: vec4<f32>, nDotH: f32, nDotL: f32, nDotV: f32, halfAngle: vec3<f32>, normal: vec3<f32>, roughness: f32, specularIbl: vec3<f32>, metalness: f32, anisotropicRotation: f32) -> vec3<f32>
+fn SpecularTerm(tangent: vec4<f32>, nDotH: f32, nDotL: f32, nDotV: f32, halfAngle: vec3<f32>, normal: vec3<f32>, roughness: f32, 
+    specularIbl: vec3<f32>, metalness: f32, anisotropicRotation: f32,
+    shadow: f32) -> vec3<f32>
 {
     var directSpecular = vec3<f32>(4.0);
     directSpecular = directSpecular * SpecularBrdf(tangent, nDotH, nDotL, nDotV, halfAngle, normal, roughness, anisotropicRotation);
     directSpecular = directSpecular * 1.0;
     let indirectSpecular = specularIbl;
     // TODO: Why is the indirect specular off by a factor of 0.5?
-    let specularTerm = (directSpecular) + (indirectSpecular * 0.5);
+    let specularTerm = (directSpecular * shadow) + (indirectSpecular * 0.5);
 
     return specularTerm;
 }
@@ -526,6 +549,24 @@ fn GetF0FromSpecular(specular: f32) -> f32
     return specular * 0.2;
 }
 
+// Shadow mapping using comparison samplers.
+// https://github.com/gfx-rs/wgpu/blob/c226a10329f8c3283b995cccda21f4881b1ce6b1/wgpu/examples/shadow/shader.wgsl#L65-L76
+fn GetShadow(light_position: vec4<f32>) -> f32
+{
+    if (light_position.w <= 0.0) {
+        return 1.0;
+    }
+    // compensate for the Y-flip difference between the NDC and texture coordinates
+    let flipCorrection = vec2<f32>(0.5, -0.5);
+    // compute texture coordinates for shadow lookup
+    let projCorrection = 1.0 / light_position.w;
+    let light_local = light_position.xy * flipCorrection * projCorrection + vec2<f32>(0.5, 0.5);
+
+    var shadow = textureSampleCompareLevel(texture_shadow, sampler_shadow, light_local, light_position.z * projCorrection);
+
+    return shadow;
+}
+
 [[stage(vertex)]]
 fn vs_main(
     buffer0: VertexInput0,
@@ -543,6 +584,8 @@ fn vs_main(
     out.color_set1345_packed = buffer1.color_set1345_packed;
     out.color_set2_packed = buffer1.color_set2_packed;
     out.color_set67_packed = buffer1.color_set67_packed;
+
+    out.light_position = light.light_transform * vec4<f32>(buffer0.position0.xyz, 1.0);
     return out;
 }
 
@@ -628,6 +671,8 @@ fn fs_main(in: VertexOutput) -> [[location(0)]] vec4<f32> {
     let albedoColor = GetAlbedoColor(map1, uvSet, uvSet1, reflectionVector, uvTransform1, uvTransform2, uvTransform3, colorSet5);
     let emissionColor = GetEmissionColor(map1, uvSet, uvTransform1, uvTransform2);
 
+    let shadow = GetShadow(in.light_position);
+
     var outAlpha = max(albedoColor.a * emissionColor.a, uniforms.custom_vector[0].x);
     if (outAlpha < 0.5) {
         // TODO: This is disabled by some shaders.
@@ -650,9 +695,9 @@ fn fs_main(in: VertexOutput) -> [[location(0)]] vec4<f32> {
     let shAmbientB = dot(vec4<f32>(normalize(normal), 1.0), vec4<f32>(0.1419, 0.04334, -0.08283, 1.11018));
     let shColor = vec3<f32>(shAmbientR, shAmbientG, shAmbientB);
 
-    let diffusePass = DiffuseTerm(bake1, albedoColorFinal.rgb, nDotL, shColor, vec3<f32>(ao), sssBlend);
+    let diffusePass = DiffuseTerm(bake1, albedoColorFinal.rgb, nDotL, shColor, vec3<f32>(ao), sssBlend, shadow);
 
-    let specularPass = SpecularTerm(in.tangent, nDotH, max(nDotL, 0.0), nDotV, halfAngle, fragmentNormal, roughness, specularIbl, metalness, prm.a);
+    let specularPass = SpecularTerm(in.tangent, nDotH, max(nDotL, 0.0), nDotV, halfAngle, fragmentNormal, roughness, specularIbl, metalness, prm.a, shadow);
 
     let kSpecular = GetSpecularWeight(specularF0, albedoColorFinal.rgb, metalness, nDotV, roughness);
 
@@ -664,9 +709,11 @@ fn fs_main(in: VertexOutput) -> [[location(0)]] vec4<f32> {
     outColor = outColor + specularPass * kSpecular * ao;
     // TODO: Emission is weakened somehow?
     outColor = outColor + EmissionTerm(emissionColor) * 0.5;
-    outColor = GetRimBlend(outColor, albedoColorFinal, nDotV, max(nDotL, 0.0), 1.0, shColor);
+    // TODO: What affects rim lighting intensity?
+    let rimOcclusion = shadow;
+    outColor = GetRimBlend(outColor, albedoColorFinal, nDotV, max(nDotL, 0.0), rimOcclusion, shColor);
 
     // TODO: Color sets?
-
+    // TODO: Fix color sets to properly interpolate without exceeding hardware limits.
     return vec4<f32>(outColor, outAlpha);
 }

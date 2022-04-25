@@ -247,7 +247,7 @@ fn create_render_meshes(
     // Mesh objects control the depth state of the pipeline.
     // In practice, each (shader,mesh) pair may need a unique pipeline.
     // Cache materials separately since materials may share a pipeline.
-    // TODO: How to test ese optimizations?
+    // TODO: How to test these optimizations?
     let mut pipelines = HashMap::new();
 
     // Similarly, materials can be shared between mesh objects.
@@ -588,6 +588,7 @@ pub fn draw_render_meshes<'a>(
     meshes: &'a [&RenderMesh],
     render_pass: &mut wgpu::RenderPass<'a>,
     camera_bind_group: &'a crate::shader::model::bind_groups::BindGroup0,
+    shadow_bind_group: &'a crate::shader::model::bind_groups::BindGroup3,
 ) {
     for mesh in meshes.iter().filter(|m| m.is_visible) {
         render_pass.set_pipeline(mesh.pipeline.as_ref());
@@ -598,6 +599,28 @@ pub fn draw_render_meshes<'a>(
                 bind_group0: camera_bind_group,
                 bind_group1: &mesh.material_data.as_ref().textures_bind_group,
                 bind_group2: &mesh.material_data.as_ref().material_uniforms_bind_group,
+                bind_group3: shadow_bind_group
+            },
+        );
+
+        mesh.set_vertex_buffers(render_pass);
+        mesh.set_index_buffer(render_pass);
+
+        render_pass.draw_indexed(0..mesh.vertex_index_count, 0, 0..1);
+    }
+}
+
+pub fn draw_render_meshes_depth<'a>(
+    meshes: &'a [&RenderMesh],
+    render_pass: &mut wgpu::RenderPass<'a>,
+    camera_bind_group: &'a crate::shader::model_depth::bind_groups::BindGroup0,
+) {
+    for mesh in meshes.iter().filter(|m| m.is_visible) {
+        // TODO: Create a new pipeline that doesn't need extra bind groups?
+        crate::shader::model_depth::bind_groups::set_bind_groups(
+            render_pass,
+            crate::shader::model_depth::bind_groups::BindGroups::<'a> {
+                bind_group0: camera_bind_group,
             },
         );
 

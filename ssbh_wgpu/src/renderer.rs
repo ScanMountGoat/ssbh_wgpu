@@ -1,9 +1,13 @@
-use wgpu::{ComputePassDescriptor, ComputePipelineDescriptor};
+use glam::Vec4Swizzles;
+use wgpu::{util::DeviceExt, ComputePassDescriptor, ComputePipelineDescriptor};
 
 use crate::{
-    camera::create_camera_bind_group, texture::load_texture_sampler_3d, CameraTransforms,
-    RenderModel,
+    camera::create_camera_bind_group, pipeline::create_depth_pipeline,
+    texture::load_texture_sampler_3d, CameraTransforms, RenderModel,
 };
+
+const SHADOW_MAP_WIDTH: u32 = 1024;
+const SHADOW_MAP_HEIGHT: u32 = 1024;
 
 /// A renderer for drawing a collection of [RenderModel].
 pub struct SsbhRenderer {
@@ -13,10 +17,16 @@ pub struct SsbhRenderer {
     bloom_upscale_pipeline: wgpu::RenderPipeline,
     post_process_pipeline: wgpu::RenderPipeline,
     skinning_pipeline: wgpu::ComputePipeline,
+    shadow_pipeline: wgpu::RenderPipeline,
     // Store camera state for efficiently updating it later.
     // This avoids exposing shader implementations like bind groups.
     camera_buffer: wgpu::Buffer,
     camera_bind_group: crate::shader::model::bind_groups::BindGroup0,
+
+    model_shadow_bind_group: crate::shader::model::bind_groups::BindGroup3,
+    shadow_transform_bind_group: crate::shader::model_depth::bind_groups::BindGroup0,
+    shadow_depth: TextureSamplerView,
+
     pass_info: PassInfo,
     // TODO: Rework this to allow for updating the lut externally.
     // TODO: What's the easiest format to allow these updates?
@@ -152,6 +162,8 @@ impl SsbhRenderer {
             entry_point: "main",
         });
 
+        let shadow_pipeline = create_depth_pipeline(device);
+
         // TODO: Where should stage specific assets be loaded?
         let (color_lut_view, color_lut_sampler) =
             load_texture_sampler_3d(device, queue, "color_grading_lut.nutexb");
@@ -166,6 +178,46 @@ impl SsbhRenderer {
         let (camera_buffer, camera_bind_group) =
             create_camera_bind_group(device, glam::Vec4::ZERO, glam::Mat4::IDENTITY);
 
+        // TODO: This should be editable when changing stages.
+        let light_quaternion = glam::Quat::from_xyzw(-0.453154, -0.365998, -0.211309, 0.784886);
+
+        // TODO: What controls the "scale" of the lighting region?
+        let perspective_matrix =
+            glam::Mat4::orthographic_rh(-100.0, 100.0, -100.0, 100.0, -100.0, 100.0);
+        // TODO: Is Smash Ultimate using a different coordinate system?
+        // TODO: How to get this rotation to match in game?
+        let model_view = glam::Mat4::from_rotation_x(180.0f32.to_radians())
+            * glam::Mat4::from_quat(light_quaternion);
+        let light_transform = perspective_matrix * model_view;
+
+        let shadow_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Camera Buffer"),
+            contents: bytemuck::cast_slice(&[crate::shader::model_depth::CameraTransforms {
+                mvp_matrix: light_transform,
+            }]),
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        });
+        let shadow_transform_bind_group =
+            crate::shader::model_depth::bind_groups::BindGroup0::from_bindings(
+                device,
+                crate::shader::model_depth::bind_groups::BindGroupLayout0 {
+                    camera: &shadow_buffer,
+                },
+            );
+
+        // Depth from the perspective of the light.
+        // TODO: Multiple lights require multiple depth maps?
+        let shadow_depth = create_depth(device, SHADOW_MAP_WIDTH, SHADOW_MAP_HEIGHT);
+
+        let model_shadow_bind_group = crate::shader::model::bind_groups::BindGroup3::from_bindings(
+            device,
+            crate::shader::model::bind_groups::BindGroupLayout3 {
+                texture_shadow: &shadow_depth.view,
+                sampler_shadow: &shadow_depth.sampler,
+                light: &shadow_buffer,
+            },
+        );
+
         Self {
             bloom_threshold_pipeline,
             bloom_blur_pipeline,
@@ -173,10 +225,14 @@ impl SsbhRenderer {
             bloom_upscale_pipeline,
             post_process_pipeline,
             skinning_pipeline,
+            shadow_pipeline,
             camera_buffer,
             camera_bind_group,
+            model_shadow_bind_group,
             pass_info,
             color_lut,
+            shadow_transform_bind_group,
+            shadow_depth,
         }
     }
 
@@ -221,6 +277,29 @@ impl SsbhRenderer {
 
         drop(skinning_pass);
 
+        // Depth only pass for shadow maps.
+        let mut shadow_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("Shadow Pass"),
+            color_attachments: &[],
+            depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                view: &self.shadow_depth.view,
+                depth_ops: Some(wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(1.0),
+                    store: true,
+                }),
+                stencil_ops: None,
+            }),
+        });
+
+        // TODO: Use the light transforms for the "camera".
+        shadow_pass.set_pipeline(&self.shadow_pipeline);
+        crate::rendermesh::draw_render_meshes_depth(
+            &meshes,
+            &mut shadow_pass,
+            &self.shadow_transform_bind_group,
+        );
+        drop(shadow_pass);
+
         // TODO: Force having a color attachment for each fragment shader output in wgsl_to_wgpu?
         // Draw the models to the initial color buffer.
         // TODO: Should this pass draw to a floating point target?
@@ -245,7 +324,12 @@ impl SsbhRenderer {
             }),
         });
 
-        crate::rendermesh::draw_render_meshes(&meshes, &mut model_pass, &self.camera_bind_group);
+        crate::rendermesh::draw_render_meshes(
+            &meshes,
+            &mut model_pass,
+            &self.camera_bind_group,
+            &self.model_shadow_bind_group,
+        );
         drop(model_pass);
 
         // Extract the portions of the image that contribute to bloom.
@@ -442,7 +526,9 @@ fn create_depth(device: &wgpu::Device, width: u32, height: u32) -> TextureSample
         mag_filter: wgpu::FilterMode::Linear,
         min_filter: wgpu::FilterMode::Linear,
         mipmap_filter: wgpu::FilterMode::Nearest,
+        // TODO: Support comparison samplers.
         compare: Some(wgpu::CompareFunction::LessEqual),
+        // compare: None,
         ..Default::default()
     });
 
