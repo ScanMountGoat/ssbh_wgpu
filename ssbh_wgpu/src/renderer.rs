@@ -1,4 +1,3 @@
-use glam::Vec4Swizzles;
 use wgpu::{util::DeviceExt, ComputePassDescriptor, ComputePipelineDescriptor};
 
 use crate::{

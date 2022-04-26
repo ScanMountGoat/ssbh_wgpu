@@ -363,7 +363,7 @@ fn create_render_mesh(
             ))
         });
 
-    let buffer_data = mesh_object_buffers(device, mesh_object, &model.skel);
+    let buffer_data = mesh_object_buffers(device, mesh_object, model.skel.as_ref());
 
     let skinning_bind_group = crate::shader::skinning::bind_groups::BindGroup0::from_bindings(
         device,
