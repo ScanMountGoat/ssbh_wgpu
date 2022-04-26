@@ -3,11 +3,11 @@ use wgpu::{util::DeviceExt, ComputePassDescriptor, ComputePipelineDescriptor};
 
 use crate::{
     camera::create_camera_bind_group, pipeline::create_depth_pipeline,
-    texture::load_texture_sampler_3d, CameraTransforms, RenderModel,
+    texture::load_texture_sampler_3d, CameraTransforms, RenderModel, calculate_light_transform,
 };
 
-const SHADOW_MAP_WIDTH: u32 = 1024;
-const SHADOW_MAP_HEIGHT: u32 = 1024;
+const SHADOW_MAP_WIDTH: u32 = 512;
+const SHADOW_MAP_HEIGHT: u32 = 512;
 
 /// A renderer for drawing a collection of [RenderModel].
 pub struct SsbhRenderer {
@@ -178,17 +178,7 @@ impl SsbhRenderer {
         let (camera_buffer, camera_bind_group) =
             create_camera_bind_group(device, glam::Vec4::ZERO, glam::Mat4::IDENTITY);
 
-        // TODO: This should be editable when changing stages.
-        let light_quaternion = glam::Quat::from_xyzw(-0.453154, -0.365998, -0.211309, 0.784886);
-
-        // TODO: What controls the "scale" of the lighting region?
-        let perspective_matrix =
-            glam::Mat4::orthographic_rh(-100.0, 100.0, -100.0, 100.0, -100.0, 100.0);
-        // TODO: Is Smash Ultimate using a different coordinate system?
-        // TODO: How to get this rotation to match in game?
-        let model_view = glam::Mat4::from_rotation_x(180.0f32.to_radians())
-            * glam::Mat4::from_quat(light_quaternion);
-        let light_transform = perspective_matrix * model_view;
+        let light_transform = calculate_light_transform();
 
         let shadow_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Camera Buffer"),

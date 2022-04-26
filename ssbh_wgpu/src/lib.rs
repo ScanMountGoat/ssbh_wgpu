@@ -140,3 +140,19 @@ fn textures_by_file_name(parent: &Path) -> Vec<(String, NutexbFile)> {
         })
         .collect()
 }
+
+// TODO: Where to put this?
+// TODO: Develop tests cases based on simple quaternions like x 90, y90, etc.
+pub fn calculate_light_transform() -> glam::Mat4 {
+    // TODO: This should be editable when changing stages.
+    // TODO: Why do we negate w?
+    // TODO: Read this value from the transform for LightStg0 from light00_set.nuanmb.
+    // TODO: Do translation and scale matter?
+    let light_quaternion = glam::Quat::from_xyzw(-0.495286, -0.0751228, 0.0431234, -0.864401);
+
+    // TODO: What controls the "scale" of the lighting region?
+    let perspective_matrix = glam::Mat4::orthographic_rh(-50.0, 50.0, -50.0, 50.0, -50.0, 50.0);
+    let model_view = glam::Mat4::from_quat(light_quaternion);
+
+    perspective_matrix * model_view
+}
