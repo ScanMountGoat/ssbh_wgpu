@@ -239,7 +239,7 @@ fn create_render_meshes(
         .map(|(name, nutexb)| {
             (
                 name.clone(),
-                nutexb_wgpu::NutexbImage::from(nutexb).create_texture(device, queue),
+                nutexb_wgpu::create_texture(nutexb, device, queue),
             )
         })
         .collect();
@@ -599,7 +599,7 @@ pub fn draw_render_meshes<'a>(
                 bind_group0: camera_bind_group,
                 bind_group1: &mesh.material_data.as_ref().textures_bind_group,
                 bind_group2: &mesh.material_data.as_ref().material_uniforms_bind_group,
-                bind_group3: shadow_bind_group
+                bind_group3: shadow_bind_group,
             },
         );
 

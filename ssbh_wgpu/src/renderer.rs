@@ -1,8 +1,8 @@
 use wgpu::{util::DeviceExt, ComputePassDescriptor, ComputePipelineDescriptor};
 
 use crate::{
-    camera::create_camera_bind_group, pipeline::create_depth_pipeline,
-    texture::load_texture_sampler_3d, CameraTransforms, RenderModel, calculate_light_transform,
+    calculate_light_transform, camera::create_camera_bind_group, pipeline::create_depth_pipeline,
+    texture::load_texture_sampler_3d, CameraTransforms, RenderModel,
 };
 
 const SHADOW_MAP_WIDTH: u32 = 512;

@@ -332,7 +332,7 @@ fn apply_material_track(
             TrackValues::Transform(_) => todo!(),
             TrackValues::UvTransform(_) => {
                 // TODO: UV transforms?
-            },
+            }
             TrackValues::Float(v) => {
                 if let Some(param) = changed_material
                     .floats

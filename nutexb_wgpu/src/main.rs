@@ -1,7 +1,7 @@
 use std::{iter, path::Path};
 
 use futures::executor::block_on;
-use nutexb_wgpu::{NutexbFile, NutexbImage, TextureRenderer};
+use nutexb_wgpu::{NutexbFile, TextureRenderer};
 use winit::{
     event::*,
     event_loop::{ControlFlow, EventLoop},
@@ -54,18 +54,23 @@ impl State {
         surface.configure(&device, &config);
 
         let start = std::time::Instant::now();
-        let nutexb = NutexbImage::from(&NutexbFile::read_from_file(path).unwrap());
+        let nutexb = NutexbFile::read_from_file(path).unwrap();
         println!("Load Nutexb: {:?}", start.elapsed());
 
-        let texture = nutexb.create_texture(&device, &queue);
+        let texture = nutexb_wgpu::create_texture(&nutexb, &device, &queue);
 
         let renderer = TextureRenderer::new(&device, surface_format);
 
         // Use the full texture width and height.
         // Some use cases benefit from custom dimensions like texture thumbnails.
         let start = std::time::Instant::now();
-        let rgba_texture =
-            renderer.render_to_texture_rgba(&device, &queue, &texture, nutexb.width, nutexb.height);
+        let rgba_texture = renderer.render_to_texture_rgba(
+            &device,
+            &queue,
+            &texture,
+            nutexb.footer.width,
+            nutexb.footer.height,
+        );
         println!("Render to RGBA: {:?}", start.elapsed());
 
         let rgba_texture_bind_group = renderer.create_texture_bind_group(&device, &rgba_texture);

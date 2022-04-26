@@ -3,7 +3,7 @@ use std::{
     path::Path,
 };
 
-use nutexb_wgpu::{NutexbFile, NutexbImage};
+use nutexb_wgpu::NutexbFile;
 use ssbh_data::matl_data::{MagFilter, MatlEntryData, MinFilter, ParamId, SamplerData, WrapMode};
 use wgpu::{
     Device, FilterMode, Queue, Sampler, SamplerDescriptor, Texture, TextureView,
@@ -44,19 +44,24 @@ pub fn load_texture_sampler(
             // This shouldn't require an actual file system for better portability.
             // TODO: This function should return an error.
             // TODO: Case sensitive?
-            let texture = &textures
+            textures
                 .iter()
                 .find(|(p, _)| {
                     Path::new(&p.to_lowercase()).with_extension("")
                         == Path::new(&material_path.to_lowercase())
                 })
-                .unwrap()
-                .1;
-
-            // TODO: Missing textures should use the in game default of white?
-            // TODO: Log/return this error?
-
-            texture.create_view(&TextureViewDescriptor::default())
+                .map(|(_, t)| t)
+                .unwrap_or_else(|| {
+                    // TODO: Is the default in game for missing textures always white (check cube maps)?
+                    // TODO: Does changing the default white texture change the "missing" texture?
+                    // TODO: Log/return this error?
+                    &default_textures
+                        .iter()
+                        .find(|d| d.0 == "/common/shader/sfxpbs/default_white")
+                        .unwrap()
+                        .1
+                })
+                .create_view(&TextureViewDescriptor::default())
         }
     };
 
@@ -86,7 +91,7 @@ pub fn load_texture_sampler_cube(
 
     // TODO: This function should return an error.
     let nutexb = NutexbFile::read_from_file(absolute_path).unwrap();
-    let texture = NutexbImage::from(&nutexb).create_texture(device, queue);
+    let texture = nutexb_wgpu::create_texture(&nutexb, device, queue);
     let view = texture.create_view(&TextureViewDescriptor {
         dimension: Some(TextureViewDimension::Cube),
         ..Default::default()
@@ -113,7 +118,7 @@ pub fn load_default_cube(
 
     // TODO: This function should return an error.
     let nutexb = NutexbFile::read_from_file(absolute_path).unwrap();
-    let texture = NutexbImage::from(&nutexb).create_texture(device, queue);
+    let texture = nutexb_wgpu::create_texture(&nutexb, device, queue);
     let view = texture.create_view(&TextureViewDescriptor {
         dimension: Some(wgpu::TextureViewDimension::Cube),
         ..Default::default()
@@ -136,7 +141,7 @@ pub fn load_texture_sampler_3d<P: AsRef<Path>>(
 ) -> (wgpu::TextureView, wgpu::Sampler) {
     // TODO: This function should return an error.
     let nutexb = NutexbFile::read_from_file(path).unwrap();
-    let texture = NutexbImage::from(&nutexb).create_texture(device, queue);
+    let texture = nutexb_wgpu::create_texture(&nutexb, device, queue);
     let view = texture.create_view(&wgpu::TextureViewDescriptor {
         dimension: Some(wgpu::TextureViewDimension::D3),
         ..Default::default()
