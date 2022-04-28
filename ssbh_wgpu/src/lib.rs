@@ -17,9 +17,11 @@ use nutexb_wgpu::NutexbFile;
 pub use renderer::SsbhRenderer;
 pub use rendermesh::{RenderMesh, RenderModel};
 pub use shader::model::CameraTransforms;
-pub use texture::create_default_textures;
+pub use texture::{create_default_textures, load_default_cube};
 
 use ssbh_data::prelude::*;
+
+use crate::{pipeline::PipelineData, rendermesh::RenderMeshSharedData};
 
 // Rgba16Float is widely supported.
 // The in game format uses less precision.
@@ -50,30 +52,33 @@ pub fn load_render_models(
     queue: &wgpu::Queue,
     surface_format: wgpu::TextureFormat,
     models: &[ModelFolder],
+    // TODO: Group textures together?
     default_textures: &[(&'static str, wgpu::Texture)],
+    stage_cube: &(wgpu::TextureView, wgpu::Sampler),
 ) -> Vec<RenderModel> {
     let start = std::time::Instant::now();
 
     let shader = crate::shader::model::create_shader_module(device);
+    let layout = crate::shader::model::create_pipeline_layout(device);
 
-    // TODO: Reuse this for all pipelines?
-    // TODO: Should the camera go in the push constants?
-    let render_pipeline_layout = crate::shader::model::create_pipeline_layout(device);
+    let pipeline_data = PipelineData {
+        surface_format,
+        layout,
+        shader,
+    };
 
-    // TODO: Just pass the model folder in a convenience function?
     // TODO: Find a way to efficiently parallelize render mesh creation?
     let render_models: Vec<_> = models
         .iter()
         .map(|model| {
-            rendermesh::create_render_model(
-                device,
-                queue,
-                &render_pipeline_layout,
-                &shader,
-                surface_format,
+            let shared_data = RenderMeshSharedData {
+                pipeline_data: &pipeline_data,
                 model,
                 default_textures,
-            )
+                stage_cube,
+            };
+
+            rendermesh::create_render_model(device, queue, &shared_data)
         })
         .collect();
 

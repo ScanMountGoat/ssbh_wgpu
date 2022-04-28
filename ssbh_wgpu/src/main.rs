@@ -1,6 +1,7 @@
 use std::{iter, path::Path};
 
 use ssbh_wgpu::create_default_textures;
+use ssbh_wgpu::load_default_cube;
 use ssbh_wgpu::CameraTransforms;
 use ssbh_wgpu::RenderModel;
 use ssbh_wgpu::{load_model_folders, load_render_models, SsbhRenderer};
@@ -101,10 +102,20 @@ impl State {
         // TODO: Where to store/load anim files?
         let animation = anim_path.map(|anim_path| AnimData::from_file(anim_path).unwrap());
 
+        // TODO: Combine these into a single global textures struct?
         let default_textures = create_default_textures(&device, &queue);
+        let stage_cube = load_default_cube(&device, &queue).unwrap();
+        let stage_cube = (stage_cube.0, stage_cube.1);
+
         let models = load_model_folders(folder);
-        let render_meshes =
-            load_render_models(&device, &queue, surface_format, &models, &default_textures);
+        let render_meshes = load_render_models(
+            &device,
+            &queue,
+            surface_format,
+            &models,
+            &default_textures,
+            &stage_cube,
+        );
 
         let renderer = SsbhRenderer::new(&device, &queue, size.width, size.height);
 

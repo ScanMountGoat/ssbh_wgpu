@@ -1,10 +1,15 @@
 use ssbh_data::matl_data::{BlendFactor, BlendStateData, MatlEntryData};
 
+// Create some helper structs to simplify the function signatures.
+pub struct PipelineData {
+    pub surface_format: wgpu::TextureFormat,
+    pub layout: wgpu::PipelineLayout,
+    pub shader: wgpu::ShaderModule,
+}
+
 pub fn create_pipeline(
     device: &wgpu::Device,
-    render_pipeline_layout: &wgpu::PipelineLayout,
-    shader: &wgpu::ShaderModule,
-    surface_format: wgpu::TextureFormat,
+    pipeline_data: &PipelineData,
     material: Option<&MatlEntryData>,
     depth_write: bool,
     depth_test: bool,
@@ -19,9 +24,9 @@ pub fn create_pipeline(
     // TODO: Get entry points from wgsl shader.
     device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
         label: Some("Render Pipeline"),
-        layout: Some(render_pipeline_layout),
+        layout: Some(&pipeline_data.layout),
         vertex: wgpu::VertexState {
-            module: shader,
+            module: &pipeline_data.shader,
             entry_point: "vs_main",
             buffers: &[
                 // Assume tightly packed elements with no additional padding or alignment.
@@ -38,11 +43,11 @@ pub fn create_pipeline(
             ],
         },
         fragment: Some(wgpu::FragmentState {
-            module: shader,
+            module: &pipeline_data.shader,
             entry_point: "fs_main",
             // TODO: Automatically create a target for each fragment output?
             targets: &[wgpu::ColorTargetState {
-                format: surface_format,
+                format: pipeline_data.surface_format,
                 blend: blend_state_data.map(blend_state),
                 write_mask: wgpu::ColorWrites::ALL,
             }],

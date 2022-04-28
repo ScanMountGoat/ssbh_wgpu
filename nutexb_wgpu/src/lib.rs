@@ -126,7 +126,7 @@ impl TextureRenderer {
         height: u32,
     ) -> wgpu::Texture {
         // TODO: Is this more efficient using compute shaders?
-        let texture_bind_group = self.create_texture_bind_group(&device, texture);
+        let texture_bind_group = self.create_texture_bind_group(device, texture);
 
         let rgba_texture = device.create_texture(&wgpu::TextureDescriptor {
             label: None,

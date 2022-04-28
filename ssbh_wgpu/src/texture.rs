@@ -220,11 +220,6 @@ pub fn create_default_textures(
     // TODO: Return a dictionary?
     vec![
         (
-            // TODO: This will change if the current stage changes?
-            "#replace_cubemap",
-            load_default_cube(device, queue).unwrap().2,
-        ),
-        (
             "/common/shader/sfxpbs/default_black",
             solid_color_texture_2d(device, queue, [0, 0, 0, 255]),
         ),
