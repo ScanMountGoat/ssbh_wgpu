@@ -1,7 +1,7 @@
 use crate::{
     animation::{animate_materials, animate_skel, animate_visibility, AnimationTransforms},
     pipeline::create_pipeline,
-    texture::load_texture_sampler,
+    texture::{load_sampler, load_texture},
     uniforms::{create_uniforms, create_uniforms_buffer},
     vertex::{mesh_object_buffers, MeshObjectBufferData},
     ModelFolder, PipelineData,
@@ -422,84 +422,64 @@ fn create_textures_bind_group(
     default_textures: &[(&'static str, wgpu::Texture)],
     stage_cube: &(wgpu::TextureView, wgpu::Sampler),
 ) -> crate::shader::model::bind_groups::BindGroup1 {
-    let load_texture_sampler = |texture_id, sampler_id| {
-        load_texture_sampler(
-            material,
-            device,
-            texture_id,
-            sampler_id,
-            textures,
-            default_textures,
-        )
-    };
     // TODO: Do all textures default to white if the path isn't correct?
     // TODO: Default cube map?
-    let (_, default_white) = default_textures
+    let default_white = &default_textures
         .iter()
         .find(|d| d.0 == "/common/shader/sfxpbs/default_white")
-        .unwrap();
-    let default_white = (
-        default_white.create_view(&TextureViewDescriptor::default()),
-        device.create_sampler(&SamplerDescriptor::default()),
-    );
+        .unwrap()
+        .1;
+
+    let load_texture = |texture_id| {
+        load_texture(material, texture_id, textures, default_textures)
+            .unwrap_or_else(|| default_white.create_view(&TextureViewDescriptor::default()))
+    };
+
+    let load_sampler = |sampler_id| {
+        load_sampler(material, device, sampler_id)
+            .unwrap_or_else(|| device.create_sampler(&SamplerDescriptor::default()))
+    };
 
     // TODO: Better cube map handling.
     // TODO: Default texture for other cube maps?
 
-    // TODO: Avoid loading texture files more than once.
     // This can be done by creating a HashMap<Path, Texture>.
     // Most textures will be used, so it doesn't make sense to lazy load them.
-    // TODO: Generate this using a macro?
-    let texture0 = load_texture_sampler(ParamId::Texture0, ParamId::Sampler0);
-    let texture1 = load_texture_sampler(ParamId::Texture1, ParamId::Sampler1);
-    // let texture2 = load_texture_sampler_cube(ParamId::Texture2, ParamId::Sampler2).unwrap();
-    let texture3 = load_texture_sampler(ParamId::Texture3, ParamId::Sampler3);
-    let texture4 = load_texture_sampler(ParamId::Texture4, ParamId::Sampler4);
-    let texture5 = load_texture_sampler(ParamId::Texture5, ParamId::Sampler5);
-    let texture6 = load_texture_sampler(ParamId::Texture6, ParamId::Sampler6);
-    // let texture7 = load_texture_sampler_cube(ParamId::Texture7, ParamId::Sampler7).unwrap();
-    // let texture8 = load_texture_sampler_cube(ParamId::Texture8, ParamId::Sampler8).unwrap();
-    let texture9 = load_texture_sampler(ParamId::Texture9, ParamId::Sampler9);
-    let texture10 = load_texture_sampler(ParamId::Texture10, ParamId::Sampler10);
-    let texture11 = load_texture_sampler(ParamId::Texture11, ParamId::Sampler11);
-    let texture12 = load_texture_sampler(ParamId::Texture12, ParamId::Sampler12);
-    let texture13 = load_texture_sampler(ParamId::Texture13, ParamId::Sampler13);
-    let texture14 = load_texture_sampler(ParamId::Texture14, ParamId::Sampler14);
 
     // TODO: How to enforce certain textures being cube maps?
     crate::shader::model::bind_groups::BindGroup1::from_bindings(
         device,
         crate::shader::model::bind_groups::BindGroupLayout1 {
-            texture0: &texture0.as_ref().unwrap_or(&default_white).0,
-            sampler0: &texture0.as_ref().unwrap_or(&default_white).1,
-            texture1: &texture1.as_ref().unwrap_or(&default_white).0,
-            sampler1: &texture1.as_ref().unwrap_or(&default_white).1,
+            texture0: &load_texture(ParamId::Texture0),
+            sampler0: &load_sampler(ParamId::Sampler0),
+            texture1: &load_texture(ParamId::Texture1),
+            sampler1: &load_sampler(ParamId::Sampler1),
             texture2: &stage_cube.0,
-            sampler2: &stage_cube.1,
-            texture3: &texture3.as_ref().unwrap_or(&default_white).0,
-            sampler3: &texture3.as_ref().unwrap_or(&default_white).1,
-            texture4: &texture4.as_ref().unwrap_or(&default_white).0,
-            sampler4: &texture4.as_ref().unwrap_or(&default_white).1,
-            texture5: &texture5.as_ref().unwrap_or(&default_white).0,
-            sampler5: &texture5.as_ref().unwrap_or(&default_white).1,
-            texture6: &texture6.as_ref().unwrap_or(&default_white).0,
-            sampler6: &texture6.as_ref().unwrap_or(&default_white).1,
+            sampler2: &load_sampler(ParamId::Sampler2),
+            texture3: &load_texture(ParamId::Texture3),
+            sampler3: &load_sampler(ParamId::Sampler3),
+            texture4: &load_texture(ParamId::Texture4),
+            sampler4: &load_sampler(ParamId::Sampler4),
+            texture5: &load_texture(ParamId::Texture5),
+            sampler5: &load_sampler(ParamId::Sampler5),
+            texture6: &load_texture(ParamId::Texture6),
+            sampler6: &load_sampler(ParamId::Sampler6),
             texture7: &stage_cube.0,
-            sampler7: &stage_cube.1,
+            sampler7: &load_sampler(ParamId::Sampler7),
             texture8: &stage_cube.0,
-            sampler8: &stage_cube.1,
-            texture9: &texture9.as_ref().unwrap_or(&default_white).0,
-            sampler9: &texture9.as_ref().unwrap_or(&default_white).1,
-            texture10: &texture10.as_ref().unwrap_or(&default_white).0,
-            sampler10: &texture10.as_ref().unwrap_or(&default_white).1,
-            texture11: &texture11.as_ref().unwrap_or(&default_white).0,
-            sampler11: &texture11.as_ref().unwrap_or(&default_white).1,
-            texture12: &texture12.as_ref().unwrap_or(&default_white).0,
-            sampler12: &texture12.as_ref().unwrap_or(&default_white).1,
-            texture13: &texture13.as_ref().unwrap_or(&default_white).0,
-            sampler13: &texture13.as_ref().unwrap_or(&default_white).1,
-            texture14: &texture14.as_ref().unwrap_or(&default_white).0,
-            sampler14: &texture14.as_ref().unwrap_or(&default_white).1,
+            sampler8: &load_sampler(ParamId::Sampler8),
+            texture9: &load_texture(ParamId::Texture9),
+            sampler9: &load_sampler(ParamId::Sampler9),
+            texture10: &load_texture(ParamId::Texture10),
+            sampler10: &load_sampler(ParamId::Sampler10),
+            texture11: &load_texture(ParamId::Texture11),
+            sampler11: &load_sampler(ParamId::Sampler11),
+            texture12: &load_texture(ParamId::Texture12),
+            sampler12: &load_sampler(ParamId::Sampler12),
+            texture13: &load_texture(ParamId::Texture13),
+            sampler13: &load_sampler(ParamId::Sampler13),
+            texture14: &load_texture(ParamId::Texture14),
+            sampler14: &load_sampler(ParamId::Sampler14),
         },
     )
 }
@@ -521,6 +501,8 @@ fn find_parent_index(
     mesh_object: &ssbh_data::mesh_data::MeshObjectData,
     skel: &Option<SkelData>,
 ) -> i32 {
+    // Only include a parent if there are no bone influences.
+    // TODO: What happens if there are influences and a parent bone?
     if mesh_object.bone_influences.is_empty() {
         skel.as_ref()
             .and_then(|skel| {

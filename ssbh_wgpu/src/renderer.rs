@@ -515,9 +515,7 @@ fn create_depth(device: &wgpu::Device, width: u32, height: u32) -> TextureSample
         mag_filter: wgpu::FilterMode::Linear,
         min_filter: wgpu::FilterMode::Linear,
         mipmap_filter: wgpu::FilterMode::Nearest,
-        // TODO: Support comparison samplers.
         compare: Some(wgpu::CompareFunction::LessEqual),
-        // compare: None,
         ..Default::default()
     });
 

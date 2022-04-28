@@ -5,19 +5,14 @@ use std::{
 
 use nutexb_wgpu::NutexbFile;
 use ssbh_data::matl_data::{MagFilter, MatlEntryData, MinFilter, ParamId, SamplerData, WrapMode};
-use wgpu::{
-    Device, FilterMode, Queue, Sampler, SamplerDescriptor, Texture, TextureView,
-    TextureViewDescriptor, TextureViewDimension,
-};
+use wgpu::{Device, Queue, Sampler, Texture, TextureView, TextureViewDescriptor};
 
-pub fn load_texture_sampler(
+pub fn load_texture(
     material: Option<&MatlEntryData>,
-    device: &Device,
     texture_id: ParamId,
-    sampler_id: ParamId,
     textures: &[(String, Texture)],
     default_textures: &[(&'static str, Texture)],
-) -> Option<(TextureView, Sampler)> {
+) -> Option<TextureView> {
     // TODO: Add proper path and parameter handling.
     // TODO: Handle missing paths.
     let material = material?;
@@ -65,6 +60,16 @@ pub fn load_texture_sampler(
         }
     };
 
+    Some(view)
+}
+
+pub fn load_sampler(
+    material: Option<&MatlEntryData>,
+    device: &Device,
+    sampler_id: ParamId,
+) -> Option<Sampler> {
+    let material = material?;
+
     let sampler_data = material
         .samplers
         .iter()
@@ -73,38 +78,7 @@ pub fn load_texture_sampler(
 
     let sampler = device.create_sampler(&sampler_data);
 
-    Some((view, sampler))
-}
-
-pub fn load_texture_sampler_cube(
-    _material: Option<&MatlEntryData>,
-    device: &Device,
-    queue: &Queue,
-    _folder: &str,
-    _texture_id: ParamId,
-    _sampler_id: ParamId,
-) -> Option<(TextureView, Sampler)> {
-    // TODO: Add proper path and parameter handling.
-    // TODO: Handle missing paths.
-    // TODO: Don't hardcode this path.
-    let absolute_path = std::path::Path::new("reflection_cubemap.nutexb");
-
-    // TODO: This function should return an error.
-    let nutexb = NutexbFile::read_from_file(absolute_path).unwrap();
-    let texture = nutexb_wgpu::create_texture(&nutexb, device, queue);
-    let view = texture.create_view(&TextureViewDescriptor {
-        dimension: Some(TextureViewDimension::Cube),
-        ..Default::default()
-    });
-
-    let sampler = device.create_sampler(&SamplerDescriptor {
-        mag_filter: FilterMode::Linear,
-        min_filter: FilterMode::Linear,
-        mipmap_filter: FilterMode::Linear,
-        ..Default::default()
-    });
-
-    Some((view, sampler))
+    Some(sampler)
 }
 
 // TODO: Rework return type?
