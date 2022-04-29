@@ -11,7 +11,7 @@ pub fn load_texture(
     material: Option<&MatlEntryData>,
     texture_id: ParamId,
     textures: &[(String, Texture)],
-    default_textures: &[(&'static str, Texture)],
+    default_textures: &[(String, Texture)],
 ) -> Option<TextureView> {
     // TODO: Add proper path and parameter handling.
     // TODO: Handle missing paths.
@@ -189,81 +189,81 @@ fn address_mode(wrap_mode: WrapMode) -> wgpu::AddressMode {
 pub fn create_default_textures(
     device: &Device,
     queue: &wgpu::Queue,
-) -> Vec<(&'static str, wgpu::Texture)> {
+) -> Vec<(String, wgpu::Texture)> {
     // TODO: Avoid duplicates.
     // TODO: Return a dictionary?
     vec![
         (
-            "/common/shader/sfxpbs/default_black",
+            "/common/shader/sfxpbs/default_black".to_string(),
             solid_color_texture_2d(device, queue, [0, 0, 0, 255]),
         ),
         (
-            "/common/shader/sfxpbs/default_color",
+            "/common/shader/sfxpbs/default_color".to_string(),
             solid_color_texture_2d(device, queue, [255, 255, 255, 255]),
         ),
         (
-            "/common/shader/sfxpbs/default_color2",
+            "/common/shader/sfxpbs/default_color2".to_string(),
             solid_color_texture_2d(device, queue, [255, 255, 255, 255]),
         ),
         (
-            "/common/shader/sfxpbs/default_color3",
+            "/common/shader/sfxpbs/default_color3".to_string(),
             solid_color_texture_2d(device, queue, [255, 255, 255, 255]),
         ),
         (
-            "/common/shader/sfxpbs/default_color4",
+            "/common/shader/sfxpbs/default_color4".to_string(),
             solid_color_texture_2d(device, queue, [255, 255, 255, 255]),
         ),
         (
             // TODO: This is an 8x8 yellow checkerboard
-            "/common/shader/sfxpbs/default_diffuse2",
+            "/common/shader/sfxpbs/default_diffuse2".to_string(),
             solid_color_texture_2d(device, queue, [255, 255, 0, 255]),
         ),
         (
-            "/common/shader/sfxpbs/default_gray",
+            "/common/shader/sfxpbs/default_gray".to_string(),
             solid_color_texture_2d(device, queue, [123, 121, 123, 255]),
         ),
         (
-            "/common/shader/sfxpbs/default_metallicbg",
+            "/common/shader/sfxpbs/default_metallicbg".to_string(),
             solid_color_texture_2d(device, queue, [0, 255, 255, 58]),
         ),
         (
-            "/common/shader/sfxpbs/default_normal",
+            "/common/shader/sfxpbs/default_normal".to_string(),
             solid_color_texture_2d(device, queue, [132, 120, 255, 255]),
         ),
         (
-            "/common/shader/sfxpbs/default_params",
+            "/common/shader/sfxpbs/default_params".to_string(),
             solid_color_texture_2d(device, queue, [0, 255, 255, 58]),
         ),
         (
-            "/common/shader/sfxpbs/default_params_r000_g025_b100",
+            "/common/shader/sfxpbs/default_params_r000_g025_b100".to_string(),
             solid_color_texture_2d(device, queue, [0, 65, 255, 255]),
         ),
         (
-            "/common/shader/sfxpbs/default_params_r100_g025_b100",
+            "/common/shader/sfxpbs/default_params_r100_g025_b100".to_string(),
             solid_color_texture_2d(device, queue, [255, 65, 255, 255]),
         ),
         (
-            "/common/shader/sfxpbs/default_params2",
+            "/common/shader/sfxpbs/default_params2".to_string(),
             solid_color_texture_2d(device, queue, [255, 255, 255, 255]),
         ),
         (
-            "/common/shader/sfxpbs/default_params3",
+            "/common/shader/sfxpbs/default_params3".to_string(),
             solid_color_texture_2d(device, queue, [0, 117, 255, 58]),
         ),
         (
-            "/common/shader/sfxpbs/default_params3",
+            "/common/shader/sfxpbs/default_params3".to_string(),
             solid_color_texture_2d(device, queue, [58, 61, 58, 255]),
         ),
         (
-            "/common/shader/sfxpbs/default_white",
+            "/common/shader/sfxpbs/default_white".to_string(),
             solid_color_texture_2d(device, queue, [255, 255, 255, 255]),
         ),
         (
-            "/common/shader/sfxpbs/fighter/default_normal",
+            "/common/shader/sfxpbs/fighter/default_normal".to_string(),
             solid_color_texture_2d(device, queue, [128, 128, 255, 255]),
         ),
         (
-            "/common/shader/sfxpbs/fighter/default_params",
+            "/common/shader/sfxpbs/fighter/default_params".to_string(),
             solid_color_texture_2d(device, queue, [0, 255, 255, 58]),
         ),
     ]

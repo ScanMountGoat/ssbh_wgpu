@@ -250,8 +250,9 @@ impl SsbhRenderer {
     ) {
         // Render meshes are sorted globally rather than per folder.
         // This allows all transparent draw calls to happen after opaque draw calls.
-        let mut meshes: Vec<_> = render_models.iter().flat_map(|m| &m.meshes).collect();
-        meshes.sort_by_key(|m| m.render_order());
+        // TODO: How to have RenderModel own all resources but still sort RenderMesh?
+        // let mut meshes: Vec<_> = render_models.iter().flat_map(|m| &m.meshes).collect();
+        // meshes.sort_by_key(|m| m.render_order());
 
         // Skin the render meshes using a compute pass instead of in the vertex shader.
         // Compute shaders give more flexibility compared to vertex shaders.
@@ -262,7 +263,9 @@ impl SsbhRenderer {
 
         skinning_pass.set_pipeline(&self.skinning_pipeline);
 
-        crate::rendermesh::skin_render_meshes(&meshes, &mut skinning_pass);
+        for model in render_models {
+            crate::rendermesh::skin_render_meshes(&model.meshes, &mut skinning_pass);
+        }
 
         drop(skinning_pass);
 
@@ -282,11 +285,9 @@ impl SsbhRenderer {
 
         // TODO: Use the light transforms for the "camera".
         shadow_pass.set_pipeline(&self.shadow_pipeline);
-        crate::rendermesh::draw_render_meshes_depth(
-            &meshes,
-            &mut shadow_pass,
-            &self.shadow_transform_bind_group,
-        );
+        for model in render_models {
+            model.draw_render_meshes_depth(&mut shadow_pass, &self.shadow_transform_bind_group);
+        }
         drop(shadow_pass);
 
         // TODO: Force having a color attachment for each fragment shader output in wgsl_to_wgpu?
@@ -313,12 +314,14 @@ impl SsbhRenderer {
             }),
         });
 
-        crate::rendermesh::draw_render_meshes(
-            &meshes,
-            &mut model_pass,
-            &self.camera_bind_group,
-            &self.model_shadow_bind_group,
-        );
+        for model in render_models {
+            model.draw_render_meshes(
+                &mut model_pass,
+                &self.camera_bind_group,
+                &self.model_shadow_bind_group,
+            );
+        }
+
         drop(model_pass);
 
         // Extract the portions of the image that contribute to bloom.
@@ -368,6 +371,8 @@ impl SsbhRenderer {
         );
 
         // TODO: Models with _near should be drawn after bloom but before post processing?
+        // TODO: How does this impact the depth buffer?
+
         // Combine the model and bloom contributions and apply color grading.
         let mut post_processing_pass =
             create_color_pass(encoder, output_view, Some("Post Processing Pass"));

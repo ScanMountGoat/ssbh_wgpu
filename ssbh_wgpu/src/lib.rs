@@ -53,7 +53,7 @@ pub fn load_render_models(
     surface_format: wgpu::TextureFormat,
     models: &[ModelFolder],
     // TODO: Group textures together?
-    default_textures: &[(&'static str, wgpu::Texture)],
+    default_textures: &[(String, wgpu::Texture)],
     stage_cube: &(wgpu::TextureView, wgpu::Sampler),
 ) -> Vec<RenderModel> {
     let start = std::time::Instant::now();

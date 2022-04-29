@@ -24,14 +24,17 @@ pub struct RenderModel {
     skel: Option<SkelData>,
     matl: Option<MatlData>,
     mesh_buffers: MeshBuffers,
-    material_data_by_label: HashMap<String, Arc<MaterialData>>,
+    material_data_by_label: HashMap<String, MaterialData>,
+    textures: Vec<(String, wgpu::Texture)>, // (file name, texture)
 }
 
 // A RenderMesh is view over a portion of the RenderModel data.
+// TODO: All the render data should be owned by the RenderModel.
 // Each RenderMesh corresponds to the data for a single draw call.
 pub struct RenderMesh {
     pub name: String,
     pub is_visible: bool,
+    material_label: String,
     shader_tag: String,
     // TODO: It may be worth sharing buffers in the future.
     buffer_data: MeshObjectBufferData,
@@ -41,7 +44,6 @@ pub struct RenderMesh {
     mesh_object_info_bind_group: crate::shader::skinning::bind_groups::BindGroup2,
     // Use an Arc since material and pipeline data is often shared.
     pipeline: Arc<wgpu::RenderPipeline>,
-    material_data: Arc<MaterialData>,
 }
 
 impl RenderMesh {
@@ -74,16 +76,42 @@ struct MeshBuffers {
 
 impl RenderModel {
     // TODO: Is there a clearer explanation of what this does?
-    /// Update the uniform buffer with the data from `material` based on its material label.
-    pub fn update_material_uniforms(&self, queue: &wgpu::Queue, material: &MatlEntryData) {
-        let uniforms = create_uniforms(Some(material));
-        if let Some(data) = self.material_data_by_label.get(&material.material_label) {
+    /// Update the render data associated with `material`.
+    pub fn update_material(
+        &mut self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        material: &MatlEntryData,
+        default_textures: &[(String, wgpu::Texture)],
+        stage_cube: &(wgpu::TextureView, wgpu::Sampler),
+    ) {
+        if let Some(data) = self
+            .material_data_by_label
+            .get_mut(&material.material_label)
+        {
+            data.textures_bind_group = create_textures_bind_group(
+                Some(material),
+                device,
+                &self.textures,
+                default_textures,
+                stage_cube,
+            );
+
+            let uniforms = create_uniforms(Some(material));
             queue.write_buffer(&data.uniforms_buffer, 0, bytemuck::cast_slice(&[uniforms]));
         }
     }
 
     // TODO: Does it make sense to just pass None to "reset" the animation?
-    pub fn apply_anim(&mut self, queue: &wgpu::Queue, anim: Option<&AnimData>, frame: f32) {
+    pub fn apply_anim(
+        &mut self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        anim: Option<&AnimData>,
+        frame: f32,
+        default_textures: &[(String, wgpu::Texture)],
+        stage_cube: &(wgpu::TextureView, wgpu::Sampler),
+    ) {
         // Update the buffers associated with each skel.
         // This avoids updating per mesh object and allocating new buffers.
         // TODO: How to "reset" an animation?
@@ -97,7 +125,7 @@ impl RenderModel {
                 for material in animated_materials {
                     // TODO: Should this go in a separate module?
                     // Get updated uniform buffers for animated materials
-                    self.update_material_uniforms(queue, &material);
+                    self.update_material(device, queue, &material, default_textures, stage_cube);
                 }
             }
 
@@ -115,6 +143,55 @@ impl RenderModel {
                     bytemuck::cast_slice(&(*animation_transforms.world_transforms)),
                 );
             }
+        }
+    }
+
+    pub fn draw_render_meshes<'a>(
+        &'a self,
+        render_pass: &mut wgpu::RenderPass<'a>,
+        camera_bind_group: &'a crate::shader::model::bind_groups::BindGroup0,
+        shadow_bind_group: &'a crate::shader::model::bind_groups::BindGroup3,
+    ) {
+        for mesh in self.meshes.iter().filter(|m| m.is_visible) {
+            render_pass.set_pipeline(mesh.pipeline.as_ref());
+
+            // TODO: How to store all data in RenderModel but still draw sorted meshes?
+            // TODO: Don't assume materials are properly assigned.
+            let material_data = &self.material_data_by_label[&mesh.material_label];
+            crate::shader::model::bind_groups::set_bind_groups(
+                render_pass,
+                crate::shader::model::bind_groups::BindGroups::<'a> {
+                    bind_group0: camera_bind_group,
+                    bind_group1: &material_data.textures_bind_group,
+                    bind_group2: &material_data.material_uniforms_bind_group,
+                    bind_group3: shadow_bind_group,
+                },
+            );
+
+            mesh.set_vertex_buffers(render_pass);
+            mesh.set_index_buffer(render_pass);
+
+            render_pass.draw_indexed(0..mesh.buffer_data.vertex_index_count as u32, 0, 0..1);
+        }
+    }
+
+    pub fn draw_render_meshes_depth<'a>(
+        &'a self,
+        render_pass: &mut wgpu::RenderPass<'a>,
+        camera_bind_group: &'a crate::shader::model_depth::bind_groups::BindGroup0,
+    ) {
+        for mesh in self.meshes.iter().filter(|m| m.is_visible) {
+            crate::shader::model_depth::bind_groups::set_bind_groups(
+                render_pass,
+                crate::shader::model_depth::bind_groups::BindGroups::<'a> {
+                    bind_group0: camera_bind_group,
+                },
+            );
+
+            mesh.set_vertex_buffers(render_pass);
+            mesh.set_index_buffer(render_pass);
+
+            render_pass.draw_indexed(0..mesh.buffer_data.vertex_index_count as u32, 0, 0..1);
         }
     }
 }
@@ -139,7 +216,7 @@ impl RenderMesh {
 pub struct RenderMeshSharedData<'a> {
     pub pipeline_data: &'a PipelineData,
     pub model: &'a ModelFolder,
-    pub default_textures: &'a [(&'static str, wgpu::Texture)],
+    pub default_textures: &'a [(String, wgpu::Texture)],
     pub stage_cube: &'a (wgpu::TextureView, wgpu::Sampler),
 }
 
@@ -179,7 +256,7 @@ pub fn create_render_model(
         world_transforms: world_transforms_buffer,
     };
 
-    let (meshes, material_data_by_label) =
+    let (meshes, material_data_by_label, textures) =
         create_render_meshes(device, queue, &mesh_buffers, shared_data);
 
     println!(
@@ -195,6 +272,7 @@ pub fn create_render_model(
         matl: shared_data.model.matl.clone(),
         mesh_buffers,
         material_data_by_label,
+        textures,
     }
 }
 
@@ -202,7 +280,7 @@ fn create_material_data(
     device: &wgpu::Device,
     material: Option<&MatlEntryData>,
     textures: &[(String, wgpu::Texture)], // TODO: document that this uses file name?
-    default_textures: &[(&'static str, wgpu::Texture)], // TODO: document that this is an absolute path?
+    default_textures: &[(String, wgpu::Texture)], // TODO: document that this is an absolute path?
     stage_cube: &(wgpu::TextureView, wgpu::Sampler),
 ) -> MaterialData {
     let textures_bind_group =
@@ -228,7 +306,11 @@ fn create_render_meshes(
     queue: &wgpu::Queue,
     mesh_buffers: &MeshBuffers,
     shared_data: &RenderMeshSharedData,
-) -> (Vec<RenderMesh>, HashMap<String, Arc<MaterialData>>) {
+) -> (
+    Vec<RenderMesh>,
+    HashMap<String, MaterialData>,
+    Vec<(String, wgpu::Texture)>,
+) {
     // TODO: Find a way to organize this.
 
     // Initialize textures exactly once for performance.
@@ -279,7 +361,7 @@ fn create_render_meshes(
         })
         .collect();
 
-    (meshes, material_data_by_label)
+    (meshes, material_data_by_label, textures)
 }
 
 // TODO: Group these parameters?
@@ -287,7 +369,7 @@ fn create_render_mesh(
     device: &wgpu::Device,
     mesh_object: &ssbh_data::mesh_data::MeshObjectData,
     pipelines: &mut HashMap<PipelineIdentifier, Arc<wgpu::RenderPipeline>>,
-    material_data_by_label: &mut HashMap<String, Arc<MaterialData>>,
+    material_data_by_label: &mut HashMap<String, MaterialData>,
     mesh_buffers: &MeshBuffers,
     textures: &[(String, wgpu::Texture)],
     shared_data: &RenderMeshSharedData,
@@ -345,15 +427,15 @@ fn create_render_mesh(
     // TODO: Handle missing materials?
     // TODO: The creation function requires a material, but we index using the material name?
     let material_data = material_data_by_label
-        .entry(material_label)
+        .entry(material_label.clone())
         .or_insert_with(|| {
-            Arc::new(create_material_data(
+            create_material_data(
                 device,
                 material,
                 textures,
                 shared_data.default_textures,
                 shared_data.stage_cube,
-            ))
+            )
         });
 
     let buffer_data = mesh_object_buffers(device, mesh_object, shared_data.model.skel.as_ref());
@@ -403,6 +485,7 @@ fn create_render_mesh(
         .to_string();
     RenderMesh {
         name: mesh_object.name.clone(),
+        material_label: material_label.clone(),
         shader_tag,
         is_visible: true,
         buffer_data,
@@ -411,7 +494,6 @@ fn create_render_mesh(
         skinning_transforms_bind_group,
         mesh_object_info_bind_group,
         pipeline: pipeline.clone(),
-        material_data: material_data.clone(),
     }
 }
 
@@ -419,7 +501,7 @@ fn create_textures_bind_group(
     material: Option<&ssbh_data::matl_data::MatlEntryData>,
     device: &wgpu::Device,
     textures: &[(String, wgpu::Texture)],
-    default_textures: &[(&'static str, wgpu::Texture)],
+    default_textures: &[(String, wgpu::Texture)],
     stage_cube: &(wgpu::TextureView, wgpu::Sampler),
 ) -> crate::shader::model::bind_groups::BindGroup1 {
     // TODO: Do all textures default to white if the path isn't correct?
@@ -527,7 +609,7 @@ fn render_pass_index(tag: &str) -> isize {
     }
 }
 
-pub fn skin_render_meshes<'a>(meshes: &'a [&RenderMesh], compute_pass: &mut wgpu::ComputePass<'a>) {
+pub fn skin_render_meshes<'a>(meshes: &'a [RenderMesh], compute_pass: &mut wgpu::ComputePass<'a>) {
     // Assume the pipeline is already set.
     for mesh in meshes {
         crate::shader::skinning::bind_groups::set_bind_groups(
@@ -543,51 +625,5 @@ pub fn skin_render_meshes<'a>(meshes: &'a [&RenderMesh], compute_pass: &mut wgpu
         // Round up to avoid skipping vertices.
         let workgroup_count = (mesh.buffer_data.vertex_count as f64 / 256.0).ceil() as u32;
         compute_pass.dispatch(workgroup_count, 1, 1);
-    }
-}
-
-pub fn draw_render_meshes<'a>(
-    meshes: &'a [&RenderMesh],
-    render_pass: &mut wgpu::RenderPass<'a>,
-    camera_bind_group: &'a crate::shader::model::bind_groups::BindGroup0,
-    shadow_bind_group: &'a crate::shader::model::bind_groups::BindGroup3,
-) {
-    for mesh in meshes.iter().filter(|m| m.is_visible) {
-        render_pass.set_pipeline(mesh.pipeline.as_ref());
-
-        crate::shader::model::bind_groups::set_bind_groups(
-            render_pass,
-            crate::shader::model::bind_groups::BindGroups::<'a> {
-                bind_group0: camera_bind_group,
-                bind_group1: &mesh.material_data.as_ref().textures_bind_group,
-                bind_group2: &mesh.material_data.as_ref().material_uniforms_bind_group,
-                bind_group3: shadow_bind_group,
-            },
-        );
-
-        mesh.set_vertex_buffers(render_pass);
-        mesh.set_index_buffer(render_pass);
-
-        render_pass.draw_indexed(0..mesh.buffer_data.vertex_index_count as u32, 0, 0..1);
-    }
-}
-
-pub fn draw_render_meshes_depth<'a>(
-    meshes: &'a [&RenderMesh],
-    render_pass: &mut wgpu::RenderPass<'a>,
-    camera_bind_group: &'a crate::shader::model_depth::bind_groups::BindGroup0,
-) {
-    for mesh in meshes.iter().filter(|m| m.is_visible) {
-        crate::shader::model_depth::bind_groups::set_bind_groups(
-            render_pass,
-            crate::shader::model_depth::bind_groups::BindGroups::<'a> {
-                bind_group0: camera_bind_group,
-            },
-        );
-
-        mesh.set_vertex_buffers(render_pass);
-        mesh.set_index_buffer(render_pass);
-
-        render_pass.draw_indexed(0..mesh.buffer_data.vertex_index_count as u32, 0, 0..1);
     }
 }

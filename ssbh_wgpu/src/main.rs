@@ -54,6 +54,9 @@ struct State {
     // TODO: How to handle overflow if left running too long?
     current_frame: f32,
     previous_frame_start: std::time::Instant,
+
+    default_textures: Vec<(String, wgpu::Texture)>,
+    stage_cube: (wgpu::TextureView, wgpu::Sampler),
 }
 
 impl State {
@@ -135,6 +138,8 @@ impl State {
             animation,
             current_frame: 0.0,
             previous_frame_start: std::time::Instant::now(),
+            default_textures,
+            stage_cube,
         }
     }
 
@@ -273,7 +278,14 @@ impl State {
         // Apply animations for each model.
         // This is more efficient since state is shared between render meshes.
         for model in &mut self.render_models {
-            model.apply_anim(&self.queue, self.animation.as_ref(), self.current_frame);
+            model.apply_anim(
+                &self.device,
+                &self.queue,
+                self.animation.as_ref(),
+                self.current_frame,
+                &self.default_textures,
+                &self.stage_cube,
+            );
         }
 
         self.renderer
