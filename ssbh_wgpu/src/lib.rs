@@ -40,9 +40,12 @@ pub const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
 pub struct ModelFolder {
     pub folder_name: String,
     pub mesh: MeshData,
+    // TODO: Should these be Result<Option<T>, E> to display error info in applications?
+    // Option::None would just indicate a missing file.
     pub skel: Option<SkelData>,
     pub matl: Option<MatlData>,
     pub modl: Option<ModlData>,
+    pub adj: Option<AdjData>,
     // TODO: Will a hashmap be faster for this many items?
     pub textures_by_file_name: Vec<(String, NutexbFile)>,
 }
@@ -111,7 +114,7 @@ pub fn load_model_folders<P: AsRef<Path>>(root: P) -> Vec<ModelFolder> {
             let skel = SkelData::from_file(p.path().with_extension("nusktb")).ok();
             let matl = MatlData::from_file(p.path().with_extension("numatb")).ok();
             let modl = ModlData::from_file(p.path().with_extension("numdlb")).ok();
-
+            let adj = AdjData::from_file(p.path().with_extension("adjb")).ok();
             // TODO: Handle missing parent folder?
             let parent = p.path().parent().unwrap();
             let textures_by_file_name = textures_by_file_name(parent);
@@ -123,6 +126,7 @@ pub fn load_model_folders<P: AsRef<Path>>(root: P) -> Vec<ModelFolder> {
                 skel,
                 matl,
                 modl,
+                adj,
                 textures_by_file_name,
             })
         })

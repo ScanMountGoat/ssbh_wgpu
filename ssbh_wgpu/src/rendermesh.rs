@@ -7,7 +7,9 @@ use crate::{
     ModelFolder, PipelineData,
 };
 use ssbh_data::{
+    adj_data::AdjEntryData,
     matl_data::{MatlEntryData, ParamId},
+    mesh_data::MeshObjectData,
     prelude::*,
 };
 use std::{collections::HashMap, sync::Arc};
@@ -39,6 +41,7 @@ pub struct RenderMesh {
     // TODO: It may be worth sharing buffers in the future.
     buffer_data: MeshObjectBufferData,
     sort_bias: i32,
+    normals_bind_group: crate::shader::renormal::bind_groups::BindGroup0,
     skinning_bind_group: crate::shader::skinning::bind_groups::BindGroup0,
     skinning_transforms_bind_group: crate::shader::skinning::bind_groups::BindGroup1,
     mesh_object_info_bind_group: crate::shader::skinning::bind_groups::BindGroup2,
@@ -348,10 +351,19 @@ fn create_render_meshes(
         .mesh
         .objects
         .iter() // TODO: par_iter?
-        .map(|mesh_object| {
+        .enumerate()
+        .map(|(i, mesh_object)| {
+            // Some mesh objects have associated triangle adjacency.
+            let adj_entry = shared_data
+                .model
+                .adj
+                .as_ref()
+                .and_then(|adj| adj.entries.iter().find(|e| e.mesh_object_index == i));
+
             create_render_mesh(
                 device,
                 mesh_object,
+                adj_entry,
                 &mut pipelines,
                 &mut material_data_by_label,
                 mesh_buffers,
@@ -367,7 +379,8 @@ fn create_render_meshes(
 // TODO: Group these parameters?
 fn create_render_mesh(
     device: &wgpu::Device,
-    mesh_object: &ssbh_data::mesh_data::MeshObjectData,
+    mesh_object: &MeshObjectData,
+    adj_entry: Option<&AdjEntryData>,
     pipelines: &mut HashMap<PipelineIdentifier, Arc<wgpu::RenderPipeline>>,
     material_data_by_label: &mut HashMap<String, MaterialData>,
     mesh_buffers: &MeshBuffers,
@@ -426,6 +439,7 @@ fn create_render_mesh(
     // This simplifies material animations and avoids costly resource creation.
     // TODO: Handle missing materials?
     // TODO: The creation function requires a material, but we index using the material name?
+    // TODO: Create the materials once at the render model level.
     let material_data = material_data_by_label
         .entry(material_label.clone())
         .or_insert_with(|| {
@@ -439,6 +453,25 @@ fn create_render_mesh(
         });
 
     let buffer_data = mesh_object_buffers(device, mesh_object, shared_data.model.skel.as_ref());
+
+    // TODO: Function for this?
+    let adjacency = adj_entry
+        .map(|e| e.vertex_adjacency.iter().map(|i| *i as i32).collect())
+        .unwrap_or_else(|| vec![-1i32; mesh_object.vertex_count().unwrap() * 18]);
+    let adj_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        label: Some("vertex buffer 0"),
+        contents: bytemuck::cast_slice(&adjacency),
+        usage: wgpu::BufferUsages::STORAGE,
+    });
+
+    // This is applied after skinning, so the source and destination buffer are the same.
+    let renormal_bind_group = crate::shader::renormal::bind_groups::BindGroup0::from_bindings(
+        device,
+        crate::shader::renormal::bind_groups::BindGroupLayout0 {
+            vertices: &buffer_data.vertex_buffer0,
+            adj_data: &adj_buffer,
+        },
+    );
 
     let skinning_bind_group = crate::shader::skinning::bind_groups::BindGroup0::from_bindings(
         device,
@@ -494,6 +527,7 @@ fn create_render_mesh(
         skinning_transforms_bind_group,
         mesh_object_info_bind_group,
         pipeline: pipeline.clone(),
+        normals_bind_group: renormal_bind_group,
     }
 }
 
@@ -579,10 +613,7 @@ fn create_world_transforms_buffer(
     })
 }
 
-fn find_parent_index(
-    mesh_object: &ssbh_data::mesh_data::MeshObjectData,
-    skel: &Option<SkelData>,
-) -> i32 {
+fn find_parent_index(mesh_object: &MeshObjectData, skel: &Option<SkelData>) -> i32 {
     // Only include a parent if there are no bone influences.
     // TODO: What happens if there are influences and a parent bone?
     if mesh_object.bone_influences.is_empty() {
@@ -609,7 +640,30 @@ fn render_pass_index(tag: &str) -> isize {
     }
 }
 
-pub fn skin_render_meshes<'a>(meshes: &'a [RenderMesh], compute_pass: &mut wgpu::ComputePass<'a>) {
+pub fn dispatch_renormal<'a>(meshes: &'a [RenderMesh], compute_pass: &mut wgpu::ComputePass<'a>) {
+    // Assume the pipeline is already set.
+    // Some meshes have a material label tag to enable the recalculating of normals.
+    // This helps with animations with large deformations.
+    // TODO: Is this check case sensitive?
+    for mesh in meshes
+        .iter()
+        .filter(|m| m.material_label.contains("RENORMAL"))
+    {
+        crate::shader::renormal::bind_groups::set_bind_groups(
+            compute_pass,
+            crate::shader::renormal::bind_groups::BindGroups::<'a> {
+                bind_group0: &mesh.normals_bind_group,
+            },
+        );
+
+        // The shader's local workgroup size is (256, 1, 1).
+        // Round up to avoid skipping vertices.
+        let workgroup_count = (mesh.buffer_data.vertex_count as f64 / 256.0).ceil() as u32;
+        compute_pass.dispatch(workgroup_count, 1, 1);
+    }
+}
+
+pub fn dispatch_skinning<'a>(meshes: &'a [RenderMesh], compute_pass: &mut wgpu::ComputePass<'a>) {
     // Assume the pipeline is already set.
     for mesh in meshes {
         crate::shader::skinning::bind_groups::set_bind_groups(

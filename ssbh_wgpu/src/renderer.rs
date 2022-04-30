@@ -16,6 +16,7 @@ pub struct SsbhRenderer {
     bloom_upscale_pipeline: wgpu::RenderPipeline,
     post_process_pipeline: wgpu::RenderPipeline,
     skinning_pipeline: wgpu::ComputePipeline,
+    renormal_pipeline: wgpu::ComputePipeline,
     shadow_pipeline: wgpu::RenderPipeline,
     // Store camera state for efficiently updating it later.
     // This avoids exposing shader implementations like bind groups.
@@ -161,6 +162,16 @@ impl SsbhRenderer {
             entry_point: "main",
         });
 
+        let module = crate::shader::renormal::create_shader_module(device);
+        let pipeline_layout = crate::shader::renormal::create_pipeline_layout(device);
+        // TODO: Better support compute shaders in wgsl_to_wgpu.
+        let renormal_pipeline = device.create_compute_pipeline(&ComputePipelineDescriptor {
+            label: Some("Vertex Renormal Compute"),
+            layout: Some(&pipeline_layout),
+            module: &module,
+            entry_point: "main",
+        });
+
         let shadow_pipeline = create_depth_pipeline(device);
 
         // TODO: Where should stage specific assets be loaded?
@@ -214,6 +225,7 @@ impl SsbhRenderer {
             bloom_upscale_pipeline,
             post_process_pipeline,
             skinning_pipeline,
+            renormal_pipeline,
             shadow_pipeline,
             camera_buffer,
             camera_bind_group,
@@ -264,10 +276,25 @@ impl SsbhRenderer {
         skinning_pass.set_pipeline(&self.skinning_pipeline);
 
         for model in render_models {
-            crate::rendermesh::skin_render_meshes(&model.meshes, &mut skinning_pass);
+            crate::rendermesh::dispatch_skinning(&model.meshes, &mut skinning_pass);
         }
 
         drop(skinning_pass);
+
+        // TODO: This doesn't appear to be a compute shader in game?
+        // TODO: What is the performance cost of this?
+        let mut renormal_pass = encoder.begin_compute_pass(&ComputePassDescriptor {
+            label: Some("Renormal Pass"),
+        });
+
+        renormal_pass.set_pipeline(&self.renormal_pipeline);
+
+        for model in render_models {
+            crate::rendermesh::dispatch_renormal(&model.meshes, &mut renormal_pass);
+        }
+
+        drop(renormal_pass);
+
 
         // Depth only pass for shadow maps.
         let mut shadow_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
