@@ -38,6 +38,7 @@ pub struct RenderMesh {
     pub is_visible: bool,
     material_label: String,
     shader_tag: String,
+    sub_index: u64,
     // TODO: It may be worth sharing buffers in the future.
     buffer_data: MeshObjectBufferData,
     sort_bias: i32,
@@ -78,7 +79,20 @@ struct MeshBuffers {
 }
 
 impl RenderModel {
-    // TODO: Is there a clearer explanation of what this does?
+    /// Reassign the mesh materials based on `modl`.
+    /// This does not create materials that do not already exist.
+    pub fn reassign_materials(&mut self, modl: &ModlData) {
+        // TODO: There should be a separate pipeline to use if the material assignment fails?
+        // TODO: How does in game handle invalid material labels?
+        for mesh in &mut self.meshes {
+            if let Some(entry) = modl.entries.iter().find(|e| {
+                e.mesh_object_name == mesh.name && e.mesh_object_sub_index == mesh.sub_index
+            }) {
+                mesh.material_label = entry.material_label.clone();
+            }
+        }
+    }
+
     /// Update the render data associated with `material`.
     pub fn update_material(
         &mut self,
@@ -342,7 +356,26 @@ fn create_render_meshes(
     // TODO: Should red/yellow checkerboard errors just be separate pipelines?
     // It doesn't make sense to complicate the shader any further.
     // TODO: Split into PerMaterial, PerObject, etc in the shaders?
-    let mut material_data_by_label = HashMap::new();
+    // TODO: Handle missing materials?
+    // TODO: Create a single "missing" material for meshes to use as a fallback?
+    let material_data_by_label: HashMap<_, _> = shared_data
+        .model
+        .matl
+        .as_ref()
+        .unwrap()
+        .entries
+        .iter()
+        .map(|entry| {
+            let data = create_material_data(
+                device,
+                Some(entry),
+                &textures,
+                shared_data.default_textures,
+                shared_data.stage_cube,
+            );
+            (entry.material_label.clone(), data)
+        })
+        .collect();
 
     // TODO: Share vertex buffers?
     // TODO: Find a way to have fewer function parameters?
@@ -365,7 +398,6 @@ fn create_render_meshes(
                 mesh_object,
                 adj_entry,
                 &mut pipelines,
-                &mut material_data_by_label,
                 mesh_buffers,
                 &textures,
                 shared_data,
@@ -382,7 +414,6 @@ fn create_render_mesh(
     mesh_object: &MeshObjectData,
     adj_entry: Option<&AdjEntryData>,
     pipelines: &mut HashMap<PipelineIdentifier, Arc<wgpu::RenderPipeline>>,
-    material_data_by_label: &mut HashMap<String, MaterialData>,
     mesh_buffers: &MeshBuffers,
     textures: &[(String, wgpu::Texture)],
     shared_data: &RenderMeshSharedData,
@@ -433,23 +464,6 @@ fn create_render_mesh(
                 !mesh_object.disable_depth_write,
                 !mesh_object.disable_depth_test,
             ))
-        });
-
-    // Share uniform buffers and textures.
-    // This simplifies material animations and avoids costly resource creation.
-    // TODO: Handle missing materials?
-    // TODO: The creation function requires a material, but we index using the material name?
-    // TODO: Create the materials once at the render model level.
-    let material_data = material_data_by_label
-        .entry(material_label.clone())
-        .or_insert_with(|| {
-            create_material_data(
-                device,
-                material,
-                textures,
-                shared_data.default_textures,
-                shared_data.stage_cube,
-            )
         });
 
     let buffer_data = mesh_object_buffers(device, mesh_object, shared_data.model.skel.as_ref());
@@ -528,6 +542,7 @@ fn create_render_mesh(
         mesh_object_info_bind_group,
         pipeline: pipeline.clone(),
         normals_bind_group: renormal_bind_group,
+        sub_index: mesh_object.sub_index,
     }
 }
 
