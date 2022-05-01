@@ -68,7 +68,7 @@ pub fn create_pipeline(
             unclipped_depth: false,
         },
         depth_stencil: Some(wgpu::DepthStencilState {
-            format: crate::DEPTH_FORMAT,
+            format: crate::renderer::DEPTH_FORMAT,
             depth_write_enabled: depth_write,
             depth_compare: if depth_test {
                 wgpu::CompareFunction::LessEqual
@@ -119,15 +119,11 @@ pub fn create_depth_pipeline(device: &wgpu::Device) -> wgpu::RenderPipeline {
         fragment: None,
         primitive: wgpu::PrimitiveState::default(),
         depth_stencil: Some(wgpu::DepthStencilState {
-            format: crate::DEPTH_FORMAT,
+            format: crate::renderer::DEPTH_FORMAT,
             depth_write_enabled: true,
             depth_compare: wgpu::CompareFunction::Less,
             stencil: wgpu::StencilState::default(),
-            bias: wgpu::DepthBiasState {
-                constant: 2, // corresponds to bilinear filtering
-                slope_scale: 2.0,
-                clamp: 0.0,
-            },
+            bias: wgpu::DepthBiasState::default()
         }),
         multisample: wgpu::MultisampleState::default(),
         multiview: None,

@@ -23,16 +23,7 @@ use ssbh_data::prelude::*;
 
 use crate::{pipeline::PipelineData, rendermesh::RenderMeshSharedData};
 
-// Rgba16Float is widely supported.
-// The in game format uses less precision.
-pub const BLOOM_COLOR_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba16Float;
-
-// Bgra8Unorm and Bgra8UnormSrgb should always be supported.
-// We'll use SRGB since it's more compatible with less color format aware applications.
-// This simplifies integrating with GUIs and image formats like PNG.
-pub const RGBA_COLOR_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Bgra8UnormSrgb;
-
-pub const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
+pub use renderer::RGBA_COLOR_FORMAT;
 
 // Store the file data for a single folder.
 // This helps ensure files are loaded exactly once.
@@ -160,7 +151,7 @@ pub fn calculate_light_transform() -> glam::Mat4 {
     let light_quaternion = glam::Quat::from_xyzw(-0.495286, -0.0751228, 0.0431234, -0.864401);
 
     // TODO: What controls the "scale" of the lighting region?
-    let perspective_matrix = glam::Mat4::orthographic_rh(-50.0, 50.0, -50.0, 50.0, -50.0, 50.0);
+    let perspective_matrix = glam::Mat4::orthographic_rh(-25.0, 25.0, -25.0, 25.0, -50.0, 50.0);
     let model_view = glam::Mat4::from_quat(light_quaternion);
 
     perspective_matrix * model_view

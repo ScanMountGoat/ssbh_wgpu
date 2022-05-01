@@ -108,10 +108,9 @@ var<uniform> uniforms: MaterialUniforms;
 
 // TODO: Where to store depth information.
 [[group(3), binding(0)]]
-var texture_shadow: texture_depth_2d;
-// TODO: wgsl_to_wgpu doesn't support comparison samplers yet.
+var texture_shadow: texture_2d<f32>;
 [[group(3), binding(1)]]
-var sampler_shadow: sampler_comparison;
+var sampler_shadow: sampler;
 // TODO: Specify that this is just the main character light?
 // TODO: Does Smash Ultimate support shadow casting from multiple lights?
 [[group(3), binding(2)]]
@@ -549,21 +548,27 @@ fn GetF0FromSpecular(specular: f32) -> f32
     return specular * 0.2;
 }
 
-// Shadow mapping using comparison samplers.
-// https://github.com/gfx-rs/wgpu/blob/c226a10329f8c3283b995cccda21f4881b1ce6b1/wgpu/examples/shadow/shader.wgsl#L65-L76
+// Shadow mapping.
 fn GetShadow(light_position: vec4<f32>) -> f32
 {
-    if (light_position.w <= 0.0) {
-        return 1.0;
-    }
     // compensate for the Y-flip difference between the NDC and texture coordinates
     let flipCorrection = vec2<f32>(0.5, -0.5);
     // compute texture coordinates for shadow lookup
     let projCorrection = 1.0 / light_position.w;
     let light_local = light_position.xy * flipCorrection * projCorrection + vec2<f32>(0.5, 0.5);
 
-    var shadow = textureSampleCompareLevel(texture_shadow, sampler_shadow, light_local, light_position.z * projCorrection);
+    // TODO: This assumes depth is in the range 0.0 to 1.0 in the texture.
+    let currentDepth = light_position.z * projCorrection;
 
+    // Translated variance shadow mapping from in game.
+    let m1 = textureSample(texture_shadow, sampler_shadow, light_local).r;
+    let m2 = textureSample(texture_shadow, sampler_shadow, light_local).g;
+    let sigma2 = clamp(m2 - m1*m1 + 0.0001, 0.0, 1.0);
+    let tDif = max(currentDepth - m1, 0.0);
+    // Approximate Pr(x >= t) using one of Chebychev's inqequalities.
+    var shadow = sigma2 / (sigma2 + tDif*tDif);
+    // TODO: Why is there a pow(shadow, 4.0) in game?
+    shadow = pow(shadow, 4.0);
     return shadow;
 }
 

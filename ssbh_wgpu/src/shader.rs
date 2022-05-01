@@ -7,3 +7,4 @@ pub mod model_depth;
 pub mod post_process;
 pub mod renormal;
 pub mod skinning;
+pub mod variance_shadow;

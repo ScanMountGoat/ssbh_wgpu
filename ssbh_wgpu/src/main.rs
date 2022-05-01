@@ -74,12 +74,14 @@ impl State {
             .unwrap();
 
         // TODO: Document the features somewhere?
+        // TODO: Find a way to avoid using the format features for filterable f32 textures.
         let (device, queue) = adapter
             .request_device(
                 &wgpu::DeviceDescriptor {
                     label: None,
                     features: wgpu::Features::TEXTURE_COMPRESSION_BC
-                        | wgpu::Features::ADDRESS_MODE_CLAMP_TO_BORDER,
+                        | wgpu::Features::ADDRESS_MODE_CLAMP_TO_BORDER
+                        | wgpu::Features::TEXTURE_ADAPTER_SPECIFIC_FORMAT_FEATURES,
                     limits: wgpu::Limits::default(),
                 },
                 None, // Trace path

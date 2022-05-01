@@ -5,8 +5,27 @@ use crate::{
     texture::load_texture_sampler_3d, CameraTransforms, RenderModel,
 };
 
-const SHADOW_MAP_WIDTH: u32 = 512;
-const SHADOW_MAP_HEIGHT: u32 = 512;
+// Rgba16Float is widely supported.
+// The in game format uses less precision.
+const BLOOM_COLOR_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba16Float;
+
+// Bgra8Unorm and Bgra8UnormSrgb should always be supported.
+// We'll use SRGB since it's more compatible with less color format aware applications.
+// This simplifies integrating with GUIs and image formats like PNG.
+pub const RGBA_COLOR_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Bgra8UnormSrgb;
+
+pub const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
+
+// TODO: The in game format is R16G16_UNORM
+// TODO: Find a way to get this working without filtering samplers?
+const VARIANCE_SHADOW_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rg32Float;
+
+const SHADOW_MAP_WIDTH: u32 = 1024;
+const SHADOW_MAP_HEIGHT: u32 = 1024;
+
+// Halve the dimensions for additional smoothing.
+const VARIANCE_SHADOW_WIDTH: u32 = 512;
+const VARIANCE_SHADOW_HEIGHT: u32 = 512;
 
 /// A renderer for drawing a collection of [RenderModel].
 pub struct SsbhRenderer {
@@ -18,6 +37,7 @@ pub struct SsbhRenderer {
     skinning_pipeline: wgpu::ComputePipeline,
     renormal_pipeline: wgpu::ComputePipeline,
     shadow_pipeline: wgpu::RenderPipeline,
+    variance_shadow_pipeline: wgpu::RenderPipeline,
     // Store camera state for efficiently updating it later.
     // This avoids exposing shader implementations like bind groups.
     camera_buffer: wgpu::Buffer,
@@ -26,6 +46,8 @@ pub struct SsbhRenderer {
     model_shadow_bind_group: crate::shader::model::bind_groups::BindGroup3,
     shadow_transform_bind_group: crate::shader::model_depth::bind_groups::BindGroup0,
     shadow_depth: TextureSamplerView,
+    variance_shadow: TextureSamplerView,
+    variance_bind_group: crate::shader::variance_shadow::bind_groups::BindGroup0,
 
     pass_info: PassInfo,
     // TODO: Rework this to allow for updating the lut externally.
@@ -45,11 +67,11 @@ impl SsbhRenderer {
         initial_height: u32,
     ) -> Self {
         let shader = crate::shader::post_process::create_shader_module(device);
-        let pipeline_layout = crate::shader::post_process::create_pipeline_layout(device);
+        let layout = crate::shader::post_process::create_pipeline_layout(device);
         let post_process_pipeline =
             device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
                 label: None,
-                layout: Some(&pipeline_layout),
+                layout: Some(&layout),
                 vertex: wgpu::VertexState {
                     module: &shader,
                     entry_point: "vs_main",
@@ -69,110 +91,57 @@ impl SsbhRenderer {
         // Shared shaders for bloom passes.
         // TODO: Should this be all screen texture shaders?
         let shader = crate::shader::bloom::create_shader_module(device);
-        let pipeline_layout = crate::shader::bloom::create_pipeline_layout(device);
+        let layout = crate::shader::bloom::create_pipeline_layout(device);
         let bloom_threshold_pipeline =
-            device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-                label: None,
-                layout: Some(&pipeline_layout),
-                vertex: wgpu::VertexState {
-                    module: &shader,
-                    entry_point: "vs_main",
-                    buffers: &[],
-                },
-                fragment: Some(wgpu::FragmentState {
-                    module: &shader,
-                    entry_point: "fs_threshold",
-                    targets: &[crate::BLOOM_COLOR_FORMAT.into()],
-                }),
-                primitive: wgpu::PrimitiveState::default(),
-                depth_stencil: None,
-                multisample: wgpu::MultisampleState::default(),
-                multiview: None,
-            });
+            create_screen_pipeline(device, &shader, &layout, "fs_threshold", BLOOM_COLOR_FORMAT);
 
-        let bloom_blur_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: None,
-            layout: Some(&pipeline_layout),
-            vertex: wgpu::VertexState {
-                module: &shader,
-                entry_point: "vs_main",
-                buffers: &[],
-            },
-            fragment: Some(wgpu::FragmentState {
-                // TODO: Floating point target?
-                module: &shader,
-                entry_point: "fs_blur",
-                targets: &[crate::BLOOM_COLOR_FORMAT.into()],
-            }),
-            primitive: wgpu::PrimitiveState::default(),
-            depth_stencil: None,
-            multisample: wgpu::MultisampleState::default(),
-            multiview: None,
-        });
+        let bloom_blur_pipeline =
+            create_screen_pipeline(device, &shader, &layout, "fs_blur", BLOOM_COLOR_FORMAT);
 
-        let bloom_upscale_pipeline =
-            device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-                label: None,
-                layout: Some(&pipeline_layout),
-                vertex: wgpu::VertexState {
-                    module: &shader,
-                    entry_point: "vs_main",
-                    buffers: &[],
-                },
-                fragment: Some(wgpu::FragmentState {
-                    module: &shader,
-                    entry_point: "fs_upscale",
-                    targets: &[crate::RGBA_COLOR_FORMAT.into()],
-                }),
-                primitive: wgpu::PrimitiveState::default(),
-                depth_stencil: None,
-                multisample: wgpu::MultisampleState::default(),
-                multiview: None,
-            });
+        let bloom_upscale_pipeline = create_screen_pipeline(
+            device,
+            &shader,
+            &layout,
+            "fs_upscale",
+            crate::RGBA_COLOR_FORMAT,
+        );
 
         let shader = crate::shader::bloom_combine::create_shader_module(device);
-        let pipeline_layout = crate::shader::bloom_combine::create_pipeline_layout(device);
-        let bloom_combine_pipeline =
-            device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-                label: None,
-                layout: Some(&pipeline_layout),
-                vertex: wgpu::VertexState {
-                    module: &shader,
-                    entry_point: "vs_main",
-                    buffers: &[],
-                },
-                fragment: Some(wgpu::FragmentState {
-                    module: &shader,
-                    entry_point: "fs_main",
-                    targets: &[crate::RGBA_COLOR_FORMAT.into()],
-                }),
-                primitive: wgpu::PrimitiveState::default(),
-                depth_stencil: None,
-                multisample: wgpu::MultisampleState::default(),
-                multiview: None,
-            });
+        let layout = crate::shader::bloom_combine::create_pipeline_layout(device);
+        let bloom_combine_pipeline = create_screen_pipeline(
+            device,
+            &shader,
+            &layout,
+            "fs_main",
+            crate::RGBA_COLOR_FORMAT,
+        );
 
         let module = crate::shader::skinning::create_shader_module(device);
-        let pipeline_layout = crate::shader::skinning::create_pipeline_layout(device);
+        let layout = crate::shader::skinning::create_pipeline_layout(device);
         // TODO: Better support compute shaders in wgsl_to_wgpu.
         let skinning_pipeline = device.create_compute_pipeline(&ComputePipelineDescriptor {
             label: Some("Vertex Skinning Compute"),
-            layout: Some(&pipeline_layout),
+            layout: Some(&layout),
             module: &module,
             entry_point: "main",
         });
 
         let module = crate::shader::renormal::create_shader_module(device);
-        let pipeline_layout = crate::shader::renormal::create_pipeline_layout(device);
+        let layout = crate::shader::renormal::create_pipeline_layout(device);
         // TODO: Better support compute shaders in wgsl_to_wgpu.
         let renormal_pipeline = device.create_compute_pipeline(&ComputePipelineDescriptor {
             label: Some("Vertex Renormal Compute"),
-            layout: Some(&pipeline_layout),
+            layout: Some(&layout),
             module: &module,
             entry_point: "main",
         });
 
         let shadow_pipeline = create_depth_pipeline(device);
+
+        let shader = crate::shader::variance_shadow::create_shader_module(device);
+        let layout = crate::shader::variance_shadow::create_pipeline_layout(device);
+        let variance_shadow_pipeline =
+            create_screen_pipeline(device, &shader, &layout, "fs_main", VARIANCE_SHADOW_FORMAT);
 
         // TODO: Where should stage specific assets be loaded?
         let (color_lut_view, color_lut_sampler) =
@@ -209,14 +178,32 @@ impl SsbhRenderer {
         // TODO: Multiple lights require multiple depth maps?
         let shadow_depth = create_depth(device, SHADOW_MAP_WIDTH, SHADOW_MAP_HEIGHT);
 
+        let variance_shadow = create_texture_sampler(
+            device,
+            VARIANCE_SHADOW_WIDTH,
+            VARIANCE_SHADOW_HEIGHT,
+            VARIANCE_SHADOW_FORMAT,
+        );
+
         let model_shadow_bind_group = crate::shader::model::bind_groups::BindGroup3::from_bindings(
             device,
             crate::shader::model::bind_groups::BindGroupLayout3 {
-                texture_shadow: &shadow_depth.view,
-                sampler_shadow: &shadow_depth.sampler,
+                texture_shadow: &variance_shadow.view,
+                sampler_shadow: &variance_shadow.sampler,
                 light: &shadow_buffer,
             },
         );
+
+        // TODO: Is it ok to just use the variance shadow map sampler?
+        // We don't want a comparison sampler for this pipeline.
+        let variance_bind_group =
+            crate::shader::variance_shadow::bind_groups::BindGroup0::from_bindings(
+                device,
+                crate::shader::variance_shadow::bind_groups::BindGroupLayout0 {
+                    texture_shadow: &shadow_depth.view,
+                    sampler_shadow: &variance_shadow.sampler,
+                },
+            );
 
         Self {
             bloom_threshold_pipeline,
@@ -234,6 +221,9 @@ impl SsbhRenderer {
             color_lut,
             shadow_transform_bind_group,
             shadow_depth,
+            variance_shadow_pipeline,
+            variance_shadow,
+            variance_bind_group,
         }
     }
 
@@ -266,59 +256,120 @@ impl SsbhRenderer {
         // let mut meshes: Vec<_> = render_models.iter().flat_map(|m| &m.meshes).collect();
         // meshes.sort_by_key(|m| m.render_order());
 
+        // Transform the vertex positions and normals.
+        self.skinning_pass(encoder, render_models);
+        self.renormal_pass(encoder, render_models);
+
+        // Depth only pass for shadow maps.
+        self.shadow_pass(encoder, render_models);
+
+        // Create the two channel shadow map for variance shadows.
+        self.variance_shadow_pass(encoder);
+
+        // Draw the models to the initial color buffer.
+        self.model_pass(encoder, render_models);
+
+        // Extract the portions of the image that contribute to bloom.
+        self.bloom_threshold_pass(encoder);
+
+        // Repeatedly downsample and blur the thresholded bloom colors.
+        self.bloom_blur_passes(encoder);
+
+        // Combine the bloom textures into a single texture.
+        self.bloom_combine_pass(encoder);
+
+        // Upscale with bilinear filtering to smooth the result.
+        self.bloom_upscale_pass(encoder);
+
+        // TODO: Models with _near should be drawn after bloom but before post processing?
+        // TODO: How does this impact the depth buffer?
+
+        // Combine the model and bloom contributions and apply color grading.
+        self.post_processing_pass(encoder, output_view);
+    }
+
+    fn bloom_upscale_pass(&self, encoder: &mut wgpu::CommandEncoder) {
+        bloom_pass(
+            encoder,
+            "Bloom Upscale Pass",
+            &self.bloom_upscale_pipeline,
+            &self.pass_info.bloom_upscaled.view,
+            &self.pass_info.bloom_upscale_bind_group,
+        );
+    }
+
+    fn bloom_blur_passes(&self, encoder: &mut wgpu::CommandEncoder) {
+        for (texture, bind_group0) in &self.pass_info.bloom_blur_colors {
+            bloom_pass(
+                encoder,
+                "Bloom Blur Pass",
+                &self.bloom_blur_pipeline,
+                &texture.view,
+                bind_group0,
+            );
+        }
+    }
+
+    fn bloom_threshold_pass(&self, encoder: &mut wgpu::CommandEncoder) {
+        bloom_pass(
+            encoder,
+            "Bloom Threshold Pass",
+            &self.bloom_threshold_pipeline,
+            &self.pass_info.bloom_threshold.view,
+            &self.pass_info.bloom_threshold_bind_group,
+        );
+    }
+
+    fn variance_shadow_pass(&self, encoder: &mut wgpu::CommandEncoder) {
+        let mut variance_shadow_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("Variance Shadow Pass"),
+            color_attachments: &[wgpu::RenderPassColorAttachment {
+                view: &self.variance_shadow.view,
+                resolve_target: None,
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+                    store: true,
+                },
+            }],
+            depth_stencil_attachment: None,
+        });
+        variance_shadow_pass.set_pipeline(&self.variance_shadow_pipeline);
+        crate::shader::variance_shadow::bind_groups::set_bind_groups(
+            &mut variance_shadow_pass,
+            crate::shader::variance_shadow::bind_groups::BindGroups {
+                bind_group0: &self.variance_bind_group,
+            },
+        );
+        variance_shadow_pass.draw(0..3, 0..1);
+    }
+
+    fn skinning_pass(&self, encoder: &mut wgpu::CommandEncoder, render_models: &[RenderModel]) {
         // Skin the render meshes using a compute pass instead of in the vertex shader.
         // Compute shaders give more flexibility compared to vertex shaders.
         // Modifying the vertex buffers once avoids redundant work in later passes.
         let mut skinning_pass = encoder.begin_compute_pass(&ComputePassDescriptor {
             label: Some("Skinning Pass"),
         });
-
         skinning_pass.set_pipeline(&self.skinning_pipeline);
-
         for model in render_models {
             crate::rendermesh::dispatch_skinning(&model.meshes, &mut skinning_pass);
         }
+    }
 
-        drop(skinning_pass);
-
+    fn renormal_pass(&self, encoder: &mut wgpu::CommandEncoder, render_models: &[RenderModel]) {
         // TODO: This doesn't appear to be a compute shader in game?
         // TODO: What is the performance cost of this?
         let mut renormal_pass = encoder.begin_compute_pass(&ComputePassDescriptor {
             label: Some("Renormal Pass"),
         });
-
         renormal_pass.set_pipeline(&self.renormal_pipeline);
-
         for model in render_models {
             crate::rendermesh::dispatch_renormal(&model.meshes, &mut renormal_pass);
         }
+    }
 
-        drop(renormal_pass);
-
-
-        // Depth only pass for shadow maps.
-        let mut shadow_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-            label: Some("Shadow Pass"),
-            color_attachments: &[],
-            depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                view: &self.shadow_depth.view,
-                depth_ops: Some(wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(1.0),
-                    store: true,
-                }),
-                stencil_ops: None,
-            }),
-        });
-
-        // TODO: Use the light transforms for the "camera".
-        shadow_pass.set_pipeline(&self.shadow_pipeline);
-        for model in render_models {
-            model.draw_render_meshes_depth(&mut shadow_pass, &self.shadow_transform_bind_group);
-        }
-        drop(shadow_pass);
-
+    fn model_pass(&self, encoder: &mut wgpu::CommandEncoder, render_models: &[RenderModel]) {
         // TODO: Force having a color attachment for each fragment shader output in wgsl_to_wgpu?
-        // Draw the models to the initial color buffer.
         // TODO: Should this pass draw to a floating point target?
         // The in game format isn't 8-bit yet.
         let mut model_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
@@ -340,7 +391,6 @@ impl SsbhRenderer {
                 stencil_ops: None,
             }),
         });
-
         for model in render_models {
             model.draw_render_meshes(
                 &mut model_pass,
@@ -348,62 +398,15 @@ impl SsbhRenderer {
                 &self.model_shadow_bind_group,
             );
         }
+    }
 
-        drop(model_pass);
-
-        // Extract the portions of the image that contribute to bloom.
-        bloom_pass(
-            encoder,
-            "Bloom Threshold Pass",
-            &self.bloom_threshold_pipeline,
-            &self.pass_info.bloom_threshold.view,
-            &self.pass_info.bloom_threshold_bind_group,
-        );
-
-        // Repeatedly downsample and blur the thresholded bloom colors.
-        for (texture, bind_group0) in &self.pass_info.bloom_blur_colors {
-            bloom_pass(
-                encoder,
-                "Bloom Blur Pass",
-                &self.bloom_blur_pipeline,
-                &texture.view,
-                bind_group0,
-            );
-        }
-
-        // Combine the bloom textures into a single texture.
-        let mut bloom_combine_pass = create_color_pass(
-            encoder,
-            &self.pass_info.bloom_combined.view,
-            Some("Bloom Combined Pass"),
-        );
-
-        bloom_combine_pass.set_pipeline(&self.bloom_combine_pipeline);
-        crate::shader::bloom_combine::bind_groups::set_bind_groups(
-            &mut bloom_combine_pass,
-            crate::shader::bloom_combine::bind_groups::BindGroups {
-                bind_group0: &self.pass_info.bloom_combine_bind_group,
-            },
-        );
-        bloom_combine_pass.draw(0..3, 0..1);
-        drop(bloom_combine_pass);
-
-        // Upscale with bilinear filtering to smooth the result.
-        bloom_pass(
-            encoder,
-            "Bloom Upscale Pass",
-            &self.bloom_upscale_pipeline,
-            &self.pass_info.bloom_upscaled.view,
-            &self.pass_info.bloom_upscale_bind_group,
-        );
-
-        // TODO: Models with _near should be drawn after bloom but before post processing?
-        // TODO: How does this impact the depth buffer?
-
-        // Combine the model and bloom contributions and apply color grading.
+    fn post_processing_pass(
+        &self,
+        encoder: &mut wgpu::CommandEncoder,
+        output_view: &wgpu::TextureView,
+    ) {
         let mut post_processing_pass =
             create_color_pass(encoder, output_view, Some("Post Processing Pass"));
-
         post_processing_pass.set_pipeline(&self.post_process_pipeline);
         crate::shader::post_process::bind_groups::set_bind_groups(
             &mut post_processing_pass,
@@ -414,6 +417,69 @@ impl SsbhRenderer {
         post_processing_pass.draw(0..3, 0..1);
         drop(post_processing_pass);
     }
+
+    fn bloom_combine_pass(&self, encoder: &mut wgpu::CommandEncoder) {
+        let mut bloom_combine_pass = create_color_pass(
+            encoder,
+            &self.pass_info.bloom_combined.view,
+            Some("Bloom Combined Pass"),
+        );
+        bloom_combine_pass.set_pipeline(&self.bloom_combine_pipeline);
+        crate::shader::bloom_combine::bind_groups::set_bind_groups(
+            &mut bloom_combine_pass,
+            crate::shader::bloom_combine::bind_groups::BindGroups {
+                bind_group0: &self.pass_info.bloom_combine_bind_group,
+            },
+        );
+        bloom_combine_pass.draw(0..3, 0..1);
+    }
+
+    fn shadow_pass(&self, encoder: &mut wgpu::CommandEncoder, render_models: &[RenderModel]) {
+        let mut shadow_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("Shadow Pass"),
+            color_attachments: &[],
+            depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                view: &self.shadow_depth.view,
+                depth_ops: Some(wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(1.0),
+                    store: true,
+                }),
+                stencil_ops: None,
+            }),
+        });
+        shadow_pass.set_pipeline(&self.shadow_pipeline);
+        for model in render_models {
+            model.draw_render_meshes_depth(&mut shadow_pass, &self.shadow_transform_bind_group);
+        }
+    }
+}
+
+fn create_screen_pipeline(
+    device: &wgpu::Device,
+    shader: &wgpu::ShaderModule,
+    layout: &wgpu::PipelineLayout,
+    fs_main: &str,
+    target: wgpu::TextureFormat,
+) -> wgpu::RenderPipeline {
+    device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+        // TODO: Labels?
+        label: None,
+        layout: Some(&layout),
+        vertex: wgpu::VertexState {
+            module: &shader,
+            entry_point: "vs_main",
+            buffers: &[],
+        },
+        fragment: Some(wgpu::FragmentState {
+            module: &shader,
+            entry_point: fs_main,
+            targets: &[target.into()],
+        }),
+        primitive: wgpu::PrimitiveState::default(),
+        depth_stencil: None,
+        multisample: wgpu::MultisampleState::default(),
+        multiview: None,
+    })
 }
 
 fn bloom_pass(
@@ -481,13 +547,8 @@ impl PassInfo {
         let color = create_texture_sampler(device, width, height, crate::RGBA_COLOR_FORMAT);
 
         // Bloom uses successively smaller render targets to increase the blur.
-        let (bloom_threshold, bloom_threshold_bind_group) = create_bloom_bind_group(
-            device,
-            width / 4,
-            height / 4,
-            &color,
-            crate::BLOOM_COLOR_FORMAT,
-        );
+        let (bloom_threshold, bloom_threshold_bind_group) =
+            create_bloom_bind_group(device, width / 4, height / 4, &color, BLOOM_COLOR_FORMAT);
         let bloom_blur_colors =
             create_bloom_blur_bind_groups(device, width / 4, height / 4, &bloom_threshold);
         let (bloom_combined, bloom_combine_bind_group) =
@@ -535,7 +596,7 @@ fn create_depth(device: &wgpu::Device, width: u32, height: u32) -> TextureSample
         mip_level_count: 1,
         sample_count: 1,
         dimension: wgpu::TextureDimension::D2,
-        format: crate::DEPTH_FORMAT,
+        format: DEPTH_FORMAT,
         usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
     };
     let texture = device.create_texture(&desc);
@@ -547,7 +608,7 @@ fn create_depth(device: &wgpu::Device, width: u32, height: u32) -> TextureSample
         mag_filter: wgpu::FilterMode::Linear,
         min_filter: wgpu::FilterMode::Linear,
         mipmap_filter: wgpu::FilterMode::Nearest,
-        compare: Some(wgpu::CompareFunction::LessEqual),
+        compare: None,
         ..Default::default()
     });
 
@@ -560,6 +621,7 @@ fn create_texture_sampler(
     height: u32,
     format: wgpu::TextureFormat,
 ) -> TextureSamplerView {
+    // TODO: Labels
     let texture = device.create_texture(&wgpu::TextureDescriptor {
         label: Some("color texture"),
         size: wgpu::Extent3d {
@@ -577,6 +639,8 @@ fn create_texture_sampler(
     let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
 
     let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
+        address_mode_u: wgpu::AddressMode::ClampToEdge,
+        address_mode_v: wgpu::AddressMode::ClampToEdge,
         mag_filter: wgpu::FilterMode::Linear,
         min_filter: wgpu::FilterMode::Linear,
         mipmap_filter: wgpu::FilterMode::Nearest,
@@ -600,7 +664,7 @@ fn create_bloom_blur_bind_groups(
     // For a standard 1920x1080 window, the thresholded input is 480x270.
     // This gives sizes of 240x135 -> 120x67 -> 60x33 -> 30x16
     let create_bind_group = |width, height, input| {
-        create_bloom_bind_group(device, width, height, input, crate::BLOOM_COLOR_FORMAT)
+        create_bloom_bind_group(device, width, height, input, BLOOM_COLOR_FORMAT)
     };
 
     let (texture0, bind_group0) = create_bind_group(width / 2, height / 2, input);
