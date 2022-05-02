@@ -4,6 +4,7 @@ use ssbh_wgpu::create_default_textures;
 use ssbh_wgpu::load_default_cube;
 use ssbh_wgpu::CameraTransforms;
 use ssbh_wgpu::RenderModel;
+use ssbh_wgpu::REQUIRED_FEATURES;
 use ssbh_wgpu::{load_model_folders, load_render_models, SsbhRenderer};
 
 use ssbh_data::prelude::*;
@@ -73,15 +74,11 @@ impl State {
             .await
             .unwrap();
 
-        // TODO: Document the features somewhere?
-        // TODO: Find a way to avoid using the format features for filterable f32 textures.
         let (device, queue) = adapter
             .request_device(
                 &wgpu::DeviceDescriptor {
                     label: None,
-                    features: wgpu::Features::TEXTURE_COMPRESSION_BC
-                        | wgpu::Features::ADDRESS_MODE_CLAMP_TO_BORDER
-                        | wgpu::Features::TEXTURE_ADAPTER_SPECIFIC_FORMAT_FEATURES,
+                    features: wgpu::Features::default() | REQUIRED_FEATURES,
                     limits: wgpu::Limits::default(),
                 },
                 None, // Trace path

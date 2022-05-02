@@ -25,6 +25,15 @@ use crate::{pipeline::PipelineData, rendermesh::RenderMeshSharedData};
 
 pub use renderer::RGBA_COLOR_FORMAT;
 
+// TODO: Find a way to avoid using the format features for filterable f32 textures.
+/// Required WGPU features for using this library.
+/// This library currently only supports WGPU on native desktop platforms.
+pub const REQUIRED_FEATURES: wgpu::Features = wgpu::Features::from_bits_truncate(
+    wgpu::Features::TEXTURE_COMPRESSION_BC.bits()
+        | wgpu::Features::ADDRESS_MODE_CLAMP_TO_BORDER.bits()
+        | wgpu::Features::TEXTURE_ADAPTER_SPECIFIC_FORMAT_FEATURES.bits(),
+);
+
 // Store the file data for a single folder.
 // This helps ensure files are loaded exactly once.
 // Applications can instantiate this struct directly instead of using the filesystem.
