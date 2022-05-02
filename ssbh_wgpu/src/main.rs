@@ -119,7 +119,8 @@ impl State {
             &stage_cube,
         );
 
-        let renderer = SsbhRenderer::new(&device, &queue, size.width, size.height);
+        let renderer =
+            SsbhRenderer::new(&device, &queue, size.width, size.height, wgpu::Color::BLACK);
 
         Self {
             surface,

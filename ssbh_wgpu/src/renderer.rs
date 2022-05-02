@@ -53,6 +53,9 @@ pub struct SsbhRenderer {
     // TODO: Rework this to allow for updating the lut externally.
     // TODO: What's the easiest format to allow these updates?
     color_lut: TextureSamplerView,
+
+    // TODO: Should this be configurable at runtime?
+    clear_color: wgpu::Color,
 }
 
 impl SsbhRenderer {
@@ -65,6 +68,7 @@ impl SsbhRenderer {
         queue: &wgpu::Queue,
         initial_width: u32,
         initial_height: u32,
+        clear_color: wgpu::Color,
     ) -> Self {
         let shader = crate::shader::post_process::create_shader_module(device);
         let layout = crate::shader::post_process::create_pipeline_layout(device);
@@ -224,6 +228,7 @@ impl SsbhRenderer {
             variance_shadow_pipeline,
             variance_shadow,
             variance_bind_group,
+            clear_color
         }
     }
 
@@ -378,7 +383,7 @@ impl SsbhRenderer {
                 view: &self.pass_info.color.view,
                 resolve_target: None,
                 ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+                    load: wgpu::LoadOp::Clear(self.clear_color),
                     store: true,
                 },
             }],
