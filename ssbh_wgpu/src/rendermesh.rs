@@ -67,9 +67,8 @@ struct PipelineIdentifier {
 }
 
 struct MaterialData {
-    textures_bind_group: crate::shader::model::bind_groups::BindGroup1,
+    material_uniforms_bind_group: crate::shader::model::bind_groups::BindGroup1,
     uniforms_buffer: wgpu::Buffer,
-    material_uniforms_bind_group: crate::shader::model::bind_groups::BindGroup2,
 }
 
 struct MeshBuffers {
@@ -106,16 +105,20 @@ impl RenderModel {
             .material_data_by_label
             .get_mut(&material.material_label)
         {
-            data.textures_bind_group = create_textures_bind_group(
+            // TODO: Update textures and materials separately?
+            let uniforms_buffer = create_uniforms_buffer(Some(material), device);
+
+            data.material_uniforms_bind_group = create_material_uniforms_bind_group(
                 Some(material),
                 device,
                 &self.textures,
                 default_textures,
                 stage_cube,
+                &uniforms_buffer,
             );
+            // let uniforms = create_uniforms(Some(material));
 
-            let uniforms = create_uniforms(Some(material));
-            queue.write_buffer(&data.uniforms_buffer, 0, bytemuck::cast_slice(&[uniforms]));
+            // queue.write_buffer(&data.uniforms_buffer, 0, bytemuck::cast_slice(&[uniforms]));
         }
     }
 
@@ -167,6 +170,7 @@ impl RenderModel {
         &'a self,
         render_pass: &mut wgpu::RenderPass<'a>,
         camera_bind_group: &'a crate::shader::model::bind_groups::BindGroup0,
+        stage_uniforms_bind_group: &'a crate::shader::model::bind_groups::BindGroup2,
         shadow_bind_group: &'a crate::shader::model::bind_groups::BindGroup3,
     ) {
         for mesh in self.meshes.iter().filter(|m| m.is_visible) {
@@ -179,8 +183,8 @@ impl RenderModel {
                 render_pass,
                 crate::shader::model::bind_groups::BindGroups::<'a> {
                     bind_group0: camera_bind_group,
-                    bind_group1: &material_data.textures_bind_group,
-                    bind_group2: &material_data.material_uniforms_bind_group,
+                    bind_group1: &material_data.material_uniforms_bind_group,
+                    bind_group2: stage_uniforms_bind_group,
                     bind_group3: shadow_bind_group,
                 },
             );
@@ -300,21 +304,19 @@ fn create_material_data(
     default_textures: &[(String, wgpu::Texture)], // TODO: document that this is an absolute path?
     stage_cube: &(wgpu::TextureView, wgpu::Sampler),
 ) -> MaterialData {
-    let textures_bind_group =
-        create_textures_bind_group(material, device, textures, default_textures, stage_cube);
-
     let uniforms_buffer = create_uniforms_buffer(material, device);
-    let material_uniforms_bind_group = crate::shader::model::bind_groups::BindGroup2::from_bindings(
+    let material_uniforms_bind_group = create_material_uniforms_bind_group(
+        material,
         device,
-        crate::shader::model::bind_groups::BindGroupLayout2 {
-            uniforms: &uniforms_buffer,
-        },
+        textures,
+        default_textures,
+        stage_cube,
+        &uniforms_buffer,
     );
 
     MaterialData {
-        textures_bind_group,
-        uniforms_buffer,
         material_uniforms_bind_group,
+        uniforms_buffer,
     }
 }
 
@@ -546,12 +548,13 @@ fn create_render_mesh(
     }
 }
 
-fn create_textures_bind_group(
+fn create_material_uniforms_bind_group(
     material: Option<&ssbh_data::matl_data::MatlEntryData>,
     device: &wgpu::Device,
     textures: &[(String, wgpu::Texture)],
     default_textures: &[(String, wgpu::Texture)],
     stage_cube: &(wgpu::TextureView, wgpu::Sampler),
+    uniforms_buffer: &wgpu::Buffer, // TODO: Just return this?
 ) -> crate::shader::model::bind_groups::BindGroup1 {
     // TODO: Do all textures default to white if the path isn't correct?
     // TODO: Default cube map?
@@ -573,9 +576,6 @@ fn create_textures_bind_group(
 
     // TODO: Better cube map handling.
     // TODO: Default texture for other cube maps?
-
-    // This can be done by creating a HashMap<Path, Texture>.
-    // Most textures will be used, so it doesn't make sense to lazy load them.
 
     // TODO: How to enforce certain textures being cube maps?
     crate::shader::model::bind_groups::BindGroup1::from_bindings(
@@ -611,6 +611,7 @@ fn create_textures_bind_group(
             sampler13: &load_sampler(ParamId::Sampler13),
             texture14: &load_texture(ParamId::Texture14),
             sampler14: &load_sampler(ParamId::Sampler14),
+            uniforms: uniforms_buffer,
         },
     )
 }

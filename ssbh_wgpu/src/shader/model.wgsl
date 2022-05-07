@@ -7,25 +7,12 @@ struct LightTransforms {
     light_transform: mat4x4<f32>;
 };
 
-// Align everything to 16 bytes to avoid alignment issues.
-// Smash Ultimate's shaders also use this alignment.
-// TODO: Investigate std140/std430
-// TODO: Does wgsl/wgpu require a specific layout/alignment?
-struct MaterialUniforms {
-    custom_vector: array<vec4<f32>, 64>;
-    // TODO: Merge values into a single vec4?
-    custom_boolean: array<vec4<f32>, 20>;
-    custom_float: array<vec4<f32>, 20>;
-    has_float: array<vec4<f32>, 20>;
-    has_texture: array<vec4<f32>, 19>;
-    has_vector: array<vec4<f32>, 64>;
-};
-
-// TODO: These should be sorted by how frequently they change for performance.
+// TODO: Bind groups should be ordered by how frequently they change for performance.
 [[group(0), binding(0)]]
 var<uniform> camera: CameraTransforms;
 
 // TODO: Is there a better way of organizing this?
+// TODO: How many textures can we have?
 [[group(1), binding(0)]]
 var texture0: texture_2d<f32>;
 [[group(1), binding(1)]]
@@ -101,10 +88,31 @@ var texture14: texture_2d<f32>;
 [[group(1), binding(29)]]
 var sampler14: sampler;
 
-// TODO: How many textures can we have?
+// Align everything to 16 bytes to avoid alignment issues.
+// Smash Ultimate's shaders also use this alignment.
+// TODO: Investigate std140/std430
+// TODO: Does wgsl/wgpu require a specific layout/alignment?
+struct MaterialUniforms {
+    custom_vector: array<vec4<f32>, 64>;
+    // TODO: Merge values into a single vec4?
+    custom_boolean: array<vec4<f32>, 20>;
+    custom_float: array<vec4<f32>, 20>;
+    has_float: array<vec4<f32>, 20>;
+    has_texture: array<vec4<f32>, 19>;
+    has_vector: array<vec4<f32>, 64>;
+};
+
+[[group(1), binding(30)]]
+var<uniform> uniforms: MaterialUniforms;
+
+// TODO: Store light transform here as well?
+// TODO: How to store lights?
+struct StageUniforms {
+    chr_light_dir: vec4<f32>;
+};
 
 [[group(2), binding(0)]]
-var<uniform> uniforms: MaterialUniforms;
+var<uniform> stage_uniforms: StageUniforms;
 
 // TODO: Where to store depth information.
 [[group(3), binding(0)]]
@@ -651,7 +659,7 @@ fn fs_main(in: VertexOutput) -> [[location(0)]] vec4<f32> {
     var reflectionVector = reflect(viewVector, normal);
     reflectionVector.y = reflectionVector.y * -1.0;
 
-    let chrLightDir = vec3<f32>(-0.38302213, 0.86602527, 0.32139426);
+    let chrLightDir = stage_uniforms.chr_light_dir.xyz;
 
     let halfAngle = normalize(chrLightDir + viewVector);
     let nDotV = max(dot(fragmentNormal, viewVector), 0.0);

@@ -433,7 +433,6 @@ fn frame_values(frame: f32, track: &ssbh_data::anim_data::TrackData) -> (usize, 
 
 #[cfg(test)]
 mod tests {
-    use approx::relative_eq;
     use ssbh_data::{
         anim_data::{GroupData, NodeData, ScaleOptions, TrackData, Transform, TransformFlags},
         skel_data::{BillboardType, BoneData},
@@ -441,19 +440,7 @@ mod tests {
 
     use super::*;
 
-    macro_rules! assert_matrix_relative_eq {
-        ($a:expr, $b:expr) => {
-            assert!(
-                $a.iter()
-                    .flatten()
-                    .zip($b.iter().flatten())
-                    .all(|(a, b)| relative_eq!(a, b, epsilon = 0.0001f32)),
-                "Matrices not equal to within 0.0001.\nleft = {:?}\nright = {:?}",
-                $a,
-                $b
-            );
-        };
-    }
+    use crate::assert_matrix_relative_eq;
 
     fn identity_bone(name: &str, parent_index: Option<usize>) -> BoneData {
         BoneData {

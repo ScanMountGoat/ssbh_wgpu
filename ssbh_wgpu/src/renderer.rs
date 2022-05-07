@@ -1,8 +1,9 @@
 use wgpu::{util::DeviceExt, ComputePassDescriptor, ComputePipelineDescriptor};
 
 use crate::{
-    calculate_light_transform, camera::create_camera_bind_group, pipeline::create_depth_pipeline,
-    texture::load_texture_sampler_3d, CameraTransforms, RenderModel,
+    camera::create_camera_bind_group, lighting::calculate_light_transform,
+    pipeline::create_depth_pipeline, texture::load_texture_sampler_3d, CameraTransforms,
+    RenderModel,
 };
 
 // Rgba16Float is widely supported.
@@ -42,6 +43,9 @@ pub struct SsbhRenderer {
     // This avoids exposing shader implementations like bind groups.
     camera_buffer: wgpu::Buffer,
     camera_bind_group: crate::shader::model::bind_groups::BindGroup0,
+
+    // TODO: Support updating this data?
+    stage_uniforms_bind_group: crate::shader::model::bind_groups::BindGroup2,
 
     model_shadow_bind_group: crate::shader::model::bind_groups::BindGroup3,
     shadow_transform_bind_group: crate::shader::model_depth::bind_groups::BindGroup0,
@@ -161,7 +165,10 @@ impl SsbhRenderer {
         let (camera_buffer, camera_bind_group) =
             create_camera_bind_group(device, glam::Vec4::ZERO, glam::Mat4::IDENTITY);
 
-        let light_transform = calculate_light_transform();
+        let light_transform = calculate_light_transform(
+            glam::Quat::from_xyzw(-0.495286, -0.0751228, 0.0431234, -0.864401),
+            glam::Vec3::new(25.0, 25.0, 50.0),
+        );
 
         let shadow_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Camera Buffer"),
@@ -189,6 +196,7 @@ impl SsbhRenderer {
             VARIANCE_SHADOW_FORMAT,
         );
 
+        // TODO: Create a separate stage lighting bind group?
         let model_shadow_bind_group = crate::shader::model::bind_groups::BindGroup3::from_bindings(
             device,
             crate::shader::model::bind_groups::BindGroupLayout3 {
@@ -197,6 +205,24 @@ impl SsbhRenderer {
                 light: &shadow_buffer,
             },
         );
+
+        // TODO: This should be initialized by state stored in the renderer.
+        // The light nuanmb should be public with conversions for quaternions, vectors, etc being private.
+        // stage light nuanmb -> uniform struct -> buffer
+        let stage_uniforms_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Stage Uniforms Buffer"),
+            contents: bytemuck::cast_slice(&[crate::shader::model::StageUniforms {
+                chr_light_dir: [-0.38302213, 0.86602527, 0.32139426, 0.0],
+            }]),
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        });
+        let stage_uniforms_bind_group =
+            crate::shader::model::bind_groups::BindGroup2::from_bindings(
+                device,
+                crate::shader::model::bind_groups::BindGroupLayout2 {
+                    stage_uniforms: &stage_uniforms_buffer,
+                },
+            );
 
         // TODO: Is it ok to just use the variance shadow map sampler?
         // We don't want a comparison sampler for this pipeline.
@@ -228,7 +254,8 @@ impl SsbhRenderer {
             variance_shadow_pipeline,
             variance_shadow,
             variance_bind_group,
-            clear_color
+            clear_color,
+            stage_uniforms_bind_group,
         }
     }
 
@@ -400,6 +427,7 @@ impl SsbhRenderer {
             model.draw_render_meshes(
                 &mut model_pass,
                 &self.camera_bind_group,
+                &self.stage_uniforms_bind_group,
                 &self.model_shadow_bind_group,
             );
         }
@@ -461,7 +489,7 @@ impl SsbhRenderer {
 
 fn create_screen_pipeline(
     device: &wgpu::Device,
-    shader: &wgpu::ShaderModule,
+    module: &wgpu::ShaderModule,
     layout: &wgpu::PipelineLayout,
     fs_main: &str,
     target: wgpu::TextureFormat,
@@ -469,14 +497,14 @@ fn create_screen_pipeline(
     device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
         // TODO: Labels?
         label: None,
-        layout: Some(&layout),
+        layout: Some(layout),
         vertex: wgpu::VertexState {
-            module: &shader,
+            module,
             entry_point: "vs_main",
             buffers: &[],
         },
         fragment: Some(wgpu::FragmentState {
-            module: &shader,
+            module,
             entry_point: fs_main,
             targets: &[target.into()],
         }),

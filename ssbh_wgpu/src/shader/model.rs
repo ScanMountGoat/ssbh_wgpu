@@ -23,6 +23,11 @@ pub struct MaterialUniforms {
 }
 #[repr(C)]
 #[derive(Debug, Copy, Clone, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
+pub struct StageUniforms {
+    pub chr_light_dir: [f32; 4],
+}
+#[repr(C)]
+#[derive(Debug, Copy, Clone, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct VertexInput0 {
     pub position0: [f32; 4],
     pub normal0: [f32; 4],
@@ -129,6 +134,7 @@ pub mod bind_groups {
         pub sampler13: &'a wgpu::Sampler,
         pub texture14: &'a wgpu::TextureView,
         pub sampler14: &'a wgpu::Sampler,
+        pub uniforms: &'a wgpu::Buffer,
     }
     const LAYOUT_DESCRIPTOR1: wgpu::BindGroupLayoutDescriptor = wgpu::BindGroupLayoutDescriptor {
         label: None,
@@ -373,6 +379,16 @@ pub mod bind_groups {
                 ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
                 count: None,
             },
+            wgpu::BindGroupLayoutEntry {
+                binding: 30u32,
+                visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
+                },
+                count: None,
+            },
         ]
     };
     impl BindGroup1 {
@@ -505,6 +521,10 @@ pub mod bind_groups {
                         binding: 29u32,
                         resource: wgpu::BindingResource::Sampler(bindings.sampler14),
                     },
+                    wgpu::BindGroupEntry {
+                        binding: 30u32,
+                        resource: bindings.uniforms.as_entire_binding(),
+                    },
                 ],
                 label: None,
             });
@@ -517,7 +537,7 @@ pub mod bind_groups {
     }
     pub struct BindGroup2(wgpu::BindGroup);
     pub struct BindGroupLayout2<'a> {
-        pub uniforms: &'a wgpu::Buffer,
+        pub stage_uniforms: &'a wgpu::Buffer,
     }
     const LAYOUT_DESCRIPTOR2: wgpu::BindGroupLayoutDescriptor = wgpu::BindGroupLayoutDescriptor {
         label: None,
@@ -546,7 +566,7 @@ pub mod bind_groups {
                 entries: &[
                     wgpu::BindGroupEntry {
                         binding: 0u32,
-                        resource: bindings.uniforms.as_entire_binding(),
+                        resource: bindings.stage_uniforms.as_entire_binding(),
                     },
                 ],
                 label: None,
