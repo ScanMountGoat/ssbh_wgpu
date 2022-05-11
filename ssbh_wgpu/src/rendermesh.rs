@@ -28,6 +28,7 @@ pub struct RenderModel {
     matl: Option<MatlData>,
     mesh_buffers: MeshBuffers,
     material_data_by_label: HashMap<String, MaterialData>,
+    pipelines: HashMap<PipelineKey, wgpu::RenderPipeline>,
     textures: Vec<(String, wgpu::Texture)>, // (file name, texture)
 }
 
@@ -47,8 +48,8 @@ pub struct RenderMesh {
     skinning_bind_group: crate::shader::skinning::bind_groups::BindGroup0,
     skinning_transforms_bind_group: crate::shader::skinning::bind_groups::BindGroup1,
     mesh_object_info_bind_group: crate::shader::skinning::bind_groups::BindGroup2,
-    // Use an Arc since material and pipeline data is often shared.
-    pipeline: Arc<wgpu::RenderPipeline>,
+    // TODO: How to update this when materials/shaders change?
+    pipeline_key: PipelineKey,
 }
 
 impl RenderMesh {
@@ -57,9 +58,8 @@ impl RenderMesh {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Hash)]
-struct PipelineIdentifier {
-    shader_label: String,
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
+struct PipelineKey {
     // Depth state is set per mesh rather than per material.
     // This means we can't always have one pipeline per material.
     // In practice, there will usually be one pipeline per material.
@@ -107,7 +107,6 @@ impl RenderModel {
         {
             // TODO: Update textures and materials separately?
             let uniforms_buffer = create_uniforms_buffer(Some(material), device);
-
             data.material_uniforms_bind_group = create_material_uniforms_bind_group(
                 Some(material),
                 device,
@@ -171,7 +170,8 @@ impl RenderModel {
         shadow_bind_group: &'a crate::shader::model::bind_groups::BindGroup3,
     ) {
         for mesh in self.meshes.iter().filter(|m| m.is_visible) {
-            render_pass.set_pipeline(mesh.pipeline.as_ref());
+            // TODO: Don't assume the pipeline exists?
+            render_pass.set_pipeline(&self.pipelines[&mesh.pipeline_key]);
 
             // TODO: How to store all data in RenderModel but still draw sorted meshes?
             // TODO: Don't assume materials are properly assigned.
@@ -277,13 +277,14 @@ pub fn create_render_model(
         world_transforms: world_transforms_buffer,
     };
 
-    let (meshes, material_data_by_label, textures) =
+    let (meshes, material_data_by_label, textures, pipelines) =
         create_render_meshes(device, queue, &mesh_buffers, shared_data);
 
     println!(
-        "Create {:?} render meshes and {:?} materials: {:?}",
+        "Create {:?} render meshes, {:?} materials, {:?} pipelines: {:?}",
         meshes.len(),
         material_data_by_label.len(),
+        pipelines.len(),
         start.elapsed()
     );
 
@@ -294,6 +295,7 @@ pub fn create_render_model(
         mesh_buffers,
         material_data_by_label,
         textures,
+        pipelines,
     }
 }
 
@@ -329,6 +331,7 @@ fn create_render_meshes(
     Vec<RenderMesh>,
     HashMap<String, MaterialData>,
     Vec<(String, wgpu::Texture)>,
+    HashMap<PipelineKey, wgpu::RenderPipeline>,
 ) {
     // TODO: Find a way to organize this.
 
@@ -401,7 +404,7 @@ fn create_render_meshes(
         })
         .collect();
 
-    (meshes, material_data_by_label, textures)
+    (meshes, material_data_by_label, textures, pipelines)
 }
 
 // TODO: Group these parameters?
@@ -409,7 +412,7 @@ fn create_render_mesh(
     device: &wgpu::Device,
     mesh_object: &MeshObjectData,
     adj_entry: Option<&AdjEntryData>,
-    pipelines: &mut HashMap<PipelineIdentifier, Arc<wgpu::RenderPipeline>>,
+    pipelines: &mut HashMap<PipelineKey, wgpu::RenderPipeline>,
     mesh_buffers: &MeshBuffers,
     shared_data: &RenderMeshSharedData,
 ) -> RenderMesh {
@@ -438,26 +441,22 @@ fn create_render_mesh(
 
     // Pipeline creation is expensive.
     // Lazily initialize pipelines and share pipelines when possible.
-    let pipeline = pipelines
-        .entry(PipelineIdentifier {
-            // Strip the shader tag since it doesn't effect the pipeline itself.
-            // TODO: Is this always a safe assumption?
-            shader_label: material
-                .and_then(|material| material.shader_label.get(0..24))
-                .unwrap_or_default()
-                .to_string(),
-            enable_depth_write: !mesh_object.disable_depth_write,
-            enable_depth_test: !mesh_object.disable_depth_test,
-        })
-        .or_insert_with(|| {
-            Arc::new(create_pipeline(
-                device,
-                shared_data.pipeline_data,
-                material,
-                !mesh_object.disable_depth_write,
-                !mesh_object.disable_depth_test,
-            ))
-        });
+    // TODO: Should we delete unused pipelines when changes require a new pipeline?
+    let pipeline_key = PipelineKey {
+        // TODO: This should also contain the blending state?
+        enable_depth_write: !mesh_object.disable_depth_write,
+        enable_depth_test: !mesh_object.disable_depth_test,
+    };
+
+    pipelines.entry(pipeline_key).or_insert_with(|| {
+        create_pipeline(
+            device,
+            shared_data.pipeline_data,
+            material,
+            !mesh_object.disable_depth_write,
+            !mesh_object.disable_depth_test,
+        )
+    });
 
     let buffer_data = mesh_object_buffers(device, mesh_object, shared_data.skel);
 
@@ -533,7 +532,7 @@ fn create_render_mesh(
         skinning_bind_group,
         skinning_transforms_bind_group,
         mesh_object_info_bind_group,
-        pipeline: pipeline.clone(),
+        pipeline_key,
         normals_bind_group: renormal_bind_group,
         sub_index: mesh_object.sub_index,
     }
