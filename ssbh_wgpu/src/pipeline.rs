@@ -1,4 +1,5 @@
 use ssbh_data::matl_data::{BlendFactor, BlendStateData, MatlEntryData};
+use ssbh_data::mesh_data::MeshObjectData;
 
 // Create some helper structs to simplify the function signatures.
 pub struct PipelineData {
@@ -7,19 +8,51 @@ pub struct PipelineData {
     pub shader: wgpu::ShaderModule,
 }
 
+// Uniquely identify pipelines assuming a shared WGSL source.
+// Depth state is set per mesh rather than per material.
+// This means we can't always have one pipeline per material.
+// In practice, there will usually be one pipeline per material.
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
+pub struct PipelineKey {
+    enable_depth_write: bool,
+    enable_depth_test: bool,
+    blend: Option<wgpu::BlendState>,
+    cull_mode: Option<wgpu::Face>,
+    polygon_mode: wgpu::PolygonMode,
+    alpha_to_coverage_enabled: bool,
+}
+
+impl PipelineKey {
+    pub fn new(disable_depth_write: bool, disable_depth_test: bool, material: Option<&MatlEntryData>) -> Self {
+        // Pipeline state takes most of its settings from the material.
+        // The mesh object is just used for depth settings.
+        // If matl parameters are not present, use fallback values.
+        let rasterizer_state_data =
+            material.and_then(|m| m.rasterizer_states.first().map(|p| &p.data));
+        let blend_state_data = material.and_then(|m| m.blend_states.first().map(|p| &p.data));
+
+        Self {
+            enable_depth_write: !disable_depth_write,
+            enable_depth_test: !disable_depth_test,
+            cull_mode: rasterizer_state_data.and_then(|r| match r.cull_mode {
+                ssbh_data::matl_data::CullMode::Back => Some(wgpu::Face::Back),
+                ssbh_data::matl_data::CullMode::Front => Some(wgpu::Face::Front),
+                ssbh_data::matl_data::CullMode::Disabled => None,
+            }),
+            polygon_mode: wgpu::PolygonMode::Fill, // TODO: set by rasterizer state
+            blend: blend_state_data.map(blend_state),
+            alpha_to_coverage_enabled: blend_state_data
+                .map(|b| b.alpha_sample_to_coverage)
+                .unwrap_or(false),
+        }
+    }
+}
+
 pub fn create_pipeline(
     device: &wgpu::Device,
     pipeline_data: &PipelineData,
-    material: Option<&MatlEntryData>,
-    depth_write: bool,
-    depth_test: bool,
+    pipeline_key: &PipelineKey,
 ) -> wgpu::RenderPipeline {
-    // Pipeline state takes most of its settings from the material.
-    // The mesh object is just used for depth settings.
-    // If matl parameters are not present, use fallback values.
-    let rasterizer_state_data = material.and_then(|m| m.rasterizer_states.first().map(|p| &p.data));
-    let blend_state_data = material.and_then(|m| m.blend_states.first().map(|p| &p.data));
-
     // TODO: Some of these values should come from wgsl_to_wgpu
     // TODO: Get entry points from wgsl shader.
     device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
@@ -48,7 +81,7 @@ pub fn create_pipeline(
             // TODO: Automatically create a target for each fragment output?
             targets: &[wgpu::ColorTargetState {
                 format: pipeline_data.surface_format,
-                blend: blend_state_data.map(blend_state),
+                blend: pipeline_key.blend,
                 write_mask: wgpu::ColorWrites::ALL,
             }],
         }),
@@ -57,11 +90,7 @@ pub fn create_pipeline(
             topology: wgpu::PrimitiveTopology::TriangleList,
             strip_index_format: None,
             front_face: wgpu::FrontFace::Ccw,
-            cull_mode: rasterizer_state_data.and_then(|r| match r.cull_mode {
-                ssbh_data::matl_data::CullMode::Back => Some(wgpu::Face::Back),
-                ssbh_data::matl_data::CullMode::Front => Some(wgpu::Face::Front),
-                ssbh_data::matl_data::CullMode::Disabled => None,
-            }),
+            cull_mode: pipeline_key.cull_mode,
             // Setting this to anything other than Fill requires Features::NON_FILL_POLYGON_MODE
             polygon_mode: wgpu::PolygonMode::Fill, // TODO: set by rasterizer state
             conservative: false,
@@ -69,8 +98,8 @@ pub fn create_pipeline(
         },
         depth_stencil: Some(wgpu::DepthStencilState {
             format: crate::renderer::DEPTH_FORMAT,
-            depth_write_enabled: depth_write,
-            depth_compare: if depth_test {
+            depth_write_enabled: pipeline_key.enable_depth_write,
+            depth_compare: if pipeline_key.enable_depth_test {
                 wgpu::CompareFunction::LessEqual
             } else {
                 wgpu::CompareFunction::Always
@@ -79,11 +108,9 @@ pub fn create_pipeline(
             bias: wgpu::DepthBiasState::default(),
         }),
         multisample: wgpu::MultisampleState {
-            count: 1,
-            mask: !0,
             // TODO: This wont look correct without multisampling?
-            // alpha_to_coverage_enabled: blend_state_data.map(|b| b.alpha_sample_to_coverage).unwrap_or(false),
-            alpha_to_coverage_enabled: false,
+            alpha_to_coverage_enabled: pipeline_key.alpha_to_coverage_enabled,
+            ..Default::default()
         },
         multiview: None,
     })

@@ -1,6 +1,6 @@
 use crate::{
     animation::{animate_materials, animate_skel, animate_visibility, AnimationTransforms},
-    pipeline::create_pipeline,
+    pipeline::{create_pipeline, PipelineKey},
     texture::{load_sampler, load_texture},
     uniforms::create_uniforms_buffer,
     vertex::{mesh_object_buffers, MeshObjectBufferData},
@@ -58,15 +58,6 @@ impl RenderMesh {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
-struct PipelineKey {
-    // Depth state is set per mesh rather than per material.
-    // This means we can't always have one pipeline per material.
-    // In practice, there will usually be one pipeline per material.
-    enable_depth_write: bool,
-    enable_depth_test: bool,
-}
-
 struct MaterialData {
     material_uniforms_bind_group: crate::shader::model::bind_groups::BindGroup1,
     uniforms_buffer: wgpu::Buffer,
@@ -115,6 +106,32 @@ impl RenderModel {
                 stage_cube,
                 &uniforms_buffer,
             );
+
+            // TODO: Avoid recreating this data every time.
+            let shader = crate::shader::model::create_shader_module(device);
+            let layout = crate::shader::model::create_pipeline_layout(device);
+
+            let pipeline_data = PipelineData {
+                surface_format: crate::RGBA_COLOR_FORMAT,
+                layout,
+                shader,
+            };
+
+            // Create a new pipeline if needed.
+            // TODO: How to get the mesh depth write and depth test information?
+            let pipeline_key = PipelineKey::new(false, false, Some(material));
+            self.pipelines
+                .entry(pipeline_key)
+                .or_insert_with(|| create_pipeline(device, &pipeline_data, &pipeline_key));
+
+            // Update the pipeline key for associated RenderMeshes.
+            for mesh in self
+                .meshes
+                .iter_mut()
+                .filter(|m| m.material_label == material.material_label)
+            {
+                mesh.pipeline_key = pipeline_key;
+            }
         }
     }
 
@@ -442,21 +459,15 @@ fn create_render_mesh(
     // Pipeline creation is expensive.
     // Lazily initialize pipelines and share pipelines when possible.
     // TODO: Should we delete unused pipelines when changes require a new pipeline?
-    let pipeline_key = PipelineKey {
-        // TODO: This should also contain the blending state?
-        enable_depth_write: !mesh_object.disable_depth_write,
-        enable_depth_test: !mesh_object.disable_depth_test,
-    };
+    let pipeline_key = PipelineKey::new(
+        mesh_object.disable_depth_write,
+        mesh_object.disable_depth_test,
+        material,
+    );
 
-    pipelines.entry(pipeline_key).or_insert_with(|| {
-        create_pipeline(
-            device,
-            shared_data.pipeline_data,
-            material,
-            !mesh_object.disable_depth_write,
-            !mesh_object.disable_depth_test,
-        )
-    });
+    pipelines
+        .entry(pipeline_key)
+        .or_insert_with(|| create_pipeline(device, shared_data.pipeline_data, &pipeline_key));
 
     let buffer_data = mesh_object_buffers(device, mesh_object, shared_data.skel);
 
