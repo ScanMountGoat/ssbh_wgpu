@@ -392,6 +392,7 @@ fn DiffuseTerm(
         ambientTerm = ambientTerm + (bakedLitColor.rgb * 8.0);
     }
 
+    // Assume the mix factor is 0.0 if the material doesn't have CustomVector11.
     ambientTerm = ambientTerm * mix(albedo, uniforms.custom_vector[11].rgb, sssBlend);
 
     let result = directLight * shadow + ambientTerm;

@@ -1,5 +1,8 @@
 use rayon::prelude::*;
-use std::path::Path;
+use std::{
+    error::Error,
+    path::{Path, PathBuf},
+};
 
 mod pipeline;
 mod shader;
@@ -40,15 +43,15 @@ pub const REQUIRED_FEATURES: wgpu::Features = wgpu::Features::from_bits_truncate
 // Applications can instantiate this struct directly instead of using the filesystem.
 pub struct ModelFolder {
     pub folder_name: String,
-    pub mesh: MeshData,
-    // TODO: Should these be Result<Option<T>, E> to display error info in applications?
-    // Option::None would just indicate a missing file.
-    pub skel: Option<SkelData>,
-    pub matl: Option<MatlData>,
-    pub modl: Option<ModlData>,
-    pub adj: Option<AdjData>,
     // TODO: Will a hashmap be faster for this many items?
-    pub textures_by_file_name: Vec<(String, NutexbFile)>,
+    // TODO: Should these be Result<T, E> to display error info in applications?
+    pub meshes: Vec<(String, MeshData)>,
+    pub skels: Vec<(String, SkelData)>,
+    pub matls: Vec<(String, MatlData)>,
+    pub modls: Vec<(String, ModlData)>,
+    pub adjs: Vec<(String, AdjData)>,
+    pub anims: Vec<(String, AnimData)>,
+    pub nutexbs: Vec<(String, NutexbFile)>,
 }
 
 pub fn load_render_models(
@@ -75,11 +78,38 @@ pub fn load_render_models(
     let render_models: Vec<_> = models
         .iter()
         .map(|model| {
+            // TODO: Should this use the file names in the modl itself?
+            // TODO: Make this a method instead?
             let shared_data = RenderMeshSharedData {
                 pipeline_data: &pipeline_data,
-                model,
                 default_textures,
                 stage_cube,
+                mesh: model
+                    .meshes
+                    .iter()
+                    .find(|(f, _)| f == "model.numshb")
+                    .map(|(_, m)| m),
+                modl: model
+                    .modls
+                    .iter()
+                    .find(|(f, _)| f == "model.numdlb")
+                    .map(|(_, m)| m),
+                skel: model
+                    .skels
+                    .iter()
+                    .find(|(f, _)| f == "model.nusktb")
+                    .map(|(_, m)| m),
+                matl: model
+                    .matls
+                    .iter()
+                    .find(|(f, _)| f == "model.numatb")
+                    .map(|(_, m)| m),
+                adj: model
+                    .adjs
+                    .iter()
+                    .find(|(f, _)| f == "model.adjb")
+                    .map(|(_, m)| m),
+                nutexbs: &model.nutexbs,
             };
 
             rendermesh::create_render_model(device, queue, &shared_data)
@@ -110,25 +140,21 @@ pub fn load_model_folders<P: AsRef<Path>>(root: P) -> Vec<ModelFolder> {
         .filter_map(|p| {
             // TODO: Some folders don't have a numshb?
             // TODO: Can the mesh be optional?
-            // TODO: Find a way to test what happens if these are None.
-            let mesh = MeshData::from_file(p.path().with_extension("numshb")).ok()?;
-            let skel = SkelData::from_file(p.path().with_extension("nusktb")).ok();
-            let matl = MatlData::from_file(p.path().with_extension("numatb")).ok();
-            let modl = ModlData::from_file(p.path().with_extension("numdlb")).ok();
-            let adj = AdjData::from_file(p.path().with_extension("adjb")).ok();
+            // TODO: Find a way to test what happens if files are missing.
+
             // TODO: Handle missing parent folder?
             let parent = p.path().parent().unwrap();
-            let textures_by_file_name = textures_by_file_name(parent);
-
             let folder = parent.to_string_lossy().to_string();
+
             Some(ModelFolder {
                 folder_name: folder,
-                mesh,
-                skel,
-                matl,
-                modl,
-                adj,
-                textures_by_file_name,
+                meshes: read_files(parent, "numshb", MeshData::from_file),
+                skels: read_files(parent, "nusktb", SkelData::from_file),
+                matls: read_files(parent, "numatb", MatlData::from_file),
+                modls: read_files(parent, "numdlb", ModlData::from_file),
+                anims: read_files(parent, "nuanmb", AnimData::from_file),
+                adjs: read_files(parent, "adjb", AdjData::from_file),
+                nutexbs: read_files(parent, "nutexb", NutexbFile::read_from_file),
             })
         })
         .collect();
@@ -136,16 +162,21 @@ pub fn load_model_folders<P: AsRef<Path>>(root: P) -> Vec<ModelFolder> {
     models
 }
 
-fn textures_by_file_name(parent: &Path) -> Vec<(String, NutexbFile)> {
+fn read_files<T, F>(parent: &Path, extension: &str, read_t: F) -> Vec<(String, T)>
+where
+    F: Fn(PathBuf) -> Result<T, Box<dyn Error>>,
+{
+    // TODO: Avoid repetitive system calls here?
+    // We should be able to just iterate the directory once.
     std::fs::read_dir(parent)
         .unwrap() // TODO: Avoid unwrap?
-        .par_bridge()
+        // .par_bridge()
         .filter_map(|p| p.ok().map(|p| p.path()))
-        .filter(|p| p.extension().and_then(|p| p.to_str()) == Some("nutexb"))
+        .filter(|p| p.extension().and_then(|p| p.to_str()) == Some(extension))
         .filter_map(|p| {
             Some((
                 p.file_name()?.to_string_lossy().to_string(),
-                NutexbFile::read_from_file(p).ok()?,
+                read_t(p).ok()?,
             ))
         })
         .collect()
@@ -162,7 +193,7 @@ macro_rules! assert_matrix_relative_eq {
             "Matrices not equal to within 0.0001.\nleft = {:?}\nright = {:?}",
             $a,
             $b
-        );
+        )
     };
 }
 

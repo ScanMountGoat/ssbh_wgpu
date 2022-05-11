@@ -2,10 +2,11 @@ use crate::{
     animation::{animate_materials, animate_skel, animate_visibility, AnimationTransforms},
     pipeline::create_pipeline,
     texture::{load_sampler, load_texture},
-    uniforms::{create_uniforms, create_uniforms_buffer},
+    uniforms::create_uniforms_buffer,
     vertex::{mesh_object_buffers, MeshObjectBufferData},
-    ModelFolder, PipelineData,
+    PipelineData,
 };
+use nutexb_wgpu::NutexbFile;
 use ssbh_data::{
     adj_data::AdjEntryData,
     matl_data::{MatlEntryData, ParamId},
@@ -96,7 +97,6 @@ impl RenderModel {
     pub fn update_material(
         &mut self,
         device: &wgpu::Device,
-        queue: &wgpu::Queue,
         material: &MatlEntryData,
         default_textures: &[(String, wgpu::Texture)],
         stage_cube: &(wgpu::TextureView, wgpu::Sampler),
@@ -116,9 +116,6 @@ impl RenderModel {
                 stage_cube,
                 &uniforms_buffer,
             );
-            // let uniforms = create_uniforms(Some(material));
-
-            // queue.write_buffer(&data.uniforms_buffer, 0, bytemuck::cast_slice(&[uniforms]));
         }
     }
 
@@ -145,7 +142,7 @@ impl RenderModel {
                 for material in animated_materials {
                     // TODO: Should this go in a separate module?
                     // Get updated uniform buffers for animated materials
-                    self.update_material(device, queue, &material, default_textures, stage_cube);
+                    self.update_material(device, &material, default_textures, stage_cube);
                 }
             }
 
@@ -236,9 +233,14 @@ impl RenderMesh {
 // TODO: Come up with a more descriptive name for this.
 pub struct RenderMeshSharedData<'a> {
     pub pipeline_data: &'a PipelineData,
-    pub model: &'a ModelFolder,
     pub default_textures: &'a [(String, wgpu::Texture)],
     pub stage_cube: &'a (wgpu::TextureView, wgpu::Sampler),
+    pub mesh: Option<&'a MeshData>,
+    pub modl: Option<&'a ModlData>,
+    pub skel: Option<&'a SkelData>,
+    pub matl: Option<&'a MatlData>,
+    pub adj: Option<&'a AdjData>,
+    pub nutexbs: &'a [(String, NutexbFile)],
 }
 
 pub fn create_render_model(
@@ -254,9 +256,7 @@ pub fn create_render_model(
     // TODO: Is it worth matching the in game behavior for a missing skel?
     // "Invisible" models might be more confusing for users to understand.
     let anim_transforms = shared_data
-        .model
         .skel
-        .as_ref()
         .map(AnimationTransforms::from_skel)
         .unwrap_or_else(AnimationTransforms::identity);
 
@@ -289,8 +289,8 @@ pub fn create_render_model(
 
     RenderModel {
         meshes,
-        skel: shared_data.model.skel.clone(),
-        matl: shared_data.model.matl.clone(),
+        skel: shared_data.skel.cloned(),
+        matl: shared_data.matl.cloned(),
         mesh_buffers,
         material_data_by_label,
         textures,
@@ -335,8 +335,7 @@ fn create_render_meshes(
     // Initialize textures exactly once for performance.
     // Unused textures are rare, so we won't lazy load them.
     let textures: Vec<_> = shared_data
-        .model
-        .textures_by_file_name
+        .nutexbs
         .iter()
         .map(|(name, nutexb)| {
             (
@@ -361,9 +360,7 @@ fn create_render_meshes(
     // TODO: Handle missing materials?
     // TODO: Create a single "missing" material for meshes to use as a fallback?
     let material_data_by_label: HashMap<_, _> = shared_data
-        .model
         .matl
-        .as_ref()
         .unwrap()
         .entries
         .iter()
@@ -382,17 +379,15 @@ fn create_render_meshes(
     // TODO: Share vertex buffers?
     // TODO: Find a way to have fewer function parameters?
     let meshes: Vec<_> = shared_data
-        .model
         .mesh
+        .unwrap()
         .objects
         .iter() // TODO: par_iter?
         .enumerate()
         .map(|(i, mesh_object)| {
             // Some mesh objects have associated triangle adjacency.
             let adj_entry = shared_data
-                .model
                 .adj
-                .as_ref()
                 .and_then(|adj| adj.entries.iter().find(|e| e.mesh_object_index == i));
 
             create_render_mesh(
@@ -401,7 +396,6 @@ fn create_render_meshes(
                 adj_entry,
                 &mut pipelines,
                 mesh_buffers,
-                &textures,
                 shared_data,
             )
         })
@@ -417,16 +411,13 @@ fn create_render_mesh(
     adj_entry: Option<&AdjEntryData>,
     pipelines: &mut HashMap<PipelineIdentifier, Arc<wgpu::RenderPipeline>>,
     mesh_buffers: &MeshBuffers,
-    textures: &[(String, wgpu::Texture)],
     shared_data: &RenderMeshSharedData,
 ) -> RenderMesh {
     // TODO: These could be cleaner as functions.
     // TODO: Is using a default for the material label ok?
     // TODO: How does a missing material work in game for missing matl/modl entry?
     let material_label = shared_data
-        .model
         .modl
-        .as_ref()
         .and_then(|m| {
             m.entries
                 .iter()
@@ -439,7 +430,7 @@ fn create_render_mesh(
         .unwrap_or(&String::new())
         .to_string();
 
-    let material = shared_data.model.matl.as_ref().and_then(|matl| {
+    let material = shared_data.matl.and_then(|matl| {
         matl.entries
             .iter()
             .find(|e| e.material_label == material_label)
@@ -468,7 +459,7 @@ fn create_render_mesh(
             ))
         });
 
-    let buffer_data = mesh_object_buffers(device, mesh_object, shared_data.model.skel.as_ref());
+    let buffer_data = mesh_object_buffers(device, mesh_object, shared_data.skel);
 
     // TODO: Function for this?
     let adjacency = adj_entry
@@ -507,7 +498,7 @@ fn create_render_mesh(
             },
         );
 
-    let parent_index = find_parent_index(mesh_object, &shared_data.model.skel);
+    let parent_index = find_parent_index(mesh_object, shared_data.skel);
     let mesh_object_info_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
         label: Some("Mesh Object Info Buffer"),
         contents: bytemuck::cast_slice(&[crate::shader::skinning::MeshObjectInfo {
@@ -629,7 +620,7 @@ fn create_world_transforms_buffer(
     })
 }
 
-fn find_parent_index(mesh_object: &MeshObjectData, skel: &Option<SkelData>) -> i32 {
+fn find_parent_index(mesh_object: &MeshObjectData, skel: Option<&SkelData>) -> i32 {
     // Only include a parent if there are no bone influences.
     // TODO: What happens if there are influences and a parent bone?
     if mesh_object.bone_influences.is_empty() {
