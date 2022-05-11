@@ -1,9 +1,11 @@
 use wgpu::{util::DeviceExt, ComputePassDescriptor, ComputePipelineDescriptor};
 
 use crate::{
-    camera::create_camera_bind_group, lighting::calculate_light_transform,
-    pipeline::create_depth_pipeline, texture::load_texture_sampler_3d, CameraTransforms,
-    RenderModel,
+    camera::create_camera_bind_group,
+    lighting::{calculate_light_transform, light_direction},
+    pipeline::create_depth_pipeline,
+    texture::load_texture_sampler_3d,
+    CameraTransforms, RenderModel,
 };
 
 // Rgba16Float is widely supported.
@@ -39,12 +41,13 @@ pub struct SsbhRenderer {
     renormal_pipeline: wgpu::ComputePipeline,
     shadow_pipeline: wgpu::RenderPipeline,
     variance_shadow_pipeline: wgpu::RenderPipeline,
+
     // Store camera state for efficiently updating it later.
     // This avoids exposing shader implementations like bind groups.
     camera_buffer: wgpu::Buffer,
     camera_bind_group: crate::shader::model::bind_groups::BindGroup0,
 
-    // TODO: Support updating this data?
+    stage_uniforms_buffer: wgpu::Buffer,
     stage_uniforms_bind_group: crate::shader::model::bind_groups::BindGroup2,
 
     model_shadow_bind_group: crate::shader::model::bind_groups::BindGroup3,
@@ -206,14 +209,11 @@ impl SsbhRenderer {
             },
         );
 
-        // TODO: This should be initialized by state stored in the renderer.
         // The light nuanmb should be public with conversions for quaternions, vectors, etc being private.
         // stage light nuanmb -> uniform struct -> buffer
         let stage_uniforms_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Stage Uniforms Buffer"),
-            contents: bytemuck::cast_slice(&[crate::shader::model::StageUniforms {
-                chr_light_dir: [-0.38302213, 0.86602527, 0.32139426, 0.0],
-            }]),
+            contents: bytemuck::cast_slice(&[crate::shader::model::StageUniforms::training()]),
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
         let stage_uniforms_bind_group =
@@ -255,6 +255,7 @@ impl SsbhRenderer {
             variance_shadow,
             variance_bind_group,
             clear_color,
+            stage_uniforms_buffer,
             stage_uniforms_bind_group,
         }
     }

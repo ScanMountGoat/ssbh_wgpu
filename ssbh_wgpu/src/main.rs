@@ -241,26 +241,7 @@ impl State {
     }
 
     fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
-        // Animate at 60 fps regardless of the rendering framerate.
-        // This relies on interpolation or frame skipping.
-        // TODO: How robust is this timing implementation?
-        // TODO: Create a module/tests for this?
-        let current_frame_start = std::time::Instant::now();
-        let delta_t = current_frame_start.duration_since(self.previous_frame_start);
-        self.previous_frame_start = current_frame_start;
-
-        let millis_per_frame = 1000.0f64 / 60.0f64;
-        let delta_t_frames = delta_t.as_millis() as f64 / millis_per_frame;
-
-        let playback_speed = 1.0;
-
-        self.current_frame += (delta_t_frames * playback_speed) as f32;
-
-        if let Some(animation) = &self.animation {
-            if self.current_frame > animation.final_frame_index {
-                self.current_frame = 0.0;
-            }
-        }
+        self.update_current_frame();
 
         // Bind groups are preconfigured outside the render loop for performance.
         // This means only the output view needs to be set for each pass.
@@ -296,6 +277,28 @@ impl State {
         output.present();
 
         Ok(())
+    }
+
+    fn update_current_frame(&mut self) {
+        // Animate at 60 fps regardless of the rendering framerate.
+        // This relies on interpolation or frame skipping.
+        // TODO: How robust is this timing implementation?
+        // TODO: Create a module/tests for this?
+        let current_frame_start = std::time::Instant::now();
+        let delta_t = current_frame_start.duration_since(self.previous_frame_start);
+        self.previous_frame_start = current_frame_start;
+
+        let millis_per_frame = 1000.0f64 / 60.0f64;
+        let delta_t_frames = delta_t.as_millis() as f64 / millis_per_frame;
+        let playback_speed = 1.0;
+
+        self.current_frame += (delta_t_frames * playback_speed) as f32;
+
+        if let Some(animation) = &self.animation {
+            if self.current_frame > animation.final_frame_index {
+                self.current_frame = 0.0;
+            }
+        }
     }
 }
 

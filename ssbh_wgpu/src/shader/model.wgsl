@@ -94,7 +94,7 @@ var sampler14: sampler;
 // TODO: Does wgsl/wgpu require a specific layout/alignment?
 struct MaterialUniforms {
     custom_vector: array<vec4<f32>, 64>;
-    // TODO: Merge values into a single vec4?
+    // TODO: Place the has_ values in an unused vector component?
     custom_boolean: array<vec4<f32>, 20>;
     custom_float: array<vec4<f32>, 20>;
     has_float: array<vec4<f32>, 20>;
@@ -109,6 +109,9 @@ var<uniform> uniforms: MaterialUniforms;
 // TODO: How to store lights?
 struct StageUniforms {
     chr_light_dir: vec4<f32>;
+    custom_boolean: array<vec4<f32>, 20>;
+    custom_vector: array<vec4<f32>, 64>;
+    custom_float: array<vec4<f32>, 20>;
 };
 
 [[group(2), binding(0)]]
@@ -382,7 +385,7 @@ fn DiffuseTerm(
     // TODO: Skin shading looks correct without the PI term?
     directShading = mix(directShading / 3.14159, skinShading, sssBlend);
 
-    var directLight = vec3<f32>(1.0,1.0,1.0) * directShading * 4.0;
+    var directLight = stage_uniforms.custom_vector[0].rgb * stage_uniforms.custom_float[0].x * directShading;
     var ambientTerm = (ambientLight * ao);
 
     if (uniforms.has_texture[9].x == 1.0) {
@@ -479,8 +482,7 @@ fn GetSpecularWeight(f0: f32, diffusePass: vec3<f32>, metalness: f32, nDotV: f32
 // TODO: Does this depend on the light direction and intensity?
 fn GetRimBlend(baseColor: vec3<f32>, diffusePass: vec3<f32>, nDotV: f32, nDotL: f32, occlusion: f32, vertexAmbient: vec3<f32>) -> vec3<f32>
 {
-    let lightCustomVector8 = vec4<f32>(1.5, 1.5, 1.5, 1.0);
-    var rimColor = uniforms.custom_vector[14].rgb * lightCustomVector8.rgb;
+    var rimColor = uniforms.custom_vector[14].rgb * stage_uniforms.custom_vector[8].rgb;
 
     // TODO: How is the overall intensity controlled?
     // Hardcoded shader constant.
@@ -496,7 +498,7 @@ fn GetRimBlend(baseColor: vec3<f32>, diffusePass: vec3<f32>, nDotV: f32, nDotL: 
     rimColor = rimColor * clamp(mix(vec3<f32>(1.0), diffusePass, uniforms.custom_float[8].x), vec3<f32>(0.0), vec3<f32>(1.0));
 
     let fresnel = pow(1.0 - nDotV, 5.0);
-    var rimBlend = fresnel * lightCustomVector8.w * uniforms.custom_vector[14].w * 0.6;
+    var rimBlend = fresnel * stage_uniforms.custom_vector[8].w * uniforms.custom_vector[14].w * 0.6;
     rimBlend = rimBlend * occlusion;
 
     // TODO: Rim lighting is directional?

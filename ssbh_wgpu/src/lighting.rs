@@ -1,4 +1,4 @@
-use glam::{Mat4, Quat, Vec3};
+use glam::{Mat4, Quat, Vec3, Vec4};
 
 pub fn calculate_light_transform(rotation: Quat, scale: Vec3) -> Mat4 {
     // TODO: This should be editable when changing stages.
@@ -14,8 +14,38 @@ pub fn calculate_light_transform(rotation: Quat, scale: Vec3) -> Mat4 {
     perspective_matrix * model_view
 }
 
+pub fn light_direction(rotation: Quat) -> Vec4 {
+    Mat4::from_quat(rotation) * Vec4::Z
+}
+
+impl crate::shader::model::StageUniforms {
+    // TODO: Make a function to initialize this from a nuanmb.
+    pub fn training() -> Self {
+        // TODO: Is it important to split into light and attribute sections?
+        let custom_boolean = [[0.0; 4]; 20];
+
+        let mut custom_vector = [[0.0; 4]; 64];
+        custom_vector[0] = [1.0; 4];
+
+        let mut custom_float = [[0.0; 4]; 20];
+        custom_float[0] = [4.0, 0.0, 0.0, 0.0];
+
+        Self {
+            chr_light_dir: light_direction(glam::Quat::from_xyzw(
+                -0.453154, -0.365998, -0.211309, 0.784886,
+            ))
+            .to_array(),
+            custom_boolean,
+            custom_vector,
+            custom_float,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    use approx::assert_relative_eq;
+
     use super::*;
 
     use crate::assert_matrix_relative_eq;
@@ -90,5 +120,14 @@ mod tests {
             .transpose()
             .to_cols_array_2d()
         )
+    }
+
+    #[test]
+    fn light_direction_light_chr_training() {
+        let dir = light_direction(Quat::from_xyzw(-0.453154, -0.365998, -0.211309, 0.784886));
+        assert_relative_eq!(-0.38302213, dir.x, epsilon = 0.0001f32);
+        assert_relative_eq!(0.86602527, dir.y, epsilon = 0.0001f32);
+        assert_relative_eq!(0.32139426, dir.z, epsilon = 0.0001f32);
+        assert_eq!(0.0, dir.w);
     }
 }

@@ -25,6 +25,9 @@ pub struct MaterialUniforms {
 #[derive(Debug, Copy, Clone, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct StageUniforms {
     pub chr_light_dir: [f32; 4],
+    pub custom_boolean: [[f32; 4]; 20],
+    pub custom_vector: [[f32; 4]; 64],
+    pub custom_float: [[f32; 4]; 20],
 }
 #[repr(C)]
 #[derive(Debug, Copy, Clone, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
