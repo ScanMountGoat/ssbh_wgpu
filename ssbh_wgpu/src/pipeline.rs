@@ -1,11 +1,22 @@
 use ssbh_data::matl_data::{BlendFactor, BlendStateData, MatlEntryData};
-use ssbh_data::mesh_data::MeshObjectData;
 
 // Create some helper structs to simplify the function signatures.
 pub struct PipelineData {
     pub surface_format: wgpu::TextureFormat,
     pub layout: wgpu::PipelineLayout,
     pub shader: wgpu::ShaderModule,
+}
+
+impl PipelineData {
+    pub fn new(device: &wgpu::Device, surface_format: wgpu::TextureFormat) -> Self {
+        let shader = crate::shader::model::create_shader_module(device);
+        let layout = crate::shader::model::create_pipeline_layout(device);
+        Self {
+            surface_format,
+            layout,
+            shader,
+        }
+    }
 }
 
 // Uniquely identify pipelines assuming a shared WGSL source.
@@ -23,7 +34,11 @@ pub struct PipelineKey {
 }
 
 impl PipelineKey {
-    pub fn new(disable_depth_write: bool, disable_depth_test: bool, material: Option<&MatlEntryData>) -> Self {
+    pub fn new(
+        disable_depth_write: bool,
+        disable_depth_test: bool,
+        material: Option<&MatlEntryData>,
+    ) -> Self {
         // Pipeline state takes most of its settings from the material.
         // The mesh object is just used for depth settings.
         // If matl parameters are not present, use fallback values.

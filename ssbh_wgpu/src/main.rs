@@ -3,6 +3,7 @@ use std::{iter, path::Path};
 use ssbh_wgpu::create_default_textures;
 use ssbh_wgpu::load_default_cube;
 use ssbh_wgpu::CameraTransforms;
+use ssbh_wgpu::PipelineData;
 use ssbh_wgpu::RenderModel;
 use ssbh_wgpu::REQUIRED_FEATURES;
 use ssbh_wgpu::{load_model_folders, load_render_models, SsbhRenderer};
@@ -56,8 +57,10 @@ struct State {
     current_frame: f32,
     previous_frame_start: std::time::Instant,
 
+    // TODO: Should this be part of the renderer?
     default_textures: Vec<(String, wgpu::Texture)>,
     stage_cube: (wgpu::TextureView, wgpu::Sampler),
+    pipeline_data: PipelineData
 }
 
 impl State {
@@ -109,11 +112,13 @@ impl State {
         let stage_cube = load_default_cube(&device, &queue).unwrap();
         let stage_cube = (stage_cube.0, stage_cube.1);
 
+        let pipeline_data = PipelineData::new(&device, surface_format);
+
         let models = load_model_folders(folder);
         let render_meshes = load_render_models(
             &device,
             &queue,
-            surface_format,
+            &pipeline_data,
             &models,
             &default_textures,
             &stage_cube,
@@ -140,6 +145,7 @@ impl State {
             previous_frame_start: std::time::Instant::now(),
             default_textures,
             stage_cube,
+            pipeline_data
         }
     }
 
@@ -264,6 +270,7 @@ impl State {
                 &self.queue,
                 self.animation.as_ref(),
                 self.current_frame,
+                &self.pipeline_data,
                 &self.default_textures,
                 &self.stage_cube,
             );

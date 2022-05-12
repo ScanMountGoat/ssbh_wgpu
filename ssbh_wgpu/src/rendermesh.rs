@@ -89,6 +89,7 @@ impl RenderModel {
         &mut self,
         device: &wgpu::Device,
         material: &MatlEntryData,
+        pipeline_data: &PipelineData,
         default_textures: &[(String, wgpu::Texture)],
         stage_cube: &(wgpu::TextureView, wgpu::Sampler),
     ) {
@@ -106,16 +107,6 @@ impl RenderModel {
                 stage_cube,
                 &uniforms_buffer,
             );
-
-            // TODO: Avoid recreating this data every time.
-            let shader = crate::shader::model::create_shader_module(device);
-            let layout = crate::shader::model::create_pipeline_layout(device);
-
-            let pipeline_data = PipelineData {
-                surface_format: crate::RGBA_COLOR_FORMAT,
-                layout,
-                shader,
-            };
 
             // Create a new pipeline if needed.
             // TODO: How to get the mesh depth write and depth test information?
@@ -142,6 +133,7 @@ impl RenderModel {
         queue: &wgpu::Queue,
         anim: Option<&AnimData>,
         frame: f32,
+        pipeline_data: &PipelineData,
         default_textures: &[(String, wgpu::Texture)],
         stage_cube: &(wgpu::TextureView, wgpu::Sampler),
     ) {
@@ -158,7 +150,13 @@ impl RenderModel {
                 for material in animated_materials {
                     // TODO: Should this go in a separate module?
                     // Get updated uniform buffers for animated materials
-                    self.update_material(device, &material, default_textures, stage_cube);
+                    self.update_material(
+                        device,
+                        &material,
+                        pipeline_data,
+                        default_textures,
+                        stage_cube,
+                    );
                 }
             }
 

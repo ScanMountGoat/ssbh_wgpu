@@ -25,7 +25,8 @@ pub use texture::{create_default_textures, load_default_cube};
 
 use ssbh_data::prelude::*;
 
-use crate::{pipeline::PipelineData, rendermesh::RenderMeshSharedData};
+use crate::rendermesh::RenderMeshSharedData;
+pub use crate::pipeline::PipelineData;
 
 pub use renderer::RGBA_COLOR_FORMAT;
 
@@ -57,22 +58,13 @@ pub struct ModelFolder {
 pub fn load_render_models(
     device: &wgpu::Device,
     queue: &wgpu::Queue,
-    surface_format: wgpu::TextureFormat,
+    pipeline_data: &PipelineData,
     models: &[ModelFolder],
     // TODO: Group textures together?
     default_textures: &[(String, wgpu::Texture)],
     stage_cube: &(wgpu::TextureView, wgpu::Sampler),
 ) -> Vec<RenderModel> {
     let start = std::time::Instant::now();
-
-    let shader = crate::shader::model::create_shader_module(device);
-    let layout = crate::shader::model::create_pipeline_layout(device);
-
-    let pipeline_data = PipelineData {
-        surface_format,
-        layout,
-        shader,
-    };
 
     // TODO: Find a way to efficiently parallelize render mesh creation?
     let render_models: Vec<_> = models
