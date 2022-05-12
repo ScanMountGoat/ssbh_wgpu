@@ -55,6 +55,21 @@ pub struct ModelFolder {
     pub nutexbs: Vec<(String, NutexbFile)>,
 }
 
+impl ModelFolder {
+    pub fn load_folder<P: AsRef<Path>>(folder: P) -> Self {
+        Self {
+            folder_name: folder.as_ref().to_string_lossy().to_string(),
+            meshes: read_files(folder.as_ref(), "numshb", MeshData::from_file),
+            skels: read_files(folder.as_ref(), "nusktb", SkelData::from_file),
+            matls: read_files(folder.as_ref(), "numatb", MatlData::from_file),
+            modls: read_files(folder.as_ref(), "numdlb", ModlData::from_file),
+            anims: read_files(folder.as_ref(), "nuanmb", AnimData::from_file),
+            adjs: read_files(folder.as_ref(), "adjb", AdjData::from_file),
+            nutexbs: read_files(folder.as_ref(), "nutexb", NutexbFile::read_from_file),
+        }
+    }
+}
+
 pub fn load_render_models(
     device: &wgpu::Device,
     queue: &wgpu::Queue,
@@ -117,10 +132,13 @@ pub fn load_render_models(
     render_models
 }
 
+/// Recursively load folders containing model files starting from `root`.
 pub fn load_model_folders<P: AsRef<Path>>(root: P) -> Vec<ModelFolder> {
     // TODO: This could be made more robust.
     // TODO: Determine the minimum files required for a renderable model?
     // TODO: Also check for numdlb?
+    // TODO: Specify a max depth?
+    // TODO: Find all folders containing any of the supported files?
     let model_paths = globwalk::GlobWalkerBuilder::from_patterns(root, &["*.{numshb}"])
         .build()
         .unwrap()
@@ -136,18 +154,7 @@ pub fn load_model_folders<P: AsRef<Path>>(root: P) -> Vec<ModelFolder> {
 
             // TODO: Handle missing parent folder?
             let parent = p.path().parent().unwrap();
-            let folder = parent.to_string_lossy().to_string();
-
-            Some(ModelFolder {
-                folder_name: folder,
-                meshes: read_files(parent, "numshb", MeshData::from_file),
-                skels: read_files(parent, "nusktb", SkelData::from_file),
-                matls: read_files(parent, "numatb", MatlData::from_file),
-                modls: read_files(parent, "numdlb", ModlData::from_file),
-                anims: read_files(parent, "nuanmb", AnimData::from_file),
-                adjs: read_files(parent, "adjb", AdjData::from_file),
-                nutexbs: read_files(parent, "nutexb", NutexbFile::read_from_file),
-            })
+            Some(ModelFolder::load_folder(parent))
         })
         .collect();
     println!("Load {:?} model(s): {:?}", models.len(), start.elapsed());
