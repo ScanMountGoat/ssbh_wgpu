@@ -65,6 +65,12 @@ struct AnimTransform {
     scale: glam::Vec3,
 }
 
+impl AnimTransform {
+    fn identity() -> Self {
+        Self { translation: glam::Vec3::ZERO, rotation: glam::Quat::from_xyzw(0.0, 0.0, 0.0, 1.0), scale: glam::Vec3::ONE }
+    }
+}
+
 pub struct AnimationTransforms {
     // Box large arrays to avoid stack overflows in debug mode.
     /// The animated world transform of each bone relative to its resting pose.
@@ -149,6 +155,8 @@ pub fn animate_skel(
 
     // TODO: Investigate optimizations for animations.
     // TODO: Function for this?
+    // TODO: Helper bones should also be applied to the animated bones?
+    // TODO: Create a tree structure for this?
     let mut animated_bones: Vec<_> = skel
         .bones
         .iter()
@@ -166,6 +174,8 @@ pub fn animate_skel(
     // TODO: Apply hlpb constraints?
     // TODO: How to create test cases for this?
     // TODO: Apply hlpb constraints to a tpose anim?
+    // TODO: Does the order constraints are applied matter?
+    // Some nuhlpb files affect multiple bones in a chain.
     if let Some(hlpb) = hlpb {
         match hlpb {
             Hlpb::V11 {
@@ -174,7 +184,7 @@ pub fn animate_skel(
                 list1,
                 list2,
             } => {
-                for interp in &interpolation_entries.elements {
+                for interp in interpolation_entries.elements.iter() {
                     let source = animated_bones
                         .iter_mut()
                         .find(|b| b.bone.name == interp.parent_bone_name.to_string_lossy())
@@ -186,8 +196,25 @@ pub fn animate_skel(
                         {
                             // TODO: Does this copy some portion of the rotation?
                             // TODO: When should this be applied (add test cases).
-                            target_bone.anim_transform =
-                                source_bone.anim_transform.as_ref().cloned();
+                            // TODO: Can a bone not affected by the anim be the source?
+                            
+                            // let test = glam::Mat4::from_cols_array_2d(&source_bone.bone.transform).transpose();
+                            // let (s,r,t) = test.to_scale_rotation_translation();
+                            
+                            let mut target_transform = target_bone.anim_transform.unwrap_or(AnimTransform::identity());
+
+                            if let Some(source_transform) = source_bone.anim_transform {
+                                // TODO: Why are these necessary?
+                                target_transform.scale = source_transform.scale;
+                                target_transform.translation = source_transform.translation;
+
+                                let quat1 = glam::Quat::from_xyzw(interp.quat1.x, interp.quat1.y, interp.quat1.z, interp.quat1.w);
+                                let quat2 = glam::Quat::from_xyzw(interp.quat2.x, interp.quat2.y, interp.quat2.z, interp.quat2.w);
+
+                                target_transform.rotation = source_transform.rotation;
+                            }
+
+                            // target_bone.anim_transform = Some(target_transform);
                         }
                     }
                 }
