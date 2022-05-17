@@ -13,7 +13,8 @@ use ssbh_data::{
     mesh_data::MeshObjectData,
     prelude::*,
 };
-use std::{collections::HashMap, sync::Arc};
+use ssbh_lib::prelude::Hlpb;
+use std::collections::HashMap;
 use wgpu::{util::DeviceExt, SamplerDescriptor, TextureViewDescriptor};
 
 // Group resources shared between mesh objects.
@@ -26,6 +27,7 @@ pub struct RenderModel {
     pub meshes: Vec<RenderMesh>,
     skel: Option<SkelData>,
     matl: Option<MatlData>,
+    hlp: Option<Hlpb>,
     mesh_buffers: MeshBuffers,
     material_data_by_label: HashMap<String, MaterialData>,
     pipelines: HashMap<PipelineKey, wgpu::RenderPipeline>,
@@ -161,7 +163,7 @@ impl RenderModel {
             }
 
             if let Some(skel) = &self.skel {
-                let animation_transforms = animate_skel(skel, anim, frame);
+                let animation_transforms = animate_skel(skel, anim, self.hlp.as_ref(), frame);
                 queue.write_buffer(
                     &self.mesh_buffers.skinning_transforms,
                     0,
@@ -255,6 +257,7 @@ pub struct RenderMeshSharedData<'a> {
     pub skel: Option<&'a SkelData>,
     pub matl: Option<&'a MatlData>,
     pub adj: Option<&'a AdjData>,
+    pub hlp: Option<&'a Hlpb>,
     pub nutexbs: &'a [(String, NutexbFile)],
 }
 
@@ -303,10 +306,12 @@ pub fn create_render_model(
         start.elapsed()
     );
 
+    // TODO: Avoid clone.
     RenderModel {
         meshes,
         skel: shared_data.skel.cloned(),
         matl: shared_data.matl.cloned(),
+        hlp: shared_data.hlp.cloned(),
         mesh_buffers,
         material_data_by_label,
         textures,

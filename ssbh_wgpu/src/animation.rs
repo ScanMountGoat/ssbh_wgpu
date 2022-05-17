@@ -6,11 +6,13 @@ use ssbh_data::{
     prelude::*,
     skel_data::{BoneData, BoneTransformError},
 };
+use ssbh_lib::formats::hlpb::Hlpb;
 
 use crate::{shader::skinning::AnimatedWorldTransforms, RenderMesh};
 
 // Animation process is Skel, Anim -> Vec<AnimatedBone> -> [Mat4; 512], [Mat4; 512] -> Buffers.
 // Evaluate the "tree" of Vec<AnimatedBone> to compute the final world transforms.
+#[derive(Clone)]
 struct AnimatedBone {
     bone: BoneData,
     anim_transform: Option<AnimTransform>,
@@ -56,6 +58,7 @@ impl AnimatedBone {
     }
 }
 
+#[derive(Clone, Copy)]
 struct AnimTransform {
     translation: glam::Vec3,
     rotation: glam::Quat,
@@ -134,13 +137,19 @@ impl Visibility for (String, bool) {
 }
 
 // TODO: Separate module for skeletal animation?
-pub fn animate_skel(skel: &SkelData, anim: &AnimData, frame: f32) -> AnimationTransforms {
+pub fn animate_skel(
+    skel: &SkelData,
+    anim: &AnimData,
+    hlpb: Option<&Hlpb>,
+    frame: f32,
+) -> AnimationTransforms {
     // TODO: Is this redundant with the initialization below?
     let mut world_transforms = [glam::Mat4::IDENTITY; 512];
     let mut transforms = [glam::Mat4::IDENTITY; 512];
 
     // TODO: Investigate optimizations for animations.
-    let animated_bones: Vec<_> = skel
+    // TODO: Function for this?
+    let mut animated_bones: Vec<_> = skel
         .bones
         .iter()
         .map(|b| {
@@ -153,6 +162,38 @@ pub fn animate_skel(skel: &SkelData, anim: &AnimData, frame: f32) -> AnimationTr
             })
         })
         .collect();
+
+    // TODO: Apply hlpb constraints?
+    // TODO: How to create test cases for this?
+    // TODO: Apply hlpb constraints to a tpose anim?
+    if let Some(hlpb) = hlpb {
+        match hlpb {
+            Hlpb::V11 {
+                aim_entries,
+                interpolation_entries,
+                list1,
+                list2,
+            } => {
+                for interp in &interpolation_entries.elements {
+                    let source = animated_bones
+                        .iter_mut()
+                        .find(|b| b.bone.name == interp.parent_bone_name.to_string_lossy())
+                        .cloned();
+                    if let Some(source_bone) = source {
+                        for target_bone in animated_bones
+                            .iter_mut()
+                            .filter(|b| b.bone.name == interp.driver_bone_name.to_string_lossy())
+                        {
+                            // TODO: Does this copy some portion of the rotation?
+                            // TODO: When should this be applied (add test cases).
+                            target_bone.anim_transform =
+                                source_bone.anim_transform.as_ref().cloned();
+                        }
+                    }
+                }
+            }
+        }
+    }
 
     // TODO: Avoid enumerate here?
     // TODO: Should scale inheritance be part of ssbh_data itself?
@@ -496,6 +537,7 @@ mod tests {
                 final_frame_index: 0.0,
                 groups: Vec::new(),
             },
+            None,
             0.0,
         );
     }
@@ -515,6 +557,7 @@ mod tests {
                 final_frame_index: 0.0,
                 groups: Vec::new(),
             },
+            None,
             0.0,
         );
     }
@@ -533,6 +576,7 @@ mod tests {
                 final_frame_index: 0.0,
                 groups: Vec::new(),
             },
+            None,
             0.0,
         );
     }
@@ -568,6 +612,7 @@ mod tests {
                     }],
                 }],
             },
+            None,
             0.0,
         );
 
@@ -681,6 +726,7 @@ mod tests {
                     ],
                 }],
             },
+            None,
             0.0,
         );
 
@@ -786,6 +832,7 @@ mod tests {
                     ],
                 }],
             },
+            None,
             0.0,
         );
 
@@ -891,6 +938,7 @@ mod tests {
                     ],
                 }],
             },
+            None,
             0.0,
         );
 
@@ -1010,6 +1058,7 @@ mod tests {
                     ],
                 }],
             },
+            None,
             0.0,
         );
 

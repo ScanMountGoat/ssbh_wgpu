@@ -1,8 +1,5 @@
 use rayon::prelude::*;
-use std::{
-    error::Error,
-    path::{Path, PathBuf},
-};
+use std::path::{Path, PathBuf};
 
 mod pipeline;
 mod shader;
@@ -24,9 +21,10 @@ pub use shader::model::CameraTransforms;
 pub use texture::{create_default_textures, load_default_cube};
 
 use ssbh_data::prelude::*;
+use ssbh_lib::prelude::*;
 
-use crate::rendermesh::RenderMeshSharedData;
 pub use crate::pipeline::PipelineData;
+use crate::rendermesh::RenderMeshSharedData;
 
 pub use renderer::RGBA_COLOR_FORMAT;
 
@@ -52,6 +50,7 @@ pub struct ModelFolder {
     pub modls: Vec<(String, ModlData)>,
     pub adjs: Vec<(String, AdjData)>,
     pub anims: Vec<(String, AnimData)>,
+    pub hlps: Vec<(String, Hlpb)>,
     pub nutexbs: Vec<(String, NutexbFile)>,
 }
 
@@ -65,6 +64,7 @@ impl ModelFolder {
             modls: read_files(folder.as_ref(), "numdlb", ModlData::from_file),
             anims: read_files(folder.as_ref(), "nuanmb", AnimData::from_file),
             adjs: read_files(folder.as_ref(), "adjb", AdjData::from_file),
+            hlps: read_files(folder.as_ref(), "nuhlpb", Hlpb::from_file),
             nutexbs: read_files(folder.as_ref(), "nutexb", NutexbFile::read_from_file),
         }
     }
@@ -117,6 +117,11 @@ pub fn load_render_models(
                     .find(|(f, _)| f == "model.adjb")
                     .map(|(_, m)| m),
                 nutexbs: &model.nutexbs,
+                hlp: model
+                    .hlps
+                    .iter()
+                    .find(|(f, _)| f == "model.nuhlpb")
+                    .map(|(_, m)| m),
             };
 
             rendermesh::create_render_model(device, queue, &shared_data)
@@ -161,9 +166,9 @@ pub fn load_model_folders<P: AsRef<Path>>(root: P) -> Vec<ModelFolder> {
     models
 }
 
-fn read_files<T, F>(parent: &Path, extension: &str, read_t: F) -> Vec<(String, T)>
+fn read_files<T, E, F>(parent: &Path, extension: &str, read_t: F) -> Vec<(String, T)>
 where
-    F: Fn(PathBuf) -> Result<T, Box<dyn Error>>,
+    F: Fn(PathBuf) -> Result<T, E>,
 {
     // TODO: Avoid repetitive system calls here?
     // We should be able to just iterate the directory once.

@@ -60,7 +60,7 @@ struct State {
     // TODO: Should this be part of the renderer?
     default_textures: Vec<(String, wgpu::Texture)>,
     stage_cube: (wgpu::TextureView, wgpu::Sampler),
-    pipeline_data: PipelineData
+    pipeline_data: PipelineData,
 }
 
 impl State {
@@ -145,7 +145,7 @@ impl State {
             previous_frame_start: std::time::Instant::now(),
             default_textures,
             stage_cube,
-            pipeline_data
+            pipeline_data,
         }
     }
 
