@@ -174,8 +174,7 @@ pub fn animate_skel(
     // TODO: Apply hlpb constraints?
     // TODO: How to create test cases for this?
     // TODO: Apply hlpb constraints to a tpose anim?
-    // TODO: Does the order constraints are applied matter?
-    // Some nuhlpb files affect multiple bones in a chain.
+
     if let Some(hlpb) = hlpb {
         match hlpb {
             Hlpb::V11 {
@@ -184,7 +183,24 @@ pub fn animate_skel(
                 list1,
                 list2,
             } => {
-                for interp in interpolation_entries.elements.iter() {
+                // Sort the constraints so that a bone's parents are evaluated first.
+                // TODO: Also make sure dependencies are evaluated first?
+                // TODO: Find a cleaner way to do this.
+                // TODO: Optimize animation by presorting bones?
+                let mut sorted_interps = interpolation_entries.elements.clone();
+                sorted_interps.sort_by(|a, b| {
+                    let a_bone = animated_bones.iter().find(|b|b.bone.name == a.driver_bone_name.to_string_lossy());
+                    if let Some(bone) = a_bone {
+                        if let Some(index) = bone.bone.parent_index {
+                            if animated_bones[index].bone.name == b.driver_bone_name.to_string_lossy() {
+                                return std::cmp::Ordering::Greater
+                            }
+                        }
+                    }
+                    std::cmp::Ordering::Less
+                });
+
+                for interp in sorted_interps {
                     let source = animated_bones
                         .iter_mut()
                         .find(|b| b.bone.name == interp.parent_bone_name.to_string_lossy())
@@ -214,7 +230,7 @@ pub fn animate_skel(
                                 target_transform.rotation = source_transform.rotation;
                             }
 
-                            // target_bone.anim_transform = Some(target_transform);
+                            target_bone.anim_transform = Some(target_transform);
                         }
                     }
                 }
