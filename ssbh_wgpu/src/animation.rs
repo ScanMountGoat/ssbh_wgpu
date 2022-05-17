@@ -67,7 +67,11 @@ struct AnimTransform {
 
 impl AnimTransform {
     fn identity() -> Self {
-        Self { translation: glam::Vec3::ZERO, rotation: glam::Quat::from_xyzw(0.0, 0.0, 0.0, 1.0), scale: glam::Vec3::ONE }
+        Self {
+            translation: glam::Vec3::ZERO,
+            rotation: glam::Quat::from_xyzw(0.0, 0.0, 0.0, 1.0),
+            scale: glam::Vec3::ONE,
+        }
     }
 }
 
@@ -178,56 +182,84 @@ pub fn animate_skel(
     if let Some(hlpb) = hlpb {
         match hlpb {
             Hlpb::V11 {
-                aim_entries,
-                interpolation_entries,
-                list1,
-                list2,
+                aim_constraints,
+                orient_constraints,
+                ..
             } => {
                 // Sort the constraints so that a bone's parents are evaluated first.
                 // TODO: Also make sure dependencies are evaluated first?
                 // TODO: Find a cleaner way to do this.
                 // TODO: Optimize animation by presorting bones?
-                let mut sorted_interps = interpolation_entries.elements.clone();
-                sorted_interps.sort_by(|a, b| {
-                    let a_bone = animated_bones.iter().find(|b|b.bone.name == a.driver_bone_name.to_string_lossy());
+                let mut orient_constraints_sorted = orient_constraints.elements.clone();
+                orient_constraints_sorted.sort_by(|a, b| {
+                    let a_bone = animated_bones
+                        .iter()
+                        .find(|b| b.bone.name == a.driver_bone_name.to_string_lossy());
                     if let Some(bone) = a_bone {
                         if let Some(index) = bone.bone.parent_index {
-                            if animated_bones[index].bone.name == b.driver_bone_name.to_string_lossy() {
-                                return std::cmp::Ordering::Greater
+                            if animated_bones[index].bone.name
+                                == b.driver_bone_name.to_string_lossy()
+                            {
+                                return std::cmp::Ordering::Greater;
                             }
                         }
                     }
                     std::cmp::Ordering::Less
                 });
 
-                for interp in sorted_interps {
+                for orient in orient_constraints_sorted {
                     let source = animated_bones
                         .iter_mut()
-                        .find(|b| b.bone.name == interp.parent_bone_name.to_string_lossy())
+                        .find(|b| b.bone.name == orient.parent_bone_name.to_string_lossy())
                         .cloned();
                     if let Some(source_bone) = source {
                         for target_bone in animated_bones
                             .iter_mut()
-                            .filter(|b| b.bone.name == interp.driver_bone_name.to_string_lossy())
+                            .filter(|b| b.bone.name == orient.driver_bone_name.to_string_lossy())
                         {
                             // TODO: Does this copy some portion of the rotation?
                             // TODO: When should this be applied (add test cases).
                             // TODO: Can a bone not affected by the anim be the source?
-                            
+
                             // let test = glam::Mat4::from_cols_array_2d(&source_bone.bone.transform).transpose();
                             // let (s,r,t) = test.to_scale_rotation_translation();
-                            
-                            let mut target_transform = target_bone.anim_transform.unwrap_or(AnimTransform::identity());
+
+                            let mut target_transform = target_bone
+                                .anim_transform
+                                .unwrap_or(AnimTransform::identity());
 
                             if let Some(source_transform) = source_bone.anim_transform {
                                 // TODO: Why are these necessary?
                                 target_transform.scale = source_transform.scale;
                                 target_transform.translation = source_transform.translation;
 
-                                let quat1 = glam::Quat::from_xyzw(interp.quat1.x, interp.quat1.y, interp.quat1.z, interp.quat1.w);
-                                let quat2 = glam::Quat::from_xyzw(interp.quat2.x, interp.quat2.y, interp.quat2.z, interp.quat2.w);
+                                // TODO: What do these do?
+                                let quat1 = glam::Quat::from_xyzw(
+                                    orient.quat1.x,
+                                    orient.quat1.y,
+                                    orient.quat1.z,
+                                    orient.quat1.w,
+                                );
+                                let quat2 = glam::Quat::from_xyzw(
+                                    orient.quat2.x,
+                                    orient.quat2.y,
+                                    orient.quat2.z,
+                                    orient.quat2.w,
+                                );
 
-                                target_transform.rotation = source_transform.rotation;
+                                // TODO: Should this interpolate with the existing rotation instead of with (0,0,0)?
+                                let (mut rot_x, mut rot_y, mut rot_z) =
+                                    source_transform.rotation.to_euler(glam::EulerRot::XYZ);
+                                rot_x *= orient.constraint_axes.x;
+                                rot_y *= orient.constraint_axes.y;
+                                rot_z *= orient.constraint_axes.z;
+
+                                target_transform.rotation = glam::Quat::from_euler(
+                                    glam::EulerRot::XYZ,
+                                    rot_x,
+                                    rot_y,
+                                    rot_z,
+                                );
                             }
 
                             target_bone.anim_transform = Some(target_transform);
