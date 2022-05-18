@@ -9,11 +9,14 @@ use ssbh_data::{
 use ssbh_lib::formats::hlpb::Hlpb;
 
 use crate::{shader::skinning::AnimatedWorldTransforms, RenderMesh};
+use constraints::apply_hlpb_constraints;
+
+mod constraints;
 
 // Animation process is Skel, Anim -> Vec<AnimatedBone> -> [Mat4; 512], [Mat4; 512] -> Buffers.
 // Evaluate the "tree" of Vec<AnimatedBone> to compute the final world transforms.
 #[derive(Clone)]
-struct AnimatedBone {
+pub struct AnimatedBone {
     bone: BoneData,
     anim_transform: Option<AnimTransform>,
     compensate_scale: bool,
@@ -66,11 +69,14 @@ struct AnimTransform {
 }
 
 impl AnimTransform {
-    fn identity() -> Self {
+    fn from_bone(bone: &BoneData) -> Self {
+        let matrix = glam::Mat4::from_cols_array_2d(&bone.transform);
+        let (s, r, t) = matrix.to_scale_rotation_translation();
+
         Self {
-            translation: glam::Vec3::ZERO,
-            rotation: glam::Quat::from_xyzw(0.0, 0.0, 0.0, 1.0),
-            scale: glam::Vec3::ONE,
+            translation: t,
+            rotation: r,
+            scale: s,
         }
     }
 }
@@ -175,91 +181,8 @@ pub fn animate_skel(
         })
         .collect();
 
-    // TODO: Apply hlpb constraints?
-    // TODO: How to create test cases for this?
-    // TODO: Apply hlpb constraints to a tpose anim?
-
     if let Some(hlpb) = hlpb {
-        match hlpb {
-            Hlpb::V11 {
-                aim_constraints,
-                orient_constraints,
-                ..
-            } => {
-                // Sort the constraints so that a bone's parents are evaluated first.
-                // TODO: Also make sure dependencies are evaluated first?
-                // TODO: Find a cleaner way to do this.
-                // TODO: Optimize animation by presorting bones?
-                let mut orient_constraints_sorted = orient_constraints.elements.clone();
-                orient_constraints_sorted.sort_by(|a, b| {
-                    let a_bone = animated_bones
-                        .iter()
-                        .find(|b| b.bone.name == a.driver_bone_name.to_string_lossy());
-                    if let Some(bone) = a_bone {
-                        if let Some(index) = bone.bone.parent_index {
-                            if animated_bones[index].bone.name
-                                == b.driver_bone_name.to_string_lossy()
-                            {
-                                return std::cmp::Ordering::Greater;
-                            }
-                        }
-                    }
-                    std::cmp::Ordering::Less
-                });
-
-                for orient in orient_constraints_sorted {
-                    let source = animated_bones
-                        .iter()
-                        .find(|b| b.bone.name == orient.parent_bone_name.to_string_lossy())
-                        .cloned()
-                        .unwrap();
-
-                    for target_bone in animated_bones
-                        .iter_mut()
-                        .filter(|b| b.bone.name == orient.driver_bone_name.to_string_lossy())
-                    {
-                        // TODO: Does this copy some portion of the rotation?
-                        // TODO: When should this be applied (add test cases).
-                        // TODO: Can a bone not affected by the anim be the source?
-
-                        // TODO: Add a from bone method?
-                        let (s, r, t) = glam::Mat4::from_cols_array_2d(&target_bone.bone.transform)
-                            .to_scale_rotation_translation();
-
-                        let mut target_transform =
-                            target_bone.anim_transform.unwrap_or(AnimTransform {
-                                translation: t,
-                                rotation: r,
-                                scale: s,
-                            });
-
-                        if let Some(source_transform) = source.anim_transform {
-                            // TODO: Should this interpolate with the existing rotation instead of with (0,0,0)?
-                            // TODO: Which types blend between two bones?
-
-                            let (target_rot_x, target_rot_y, target_rot_z) =
-                                target_transform.rotation.to_euler(glam::EulerRot::XYZ);
-
-                            let (source_rot_x, source_rot_y, source_rot_z) =
-                                source_transform.rotation.to_euler(glam::EulerRot::XYZ);
-
-                            // TODO: Create an interp function?
-                            target_transform.rotation = glam::Quat::from_euler(
-                                glam::EulerRot::XYZ,
-                                orient.constraint_axes.x * source_rot_x
-                                    + (1.0 - orient.constraint_axes.x) * target_rot_x,
-                                orient.constraint_axes.y * source_rot_y
-                                    + (1.0 - orient.constraint_axes.y) * target_rot_y,
-                                orient.constraint_axes.z * source_rot_z
-                                    + (1.0 - orient.constraint_axes.z) * target_rot_z,
-                            );
-                        }
-
-                        target_bone.anim_transform = Some(target_transform);
-                    }
-                }
-            }
-        }
+        apply_hlpb_constraints(&mut animated_bones, hlpb);
     }
 
     // TODO: Avoid enumerate here?

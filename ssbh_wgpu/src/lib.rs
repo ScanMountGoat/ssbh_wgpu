@@ -187,6 +187,20 @@ where
 }
 
 #[cfg(test)]
+macro_rules! assert_vector_relative_eq {
+    ($a:expr, $b:expr) => {
+        assert!(
+            $a.iter()
+                .zip($b.iter())
+                .all(|(a, b)| approx::relative_eq!(a, b, epsilon = 0.0001f32)),
+            "Vectors not equal to within 0.0001.\nleft = {:?}\nright = {:?}",
+            $a,
+            $b
+        )
+    };
+}
+
+#[cfg(test)]
 macro_rules! assert_matrix_relative_eq {
     ($a:expr, $b:expr) => {
         assert!(
@@ -203,3 +217,6 @@ macro_rules! assert_matrix_relative_eq {
 
 #[cfg(test)]
 pub(crate) use assert_matrix_relative_eq;
+
+#[cfg(test)]
+pub(crate) use assert_vector_relative_eq;
