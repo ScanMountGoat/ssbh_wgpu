@@ -209,61 +209,53 @@ pub fn animate_skel(
 
                 for orient in orient_constraints_sorted {
                     let source = animated_bones
-                        .iter_mut()
+                        .iter()
                         .find(|b| b.bone.name == orient.parent_bone_name.to_string_lossy())
-                        .cloned();
-                    if let Some(source_bone) = source {
-                        for target_bone in animated_bones
-                            .iter_mut()
-                            .filter(|b| b.bone.name == orient.driver_bone_name.to_string_lossy())
-                        {
-                            // TODO: Does this copy some portion of the rotation?
-                            // TODO: When should this be applied (add test cases).
-                            // TODO: Can a bone not affected by the anim be the source?
+                        .cloned()
+                        .unwrap();
 
-                            // let test = glam::Mat4::from_cols_array_2d(&source_bone.bone.transform).transpose();
-                            // let (s,r,t) = test.to_scale_rotation_translation();
+                    for target_bone in animated_bones
+                        .iter_mut()
+                        .filter(|b| b.bone.name == orient.driver_bone_name.to_string_lossy())
+                    {
+                        // TODO: Does this copy some portion of the rotation?
+                        // TODO: When should this be applied (add test cases).
+                        // TODO: Can a bone not affected by the anim be the source?
 
-                            let mut target_transform = target_bone
-                                .anim_transform
-                                .unwrap_or(AnimTransform::identity());
+                        // TODO: Add a from bone method?
+                        let (s, r, t) = glam::Mat4::from_cols_array_2d(&target_bone.bone.transform)
+                            .to_scale_rotation_translation();
 
-                            if let Some(source_transform) = source_bone.anim_transform {
-                                // TODO: Why are these necessary?
-                                target_transform.scale = source_transform.scale;
-                                target_transform.translation = source_transform.translation;
+                        let mut target_transform =
+                            target_bone.anim_transform.unwrap_or(AnimTransform {
+                                translation: t,
+                                rotation: r,
+                                scale: s,
+                            });
 
-                                // TODO: What do these do?
-                                let quat1 = glam::Quat::from_xyzw(
-                                    orient.quat1.x,
-                                    orient.quat1.y,
-                                    orient.quat1.z,
-                                    orient.quat1.w,
-                                );
-                                let quat2 = glam::Quat::from_xyzw(
-                                    orient.quat2.x,
-                                    orient.quat2.y,
-                                    orient.quat2.z,
-                                    orient.quat2.w,
-                                );
+                        if let Some(source_transform) = source.anim_transform {
+                            // TODO: Should this interpolate with the existing rotation instead of with (0,0,0)?
+                            // TODO: Which types blend between two bones?
 
-                                // TODO: Should this interpolate with the existing rotation instead of with (0,0,0)?
-                                let (mut rot_x, mut rot_y, mut rot_z) =
-                                    source_transform.rotation.to_euler(glam::EulerRot::XYZ);
-                                rot_x *= orient.constraint_axes.x;
-                                rot_y *= orient.constraint_axes.y;
-                                rot_z *= orient.constraint_axes.z;
+                            let (target_rot_x, target_rot_y, target_rot_z) =
+                                target_transform.rotation.to_euler(glam::EulerRot::XYZ);
 
-                                target_transform.rotation = glam::Quat::from_euler(
-                                    glam::EulerRot::XYZ,
-                                    rot_x,
-                                    rot_y,
-                                    rot_z,
-                                );
-                            }
+                            let (source_rot_x, source_rot_y, source_rot_z) =
+                                source_transform.rotation.to_euler(glam::EulerRot::XYZ);
 
-                            target_bone.anim_transform = Some(target_transform);
+                            // TODO: Create an interp function?
+                            target_transform.rotation = glam::Quat::from_euler(
+                                glam::EulerRot::XYZ,
+                                orient.constraint_axes.x * source_rot_x
+                                    + (1.0 - orient.constraint_axes.x) * target_rot_x,
+                                orient.constraint_axes.y * source_rot_y
+                                    + (1.0 - orient.constraint_axes.y) * target_rot_y,
+                                orient.constraint_axes.z * source_rot_z
+                                    + (1.0 - orient.constraint_axes.z) * target_rot_z,
+                            );
                         }
+
+                        target_bone.anim_transform = Some(target_transform);
                     }
                 }
             }
