@@ -55,13 +55,13 @@ impl AnimatedBone {
                     },
                 };
 
-                transform_to_mat4(&adjusted_transform, include_anim_scale)
+                adjusted_transform.to_mat4(include_anim_scale)
             })
             .unwrap_or_else(|| mat4_from_row2d(&self.bone.transform))
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 struct AnimTransform {
     translation: glam::Vec3,
     rotation: glam::Quat,
@@ -69,6 +69,23 @@ struct AnimTransform {
 }
 
 impl AnimTransform {
+    fn to_mat4(&self, include_scale: bool) -> glam::Mat4 {
+        let translation = glam::Mat4::from_translation(self.translation);
+
+        let rotation = glam::Mat4::from_quat(self.rotation);
+
+        let scale = if include_scale {
+            glam::Mat4::from_scale(self.scale)
+        } else {
+            glam::Mat4::IDENTITY
+        };
+
+        // The application order is scale -> rotation -> translation.
+        // The order is reversed here since glam is column-major.
+        // TODO: Why do we transpose here?
+        (translation * rotation * scale).transpose()
+    }
+
     fn from_bone(bone: &BoneData) -> Self {
         let matrix = glam::Mat4::from_cols_array_2d(&bone.transform);
         let (s, r, t) = matrix.to_scale_rotation_translation();
@@ -407,23 +424,6 @@ fn interp_quat(a: &Vector4, b: &Vector4, factor: f32) -> glam::Quat {
 
 fn interp_vec3(a: &Vector3, b: &Vector3, factor: f32) -> glam::Vec3 {
     glam::Vec3::from(a.to_array()).lerp(glam::Vec3::from(b.to_array()), factor)
-}
-
-fn transform_to_mat4(transform: &AnimTransform, include_scale: bool) -> glam::Mat4 {
-    let translation = glam::Mat4::from_translation(transform.translation);
-
-    let rotation = glam::Mat4::from_quat(transform.rotation);
-
-    let scale = if include_scale {
-        glam::Mat4::from_scale(transform.scale)
-    } else {
-        glam::Mat4::IDENTITY
-    };
-
-    // The application order is scale -> rotation -> translation.
-    // The order is reversed here since glam is column-major.
-    // TODO: Why do we transpose here?
-    (translation * rotation * scale).transpose()
 }
 
 fn create_animated_bone(
