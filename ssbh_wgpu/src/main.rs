@@ -61,6 +61,8 @@ struct State {
     default_textures: Vec<(String, wgpu::Texture)>,
     stage_cube: (wgpu::TextureView, wgpu::Sampler),
     pipeline_data: PipelineData,
+
+    is_playing: bool,
 }
 
 impl State {
@@ -146,6 +148,7 @@ impl State {
             default_textures,
             stage_cube,
             pipeline_data,
+            is_playing: false,
         }
     }
 
@@ -219,10 +222,14 @@ impl State {
             }
             WindowEvent::KeyboardInput { input, .. } => {
                 if let Some(keycode) = input.virtual_keycode {
-                    match keycode {
-                        VirtualKeyCode::Up => self.translation_xyz.z += 10.0,
-                        VirtualKeyCode::Down => self.translation_xyz.z -= 10.0,
-                        _ => (),
+                    // Don't handle the release event to avoid duplicate events.
+                    if matches!(input.state, winit::event::ElementState::Pressed) {
+                        match keycode {
+                            VirtualKeyCode::Up => self.translation_xyz.z += 10.0,
+                            VirtualKeyCode::Down => self.translation_xyz.z -= 10.0,
+                            VirtualKeyCode::Space => self.is_playing = !self.is_playing,
+                            _ => (),
+                        }
                     }
                 }
 
@@ -247,7 +254,16 @@ impl State {
     }
 
     fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
-        self.update_current_frame();
+        let current_frame_start = std::time::Instant::now();
+        if self.is_playing {
+            self.current_frame = next_frame(
+                self.current_frame,
+                self.previous_frame_start,
+                current_frame_start,
+                self.animation.as_ref(),
+            );
+        }
+        self.previous_frame_start = current_frame_start;
 
         // Bind groups are preconfigured outside the render loop for performance.
         // This means only the output view needs to be set for each pass.
@@ -263,17 +279,19 @@ impl State {
             });
 
         // Apply animations for each model.
-        // This is more efficient since state is shared between render meshes.
-        for model in &mut self.render_models {
-            model.apply_anim(
-                &self.device,
-                &self.queue,
-                self.animation.as_ref(),
-                self.current_frame,
-                &self.pipeline_data,
-                &self.default_textures,
-                &self.stage_cube,
-            );
+        // This is more efficient than animating per mesh since state is shared between render meshes.
+        if self.is_playing {
+            for model in &mut self.render_models {
+                model.apply_anim(
+                    &self.device,
+                    &self.queue,
+                    self.animation.as_ref(),
+                    self.current_frame,
+                    &self.pipeline_data,
+                    &self.default_textures,
+                    &self.stage_cube,
+                );
+            }
         }
 
         self.renderer
@@ -285,28 +303,33 @@ impl State {
 
         Ok(())
     }
+}
 
-    fn update_current_frame(&mut self) {
-        // Animate at 60 fps regardless of the rendering framerate.
-        // This relies on interpolation or frame skipping.
-        // TODO: How robust is this timing implementation?
-        // TODO: Create a module/tests for this?
-        let current_frame_start = std::time::Instant::now();
-        let delta_t = current_frame_start.duration_since(self.previous_frame_start);
-        self.previous_frame_start = current_frame_start;
+pub fn next_frame(
+    current_frame: f32,
+    previous: std::time::Instant,
+    current: std::time::Instant,
+    animation: Option<&AnimData>,
+) -> f32 {
+    // Animate at 60 fps regardless of the rendering framerate.
+    // This relies on interpolation or frame skipping.
+    // TODO: How robust is this timing implementation?
+    // TODO: Create a module/tests for this?
+    let delta_t = current.duration_since(previous);
 
-        let millis_per_frame = 1000.0f64 / 60.0f64;
-        let delta_t_frames = delta_t.as_millis() as f64 / millis_per_frame;
-        let playback_speed = 1.0;
+    let millis_per_frame = 1000.0f64 / 60.0f64;
+    let delta_t_frames = delta_t.as_millis() as f64 / millis_per_frame;
+    let playback_speed = 1.0;
 
-        self.current_frame += (delta_t_frames * playback_speed) as f32;
+    let mut next_frame = current_frame + (delta_t_frames * playback_speed) as f32;
 
-        if let Some(animation) = &self.animation {
-            if self.current_frame > animation.final_frame_index {
-                self.current_frame = 0.0;
-            }
+    if let Some(animation) = animation {
+        if next_frame > animation.final_frame_index {
+            next_frame = 0.0;
         }
     }
+
+    next_frame
 }
 
 fn main() {
