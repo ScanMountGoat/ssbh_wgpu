@@ -42,10 +42,13 @@ pub struct SsbhRenderer {
     shadow_pipeline: wgpu::RenderPipeline,
     variance_shadow_pipeline: wgpu::RenderPipeline,
 
+    skeleton_pipeline: wgpu::RenderPipeline,
+
     // Store camera state for efficiently updating it later.
     // This avoids exposing shader implementations like bind groups.
     camera_buffer: wgpu::Buffer,
     camera_bind_group: crate::shader::model::bind_groups::BindGroup0,
+    skeleton_camera_bind_group: crate::shader::skeleton::bind_groups::BindGroup0,
 
     stage_uniforms_buffer: wgpu::Buffer,
     stage_uniforms_bind_group: crate::shader::model::bind_groups::BindGroup2,
@@ -77,6 +80,8 @@ impl SsbhRenderer {
         initial_height: u32,
         clear_color: wgpu::Color,
     ) -> Self {
+        let skeleton_pipeline = skeleton_pipeline(device);
+
         let shader = crate::shader::post_process::create_shader_module(device);
         let layout = crate::shader::post_process::create_pipeline_layout(device);
         let post_process_pipeline =
@@ -168,6 +173,15 @@ impl SsbhRenderer {
         let (camera_buffer, camera_bind_group) =
             create_camera_bind_group(device, glam::Vec4::ZERO, glam::Mat4::IDENTITY);
 
+        // TODO: Don't always assume that the camera bind groups are identical.
+        let skeleton_camera_bind_group =
+            crate::shader::skeleton::bind_groups::BindGroup0::from_bindings(
+                device,
+                crate::shader::skeleton::bind_groups::BindGroupLayout0 {
+                    camera: &camera_buffer,
+                },
+            );
+
         let light_transform = calculate_light_transform(
             glam::Quat::from_xyzw(-0.495286, -0.0751228, 0.0431234, -0.864401),
             glam::Vec3::new(25.0, 25.0, 50.0),
@@ -246,6 +260,7 @@ impl SsbhRenderer {
             shadow_pipeline,
             camera_buffer,
             camera_bind_group,
+            skeleton_camera_bind_group,
             model_shadow_bind_group,
             pass_info,
             color_lut,
@@ -257,6 +272,7 @@ impl SsbhRenderer {
             clear_color,
             stage_uniforms_buffer,
             stage_uniforms_bind_group,
+            skeleton_pipeline,
         }
     }
 
@@ -301,6 +317,9 @@ impl SsbhRenderer {
 
         // Draw the models to the initial color buffer.
         self.model_pass(encoder, render_models);
+
+        // TODO: Should this happen after post processing?
+        self.skeleton_pass(encoder, render_models);
 
         // Extract the portions of the image that contribute to bloom.
         self.bloom_threshold_pass(encoder);
@@ -434,6 +453,35 @@ impl SsbhRenderer {
         }
     }
 
+    fn skeleton_pass(&self, encoder: &mut wgpu::CommandEncoder, render_models: &[RenderModel]) {
+        // TODO: Force having a color attachment for each fragment shader output in wgsl_to_wgpu?
+        let mut skeleton_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("Skeleton Pass"),
+            color_attachments: &[wgpu::RenderPassColorAttachment {
+                view: &self.pass_info.color.view,
+                resolve_target: None,
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Load,
+                    store: true,
+                },
+            }],
+            depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                view: &self.pass_info.depth.view,
+                depth_ops: Some(wgpu::Operations {
+                    // TODO: Let the bones draw in front?
+                    load: wgpu::LoadOp::Clear(1.0),
+                    store: true,
+                }),
+                stencil_ops: None,
+            }),
+        });
+
+        skeleton_pass.set_pipeline(&self.skeleton_pipeline);
+        for model in render_models {
+            model.draw_skeleton(&mut skeleton_pass, &self.skeleton_camera_bind_group);
+        }
+    }
+
     fn post_processing_pass(
         &self,
         encoder: &mut wgpu::CommandEncoder,
@@ -486,6 +534,39 @@ impl SsbhRenderer {
             model.draw_render_meshes_depth(&mut shadow_pass, &self.shadow_transform_bind_group);
         }
     }
+}
+
+fn skeleton_pipeline(device: &wgpu::Device) -> wgpu::RenderPipeline {
+    let shader = crate::shader::skeleton::create_shader_module(device);
+    let layout = crate::shader::skeleton::create_pipeline_layout(device);
+    device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+        label: None,
+        layout: Some(&layout),
+        vertex: wgpu::VertexState {
+            module: &shader,
+            entry_point: "vs_main",
+            buffers: &[wgpu::VertexBufferLayout {
+                array_stride: crate::shader::skeleton::VertexInput::SIZE_IN_BYTES,
+                step_mode: wgpu::VertexStepMode::Vertex,
+                attributes: &crate::shader::skeleton::VertexInput::VERTEX_ATTRIBUTES,
+            }],
+        },
+        fragment: Some(wgpu::FragmentState {
+            module: &shader,
+            entry_point: "fs_main",
+            targets: &[crate::RGBA_COLOR_FORMAT.into()],
+        }),
+        primitive: wgpu::PrimitiveState::default(),
+        depth_stencil: Some(wgpu::DepthStencilState {
+            format: crate::renderer::DEPTH_FORMAT,
+            depth_write_enabled: true,
+            depth_compare: wgpu::CompareFunction::Less,
+            stencil: wgpu::StencilState::default(),
+            bias: wgpu::DepthBiasState::default(),
+        }),
+        multisample: wgpu::MultisampleState::default(),
+        multiview: None,
+    })
 }
 
 fn create_screen_pipeline(

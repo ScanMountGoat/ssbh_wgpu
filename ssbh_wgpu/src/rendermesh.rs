@@ -32,6 +32,11 @@ pub struct RenderModel {
     material_data_by_label: HashMap<String, MaterialData>,
     pipelines: HashMap<PipelineKey, wgpu::RenderPipeline>,
     textures: Vec<(String, wgpu::Texture)>, // (file name, texture)
+    bone_vertex_buffer: wgpu::Buffer,
+    bone_index_buffer: wgpu::Buffer,
+    bone_data_bind_group: crate::shader::skeleton::bind_groups::BindGroup1,
+    // TODO: Use instancing instead.
+    bone_bind_groups: Vec<crate::shader::skeleton::bind_groups::BindGroup2>,
 }
 
 // A RenderMesh is view over a portion of the RenderModel data.
@@ -179,6 +184,37 @@ impl RenderModel {
         }
     }
 
+    pub fn draw_skeleton<'a>(
+        &'a self,
+        render_pass: &mut wgpu::RenderPass<'a>,
+        camera_bind_group: &'a crate::shader::skeleton::bind_groups::BindGroup0,
+    ) {
+        // TODO: Create a shader for drawing each bone.
+
+        // TODO: How to store all data in RenderModel but still draw sorted meshes?
+        // TODO: Don't assume materials are properly assigned.
+        // let material_data = &self.material_data_by_label[&mesh.material_label];
+        if let Some(skel) = self.skel.as_ref() {
+            render_pass.set_vertex_buffer(0, self.bone_vertex_buffer.slice(..));
+            render_pass
+                .set_index_buffer(self.bone_index_buffer.slice(..), wgpu::IndexFormat::Uint32);
+
+            for (i, bone) in skel.bones.iter().enumerate() {
+                // TODO: Add a bind group for the index?
+                crate::shader::skeleton::bind_groups::set_bind_groups(
+                    render_pass,
+                    crate::shader::skeleton::bind_groups::BindGroups::<'a> {
+                        bind_group0: camera_bind_group,
+                        bind_group1: &self.bone_data_bind_group,
+                        bind_group2: &self.bone_bind_groups[i],
+                    },
+                );
+
+                render_pass.draw_indexed(0..cube_indices().len() as u32, 0, 0..1);
+            }
+        }
+    }
+
     pub fn draw_render_meshes<'a>(
         &'a self,
         render_pass: &mut wgpu::RenderPass<'a>,
@@ -261,6 +297,93 @@ pub struct RenderMeshSharedData<'a> {
     pub nutexbs: &'a [(String, NutexbFile)],
 }
 
+fn cube_indices() -> Vec<u32> {
+    (0..cube().len() as u32).collect()
+}
+
+fn cube() -> Vec<[f32; 3]> {
+    let scale = 1.0;
+    vec![
+        [-scale, -scale, -scale],
+        [-scale, -scale, scale],
+        [-scale, scale, scale],
+        [scale, scale, -scale],
+        [-scale, -scale, -scale],
+        [-scale, scale, -scale],
+        [scale, -scale, scale],
+        [-scale, -scale, -scale],
+        [scale, -scale, -scale],
+        [scale, scale, -scale],
+        [scale, -scale, -scale],
+        [-scale, -scale, -scale],
+        [-scale, -scale, -scale],
+        [-scale, scale, scale],
+        [-scale, scale, -scale],
+        [scale, -scale, scale],
+        [-scale, -scale, scale],
+        [-scale, -scale, -scale],
+        [-scale, scale, scale],
+        [-scale, -scale, scale],
+        [scale, -scale, scale],
+        [scale, scale, scale],
+        [scale, -scale, -scale],
+        [scale, scale, -scale],
+        [scale, -scale, -scale],
+        [scale, scale, scale],
+        [scale, -scale, scale],
+        [scale, scale, scale],
+        [scale, scale, -scale],
+        [-scale, scale, -scale],
+        [scale, scale, scale],
+        [-scale, scale, -scale],
+        [-scale, scale, scale],
+        [scale, scale, scale],
+        [-scale, scale, scale],
+        [scale, -scale, scale],
+    ]
+}
+
+// TODO: Make a constant for the bone count?
+fn bone_colors(skel: Option<&SkelData>, hlp: Option<&Hlpb>) -> Vec<[f32; 4]> {
+    // Match the color scheme used for the Blender addon.
+    let helper_color = [0.25098039216, 0.14509803922, 0.35294117647, 1.0];
+    let default_color = [0.69019607843, 0.69019607843, 0.69019607843, 1.0];
+
+    let mut colors = vec![[0.0; 4]; 512];
+    if let Some(skel) = skel {
+        for (i, bone) in skel.bones.iter().enumerate() {
+            colors[i] = default_color;
+
+            // TODO: Check for swing bones.
+
+            // Color helper bones using a different color.
+            if let Some(hlp) = hlp {
+                match hlp {
+                    Hlpb::V11 {
+                        aim_constraints,
+                        orient_constraints,
+                        ..
+                    } => {
+                        for constraint in &aim_constraints.elements {
+                            if bone.name == constraint.target_bone_name2.to_string_lossy() {
+                                colors[i] = helper_color;
+                            }
+                        }
+
+                        for constraint in &orient_constraints.elements {
+                            if bone.name == constraint.driver_bone_name.to_string_lossy() {
+                                // dbg!("hello");
+                                colors[i] = helper_color;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    colors
+}
+
 pub fn create_render_model(
     device: &wgpu::Device,
     queue: &wgpu::Queue,
@@ -290,6 +413,20 @@ pub fn create_render_model(
     let world_transforms_buffer =
         create_world_transforms_buffer(device, &anim_transforms.world_transforms);
 
+    let bone_colors_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        label: Some("Bone Colors Buffer"),
+        contents: bytemuck::cast_slice(&bone_colors(shared_data.skel, shared_data.hlp)),
+        usage: wgpu::BufferUsages::UNIFORM,
+    });
+
+    let bone_data_bind_group = crate::shader::skeleton::bind_groups::BindGroup1::from_bindings(
+        device,
+        crate::shader::skeleton::bind_groups::BindGroupLayout1 {
+            world_transforms: &world_transforms_buffer,
+            bone_colors: &bone_colors_buffer,
+        },
+    );
+
     let mesh_buffers = MeshBuffers {
         skinning_transforms: skinning_transforms_buffer,
         world_transforms: world_transforms_buffer,
@@ -297,6 +434,41 @@ pub fn create_render_model(
 
     let (meshes, material_data_by_label, textures, pipelines) =
         create_render_meshes(device, queue, &mesh_buffers, shared_data);
+
+    // TODO: Move this to the renderer since it's shared?
+    let bone_vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        label: Some("Bone Vertex Buffer"),
+        contents: bytemuck::cast_slice(&cube()),
+        usage: wgpu::BufferUsages::VERTEX,
+    });
+
+    let bone_index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        label: Some("Bone Vertex Buffer"),
+        contents: bytemuck::cast_slice(&cube_indices()),
+        usage: wgpu::BufferUsages::INDEX,
+    });
+
+    let mut bone_bind_groups = Vec::new();
+    if let Some(skel) = shared_data.skel {
+        for (i, bone) in skel.bones.iter().enumerate() {
+            // TODO: Use instancing instead.
+            let per_bone = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("Mesh Object Info Buffer"),
+                contents: bytemuck::cast_slice(&[crate::shader::skeleton::PerBone {
+                    index: [i as i32, -1, -1, -1],
+                }]),
+                usage: wgpu::BufferUsages::UNIFORM,
+            });
+
+            let bind_group2 = crate::shader::skeleton::bind_groups::BindGroup2::from_bindings(
+                device,
+                crate::shader::skeleton::bind_groups::BindGroupLayout2 {
+                    per_bone: &per_bone,
+                },
+            );
+            bone_bind_groups.push(bind_group2);
+        }
+    }
 
     println!(
         "Create {:?} render meshes, {:?} materials, {:?} pipelines: {:?}",
@@ -316,6 +488,10 @@ pub fn create_render_model(
         material_data_by_label,
         textures,
         pipelines,
+        bone_vertex_buffer,
+        bone_index_buffer,
+        bone_data_bind_group,
+        bone_bind_groups,
     }
 }
 
