@@ -157,6 +157,7 @@ fn apply_orient_constraint(animated_bones: &mut [AnimatedBone], constraint: &Ori
 
     let (target_rot_x, target_rot_y, target_rot_z) = target_r.to_euler(glam::EulerRot::XYZ);
 
+    // TODO: This doesn't work properly.
     let interp_rotation = glam::Quat::from_euler(
         glam::EulerRot::XYZ,
         interp(target_rot_x, source_rot_x, constraint.constraint_axes.x),
@@ -170,7 +171,7 @@ fn apply_orient_constraint(animated_bones: &mut [AnimatedBone], constraint: &Ori
         .anim_transform
         .unwrap_or(AnimTransform::from_bone(&target.bone));
 
-    new_transform.rotation = interp_rotation;
+    new_transform.rotation = source_r;
     target.anim_transform = Some(new_transform);
     // }
 
