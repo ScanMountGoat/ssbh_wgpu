@@ -102,7 +102,7 @@ fn apply_orient_constraint(animated_bones: &mut [AnimatedBone], constraint: &Ori
     //     .cloned()
     //     .unwrap();
 
-    // let source_parent = animated_bones.get(source.bone.parent_index.unwrap()).unwrap();
+    let source_parent = source.bone.parent_index.and_then(|i| animated_bones.get(i));
 
     // let target_parent = animated_bones
     //     .iter()
@@ -110,12 +110,16 @@ fn apply_orient_constraint(animated_bones: &mut [AnimatedBone], constraint: &Ori
     //     .cloned()
     //     .unwrap();
 
-    // let target_parent = animated_bones.get(target.bone.parent_index.unwrap()).unwrap();
+    let target_parent = target.bone.parent_index.and_then(|i| animated_bones.get(i));
 
     let source_world = animated_world_transform(animated_bones, &source).unwrap();
     let target_world = animated_world_transform(animated_bones, &target).unwrap();
-    // let source_parent_world = animated_world_transform(animated_bones, &source_parent).unwrap();
-    // let target_parent_world = animated_world_transform(animated_bones, &target_parent).unwrap();
+    let source_parent_world = source_parent
+        .map(|p| animated_world_transform(animated_bones, p).unwrap())
+        .unwrap_or(glam::Mat4::IDENTITY);
+    let target_parent_world = target_parent
+        .map(|p| animated_world_transform(animated_bones, p).unwrap())
+        .unwrap_or(glam::Mat4::IDENTITY);
 
     let quat1 = glam::Quat::from_array(constraint.quat1.to_array());
     let quat2 = glam::Quat::from_array(constraint.quat2.to_array());
@@ -129,8 +133,14 @@ fn apply_orient_constraint(animated_bones: &mut [AnimatedBone], constraint: &Ori
     // TODO: Will the target of a constraint ever be animated?
 
     // TODO: Perform the copy rotation in world space and convert back to the appropriate space.
-    let source_transform = source.animated_transform(true).transpose();
+    // let source_transform = source.animated_transform(true).transpose();
+
+    // Calculate the source bone's world orientation.
+    // Convert to be relative to the target's parent using the inverse.
+    // TODO: Create a test case that checks for the matrix multiplication order here.
+    let source_transform = target_parent_world.transpose().inverse() * source_world.transpose();
     let (source_s, source_r, source_t) = (source_transform).to_scale_rotation_translation();
+    // dbg!(source_s, source_r, source_t);
 
     let (source_rot_x, source_rot_y, source_rot_z) = (source_r).to_euler(glam::EulerRot::XYZ);
 
@@ -140,6 +150,8 @@ fn apply_orient_constraint(animated_bones: &mut [AnimatedBone], constraint: &Ori
     // TODO: Do the unk types matter?
 
     // TODO: quat1 and quat2 correct for twists?
+
+    // Leave the target transform as is since it's already relative to the target parent.
     let target_transform = target.animated_transform(true);
     let (target_s, target_r, target_t) = (target_transform).to_scale_rotation_translation();
 
@@ -370,23 +382,13 @@ mod tests {
 
     #[test]
     fn orient_constraints_different_parents() {
-        // TODO: Set the anim rotation.
-        // Skel:
-        // L2      R2
-        // ^       ^
-        // |       |
-        // L1      R1
-        // ^       ^
-        // |       |
-        // L0      R0
-
-        // TODO: Skel + Anim:
+        // Skel + Anim:
         // L2
         // ^
         // |
         // L1 <-- L0    R0 --> R1 --> R2
 
-        // TODO: Skel + Anim + Hlpb (constraint R1 to L1):
+        // TODO: Skel + Anim + Hlpb (constrain R1 to L1):
         // L2                  R2
         // ^                   ^
         // |                   |
@@ -441,6 +443,7 @@ mod tests {
                 bone: identity_bone("R1", Some(3)),
                 anim_transform: Some(AnimTransform {
                     translation: glam::Vec3::new(0.0, 1.0, 0.0),
+                    // TODO: What should this be without constraints?
                     rotation: glam::Quat::from_rotation_z(0.0f32.to_radians()),
                     scale: glam::Vec3::ONE,
                 }),
@@ -502,6 +505,7 @@ mod tests {
             [0.0, 0.0, -0.7071, 0.7071],
             bones[3].anim_transform.unwrap().rotation.to_array()
         );
+        // TODO: This should be +90 degrees?
         // assert_vector_relative_eq!(
         //     [0.0, 0.0, 0.0, 1.0],
         //     bones[4].anim_transform.unwrap().rotation.to_array()
