@@ -25,39 +25,43 @@ pub struct AnimatedBone {
 }
 
 impl AnimatedBone {
-    fn animated_transform(&self, include_anim_scale: bool) -> glam::Mat4 {
-        self.anim_transform
-            .as_ref()
-            .map(|t| {
-                // Decompose the default "rest" pose from the skeleton.
-                // Transform flags allow some parts of the transform to be set externally.
-                // For example, suppose Mario throws a different fighter like Bowser.
-                // Mario's "thrown" anim needs to use some transforms from Bowser's skel.
-                let (skel_scale, skel_rot, scale_trans) =
-                    glam::Mat4::from_cols_array_2d(&self.bone.transform)
-                        .to_scale_rotation_translation();
+    fn animated_transform(&self, include_anim_scale: bool, include_anim: bool) -> glam::Mat4 {
+        if include_anim {
+            self.anim_transform
+                .as_ref()
+                .map(|t| {
+                    // Decompose the default "rest" pose from the skeleton.
+                    // Transform flags allow some parts of the transform to be set externally.
+                    // For example, suppose Mario throws a different fighter like Bowser.
+                    // Mario's "thrown" anim needs to use some transforms from Bowser's skel.
+                    let (skel_scale, skel_rot, scale_trans) =
+                        glam::Mat4::from_cols_array_2d(&self.bone.transform)
+                            .to_scale_rotation_translation();
 
-                let adjusted_transform = AnimTransform {
-                    translation: if self.flags.override_translation {
-                        scale_trans
-                    } else {
-                        t.translation
-                    },
-                    rotation: if self.flags.override_rotation {
-                        skel_rot
-                    } else {
-                        t.rotation
-                    },
-                    scale: if self.flags.override_scale {
-                        skel_scale
-                    } else {
-                        t.scale
-                    },
-                };
+                    let adjusted_transform = AnimTransform {
+                        translation: if self.flags.override_translation {
+                            scale_trans
+                        } else {
+                            t.translation
+                        },
+                        rotation: if self.flags.override_rotation {
+                            skel_rot
+                        } else {
+                            t.rotation
+                        },
+                        scale: if self.flags.override_scale {
+                            skel_scale
+                        } else {
+                            t.scale
+                        },
+                    };
 
-                adjusted_transform.to_mat4(include_anim_scale)
-            })
-            .unwrap_or_else(|| mat4_from_row2d(&self.bone.transform))
+                    adjusted_transform.to_mat4(include_anim_scale)
+                })
+                .unwrap_or_else(|| mat4_from_row2d(&self.bone.transform))
+        } else {
+            mat4_from_row2d(&self.bone.transform)
+        }
     }
 }
 
@@ -121,6 +125,7 @@ impl AnimationTransforms {
     }
 
     pub fn from_skel(skel: &SkelData) -> Self {
+        // Calculate the transforms to use before animations are applied.
         // Calculate the world transforms for parenting mesh objects to bones.
         // The skel pose should already match the "pose" in the mesh geometry.
         let mut world_transforms = [glam::Mat4::IDENTITY; MAX_BONE_COUNT];
@@ -207,20 +212,12 @@ pub fn animate_skel(
     // TODO: Avoid enumerate here?
     // TODO: Should scale inheritance be part of ssbh_data itself?
     // TODO: Is there a more efficient way of calculating this?
-    for (i, (bone, animated_bone)) in skel
-        .bones
-        .iter()
-        .zip(animated_bones.iter())
-        .enumerate()
-        .take(MAX_BONE_COUNT)
-    {
+    for (i, animated_bone) in animated_bones.iter().enumerate().take(MAX_BONE_COUNT) {
         // Smash is row-major but glam is column-major.
         // TODO: Is there an efficient way to calculate world transforms of all bones?
-        // TODO: This wouldn't require a skel if there was a separate calculate_world(&[BoneData]) function.
-        let bone_world = skel.calculate_world_transform(bone).unwrap();
-        let bone_world = glam::Mat4::from_cols_array_2d(&bone_world).transpose();
-
-        let bone_anim_world = animated_world_transform(&animated_bones, animated_bone).unwrap();
+        // The ssbh_data method is slower since it can't assume the bone count.
+        let bone_world = world_transform(&animated_bones, animated_bone, false).unwrap();
+        let bone_anim_world = world_transform(&animated_bones, animated_bone, true).unwrap();
 
         // TODO: Is wgpu expecting row-major?
         transforms[i] = (bone_world.inverse() * bone_anim_world).transpose();
@@ -246,13 +243,14 @@ fn mat4_from_row2d(elements: &[[f32; 4]; 4]) -> glam::Mat4 {
     glam::Mat4::from_cols_array_2d(elements).transpose()
 }
 
-fn animated_world_transform(
+fn world_transform(
     bones: &[AnimatedBone],
     root: &AnimatedBone,
+    include_anim: bool,
 ) -> Result<glam::Mat4, BoneTransformError> {
     // TODO: Should we always include the root bone's scale?
     let mut current = root;
-    let mut transform = current.animated_transform(true);
+    let mut transform = current.animated_transform(true, include_anim);
 
     let mut inherit_scale = current.inherit_scale;
 
@@ -274,13 +272,14 @@ fn animated_world_transform(
 
         if let Some(parent_bone) = bones.get(parent_index) {
             // TODO: Does scale compensation take into account scaling in the skeleton?
-            let parent_transform = parent_bone.animated_transform(inherit_scale);
+            let parent_transform = parent_bone.animated_transform(inherit_scale, include_anim);
 
             // Compensate scale only takes into account the immediate parent.
             // TODO: Test for inheritance being set.
             // TODO: Should this be current.inherit_scale instead?
             // TODO: What happens if both compensate_scale and inherit_scale are false?
-            if current.compensate_scale && inherit_scale {
+            // Only apply scale compensation if the anim is included.
+            if include_anim && current.compensate_scale && inherit_scale {
                 if let Some(parent_transform) = &parent_bone.anim_transform {
                     let scale_compensation = glam::Mat4::from_scale(1.0 / parent_transform.scale);
                     // TODO: Make the tests more specific to account for this application order?

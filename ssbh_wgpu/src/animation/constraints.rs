@@ -1,4 +1,4 @@
-use super::{animated_world_transform, AnimTransform, AnimatedBone};
+use super::{world_transform, AnimTransform, AnimatedBone};
 use glam::Vec4Swizzles;
 use ssbh_data::hlpb_data::*;
 
@@ -30,17 +30,18 @@ fn apply_aim_constraint(animated_bones: &mut [AnimatedBone], constraint: &AimCon
 
     // We want the target bone to point at the source bone.
     // TODO: Is there a way to do this without using the world transforms?
-    let source_world = animated_world_transform(animated_bones, &source)
+    let source_world = world_transform(animated_bones, &source, true)
         .unwrap()
         .transpose();
 
     // TODO: Avoid finding the bone twice?
-    let target_world = animated_world_transform(
+    let target_world = world_transform(
         animated_bones,
         animated_bones
             .iter()
             .find(|b| b.bone.name == constraint.target_bone_name1)
             .unwrap(),
+        true,
     )
     .unwrap()
     .transpose();
@@ -103,13 +104,13 @@ fn apply_orient_constraint(animated_bones: &mut [AnimatedBone], constraint: &Ori
 
     let target_parent = target.bone.parent_index.and_then(|i| animated_bones.get(i));
 
-    let source_world = animated_world_transform(animated_bones, &source).unwrap();
-    let target_world = animated_world_transform(animated_bones, &target).unwrap();
+    let source_world = world_transform(animated_bones, &source, true).unwrap();
+    let target_world = world_transform(animated_bones, &target, true).unwrap();
     let source_parent_world = source_parent
-        .map(|p| animated_world_transform(animated_bones, p).unwrap())
+        .map(|p| world_transform(animated_bones, p, true).unwrap())
         .unwrap_or(glam::Mat4::IDENTITY);
     let target_parent_world = target_parent
-        .map(|p| animated_world_transform(animated_bones, p).unwrap())
+        .map(|p| world_transform(animated_bones, p, true).unwrap())
         .unwrap_or(glam::Mat4::IDENTITY);
 
     let quat1 = glam::Quat::from_array(constraint.quat1.to_array());
@@ -143,7 +144,7 @@ fn apply_orient_constraint(animated_bones: &mut [AnimatedBone], constraint: &Ori
     // TODO: quat1 and quat2 correct for twists?
 
     // Leave the target transform as is since it's already relative to the target parent.
-    let target_transform = target.animated_transform(true);
+    let target_transform = target.animated_transform(true, true);
     let (target_s, target_r, target_t) = (target_transform).to_scale_rotation_translation();
 
     let (target_rot_x, target_rot_y, target_rot_z) = target_r.to_euler(glam::EulerRot::XYZ);
@@ -503,7 +504,7 @@ mod tests {
         // );
 
         let position_world = |bone| {
-            animated_world_transform(&bones, bone)
+            world_transform(&bones, bone, true)
                 .unwrap()
                 .transpose()
                 .to_scale_rotation_translation()
