@@ -1,5 +1,3 @@
-use std::collections::HashSet;
-
 use ssbh_data::{
     anim_data::{GroupType, TrackValues, TransformFlags, Vector3, Vector4},
     matl_data::MatlEntryData,
@@ -11,6 +9,9 @@ use crate::{shader::skinning::AnimatedWorldTransforms, RenderMesh};
 use constraints::apply_hlpb_constraints;
 
 mod constraints;
+
+/// The maximum number of bones supported by the shader's uniform buffer.
+pub const MAX_BONE_COUNT: usize = 512;
 
 // Animation process is Skel, Anim -> Vec<AnimatedBone> -> [Mat4; 512], [Mat4; 512] -> Buffers.
 // Evaluate the "tree" of Vec<AnimatedBone> to compute the final world transforms.
@@ -103,7 +104,7 @@ pub struct AnimationTransforms {
     /// This is equal to `bone_world.inv() * animated_bone_world`.
     pub animated_world_transforms: Box<AnimatedWorldTransforms>,
     /// The world transform of each bone in the skeleton.
-    pub world_transforms: Box<[glam::Mat4; 512]>,
+    pub world_transforms: Box<[glam::Mat4; MAX_BONE_COUNT]>,
 }
 
 impl AnimationTransforms {
@@ -112,20 +113,20 @@ impl AnimationTransforms {
         // Mesh objects parented to a parent bone will likely be positioned at the origin.
         Self {
             animated_world_transforms: Box::new(AnimatedWorldTransforms {
-                transforms: [glam::Mat4::IDENTITY; 512],
-                transforms_inv_transpose: [glam::Mat4::IDENTITY; 512],
+                transforms: [glam::Mat4::IDENTITY; MAX_BONE_COUNT],
+                transforms_inv_transpose: [glam::Mat4::IDENTITY; MAX_BONE_COUNT],
             }),
-            world_transforms: Box::new([glam::Mat4::IDENTITY; 512]),
+            world_transforms: Box::new([glam::Mat4::IDENTITY; MAX_BONE_COUNT]),
         }
     }
 
     pub fn from_skel(skel: &SkelData) -> Self {
         // Calculate the world transforms for parenting mesh objects to bones.
         // The skel pose should already match the "pose" in the mesh geometry.
-        let mut world_transforms = [glam::Mat4::IDENTITY; 512];
+        let mut world_transforms = [glam::Mat4::IDENTITY; MAX_BONE_COUNT];
 
         // TODO: Add tests to make sure this is transposed correctly?
-        for (i, bone) in skel.bones.iter().enumerate().take(512) {
+        for (i, bone) in skel.bones.iter().enumerate().take(MAX_BONE_COUNT) {
             let bone_world = skel.calculate_world_transform(bone).unwrap();
             let bone_world = glam::Mat4::from_cols_array_2d(&bone_world);
             world_transforms[i] = bone_world;
@@ -133,8 +134,8 @@ impl AnimationTransforms {
 
         Self {
             animated_world_transforms: Box::new(AnimatedWorldTransforms {
-                transforms: [glam::Mat4::IDENTITY; 512],
-                transforms_inv_transpose: [glam::Mat4::IDENTITY; 512],
+                transforms: [glam::Mat4::IDENTITY; MAX_BONE_COUNT],
+                transforms_inv_transpose: [glam::Mat4::IDENTITY; MAX_BONE_COUNT],
             }),
             world_transforms: Box::new(world_transforms),
         }
@@ -176,8 +177,8 @@ pub fn animate_skel(
     frame: f32,
 ) -> AnimationTransforms {
     // TODO: Is this redundant with the initialization below?
-    let mut world_transforms = [glam::Mat4::IDENTITY; 512];
-    let mut transforms = [glam::Mat4::IDENTITY; 512];
+    let mut world_transforms = [glam::Mat4::IDENTITY; MAX_BONE_COUNT];
+    let mut transforms = [glam::Mat4::IDENTITY; MAX_BONE_COUNT];
 
     // TODO: Investigate optimizations for animations.
     // TODO: Function for this?
@@ -197,10 +198,10 @@ pub fn animate_skel(
         })
         .collect();
 
+    let start = std::time::Instant::now();
+
     if let Some(hlpb) = hlpb {
-        // let start = std::time::Instant::now();
         apply_hlpb_constraints(&mut animated_bones, hlpb);
-        // println!("{:?}", start.elapsed());
     }
 
     // TODO: Avoid enumerate here?
@@ -211,7 +212,7 @@ pub fn animate_skel(
         .iter()
         .zip(animated_bones.iter())
         .enumerate()
-        .take(512)
+        .take(MAX_BONE_COUNT)
     {
         // Smash is row-major but glam is column-major.
         // TODO: Is there an efficient way to calculate world transforms of all bones?
@@ -227,6 +228,8 @@ pub fn animate_skel(
     }
 
     let transforms_inv_transpose = transforms.map(|t| t.inverse().transpose());
+
+    println!("{:?}", start.elapsed());
 
     // TODO: Does it make more sense to use vec here?
     // This function is an implementation detail, so we can test/enforce the length.
@@ -254,15 +257,19 @@ fn animated_world_transform(
     let mut inherit_scale = current.inherit_scale;
 
     // Check for cycles by keeping track of previously visited locations.
-    let mut visited = HashSet::new();
+    let mut visited = [false; MAX_BONE_COUNT];
 
     // Accumulate transforms by travelling up the bone heirarchy.
     while let Some(parent_index) = current.bone.parent_index {
         // TODO: Validate the skel once for cycles to make this step faster?
-        if !visited.insert(parent_index) {
-            return Err(BoneTransformError::CycleDetected {
-                index: parent_index,
-            });
+        if let Some(visited) = visited.get_mut(parent_index) {
+            if *visited {
+                return Err(BoneTransformError::CycleDetected {
+                    index: parent_index,
+                });
+            }
+
+            *visited = true;
         }
 
         if let Some(parent_bone) = bones.get(parent_index) {

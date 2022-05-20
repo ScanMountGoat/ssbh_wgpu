@@ -342,13 +342,12 @@ fn cube() -> Vec<[f32; 3]> {
     ]
 }
 
-// TODO: Make a constant for the bone count?
 fn bone_colors(skel: Option<&SkelData>, hlpb: Option<&HlpbData>) -> Vec<[f32; 4]> {
     // Match the color scheme used for the Blender addon.
     let helper_color = [0.25098039216, 0.14509803922, 0.35294117647, 1.0];
     let default_color = [0.69019607843, 0.69019607843, 0.69019607843, 1.0];
 
-    let mut colors = vec![[0.0; 4]; 512];
+    let mut colors = vec![[0.0; 4]; crate::animation::MAX_BONE_COUNT];
     if let Some(skel) = skel {
         for (i, bone) in skel.bones.iter().enumerate() {
             colors[i] = default_color;
