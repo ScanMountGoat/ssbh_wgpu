@@ -6,7 +6,6 @@ use ssbh_data::{
     prelude::*,
     skel_data::{BoneData, BoneTransformError},
 };
-use ssbh_lib::formats::hlpb::Hlpb;
 
 use crate::{shader::skinning::AnimatedWorldTransforms, RenderMesh};
 use constraints::apply_hlpb_constraints;
@@ -173,7 +172,7 @@ impl Visibility for (String, bool) {
 pub fn animate_skel(
     skel: &SkelData,
     anim: &AnimData,
-    hlpb: Option<&Hlpb>,
+    hlpb: Option<&HlpbData>,
     frame: f32,
 ) -> AnimationTransforms {
     // TODO: Is this redundant with the initialization below?
@@ -199,7 +198,9 @@ pub fn animate_skel(
         .collect();
 
     if let Some(hlpb) = hlpb {
+        // let start = std::time::Instant::now();
         apply_hlpb_constraints(&mut animated_bones, hlpb);
+        // println!("{:?}", start.elapsed());
     }
 
     // TODO: Avoid enumerate here?

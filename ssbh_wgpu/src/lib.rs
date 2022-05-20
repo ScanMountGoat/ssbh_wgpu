@@ -21,7 +21,6 @@ pub use shader::model::CameraTransforms;
 pub use texture::{create_default_textures, load_default_cube};
 
 use ssbh_data::prelude::*;
-use ssbh_lib::prelude::*;
 
 pub use crate::pipeline::PipelineData;
 use crate::rendermesh::RenderMeshSharedData;
@@ -50,7 +49,7 @@ pub struct ModelFolder {
     pub modls: Vec<(String, ModlData)>,
     pub adjs: Vec<(String, AdjData)>,
     pub anims: Vec<(String, AnimData)>,
-    pub hlps: Vec<(String, Hlpb)>,
+    pub hlpbs: Vec<(String, HlpbData)>,
     pub nutexbs: Vec<(String, NutexbFile)>,
 }
 
@@ -64,7 +63,7 @@ impl ModelFolder {
             modls: read_files(folder.as_ref(), "numdlb", ModlData::from_file),
             anims: read_files(folder.as_ref(), "nuanmb", AnimData::from_file),
             adjs: read_files(folder.as_ref(), "adjb", AdjData::from_file),
-            hlps: read_files(folder.as_ref(), "nuhlpb", Hlpb::from_file),
+            hlpbs: read_files(folder.as_ref(), "nuhlpb", HlpbData::from_file),
             nutexbs: read_files(folder.as_ref(), "nutexb", NutexbFile::read_from_file),
         }
     }
@@ -117,8 +116,8 @@ pub fn load_render_models(
                     .find(|(f, _)| f == "model.adjb")
                     .map(|(_, m)| m),
                 nutexbs: &model.nutexbs,
-                hlp: model
-                    .hlps
+                hlpb: model
+                    .hlpbs
                     .iter()
                     .find(|(f, _)| f == "model.nuhlpb")
                     .map(|(_, m)| m),

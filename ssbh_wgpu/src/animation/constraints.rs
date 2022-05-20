@@ -1,39 +1,30 @@
 use super::{animated_world_transform, AnimTransform, AnimatedBone};
 use glam::Vec4Swizzles;
-use ssbh_lib::formats::hlpb::{AimConstraint, Hlpb, OrientConstraint};
+use ssbh_data::hlpb_data::*;
 
 fn interp(a: f32, b: f32, f: f32) -> f32 {
     (1.0 - f) * a + f * b
 }
 
-pub fn apply_hlpb_constraints(animated_bones: &mut [AnimatedBone], hlpb: &Hlpb) {
+pub fn apply_hlpb_constraints(animated_bones: &mut [AnimatedBone], hlpb: &HlpbData) {
     // TODO: Rename the orient constraint to include rotation in the name?
-    match hlpb {
-        Hlpb::V11 {
-            aim_constraints,
-            orient_constraints,
-            ..
-        } => {
-            // TODO: Allow multiple constraints per bone.
-            // TODO: Can the effects of constraints stack?
-            // TODO: Better handling of application order.
-            // TODO: Also sort these constraints?
-            for aim in &aim_constraints.elements {
-                apply_aim_constraint(animated_bones, aim);
-            }
 
-            for orient in &orient_constraints.elements {
-                apply_orient_constraint(animated_bones, orient);
-            }
-        }
+    // TODO: Can the effects of constraints stack?
+    // TODO: Calculate application order to respect dependencies?
+    for aim in &hlpb.aim_constraints {
+        apply_aim_constraint(animated_bones, aim);
+    }
+
+    for orient in &hlpb.orient_constraints {
+        apply_orient_constraint(animated_bones, orient);
     }
 }
 
-fn apply_aim_constraint(animated_bones: &mut [AnimatedBone], constraint: &AimConstraint) {
+fn apply_aim_constraint(animated_bones: &mut [AnimatedBone], constraint: &AimConstraintData) {
     // TODO: Investigate the remaining bone name fields.
     let source = animated_bones
         .iter()
-        .find(|b| b.bone.name == constraint.aim_bone_name1.to_string_lossy())
+        .find(|b| b.bone.name == constraint.aim_bone_name1)
         .cloned()
         .unwrap();
 
@@ -48,7 +39,7 @@ fn apply_aim_constraint(animated_bones: &mut [AnimatedBone], constraint: &AimCon
         animated_bones,
         animated_bones
             .iter()
-            .find(|b| b.bone.name == constraint.target_bone_name1.to_string_lossy())
+            .find(|b| b.bone.name == constraint.target_bone_name1)
             .unwrap(),
     )
     .unwrap()
@@ -56,7 +47,7 @@ fn apply_aim_constraint(animated_bones: &mut [AnimatedBone], constraint: &AimCon
 
     let target = animated_bones
         .iter_mut()
-        .find(|b| b.bone.name == constraint.target_bone_name1.to_string_lossy())
+        .find(|b| b.bone.name == constraint.target_bone_name1)
         .unwrap();
 
     // TODO: Can a bone not affected by the anim be the source?
@@ -81,24 +72,24 @@ fn apply_aim_constraint(animated_bones: &mut [AnimatedBone], constraint: &AimCon
     target.anim_transform = Some(target_transform);
 }
 
-fn apply_orient_constraint(animated_bones: &mut [AnimatedBone], constraint: &OrientConstraint) {
+fn apply_orient_constraint(animated_bones: &mut [AnimatedBone], constraint: &OrientConstraintData) {
     // TODO: Investigate the remaining bone name fields.
     let source = animated_bones
         .iter()
-        .find(|b| b.bone.name == constraint.parent_bone_name.to_string_lossy())
+        .find(|b| b.bone.name == constraint.parent_bone_name)
         .cloned()
         .unwrap();
 
     let target = animated_bones
         .iter()
-        .find(|b| b.bone.name == constraint.driver_bone_name.to_string_lossy())
+        .find(|b| b.bone.name == constraint.driver_bone_name)
         .cloned()
         .unwrap();
 
     // TODO: What's the difference between root and bone name?
     // let source_parent = animated_bones
     //     .iter()
-    //     .find(|b| b.bone.name == constraint.root_bone_name.to_string_lossy())
+    //     .find(|b| b.bone.name == constraint.root_bone_name)
     //     .cloned()
     //     .unwrap();
 
@@ -106,7 +97,7 @@ fn apply_orient_constraint(animated_bones: &mut [AnimatedBone], constraint: &Ori
 
     // let target_parent = animated_bones
     //     .iter()
-    //     .find(|b| b.bone.name == constraint.bone_name.to_string_lossy())
+    //     .find(|b| b.bone.name == constraint.bone_name)
     //     .cloned()
     //     .unwrap();
 
@@ -126,7 +117,7 @@ fn apply_orient_constraint(animated_bones: &mut [AnimatedBone], constraint: &Ori
 
     let target = animated_bones
         .iter_mut()
-        .find(|b| b.bone.name == constraint.driver_bone_name.to_string_lossy())
+        .find(|b| b.bone.name == constraint.driver_bone_name)
         .unwrap();
 
     // TODO: Can a bone not affected by the anim be the source?
@@ -196,7 +187,6 @@ mod tests {
         anim_data::{TransformFlags, Vector3, Vector4},
         skel_data::{BillboardType, BoneData},
     };
-    use ssbh_lib::formats::hlpb::OrientConstraint;
 
     fn identity_bone(name: &str, parent_index: Option<usize>) -> BoneData {
         BoneData {
@@ -235,24 +225,23 @@ mod tests {
 
         apply_hlpb_constraints(
             &mut bones,
-            &Hlpb::V11 {
-                aim_constraints: Vec::new().into(),
-                orient_constraints: vec![OrientConstraint {
-                    name: "".into(),
-                    bone_name: "".into(),
-                    root_bone_name: "".into(),
-                    parent_bone_name: "".into(),
-                    driver_bone_name: "".into(),
+            &HlpbData {
+                major_version: 1,
+                minor_version: 0,
+                aim_constraints: Vec::new(),
+                orient_constraints: vec![OrientConstraintData {
+                    name: "".to_string(),
+                    bone_name: "".to_string(),
+                    root_bone_name: "".to_string(),
+                    parent_bone_name: "".to_string(),
+                    driver_bone_name: "".to_string(),
                     unk_type: 2,
                     constraint_axes: Vector3::new(1.0, 1.0, 1.0),
                     quat1: Vector4::new(0.0, 0.0, 0.0, 1.0),
                     quat2: Vector4::new(0.0, 0.0, 0.0, 1.0),
                     range_min: Vector3::new(-180.0, -180.0, -180.0),
                     range_max: Vector3::new(180.0, 180.0, 180.0),
-                }]
-                .into(),
-                constraint_indices: Vec::new().into(),
-                constraint_types: Vec::new().into(),
+                }],
             },
         );
     }
@@ -286,9 +275,11 @@ mod tests {
         // Copy the rotation of A onto B.
         apply_hlpb_constraints(
             &mut bones,
-            &Hlpb::V11 {
+            &HlpbData {
+                major_version: 1,
+                minor_version: 0,
                 aim_constraints: Vec::new().into(),
-                orient_constraints: vec![OrientConstraint {
+                orient_constraints: vec![OrientConstraintData {
                     name: "constraint1".into(),
                     bone_name: "A".into(),
                     root_bone_name: "A".into(),
@@ -300,10 +291,7 @@ mod tests {
                     quat2: Vector4::new(0.0, 0.0, 0.0, 1.0),
                     range_min: Vector3::new(-180.0, -180.0, -180.0),
                     range_max: Vector3::new(180.0, 180.0, 180.0),
-                }]
-                .into(),
-                constraint_indices: Vec::new().into(),
-                constraint_types: Vec::new().into(),
+                }],
             },
         );
 
@@ -354,9 +342,11 @@ mod tests {
         // Copy the rotation of A to B.
         apply_hlpb_constraints(
             &mut bones,
-            &Hlpb::V11 {
-                aim_constraints: Vec::new().into(),
-                orient_constraints: vec![OrientConstraint {
+            &HlpbData {
+                major_version: 1,
+                minor_version: 0,
+                aim_constraints: Vec::new(),
+                orient_constraints: vec![OrientConstraintData {
                     name: "constraint1".into(),
                     bone_name: "Root".into(),
                     root_bone_name: "Root".into(),
@@ -368,10 +358,7 @@ mod tests {
                     quat2: Vector4::new(0.0, 0.0, 0.0, 1.0),
                     range_min: Vector3::new(-180.0, -180.0, -180.0),
                     range_max: Vector3::new(180.0, 180.0, 180.0),
-                }]
-                .into(),
-                constraint_indices: Vec::new().into(),
-                constraint_types: Vec::new().into(),
+                }],
             },
         );
 
@@ -468,9 +455,11 @@ mod tests {
         // Copy the rotation of L1 to R1.
         apply_hlpb_constraints(
             &mut bones,
-            &Hlpb::V11 {
+            &HlpbData {
+                major_version: 1,
+                minor_version: 0,
                 aim_constraints: Vec::new().into(),
-                orient_constraints: vec![OrientConstraint {
+                orient_constraints: vec![OrientConstraintData {
                     name: "constraint1".into(),
                     bone_name: "Root".into(), // TODO: What to put here?
                     root_bone_name: "Root".into(),
@@ -482,10 +471,7 @@ mod tests {
                     quat2: Vector4::new(0.0, 0.0, 0.0, 1.0),
                     range_min: Vector3::new(-180.0, -180.0, -180.0),
                     range_max: Vector3::new(180.0, 180.0, 180.0),
-                }]
-                .into(),
-                constraint_indices: Vec::new().into(),
-                constraint_types: Vec::new().into(),
+                }],
             },
         );
 

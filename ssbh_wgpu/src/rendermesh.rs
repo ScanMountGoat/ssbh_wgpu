@@ -13,7 +13,6 @@ use ssbh_data::{
     mesh_data::MeshObjectData,
     prelude::*,
 };
-use ssbh_lib::prelude::Hlpb;
 use std::collections::HashMap;
 use wgpu::{util::DeviceExt, SamplerDescriptor, TextureViewDescriptor};
 
@@ -27,7 +26,7 @@ pub struct RenderModel {
     pub meshes: Vec<RenderMesh>,
     skel: Option<SkelData>,
     matl: Option<MatlData>,
-    hlp: Option<Hlpb>,
+    hlpb: Option<HlpbData>,
     mesh_buffers: MeshBuffers,
     material_data_by_label: HashMap<String, MaterialData>,
     pipelines: HashMap<PipelineKey, wgpu::RenderPipeline>,
@@ -168,7 +167,7 @@ impl RenderModel {
             }
 
             if let Some(skel) = &self.skel {
-                let animation_transforms = animate_skel(skel, anim, self.hlp.as_ref(), frame);
+                let animation_transforms = animate_skel(skel, anim, self.hlpb.as_ref(), frame);
                 queue.write_buffer(
                     &self.mesh_buffers.skinning_transforms,
                     0,
@@ -293,7 +292,7 @@ pub struct RenderMeshSharedData<'a> {
     pub skel: Option<&'a SkelData>,
     pub matl: Option<&'a MatlData>,
     pub adj: Option<&'a AdjData>,
-    pub hlp: Option<&'a Hlpb>,
+    pub hlpb: Option<&'a HlpbData>,
     pub nutexbs: &'a [(String, NutexbFile)],
 }
 
@@ -344,7 +343,7 @@ fn cube() -> Vec<[f32; 3]> {
 }
 
 // TODO: Make a constant for the bone count?
-fn bone_colors(skel: Option<&SkelData>, hlp: Option<&Hlpb>) -> Vec<[f32; 4]> {
+fn bone_colors(skel: Option<&SkelData>, hlpb: Option<&HlpbData>) -> Vec<[f32; 4]> {
     // Match the color scheme used for the Blender addon.
     let helper_color = [0.25098039216, 0.14509803922, 0.35294117647, 1.0];
     let default_color = [0.69019607843, 0.69019607843, 0.69019607843, 1.0];
@@ -357,25 +356,16 @@ fn bone_colors(skel: Option<&SkelData>, hlp: Option<&Hlpb>) -> Vec<[f32; 4]> {
             // TODO: Check for swing bones.
 
             // Color helper bones using a different color.
-            if let Some(hlp) = hlp {
-                match hlp {
-                    Hlpb::V11 {
-                        aim_constraints,
-                        orient_constraints,
-                        ..
-                    } => {
-                        for constraint in &aim_constraints.elements {
-                            if bone.name == constraint.target_bone_name2.to_string_lossy() {
-                                colors[i] = helper_color;
-                            }
-                        }
+            if let Some(hlpb) = hlpb {
+                for constraint in &hlpb.aim_constraints {
+                    if bone.name == constraint.target_bone_name2 {
+                        colors[i] = helper_color;
+                    }
+                }
 
-                        for constraint in &orient_constraints.elements {
-                            if bone.name == constraint.driver_bone_name.to_string_lossy() {
-                                // dbg!("hello");
-                                colors[i] = helper_color;
-                            }
-                        }
+                for constraint in &hlpb.orient_constraints {
+                    if bone.name == constraint.driver_bone_name {
+                        colors[i] = helper_color;
                     }
                 }
             }
@@ -415,7 +405,7 @@ pub fn create_render_model(
 
     let bone_colors_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
         label: Some("Bone Colors Buffer"),
-        contents: bytemuck::cast_slice(&bone_colors(shared_data.skel, shared_data.hlp)),
+        contents: bytemuck::cast_slice(&bone_colors(shared_data.skel, shared_data.hlpb)),
         usage: wgpu::BufferUsages::UNIFORM,
     });
 
@@ -483,7 +473,7 @@ pub fn create_render_model(
         meshes,
         skel: shared_data.skel.cloned(),
         matl: shared_data.matl.cloned(),
-        hlp: shared_data.hlp.cloned(),
+        hlpb: shared_data.hlpb.cloned(),
         mesh_buffers,
         material_data_by_label,
         textures,
