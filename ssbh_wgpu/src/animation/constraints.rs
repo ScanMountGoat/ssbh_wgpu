@@ -30,9 +30,7 @@ fn apply_aim_constraint(animated_bones: &mut [AnimatedBone], constraint: &AimCon
 
     // We want the target bone to point at the source bone.
     // TODO: Is there a way to do this without using the world transforms?
-    let source_world = world_transform(animated_bones, &source, true)
-        .unwrap()
-        .transpose();
+    let source_world = world_transform(animated_bones, &source, true).unwrap();
 
     // TODO: Avoid finding the bone twice?
     let target_world = world_transform(
@@ -43,8 +41,7 @@ fn apply_aim_constraint(animated_bones: &mut [AnimatedBone], constraint: &AimCon
             .unwrap(),
         true,
     )
-    .unwrap()
-    .transpose();
+    .unwrap();
 
     let target = animated_bones
         .iter_mut()
@@ -75,6 +72,9 @@ fn apply_aim_constraint(animated_bones: &mut [AnimatedBone], constraint: &AimCon
 
 fn apply_orient_constraint(animated_bones: &mut [AnimatedBone], constraint: &OrientConstraintData) {
     // TODO: Investigate the remaining bone name fields.
+    // TODO: What's the difference between root and bone name?
+    // TODO: Do the unk types matter?
+    // TODO: quat1 and quat2 correct for twists?
     let source = animated_bones
         .iter()
         .find(|b| b.bone.name == constraint.parent_bone_name)
@@ -87,21 +87,7 @@ fn apply_orient_constraint(animated_bones: &mut [AnimatedBone], constraint: &Ori
         .cloned()
         .unwrap();
 
-    // TODO: What's the difference between root and bone name?
-    // let source_parent = animated_bones
-    //     .iter()
-    //     .find(|b| b.bone.name == constraint.root_bone_name)
-    //     .cloned()
-    //     .unwrap();
-
     let source_parent = source.bone.parent_index.and_then(|i| animated_bones.get(i));
-
-    // let target_parent = animated_bones
-    //     .iter()
-    //     .find(|b| b.bone.name == constraint.bone_name)
-    //     .cloned()
-    //     .unwrap();
-
     let target_parent = target.bone.parent_index.and_then(|i| animated_bones.get(i));
 
     let source_world = world_transform(animated_bones, &source, true).unwrap();
@@ -121,27 +107,13 @@ fn apply_orient_constraint(animated_bones: &mut [AnimatedBone], constraint: &Ori
         .find(|b| b.bone.name == constraint.driver_bone_name)
         .unwrap();
 
-    // TODO: Can a bone not affected by the anim be the source?
-    // TODO: Will the target of a constraint ever be animated?
-
-    // TODO: Perform the copy rotation in world space and convert back to the appropriate space.
-    // let source_transform = source.animated_transform(true).transpose();
-
     // Calculate the source bone's world orientation.
     // Convert to be relative to the target's parent using the inverse.
     // TODO: Create a test case that checks for the matrix multiplication order here.
-    let source_transform = target_parent_world.transpose().inverse() * source_world.transpose();
+    let source_transform = target_parent_world.inverse() * source_world;
     let (source_s, source_r, source_t) = (source_transform).to_scale_rotation_translation();
-    // dbg!(source_s, source_r, source_t);
 
     let (source_rot_x, source_rot_y, source_rot_z) = (source_r).to_euler(glam::EulerRot::XYZ);
-
-    // dbg!(source_parent_world, target_parent_world);
-
-    // if let Some(source_transform) = source.anim_transform {
-    // TODO: Do the unk types matter?
-
-    // TODO: quat1 and quat2 correct for twists?
 
     // Leave the target transform as is since it's already relative to the target parent.
     let target_transform = target.animated_transform(true, true);
@@ -157,33 +129,18 @@ fn apply_orient_constraint(animated_bones: &mut [AnimatedBone], constraint: &Ori
         interp(target_rot_z, source_rot_z, constraint.constraint_axes.z),
     );
 
-    // let interp_rotation =  interp_rotation * glam::Quat::from_mat4(&target_parent_world);
-
     let mut new_transform = target
         .anim_transform
         .unwrap_or(AnimTransform::from_bone(&target.bone));
 
     new_transform.rotation = source_r;
     target.anim_transform = Some(new_transform);
-    // }
-
-    // dbg!(target_transform.scale, target_transform.rotation, target_transform.translation);
-    // let test_transform = target_parent_world.transpose().inverse() * target_world.transpose();
-    // let test_transform = target_parent_world.transpose().inverse() * source_world.transpose();
-
-    // let (s,r,t) = test_transform.to_scale_rotation_translation();
-    // dbg!(s, r, t);
-    // target_transform.scale = s;
-    // target_transform.rotation = r;
-    // target_transform.translation = t;
-
-    // target.anim_transform = Some(target_transform);
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{assert_matrix_relative_eq, assert_vector_relative_eq};
+    use crate::assert_vector_relative_eq;
     use ssbh_data::{
         anim_data::{TransformFlags, Vector3, Vector4},
         skel_data::{BillboardType, BoneData},
@@ -506,7 +463,6 @@ mod tests {
         let position_world = |bone| {
             world_transform(&bones, bone, true)
                 .unwrap()
-                .transpose()
                 .to_scale_rotation_translation()
                 .2
                 .to_array()

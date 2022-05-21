@@ -35,8 +35,7 @@ impl AnimatedBone {
                     // For example, suppose Mario throws a different fighter like Bowser.
                     // Mario's "thrown" anim needs to use some transforms from Bowser's skel.
                     let (skel_scale, skel_rot, scale_trans) =
-                        glam::Mat4::from_cols_array_2d(&self.bone.transform)
-                            .to_scale_rotation_translation();
+                        mat4_from_row2d(&self.bone.transform).to_scale_rotation_translation();
 
                     let adjusted_transform = AnimTransform {
                         translation: if self.flags.override_translation {
@@ -86,8 +85,7 @@ impl AnimTransform {
 
         // The application order is scale -> rotation -> translation.
         // The order is reversed here since glam is column-major.
-        // TODO: Why do we transpose here?
-        (translation * rotation * scale).transpose()
+        translation * rotation * scale
     }
 
     fn from_bone(bone: &BoneData) -> Self {
@@ -215,13 +213,12 @@ pub fn animate_skel(
     for (i, animated_bone) in animated_bones.iter().enumerate().take(MAX_BONE_COUNT) {
         // Smash is row-major but glam is column-major.
         // TODO: Is there an efficient way to calculate world transforms of all bones?
-        // The ssbh_data method is slower since it can't assume the bone count.
+        // Avoid the slower ssbh_data method since it can't assume the max bone count.
         let bone_world = world_transform(&animated_bones, animated_bone, false).unwrap();
         let bone_anim_world = world_transform(&animated_bones, animated_bone, true).unwrap();
 
-        // TODO: Is wgpu expecting row-major?
-        transforms[i] = (bone_world.inverse() * bone_anim_world).transpose();
-        world_transforms[i] = bone_anim_world.transpose();
+        transforms[i] = bone_anim_world * bone_world.inverse();
+        world_transforms[i] = bone_anim_world;
     }
 
     let transforms_inv_transpose = transforms.map(|t| t.inverse().transpose());
@@ -240,7 +237,7 @@ pub fn animate_skel(
 }
 
 fn mat4_from_row2d(elements: &[[f32; 4]; 4]) -> glam::Mat4 {
-    glam::Mat4::from_cols_array_2d(elements).transpose()
+    glam::Mat4::from_cols_array_2d(elements)
 }
 
 fn world_transform(
@@ -283,11 +280,11 @@ fn world_transform(
                 if let Some(parent_transform) = &parent_bone.anim_transform {
                     let scale_compensation = glam::Mat4::from_scale(1.0 / parent_transform.scale);
                     // TODO: Make the tests more specific to account for this application order?
-                    transform *= scale_compensation;
+                    transform = scale_compensation * transform;
                 }
             }
 
-            transform = transform.mul_mat4(&parent_transform);
+            transform = parent_transform * transform;
             current = parent_bone;
             // Disabling scale inheritance propogates up the bone chain.
             inherit_scale &= parent_bone.inherit_scale;
