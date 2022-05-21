@@ -119,7 +119,7 @@ impl RenderModel {
             let pipeline_key = PipelineKey::new(false, false, Some(material));
             self.pipelines
                 .entry(pipeline_key)
-                .or_insert_with(|| create_pipeline(device, &pipeline_data, &pipeline_key));
+                .or_insert_with(|| create_pipeline(device, pipeline_data, &pipeline_key));
 
             // Update the pipeline key for associated RenderMeshes.
             for mesh in self
@@ -198,7 +198,7 @@ impl RenderModel {
             render_pass
                 .set_index_buffer(self.bone_index_buffer.slice(..), wgpu::IndexFormat::Uint32);
 
-            for (i, bone) in skel.bones.iter().enumerate() {
+            for i in 0..skel.bones.len() {
                 // TODO: Add a bind group for the index?
                 crate::shader::skeleton::bind_groups::set_bind_groups(
                     render_pass,
@@ -344,8 +344,8 @@ fn cube() -> Vec<[f32; 3]> {
 
 fn bone_colors(skel: Option<&SkelData>, hlpb: Option<&HlpbData>) -> Vec<[f32; 4]> {
     // Match the color scheme used for the Blender addon.
-    let helper_color = [0.25098039216, 0.14509803922, 0.35294117647, 1.0];
-    let default_color = [0.69019607843, 0.69019607843, 0.69019607843, 1.0];
+    let helper_color = [0.2510, 0.1451, 0.3529, 1.0];
+    let default_color = [0.6902, 0.6902, 0.6902, 1.0];
 
     let mut colors = vec![[0.0; 4]; crate::animation::MAX_BONE_COUNT];
     if let Some(skel) = skel {
@@ -439,7 +439,7 @@ pub fn create_render_model(
 
     let mut bone_bind_groups = Vec::new();
     if let Some(skel) = shared_data.skel {
-        for (i, bone) in skel.bones.iter().enumerate() {
+        for i in 0..skel.bones.len() {
             // TODO: Use instancing instead.
             let per_bone = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: Some("Mesh Object Info Buffer"),

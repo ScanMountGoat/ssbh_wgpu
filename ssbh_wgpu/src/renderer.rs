@@ -1,11 +1,9 @@
 use wgpu::{util::DeviceExt, ComputePassDescriptor, ComputePipelineDescriptor};
 
 use crate::{
-    camera::create_camera_bind_group,
-    lighting::{calculate_light_transform, light_direction},
-    pipeline::create_depth_pipeline,
-    texture::load_texture_sampler_3d,
-    CameraTransforms, RenderModel,
+    camera::create_camera_bind_group, lighting::calculate_light_transform,
+    pipeline::create_depth_pipeline, texture::load_texture_sampler_3d, CameraTransforms,
+    RenderModel,
 };
 
 // Rgba16Float is widely supported.

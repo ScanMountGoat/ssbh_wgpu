@@ -52,7 +52,7 @@ fn apply_aim_constraint(animated_bones: &mut [AnimatedBone], constraint: &AimCon
     // TODO: Will the target of a constraint ever be animated?
     let mut target_transform = target
         .anim_transform
-        .unwrap_or(AnimTransform::from_bone(&target.bone));
+        .unwrap_or_else(|| AnimTransform::from_bone(&target.bone));
 
     let src_pos = source_world.col(3);
     let target_pos = target_world.col(3);
@@ -111,13 +111,13 @@ fn apply_orient_constraint(animated_bones: &mut [AnimatedBone], constraint: &Ori
     // Convert to be relative to the target's parent using the inverse.
     // TODO: Create a test case that checks for the matrix multiplication order here.
     let source_transform = target_parent_world.inverse() * source_world;
-    let (source_s, source_r, source_t) = (source_transform).to_scale_rotation_translation();
+    let (_, source_r, _) = (source_transform).to_scale_rotation_translation();
 
     let (source_rot_x, source_rot_y, source_rot_z) = (source_r).to_euler(glam::EulerRot::XYZ);
 
     // Leave the target transform as is since it's already relative to the target parent.
     let target_transform = target.animated_transform(true, true);
-    let (target_s, target_r, target_t) = (target_transform).to_scale_rotation_translation();
+    let (_, target_r, _) = (target_transform).to_scale_rotation_translation();
 
     let (target_rot_x, target_rot_y, target_rot_z) = target_r.to_euler(glam::EulerRot::XYZ);
 
@@ -131,7 +131,7 @@ fn apply_orient_constraint(animated_bones: &mut [AnimatedBone], constraint: &Ori
 
     let mut new_transform = target
         .anim_transform
-        .unwrap_or(AnimTransform::from_bone(&target.bone));
+        .unwrap_or_else(|| AnimTransform::from_bone(&target.bone));
 
     new_transform.rotation = source_r;
     target.anim_transform = Some(new_transform);

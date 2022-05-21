@@ -87,7 +87,7 @@ pub fn load_render_models(
             // TODO: Should this use the file names in the modl itself?
             // TODO: Make this a method instead?
             let shared_data = RenderMeshSharedData {
-                pipeline_data: &pipeline_data,
+                pipeline_data,
                 default_textures,
                 stage_cube,
                 mesh: model

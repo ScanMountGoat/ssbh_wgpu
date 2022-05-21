@@ -72,7 +72,7 @@ struct AnimTransform {
 }
 
 impl AnimTransform {
-    fn to_mat4(&self, include_scale: bool) -> glam::Mat4 {
+    fn to_mat4(self, include_scale: bool) -> glam::Mat4 {
         let translation = glam::Mat4::from_translation(self.translation);
 
         let rotation = glam::Mat4::from_quat(self.rotation);
@@ -427,6 +427,7 @@ fn interp_quat(a: &Vector4, b: &Vector4, factor: f32) -> glam::Quat {
 }
 
 fn interp_vec3(a: &Vector3, b: &Vector3, factor: f32) -> glam::Vec3 {
+    // TODO: Faster to use Vec3A?
     glam::Vec3::from(a.to_array()).lerp(glam::Vec3::from(b.to_array()), factor)
 }
 
