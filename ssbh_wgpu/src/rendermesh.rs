@@ -546,24 +546,24 @@ fn create_render_meshes(
     // TODO: Should red/yellow checkerboard errors just be separate pipelines?
     // It doesn't make sense to complicate the shader any further.
     // TODO: Split into PerMaterial, PerObject, etc in the shaders?
-    // TODO: Handle missing materials?
-    // TODO: Create a single "missing" material for meshes to use as a fallback?
     let material_data_by_label: HashMap<_, _> = shared_data
         .matl
-        .unwrap()
-        .entries
-        .iter()
-        .map(|entry| {
-            let data = create_material_data(
-                device,
-                Some(entry),
-                &textures,
-                shared_data.default_textures,
-                shared_data.stage_cube,
-            );
-            (entry.material_label.clone(), data)
+        .map(|matl| {
+            matl.entries
+                .iter()
+                .map(|entry| {
+                    let data = create_material_data(
+                        device,
+                        Some(entry),
+                        &textures,
+                        shared_data.default_textures,
+                        shared_data.stage_cube,
+                    );
+                    (entry.material_label.clone(), data)
+                })
+                .collect()
         })
-        .collect();
+        .unwrap_or(HashMap::new());
 
     // TODO: Share vertex buffers?
     // TODO: Find a way to have fewer function parameters?

@@ -104,7 +104,6 @@ macro_rules! set_color_attribute {
 
 fn buffer1(mesh_data: &MeshObjectData) -> Vec<VertexInput1> {
     // TODO: How to assign attributes efficiently?
-    // TODO: More robustly determine vertex count?
     let vertex_count = mesh_data.vertex_count().unwrap();
 
     // TODO: This could be done by zeroing memory but probably isn't worth it.

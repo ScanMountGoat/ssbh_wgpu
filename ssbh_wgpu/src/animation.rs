@@ -274,7 +274,7 @@ fn world_transform(
             // Compensate scale only takes into account the immediate parent.
             // TODO: Test for inheritance being set.
             // TODO: Should this be current.inherit_scale instead?
-            // TODO: What happens if both compensate_scale and inherit_scale are false?
+            // TODO: What happens compensate_scale is true and inherit_scale is false?
             // Only apply scale compensation if the anim is included.
             if include_anim && current.compensate_scale && inherit_scale {
                 if let Some(parent_transform) = &parent_bone.anim_transform {

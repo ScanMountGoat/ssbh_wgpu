@@ -1,7 +1,6 @@
 use std::fmt::Write;
 use std::path::Path;
 
-// TODO: Clean this up.
 fn write_shader_module<P: AsRef<Path>>(wgsl_path: P, output_path: P, include_path: &str) {
     let wgsl_source = std::fs::read_to_string(wgsl_path).unwrap();
 
