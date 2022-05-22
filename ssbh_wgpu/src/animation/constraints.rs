@@ -65,8 +65,7 @@ fn apply_aim_constraint(animated_bones: &mut [AnimatedBone], constraint: &AimCon
 
     // Apply an additional rotation to orient the local axes towards the desired bone.
     // TODO: How to also incorporate the up vector?
-    target_transform.rotation =
-        target_transform.rotation * glam::Quat::from_rotation_arc(aim.normalize(), v.normalize());
+    target_transform.rotation *= glam::Quat::from_rotation_arc(aim.normalize(), v.normalize());
     target.anim_transform = Some(target_transform);
 }
 

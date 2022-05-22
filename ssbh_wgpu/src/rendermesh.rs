@@ -422,8 +422,12 @@ pub fn create_render_model(
         world_transforms: world_transforms_buffer,
     };
 
-    let (meshes, material_data_by_label, textures, pipelines) =
-        create_render_meshes(device, queue, &mesh_buffers, shared_data);
+    let RenderMeshData {
+        meshes,
+        material_data_by_label,
+        textures,
+        pipelines,
+    } = create_render_meshes(device, queue, &mesh_buffers, shared_data);
 
     // TODO: Move this to the renderer since it's shared?
     let bone_vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -508,17 +512,19 @@ fn create_material_data(
     }
 }
 
+struct RenderMeshData {
+    meshes: Vec<RenderMesh>,
+    material_data_by_label: HashMap<String, MaterialData>,
+    textures: Vec<(String, wgpu::Texture)>,
+    pipelines: HashMap<PipelineKey, wgpu::RenderPipeline>,
+}
+
 fn create_render_meshes(
     device: &wgpu::Device,
     queue: &wgpu::Queue,
     mesh_buffers: &MeshBuffers,
     shared_data: &RenderMeshSharedData,
-) -> (
-    Vec<RenderMesh>,
-    HashMap<String, MaterialData>,
-    Vec<(String, wgpu::Texture)>,
-    HashMap<PipelineKey, wgpu::RenderPipeline>,
-) {
+) -> RenderMeshData {
     // TODO: Find a way to organize this.
 
     // Initialize textures exactly once for performance.
@@ -563,7 +569,7 @@ fn create_render_meshes(
                 })
                 .collect()
         })
-        .unwrap_or(HashMap::new());
+        .unwrap_or_default();
 
     // TODO: Share vertex buffers?
     // TODO: Find a way to have fewer function parameters?
@@ -590,7 +596,12 @@ fn create_render_meshes(
         })
         .collect();
 
-    (meshes, material_data_by_label, textures, pipelines)
+    RenderMeshData {
+        meshes,
+        material_data_by_label,
+        textures,
+        pipelines,
+    }
 }
 
 // TODO: Group these parameters?
