@@ -221,27 +221,28 @@ impl RenderModel {
         stage_uniforms_bind_group: &'a crate::shader::model::bind_groups::BindGroup2,
         shadow_bind_group: &'a crate::shader::model::bind_groups::BindGroup3,
     ) {
+        // TODO: How to store all data in RenderModel but still draw sorted meshes?
         for mesh in self.meshes.iter().filter(|m| m.is_visible) {
-            // TODO: Don't assume the pipeline exists?
-            render_pass.set_pipeline(&self.pipelines[&mesh.pipeline_key]);
+            // Mesh objects with no modl entry or an invalid material label are skipped entirely in game.
+            if let Some(material_data) = self.material_data_by_label.get(&mesh.material_label) {
+                // TODO: Don't assume the pipeline exists?
+                render_pass.set_pipeline(&self.pipelines[&mesh.pipeline_key]);
 
-            // TODO: How to store all data in RenderModel but still draw sorted meshes?
-            // TODO: Don't assume materials are properly assigned.
-            let material_data = &self.material_data_by_label[&mesh.material_label];
-            crate::shader::model::bind_groups::set_bind_groups(
-                render_pass,
-                crate::shader::model::bind_groups::BindGroups::<'a> {
-                    bind_group0: camera_bind_group,
-                    bind_group1: &material_data.material_uniforms_bind_group,
-                    bind_group2: stage_uniforms_bind_group,
-                    bind_group3: shadow_bind_group,
-                },
-            );
+                crate::shader::model::bind_groups::set_bind_groups(
+                    render_pass,
+                    crate::shader::model::bind_groups::BindGroups::<'a> {
+                        bind_group0: camera_bind_group,
+                        bind_group1: &material_data.material_uniforms_bind_group,
+                        bind_group2: stage_uniforms_bind_group,
+                        bind_group3: shadow_bind_group,
+                    },
+                );
 
-            mesh.set_vertex_buffers(render_pass);
-            mesh.set_index_buffer(render_pass);
+                mesh.set_vertex_buffers(render_pass);
+                mesh.set_index_buffer(render_pass);
 
-            render_pass.draw_indexed(0..mesh.buffer_data.vertex_index_count as u32, 0, 0..1);
+                render_pass.draw_indexed(0..mesh.buffer_data.vertex_index_count as u32, 0, 0..1);
+            }
         }
     }
 
