@@ -84,7 +84,7 @@ impl SsbhRenderer {
         let layout = crate::shader::post_process::create_pipeline_layout(device);
         let post_process_pipeline =
             device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-                label: None,
+                label: Some("Post Processing Pipeline"),
                 layout: Some(&layout),
                 vertex: wgpu::VertexState {
                     module: &shader,
