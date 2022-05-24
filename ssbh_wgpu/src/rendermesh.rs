@@ -240,19 +240,37 @@ impl RenderModel {
                     },
                 );
 
-                // TODO: Store the start/end indices in a tuple to avoid having to clone the range?
-                render_pass.set_vertex_buffer(0, self.buffer_data.vertex_buffer0.slice(..));
-                render_pass.set_vertex_buffer(1, self.buffer_data.vertex_buffer1.slice(..));
-
-                // TODO: Store the buffer and type together?
-                render_pass.set_index_buffer(
-                    self.buffer_data.index_buffer.slice(..),
-                    wgpu::IndexFormat::Uint32,
-                );
+                self.set_mesh_buffers(render_pass, mesh);
 
                 render_pass.draw_indexed(0..mesh.vertex_index_count as u32, 0, 0..1);
             }
         }
+    }
+
+    fn set_mesh_buffers<'a>(&'a self, render_pass: &mut wgpu::RenderPass<'a>, mesh: &RenderMesh) {
+        // TODO: Store the start/end indices in a tuple to avoid having to clone the range?
+        render_pass.set_vertex_buffer(
+            0,
+            self.buffer_data.vertex_buffer0.slice(
+                mesh.access.buffer0_start as u64
+                    ..mesh.access.buffer0_start as u64 + mesh.access.buffer0_size as u64,
+            ),
+        );
+        render_pass.set_vertex_buffer(
+            1,
+            self.buffer_data.vertex_buffer1.slice(
+                mesh.access.buffer1_start as u64
+                    ..mesh.access.buffer1_start as u64 + mesh.access.buffer1_size as u64,
+            ),
+        );
+        // TODO: Store the buffer and type together?
+        render_pass.set_index_buffer(
+            self.buffer_data.index_buffer.slice(
+                mesh.access.indices_start as u64
+                    ..mesh.access.indices_start as u64 + mesh.access.indices_size as u64,
+            ),
+            wgpu::IndexFormat::Uint32,
+        );
     }
 
     pub fn draw_render_meshes_depth<'a>(
@@ -268,15 +286,7 @@ impl RenderModel {
                 },
             );
 
-            // TODO: Store the start/end indices in a tuple to avoid having to clone the range?
-            render_pass.set_vertex_buffer(0, self.buffer_data.vertex_buffer0.slice(..));
-            render_pass.set_vertex_buffer(1, self.buffer_data.vertex_buffer1.slice(..));
-
-            // TODO: Store the buffer and type together?
-            render_pass.set_index_buffer(
-                self.buffer_data.index_buffer.slice(..),
-                wgpu::IndexFormat::Uint32,
-            );
+            self.set_mesh_buffers(render_pass, mesh);
 
             render_pass.draw_indexed(0..mesh.vertex_index_count as u32, 0, 0..1);
         }
