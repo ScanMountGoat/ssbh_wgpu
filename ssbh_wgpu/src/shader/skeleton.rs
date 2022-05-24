@@ -29,7 +29,7 @@ pub struct PerBone {
 pub mod bind_groups {
     pub struct BindGroup0(wgpu::BindGroup);
     pub struct BindGroupLayout0<'a> {
-        pub camera: &'a wgpu::Buffer,
+        pub camera: wgpu::BufferBinding<'a>,
     }
     const LAYOUT_DESCRIPTOR0: wgpu::BindGroupLayoutDescriptor = wgpu::BindGroupLayoutDescriptor {
         label: None,
@@ -58,7 +58,7 @@ pub mod bind_groups {
                 entries: &[
                     wgpu::BindGroupEntry {
                         binding: 0u32,
-                        resource: bindings.camera.as_entire_binding(),
+                        resource: wgpu::BindingResource::Buffer(bindings.camera),
                     },
                 ],
                 label: None,
@@ -72,8 +72,8 @@ pub mod bind_groups {
     }
     pub struct BindGroup1(wgpu::BindGroup);
     pub struct BindGroupLayout1<'a> {
-        pub world_transforms: &'a wgpu::Buffer,
-        pub bone_colors: &'a wgpu::Buffer,
+        pub world_transforms: wgpu::BufferBinding<'a>,
+        pub bone_colors: wgpu::BufferBinding<'a>,
     }
     const LAYOUT_DESCRIPTOR1: wgpu::BindGroupLayoutDescriptor = wgpu::BindGroupLayoutDescriptor {
         label: None,
@@ -112,11 +112,11 @@ pub mod bind_groups {
                 entries: &[
                     wgpu::BindGroupEntry {
                         binding: 0u32,
-                        resource: bindings.world_transforms.as_entire_binding(),
+                        resource: wgpu::BindingResource::Buffer(bindings.world_transforms),
                     },
                     wgpu::BindGroupEntry {
                         binding: 1u32,
-                        resource: bindings.bone_colors.as_entire_binding(),
+                        resource: wgpu::BindingResource::Buffer(bindings.bone_colors),
                     },
                 ],
                 label: None,
@@ -130,7 +130,7 @@ pub mod bind_groups {
     }
     pub struct BindGroup2(wgpu::BindGroup);
     pub struct BindGroupLayout2<'a> {
-        pub per_bone: &'a wgpu::Buffer,
+        pub per_bone: wgpu::BufferBinding<'a>,
     }
     const LAYOUT_DESCRIPTOR2: wgpu::BindGroupLayoutDescriptor = wgpu::BindGroupLayoutDescriptor {
         label: None,
@@ -159,7 +159,7 @@ pub mod bind_groups {
                 entries: &[
                     wgpu::BindGroupEntry {
                         binding: 0u32,
-                        resource: bindings.per_bone.as_entire_binding(),
+                        resource: wgpu::BindingResource::Buffer(bindings.per_bone),
                     },
                 ],
                 label: None,
@@ -186,7 +186,6 @@ pub mod bind_groups {
     }
 }
 pub mod vertex {
-    pub const POSITION_LOCATION: u32 = 0u32;
     impl super::VertexInput {
         pub const VERTEX_ATTRIBUTES: [wgpu::VertexAttribute; 1] = wgpu::vertex_attr_array![0 => Float32x3];
         /// The total size in bytes of all fields without considering padding or alignment.

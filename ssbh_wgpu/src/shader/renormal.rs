@@ -26,8 +26,8 @@ pub struct AdjData {
 pub mod bind_groups {
     pub struct BindGroup0(wgpu::BindGroup);
     pub struct BindGroupLayout0<'a> {
-        pub vertices: &'a wgpu::Buffer,
-        pub adj_data: &'a wgpu::Buffer,
+        pub vertices: wgpu::BufferBinding<'a>,
+        pub adj_data: wgpu::BufferBinding<'a>,
     }
     const LAYOUT_DESCRIPTOR0: wgpu::BindGroupLayoutDescriptor = wgpu::BindGroupLayoutDescriptor {
         label: None,
@@ -66,11 +66,11 @@ pub mod bind_groups {
                 entries: &[
                     wgpu::BindGroupEntry {
                         binding: 0u32,
-                        resource: bindings.vertices.as_entire_binding(),
+                        resource: wgpu::BindingResource::Buffer(bindings.vertices),
                     },
                     wgpu::BindGroupEntry {
                         binding: 1u32,
-                        resource: bindings.adj_data.as_entire_binding(),
+                        resource: wgpu::BindingResource::Buffer(bindings.adj_data),
                     },
                 ],
                 label: None,

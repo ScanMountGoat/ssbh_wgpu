@@ -25,7 +25,7 @@ pub struct VertexInput1 {
 pub mod bind_groups {
     pub struct BindGroup0(wgpu::BindGroup);
     pub struct BindGroupLayout0<'a> {
-        pub camera: &'a wgpu::Buffer,
+        pub camera: wgpu::BufferBinding<'a>,
     }
     const LAYOUT_DESCRIPTOR0: wgpu::BindGroupLayoutDescriptor = wgpu::BindGroupLayoutDescriptor {
         label: None,
@@ -54,7 +54,7 @@ pub mod bind_groups {
                 entries: &[
                     wgpu::BindGroupEntry {
                         binding: 0u32,
-                        resource: bindings.camera.as_entire_binding(),
+                        resource: wgpu::BindingResource::Buffer(bindings.camera),
                     },
                 ],
                 label: None,
@@ -77,15 +77,6 @@ pub mod bind_groups {
     }
 }
 pub mod vertex {
-    pub const POSITION0_LOCATION: u32 = 0u32;
-    pub const NORMAL0_LOCATION: u32 = 1u32;
-    pub const TANGENT0_LOCATION: u32 = 2u32;
-    pub const MAP1_UVSET_LOCATION: u32 = 3u32;
-    pub const UV_SET1_UV_SET2_LOCATION: u32 = 4u32;
-    pub const BAKE1_LOCATION: u32 = 5u32;
-    pub const COLOR_SET1345_PACKED_LOCATION: u32 = 6u32;
-    pub const COLOR_SET2_PACKED_LOCATION: u32 = 7u32;
-    pub const COLOR_SET67_PACKED_LOCATION: u32 = 8u32;
     impl super::VertexInput0 {
         pub const VERTEX_ATTRIBUTES: [wgpu::VertexAttribute; 3] = wgpu::vertex_attr_array![0 => Float32x4, 1 => Float32x4, 2 => Float32x4];
         /// The total size in bytes of all fields without considering padding or alignment.

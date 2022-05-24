@@ -176,7 +176,7 @@ impl SsbhRenderer {
             crate::shader::skeleton::bind_groups::BindGroup0::from_bindings(
                 device,
                 crate::shader::skeleton::bind_groups::BindGroupLayout0 {
-                    camera: &camera_buffer,
+                    camera: camera_buffer.as_entire_buffer_binding(),
                 },
             );
 
@@ -196,7 +196,7 @@ impl SsbhRenderer {
             crate::shader::model_depth::bind_groups::BindGroup0::from_bindings(
                 device,
                 crate::shader::model_depth::bind_groups::BindGroupLayout0 {
-                    camera: &shadow_buffer,
+                    camera: shadow_buffer.as_entire_buffer_binding(),
                 },
             );
 
@@ -217,7 +217,7 @@ impl SsbhRenderer {
             crate::shader::model::bind_groups::BindGroupLayout3 {
                 texture_shadow: &variance_shadow.view,
                 sampler_shadow: &variance_shadow.sampler,
-                light: &shadow_buffer,
+                light: shadow_buffer.as_entire_buffer_binding(),
             },
         );
 
@@ -232,7 +232,7 @@ impl SsbhRenderer {
             crate::shader::model::bind_groups::BindGroup2::from_bindings(
                 device,
                 crate::shader::model::bind_groups::BindGroupLayout2 {
-                    stage_uniforms: &stage_uniforms_buffer,
+                    stage_uniforms: stage_uniforms_buffer.as_entire_buffer_binding(),
                 },
             );
 

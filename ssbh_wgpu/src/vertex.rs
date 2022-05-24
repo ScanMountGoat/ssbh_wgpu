@@ -3,7 +3,7 @@ use ssbh_data::{mesh_data::MeshObjectData, skel_data::SkelData};
 use wgpu::{util::DeviceExt, Device};
 
 // TODO: Create a function and tests that groups attributes into two buffers
-fn buffer0(mesh_data: &MeshObjectData) -> Vec<VertexInput0> {
+pub fn buffer0(mesh_data: &MeshObjectData) -> Vec<VertexInput0> {
     // Use ssbh_data's vertex count validation.
     // TODO: Return an error if vertex count is ambiguous?
     let vertex_count = mesh_data.vertex_count().unwrap();
@@ -102,7 +102,7 @@ macro_rules! set_color_attribute {
     };
 }
 
-fn buffer1(mesh_data: &MeshObjectData) -> Vec<VertexInput1> {
+pub fn buffer1(mesh_data: &MeshObjectData) -> Vec<VertexInput1> {
     // TODO: How to assign attributes efficiently?
     let vertex_count = mesh_data.vertex_count().unwrap();
 
@@ -151,7 +151,7 @@ fn buffer1(mesh_data: &MeshObjectData) -> Vec<VertexInput1> {
 
 #[repr(C)]
 #[derive(Debug, Copy, Clone, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
-struct VertexWeight {
+pub struct VertexWeight {
     bone_indices: [i32; 4],
     weights: [f32; 4],
 }
@@ -179,7 +179,7 @@ impl Default for VertexWeight {
     }
 }
 
-fn skin_weights(mesh_object: &MeshObjectData, skel: Option<&SkelData>) -> Vec<VertexWeight> {
+pub fn skin_weights(mesh_object: &MeshObjectData, skel: Option<&SkelData>) -> Vec<VertexWeight> {
     let vertex_count = mesh_object.vertex_count().unwrap();
 
     match skel {
@@ -222,56 +222,52 @@ pub struct MeshObjectBufferData {
     pub vertex_buffer0: wgpu::Buffer,
     pub vertex_buffer1: wgpu::Buffer,
     pub skinning_buffer: wgpu::Buffer,
-    pub index_buffer: wgpu::Buffer,
-    pub vertex_count: usize,
-    pub vertex_index_count: usize,
+    pub index_buffer: wgpu::Buffer
 }
 
 pub fn mesh_object_buffers(
     device: &Device,
-    mesh_object: &MeshObjectData,
-    skel: Option<&SkelData>,
+    // TODO: Is this the best way to allow for aligning the buffers?
+    buffer0_vertices: &[u8],
+    buffer1_vertices: &[u8],
+    skin_weights: &[u8],
+    vertex_indices: &[u32]
 ) -> MeshObjectBufferData {
     // TODO: Clean this up.
     // TODO: Validate the vertex count and indices?
-    let vertex_count = mesh_object.vertex_count().unwrap();
-
     // The buffer0 is skinned in a compute shader later, so it must support STORAGE.
     // Keep a separate copy of the non transformed data.
-    let buffer0_vertices = buffer0(mesh_object);
-    let buffer0_data = bytemuck::cast_slice(&buffer0_vertices);
     let vertex_buffer0_source = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
         label: Some("vertex buffer 0"),
-        contents: buffer0_data,
+        contents: buffer0_vertices,
         usage: wgpu::BufferUsages::STORAGE,
     });
-
+    
     // This buffer will be filled by the compute shader later.
     let vertex_buffer0 = device.create_buffer(&wgpu::BufferDescriptor {
         label: Some("Vertex Buffer 0"),
-        size: buffer0_data.len() as u64,
+        size: buffer0_vertices.len() as u64,
         usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::STORAGE,
         mapped_at_creation: false,
     });
+    
 
-    let buffer1_vertices = buffer1(mesh_object);
     let vertex_buffer1 = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
         label: Some("Vertex Buffer 1"),
-        contents: bytemuck::cast_slice(&buffer1_vertices),
+        contents: buffer1_vertices,
         usage: wgpu::BufferUsages::VERTEX,
     });
 
-    let skin_weights = skin_weights(mesh_object, skel);
 
     let skinning_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
         label: Some("Skinning Buffer"),
-        contents: bytemuck::cast_slice(&skin_weights),
+        contents: skin_weights,
         usage: wgpu::BufferUsages::STORAGE,
     });
 
     let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
         label: Some("Index Buffer"),
-        contents: bytemuck::cast_slice(&mesh_object.vertex_indices),
+        contents: bytemuck::cast_slice(vertex_indices),
         usage: wgpu::BufferUsages::INDEX,
     });
 
@@ -281,8 +277,6 @@ pub fn mesh_object_buffers(
         vertex_buffer1,
         skinning_buffer,
         index_buffer,
-        vertex_count,
-        vertex_index_count: mesh_object.vertex_indices.len(),
     }
 }
 

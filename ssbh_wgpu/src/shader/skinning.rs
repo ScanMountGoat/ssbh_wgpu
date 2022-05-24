@@ -42,9 +42,9 @@ pub struct MeshObjectInfo {
 pub mod bind_groups {
     pub struct BindGroup0(wgpu::BindGroup);
     pub struct BindGroupLayout0<'a> {
-        pub src: &'a wgpu::Buffer,
-        pub vertex_weights: &'a wgpu::Buffer,
-        pub dst: &'a wgpu::Buffer,
+        pub src: wgpu::BufferBinding<'a>,
+        pub vertex_weights: wgpu::BufferBinding<'a>,
+        pub dst: wgpu::BufferBinding<'a>,
     }
     const LAYOUT_DESCRIPTOR0: wgpu::BindGroupLayoutDescriptor = wgpu::BindGroupLayoutDescriptor {
         label: None,
@@ -93,15 +93,15 @@ pub mod bind_groups {
                 entries: &[
                     wgpu::BindGroupEntry {
                         binding: 0u32,
-                        resource: bindings.src.as_entire_binding(),
+                        resource: wgpu::BindingResource::Buffer(bindings.src),
                     },
                     wgpu::BindGroupEntry {
                         binding: 1u32,
-                        resource: bindings.vertex_weights.as_entire_binding(),
+                        resource: wgpu::BindingResource::Buffer(bindings.vertex_weights),
                     },
                     wgpu::BindGroupEntry {
                         binding: 2u32,
-                        resource: bindings.dst.as_entire_binding(),
+                        resource: wgpu::BindingResource::Buffer(bindings.dst),
                     },
                 ],
                 label: None,
@@ -115,8 +115,8 @@ pub mod bind_groups {
     }
     pub struct BindGroup1(wgpu::BindGroup);
     pub struct BindGroupLayout1<'a> {
-        pub transforms: &'a wgpu::Buffer,
-        pub world_transforms: &'a wgpu::Buffer,
+        pub transforms: wgpu::BufferBinding<'a>,
+        pub world_transforms: wgpu::BufferBinding<'a>,
     }
     const LAYOUT_DESCRIPTOR1: wgpu::BindGroupLayoutDescriptor = wgpu::BindGroupLayoutDescriptor {
         label: None,
@@ -155,11 +155,11 @@ pub mod bind_groups {
                 entries: &[
                     wgpu::BindGroupEntry {
                         binding: 0u32,
-                        resource: bindings.transforms.as_entire_binding(),
+                        resource: wgpu::BindingResource::Buffer(bindings.transforms),
                     },
                     wgpu::BindGroupEntry {
                         binding: 1u32,
-                        resource: bindings.world_transforms.as_entire_binding(),
+                        resource: wgpu::BindingResource::Buffer(bindings.world_transforms),
                     },
                 ],
                 label: None,
@@ -173,7 +173,7 @@ pub mod bind_groups {
     }
     pub struct BindGroup2(wgpu::BindGroup);
     pub struct BindGroupLayout2<'a> {
-        pub mesh_object_info: &'a wgpu::Buffer,
+        pub mesh_object_info: wgpu::BufferBinding<'a>,
     }
     const LAYOUT_DESCRIPTOR2: wgpu::BindGroupLayoutDescriptor = wgpu::BindGroupLayoutDescriptor {
         label: None,
@@ -202,7 +202,7 @@ pub mod bind_groups {
                 entries: &[
                     wgpu::BindGroupEntry {
                         binding: 0u32,
-                        resource: bindings.mesh_object_info.as_entire_binding(),
+                        resource: wgpu::BindingResource::Buffer(bindings.mesh_object_info),
                     },
                 ],
                 label: None,

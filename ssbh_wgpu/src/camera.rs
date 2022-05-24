@@ -16,7 +16,7 @@ pub fn create_camera_bind_group(
     let camera_bind_group = crate::shader::model::bind_groups::BindGroup0::from_bindings(
         device,
         crate::shader::model::bind_groups::BindGroupLayout0 {
-            camera: &camera_buffer,
+            camera: camera_buffer.as_entire_buffer_binding(),
         },
     );
     (camera_buffer, camera_bind_group)

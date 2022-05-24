@@ -3,7 +3,7 @@ use crate::{
     pipeline::{create_pipeline, PipelineKey},
     texture::{load_sampler, load_texture},
     uniforms::create_uniforms_buffer,
-    vertex::{mesh_object_buffers, MeshObjectBufferData},
+    vertex::{buffer0, buffer1, mesh_object_buffers, skin_weights, MeshObjectBufferData},
     PipelineData,
 };
 use nutexb_wgpu::NutexbFile;
@@ -36,6 +36,7 @@ pub struct RenderModel {
     bone_data_bind_group: crate::shader::skeleton::bind_groups::BindGroup1,
     // TODO: Use instancing instead.
     bone_bind_groups: Vec<crate::shader::skeleton::bind_groups::BindGroup2>,
+    buffer_data: MeshObjectBufferData,
 }
 
 // A RenderMesh is view over a portion of the RenderModel data.
@@ -47,8 +48,6 @@ pub struct RenderMesh {
     material_label: String,
     shader_tag: String,
     sub_index: u64,
-    // TODO: It may be worth sharing buffers in the future.
-    buffer_data: MeshObjectBufferData,
     sort_bias: i32,
     normals_bind_group: crate::shader::renormal::bind_groups::BindGroup0,
     skinning_bind_group: crate::shader::skinning::bind_groups::BindGroup0,
@@ -56,6 +55,9 @@ pub struct RenderMesh {
     mesh_object_info_bind_group: crate::shader::skinning::bind_groups::BindGroup2,
     // TODO: How to update this when materials/shaders change?
     pipeline_key: PipelineKey,
+    vertex_count: usize,
+    vertex_index_count: usize,
+    access: MeshBufferAccess,
 }
 
 impl RenderMesh {
@@ -238,10 +240,17 @@ impl RenderModel {
                     },
                 );
 
-                mesh.set_vertex_buffers(render_pass);
-                mesh.set_index_buffer(render_pass);
+                // TODO: Store the start/end indices in a tuple to avoid having to clone the range?
+                render_pass.set_vertex_buffer(0, self.buffer_data.vertex_buffer0.slice(..));
+                render_pass.set_vertex_buffer(1, self.buffer_data.vertex_buffer1.slice(..));
 
-                render_pass.draw_indexed(0..mesh.buffer_data.vertex_index_count as u32, 0, 0..1);
+                // TODO: Store the buffer and type together?
+                render_pass.set_index_buffer(
+                    self.buffer_data.index_buffer.slice(..),
+                    wgpu::IndexFormat::Uint32,
+                );
+
+                render_pass.draw_indexed(0..mesh.vertex_index_count as u32, 0, 0..1);
             }
         }
     }
@@ -259,27 +268,18 @@ impl RenderModel {
                 },
             );
 
-            mesh.set_vertex_buffers(render_pass);
-            mesh.set_index_buffer(render_pass);
+            // TODO: Store the start/end indices in a tuple to avoid having to clone the range?
+            render_pass.set_vertex_buffer(0, self.buffer_data.vertex_buffer0.slice(..));
+            render_pass.set_vertex_buffer(1, self.buffer_data.vertex_buffer1.slice(..));
 
-            render_pass.draw_indexed(0..mesh.buffer_data.vertex_index_count as u32, 0, 0..1);
+            // TODO: Store the buffer and type together?
+            render_pass.set_index_buffer(
+                self.buffer_data.index_buffer.slice(..),
+                wgpu::IndexFormat::Uint32,
+            );
+
+            render_pass.draw_indexed(0..mesh.vertex_index_count as u32, 0, 0..1);
         }
-    }
-}
-
-impl RenderMesh {
-    pub fn set_vertex_buffers<'a>(&'a self, render_pass: &mut wgpu::RenderPass<'a>) {
-        // TODO: Store the start/end indices in a tuple to avoid having to clone the range?
-        render_pass.set_vertex_buffer(0, self.buffer_data.vertex_buffer0.slice(..));
-        render_pass.set_vertex_buffer(1, self.buffer_data.vertex_buffer1.slice(..));
-    }
-
-    pub fn set_index_buffer<'a>(&'a self, render_pass: &mut wgpu::RenderPass<'a>) {
-        // TODO: Store the buffer and type together?
-        render_pass.set_index_buffer(
-            self.buffer_data.index_buffer.slice(..),
-            wgpu::IndexFormat::Uint32,
-        );
     }
 }
 
@@ -412,8 +412,8 @@ pub fn create_render_model(
     let bone_data_bind_group = crate::shader::skeleton::bind_groups::BindGroup1::from_bindings(
         device,
         crate::shader::skeleton::bind_groups::BindGroupLayout1 {
-            world_transforms: &world_transforms_buffer,
-            bone_colors: &bone_colors_buffer,
+            world_transforms: world_transforms_buffer.as_entire_buffer_binding(),
+            bone_colors: bone_colors_buffer.as_entire_buffer_binding(),
         },
     );
 
@@ -427,6 +427,7 @@ pub fn create_render_model(
         material_data_by_label,
         textures,
         pipelines,
+        buffer_data,
     } = create_render_meshes(device, queue, &mesh_buffers, shared_data);
 
     // TODO: Move this to the renderer since it's shared?
@@ -457,7 +458,7 @@ pub fn create_render_model(
             let bind_group2 = crate::shader::skeleton::bind_groups::BindGroup2::from_bindings(
                 device,
                 crate::shader::skeleton::bind_groups::BindGroupLayout2 {
-                    per_bone: &per_bone,
+                    per_bone: per_bone.as_entire_buffer_binding(),
                 },
             );
             bone_bind_groups.push(bind_group2);
@@ -486,6 +487,7 @@ pub fn create_render_model(
         bone_index_buffer,
         bone_data_bind_group,
         bone_bind_groups,
+        buffer_data,
     }
 }
 
@@ -517,6 +519,18 @@ struct RenderMeshData {
     material_data_by_label: HashMap<String, MaterialData>,
     textures: Vec<(String, wgpu::Texture)>,
     pipelines: HashMap<PipelineKey, wgpu::RenderPipeline>,
+    buffer_data: MeshObjectBufferData,
+}
+
+struct MeshBufferAccess {
+    buffer0_start: usize,
+    buffer0_size: usize,
+    buffer1_start: usize,
+    buffer1_size: usize,
+    weights_start: usize,
+    weights_size: usize,
+    indices_start: usize,
+    indices_size: usize,
 }
 
 fn create_render_meshes(
@@ -573,26 +587,88 @@ fn create_render_meshes(
 
     // TODO: Share vertex buffers?
     // TODO: Find a way to have fewer function parameters?
+    let mut index_offset = 0;
+
+    let mut model_buffer0_data = Vec::new();
+    let mut model_buffer1_data = Vec::new();
+    let mut model_skin_weights_data = Vec::new();
+    let mut model_vertex_indices = Vec::new();
+
+    let mut accesses = Vec::new();
+
+    let align = |x, n| ((x + n - 1) / n) * n;
+
+    for mesh_object in &shared_data.mesh.unwrap().objects {
+        let buffer0_offset = model_buffer0_data.len();
+        let buffer1_offset = model_buffer1_data.len();
+        let weights_offset = model_skin_weights_data.len();
+
+        // TODO: Offset alignment of 256?
+        let buffer0_vertices = buffer0(mesh_object);
+        let buffer0_data = bytemuck::cast_slice::<_, u8>(&buffer0_vertices);
+        model_buffer0_data.extend_from_slice(buffer0_data);
+        model_buffer0_data.resize(align(model_buffer0_data.len(), 256), 0u8);
+
+        let buffer1_vertices = buffer1(mesh_object);
+        let buffer1_data = bytemuck::cast_slice::<_, u8>(&buffer1_vertices);
+        model_buffer1_data.extend_from_slice(buffer1_data);
+        model_buffer1_data.resize(align(model_buffer1_data.len(), 256), 0u8);
+
+        let skin_weights = skin_weights(mesh_object, shared_data.skel);
+        let skin_weights_data = bytemuck::cast_slice::<_, u8>(&skin_weights);
+        model_skin_weights_data.extend_from_slice(skin_weights_data);
+        model_skin_weights_data.resize(align(model_skin_weights_data.len(), 256), 0u8);
+
+        let indices_size = bytemuck::cast_slice::<_, u8>(&mesh_object.vertex_indices).len();
+        model_vertex_indices.extend_from_slice(&mesh_object.vertex_indices);
+
+        accesses.push(MeshBufferAccess {
+            buffer0_start: buffer0_offset,
+            buffer0_size: buffer0_data.len(),
+            buffer1_start: buffer1_offset,
+            buffer1_size: buffer1_data.len(),
+            weights_start: weights_offset,
+            weights_size: skin_weights_data.len(),
+            indices_start: index_offset,
+            indices_size: indices_size,
+        });
+
+        index_offset += indices_size;
+    }
+
+    let buffer_data = mesh_object_buffers(
+        device,
+        &model_buffer0_data,
+        &model_buffer1_data,
+        &model_skin_weights_data,
+        &model_vertex_indices,
+    );
+
     let meshes: Vec<_> = shared_data
         .mesh
         .unwrap()
         .objects
         .iter() // TODO: par_iter?
+        .zip(accesses.into_iter())
         .enumerate()
-        .map(|(i, mesh_object)| {
+        .map(|(i, (mesh_object, access))| {
             // Some mesh objects have associated triangle adjacency.
             let adj_entry = shared_data
                 .adj
                 .and_then(|adj| adj.entries.iter().find(|e| e.mesh_object_index == i));
 
-            create_render_mesh(
+            let mesh = create_render_mesh(
                 device,
                 mesh_object,
                 adj_entry,
                 &mut pipelines,
                 mesh_buffers,
+                access,
                 shared_data,
-            )
+                &buffer_data,
+            );
+
+            mesh
         })
         .collect();
 
@@ -601,6 +677,7 @@ fn create_render_meshes(
         material_data_by_label,
         textures,
         pipelines,
+        buffer_data,
     }
 }
 
@@ -611,7 +688,9 @@ fn create_render_mesh(
     adj_entry: Option<&AdjEntryData>,
     pipelines: &mut HashMap<PipelineKey, wgpu::RenderPipeline>,
     mesh_buffers: &MeshBuffers,
+    access: MeshBufferAccess,
     shared_data: &RenderMeshSharedData,
+    buffer_data: &MeshObjectBufferData,
 ) -> RenderMesh {
     // TODO: These could be cleaner as functions.
     // TODO: Is using a default for the material label ok?
@@ -649,8 +728,6 @@ fn create_render_mesh(
         .entry(pipeline_key)
         .or_insert_with(|| create_pipeline(device, shared_data.pipeline_data, &pipeline_key));
 
-    let buffer_data = mesh_object_buffers(device, mesh_object, shared_data.skel);
-
     // TODO: Function for this?
     let adjacency = adj_entry
         .map(|e| e.vertex_adjacency.iter().map(|i| *i as i32).collect())
@@ -662,20 +739,42 @@ fn create_render_mesh(
     });
 
     // This is applied after skinning, so the source and destination buffer are the same.
+    // TODO: Offsets need to be aligned to 256 bytes?
+    // TODO: Add padding between mesh objects?
+    // TODO: Can this be done in a single dispatch for the entire model?
+    // That would avoid any issues with alignment.
+    let buffer0_binding = wgpu::BufferBinding {
+        buffer: &buffer_data.vertex_buffer0,
+        offset: access.buffer0_start as u64,
+        size: Some(std::num::NonZeroU64::new(access.buffer0_size as u64).unwrap()),
+    };
+
+    let buffer0_source_binding = wgpu::BufferBinding {
+        buffer: &buffer_data.vertex_buffer0_source,
+        offset: access.buffer0_start as u64,
+        size: Some(std::num::NonZeroU64::new(access.buffer0_size as u64).unwrap()),
+    };
+
+    let weights_binding = wgpu::BufferBinding {
+        buffer: &buffer_data.skinning_buffer,
+        offset: access.weights_start as u64,
+        size: Some(std::num::NonZeroU64::new(access.weights_size as u64).unwrap()),
+    };
+
     let renormal_bind_group = crate::shader::renormal::bind_groups::BindGroup0::from_bindings(
         device,
         crate::shader::renormal::bind_groups::BindGroupLayout0 {
-            vertices: &buffer_data.vertex_buffer0,
-            adj_data: &adj_buffer,
+            vertices: buffer0_binding.clone(),
+            adj_data: adj_buffer.as_entire_buffer_binding(),
         },
     );
 
     let skinning_bind_group = crate::shader::skinning::bind_groups::BindGroup0::from_bindings(
         device,
         crate::shader::skinning::bind_groups::BindGroupLayout0 {
-            src: &buffer_data.vertex_buffer0_source,
-            vertex_weights: &buffer_data.skinning_buffer,
-            dst: &buffer_data.vertex_buffer0,
+            src: buffer0_source_binding,
+            vertex_weights: weights_binding,
+            dst: buffer0_binding.clone(),
         },
     );
 
@@ -683,8 +782,8 @@ fn create_render_mesh(
         crate::shader::skinning::bind_groups::BindGroup1::from_bindings(
             device,
             crate::shader::skinning::bind_groups::BindGroupLayout1 {
-                transforms: &mesh_buffers.skinning_transforms,
-                world_transforms: &mesh_buffers.world_transforms,
+                transforms: mesh_buffers.skinning_transforms.as_entire_buffer_binding(),
+                world_transforms: mesh_buffers.world_transforms.as_entire_buffer_binding(),
             },
         );
 
@@ -701,7 +800,7 @@ fn create_render_mesh(
         crate::shader::skinning::bind_groups::BindGroup2::from_bindings(
             device,
             crate::shader::skinning::bind_groups::BindGroupLayout2 {
-                mesh_object_info: &mesh_object_info_buffer,
+                mesh_object_info: mesh_object_info_buffer.as_entire_buffer_binding(),
             },
         );
 
@@ -713,12 +812,12 @@ fn create_render_mesh(
         .and_then(|m| m.shader_label.get(25..))
         .unwrap_or("")
         .to_string();
+
     RenderMesh {
         name: mesh_object.name.clone(),
         material_label: material_label.clone(),
         shader_tag,
         is_visible: true,
-        buffer_data,
         sort_bias: mesh_object.sort_bias,
         skinning_bind_group,
         skinning_transforms_bind_group,
@@ -726,6 +825,9 @@ fn create_render_mesh(
         pipeline_key,
         normals_bind_group: renormal_bind_group,
         sub_index: mesh_object.sub_index,
+        vertex_count: mesh_object.vertex_count().unwrap(),
+        vertex_index_count: mesh_object.vertex_indices.len(),
+        access,
     }
 }
 
@@ -792,7 +894,7 @@ fn create_material_uniforms_bind_group(
             sampler13: &load_sampler(ParamId::Sampler13),
             texture14: &load_texture(ParamId::Texture14),
             sampler14: &load_sampler(ParamId::Sampler14),
-            uniforms: uniforms_buffer,
+            uniforms: uniforms_buffer.as_entire_buffer_binding(),
         },
     )
 }
@@ -855,7 +957,7 @@ pub fn dispatch_renormal<'a>(meshes: &'a [RenderMesh], compute_pass: &mut wgpu::
 
         // The shader's local workgroup size is (256, 1, 1).
         // Round up to avoid skipping vertices.
-        let workgroup_count = (mesh.buffer_data.vertex_count as f64 / 256.0).ceil() as u32;
+        let workgroup_count = (mesh.vertex_count as f64 / 256.0).ceil() as u32;
         compute_pass.dispatch(workgroup_count, 1, 1);
     }
 }
@@ -874,7 +976,7 @@ pub fn dispatch_skinning<'a>(meshes: &'a [RenderMesh], compute_pass: &mut wgpu::
 
         // The shader's local workgroup size is (256, 1, 1).
         // Round up to avoid skipping vertices.
-        let workgroup_count = (mesh.buffer_data.vertex_count as f64 / 256.0).ceil() as u32;
+        let workgroup_count = (mesh.vertex_count as f64 / 256.0).ceil() as u32;
         compute_pass.dispatch(workgroup_count, 1, 1);
     }
 }

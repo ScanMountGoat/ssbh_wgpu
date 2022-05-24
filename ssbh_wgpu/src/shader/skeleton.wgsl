@@ -42,7 +42,7 @@ fn vs_main(
     // TODO: Check the bounds.
     // Keep a constant size in pixels on screen.
     let bone_pos = world_transforms.transforms[per_bone.index.x] * vec4<f32>(0.0, 0.0, 0.0, 1.0);
-    let scale_factor = distance(bone_pos.xyz, camera.camera_pos.xyz) * 0.003;
+    let scale_factor = distance(bone_pos.xyz, camera.camera_pos.xyz) * 0.002;
 
     let position = vec4<f32>(in.position.xyz * vec3<f32>(scale_factor), 1.0);
     return camera.mvp_matrix * world_transforms.transforms[per_bone.index.x] * position;
