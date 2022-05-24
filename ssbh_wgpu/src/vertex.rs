@@ -222,7 +222,7 @@ pub struct MeshObjectBufferData {
     pub vertex_buffer0: wgpu::Buffer,
     pub vertex_buffer1: wgpu::Buffer,
     pub skinning_buffer: wgpu::Buffer,
-    pub index_buffer: wgpu::Buffer
+    pub index_buffer: wgpu::Buffer,
 }
 
 pub fn mesh_object_buffers(
@@ -231,7 +231,7 @@ pub fn mesh_object_buffers(
     buffer0_vertices: &[u8],
     buffer1_vertices: &[u8],
     skin_weights: &[u8],
-    vertex_indices: &[u32]
+    vertex_indices: &[u32],
 ) -> MeshObjectBufferData {
     // TODO: Clean this up.
     // TODO: Validate the vertex count and indices?
@@ -242,7 +242,7 @@ pub fn mesh_object_buffers(
         contents: buffer0_vertices,
         usage: wgpu::BufferUsages::STORAGE,
     });
-    
+
     // This buffer will be filled by the compute shader later.
     let vertex_buffer0 = device.create_buffer(&wgpu::BufferDescriptor {
         label: Some("Vertex Buffer 0"),
@@ -250,14 +250,12 @@ pub fn mesh_object_buffers(
         usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::STORAGE,
         mapped_at_creation: false,
     });
-    
 
     let vertex_buffer1 = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
         label: Some("Vertex Buffer 1"),
         contents: buffer1_vertices,
         usage: wgpu::BufferUsages::VERTEX,
     });
-
 
     let skinning_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
         label: Some("Skinning Buffer"),

@@ -190,18 +190,13 @@ impl RenderModel {
         render_pass: &mut wgpu::RenderPass<'a>,
         camera_bind_group: &'a crate::shader::skeleton::bind_groups::BindGroup0,
     ) {
-        // TODO: Create a shader for drawing each bone.
-
-        // TODO: How to store all data in RenderModel but still draw sorted meshes?
-        // TODO: Don't assume materials are properly assigned.
-        // let material_data = &self.material_data_by_label[&mesh.material_label];
         if let Some(skel) = self.skel.as_ref() {
             render_pass.set_vertex_buffer(0, self.bone_vertex_buffer.slice(..));
             render_pass
                 .set_index_buffer(self.bone_index_buffer.slice(..), wgpu::IndexFormat::Uint32);
 
+            // TODO: Instancing?
             for i in 0..skel.bones.len() {
-                // TODO: Add a bind group for the index?
                 crate::shader::skeleton::bind_groups::set_bind_groups(
                     render_pass,
                     crate::shader::skeleton::bind_groups::BindGroups::<'a> {
@@ -248,26 +243,21 @@ impl RenderModel {
     }
 
     fn set_mesh_buffers<'a>(&'a self, render_pass: &mut wgpu::RenderPass<'a>, mesh: &RenderMesh) {
-        // TODO: Store the start/end indices in a tuple to avoid having to clone the range?
         render_pass.set_vertex_buffer(
             0,
             self.buffer_data.vertex_buffer0.slice(
-                mesh.access.buffer0_start as u64
-                    ..mesh.access.buffer0_start as u64 + mesh.access.buffer0_size as u64,
+                mesh.access.buffer0_start..mesh.access.buffer0_start + mesh.access.buffer0_size,
             ),
         );
         render_pass.set_vertex_buffer(
             1,
             self.buffer_data.vertex_buffer1.slice(
-                mesh.access.buffer1_start as u64
-                    ..mesh.access.buffer1_start as u64 + mesh.access.buffer1_size as u64,
+                mesh.access.buffer1_start..mesh.access.buffer1_start + mesh.access.buffer1_size,
             ),
         );
-        // TODO: Store the buffer and type together?
         render_pass.set_index_buffer(
             self.buffer_data.index_buffer.slice(
-                mesh.access.indices_start as u64
-                    ..mesh.access.indices_start as u64 + mesh.access.indices_size as u64,
+                mesh.access.indices_start..mesh.access.indices_start + mesh.access.indices_size,
             ),
             wgpu::IndexFormat::Uint32,
         );
@@ -533,14 +523,14 @@ struct RenderMeshData {
 }
 
 struct MeshBufferAccess {
-    buffer0_start: usize,
-    buffer0_size: usize,
-    buffer1_start: usize,
-    buffer1_size: usize,
-    weights_start: usize,
-    weights_size: usize,
-    indices_start: usize,
-    indices_size: usize,
+    buffer0_start: u64,
+    buffer0_size: u64,
+    buffer1_start: u64,
+    buffer1_size: u64,
+    weights_start: u64,
+    weights_size: u64,
+    indices_start: u64,
+    indices_size: u64,
 }
 
 fn create_render_meshes(
@@ -633,14 +623,14 @@ fn create_render_meshes(
         model_vertex_indices.extend_from_slice(&mesh_object.vertex_indices);
 
         accesses.push(MeshBufferAccess {
-            buffer0_start: buffer0_offset,
-            buffer0_size: buffer0_data.len(),
-            buffer1_start: buffer1_offset,
-            buffer1_size: buffer1_data.len(),
-            weights_start: weights_offset,
-            weights_size: skin_weights_data.len(),
-            indices_start: index_offset,
-            indices_size: indices_size,
+            buffer0_start: buffer0_offset as u64,
+            buffer0_size: buffer0_data.len() as u64,
+            buffer1_start: buffer1_offset as u64,
+            buffer1_size: buffer1_data.len() as u64,
+            weights_start: weights_offset as u64,
+            weights_size: skin_weights_data.len() as u64,
+            indices_start: index_offset as u64,
+            indices_size: indices_size as u64,
         });
 
         index_offset += indices_size;
@@ -667,7 +657,7 @@ fn create_render_meshes(
                 .adj
                 .and_then(|adj| adj.entries.iter().find(|e| e.mesh_object_index == i));
 
-            let mesh = create_render_mesh(
+            create_render_mesh(
                 device,
                 mesh_object,
                 adj_entry,
@@ -676,9 +666,7 @@ fn create_render_meshes(
                 access,
                 shared_data,
                 &buffer_data,
-            );
-
-            mesh
+            )
         })
         .collect();
 
@@ -755,20 +743,20 @@ fn create_render_mesh(
     // That would avoid any issues with alignment.
     let buffer0_binding = wgpu::BufferBinding {
         buffer: &buffer_data.vertex_buffer0,
-        offset: access.buffer0_start as u64,
-        size: Some(std::num::NonZeroU64::new(access.buffer0_size as u64).unwrap()),
+        offset: access.buffer0_start,
+        size: Some(std::num::NonZeroU64::new(access.buffer0_size).unwrap()),
     };
 
     let buffer0_source_binding = wgpu::BufferBinding {
         buffer: &buffer_data.vertex_buffer0_source,
-        offset: access.buffer0_start as u64,
-        size: Some(std::num::NonZeroU64::new(access.buffer0_size as u64).unwrap()),
+        offset: access.buffer0_start,
+        size: Some(std::num::NonZeroU64::new(access.buffer0_size).unwrap()),
     };
 
     let weights_binding = wgpu::BufferBinding {
         buffer: &buffer_data.skinning_buffer,
-        offset: access.weights_start as u64,
-        size: Some(std::num::NonZeroU64::new(access.weights_size as u64).unwrap()),
+        offset: access.weights_start,
+        size: Some(std::num::NonZeroU64::new(access.weights_size).unwrap()),
     };
 
     let renormal_bind_group = crate::shader::renormal::bind_groups::BindGroup0::from_bindings(
