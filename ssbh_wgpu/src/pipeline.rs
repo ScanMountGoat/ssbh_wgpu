@@ -167,6 +167,35 @@ pub fn create_invalid_shader_pipeline(
     })
 }
 
+pub fn create_invalid_attributes_pipeline(
+    device: &wgpu::Device,
+    surface_format: wgpu::TextureFormat,
+) -> wgpu::RenderPipeline {
+    let shader = crate::shader::model::create_shader_module(device);
+    let render_pipeline_layout = crate::shader::model::create_pipeline_layout(device);
+
+    device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+        label: Some("Render Pipeline"),
+        layout: Some(&render_pipeline_layout),
+        vertex: vertex_state(&shader),
+        fragment: Some(wgpu::FragmentState {
+            module: &shader,
+            entry_point: "fs_invalid_attributes",
+            targets: &[surface_format.into()],
+        }),
+        primitive: wgpu::PrimitiveState::default(),
+        depth_stencil: Some(wgpu::DepthStencilState {
+            format: crate::renderer::DEPTH_FORMAT,
+            depth_write_enabled: true,
+            depth_compare: wgpu::CompareFunction::LessEqual,
+            stencil: wgpu::StencilState::default(),
+            bias: wgpu::DepthBiasState::default(),
+        }),
+        multisample: wgpu::MultisampleState::default(),
+        multiview: None,
+    })
+}
+
 fn vertex_state(shader: &wgpu::ShaderModule) -> wgpu::VertexState {
     wgpu::VertexState {
         module: shader,

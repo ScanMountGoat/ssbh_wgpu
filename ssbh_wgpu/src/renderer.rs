@@ -3,7 +3,7 @@ use wgpu::{util::DeviceExt, ComputePassDescriptor, ComputePipelineDescriptor};
 use crate::{
     camera::create_camera_bind_group,
     lighting::calculate_light_transform,
-    pipeline::{create_depth_pipeline, create_invalid_shader_pipeline},
+    pipeline::{create_depth_pipeline, create_invalid_shader_pipeline, create_invalid_attributes_pipeline},
     texture::load_texture_sampler_3d,
     CameraTransforms, RenderModel, ShaderDatabase,
 };
@@ -42,6 +42,7 @@ pub struct SsbhRenderer {
     shadow_pipeline: wgpu::RenderPipeline,
     variance_shadow_pipeline: wgpu::RenderPipeline,
     invalid_shader_pipeline: wgpu::RenderPipeline,
+    invalid_attributes_pipeline: wgpu::RenderPipeline,
     skeleton_pipeline: wgpu::RenderPipeline,
 
     // Store camera state for efficiently updating it later.
@@ -250,6 +251,7 @@ impl SsbhRenderer {
             );
 
         let invalid_shader_pipeline = create_invalid_shader_pipeline(device, RGBA_COLOR_FORMAT);
+        let invalid_attributes_pipeline = create_invalid_attributes_pipeline(device, RGBA_COLOR_FORMAT);
 
         Self {
             bloom_threshold_pipeline,
@@ -276,6 +278,7 @@ impl SsbhRenderer {
             stage_uniforms_bind_group,
             skeleton_pipeline,
             invalid_shader_pipeline,
+            invalid_attributes_pipeline
         }
     }
 
@@ -460,6 +463,7 @@ impl SsbhRenderer {
                 &self.model_shadow_bind_group,
                 shader_database,
                 &self.invalid_shader_pipeline,
+                &self.invalid_attributes_pipeline,
             );
         }
     }

@@ -59,6 +59,7 @@ pub struct RenderMesh {
     vertex_count: usize,
     vertex_index_count: usize,
     access: MeshBufferAccess,
+    attribute_names: Vec<String>,
 }
 
 impl RenderMesh {
@@ -107,6 +108,7 @@ impl RenderModel {
             .get_mut(&material.material_label)
         {
             // TODO: Update textures and materials separately?
+            // TODO: Reuse the existing uniforms buffer and write to it instead.
             let uniforms_buffer = create_uniforms_buffer(Some(material), device);
             data.material_uniforms_bind_group = create_material_uniforms_bind_group(
                 Some(material),
@@ -220,14 +222,25 @@ impl RenderModel {
         shadow_bind_group: &'a crate::shader::model::bind_groups::BindGroup3,
         shader_database: &ShaderDatabase,
         invalid_shader_pipeline: &'a wgpu::RenderPipeline,
+        invalid_attributes_pipeline: &'a wgpu::RenderPipeline,
     ) {
         // TODO: How to store all data in RenderModel but still draw sorted meshes?
         for mesh in self.meshes.iter().filter(|m| m.is_visible) {
             // Mesh objects with no modl entry or an invalid material label are skipped entirely in game.
             if let Some(material_data) = self.material_data_by_label.get(&mesh.material_label) {
-                if shader_database.contains_key(&mesh.shader_label) {
-                    // TODO: Don't assume the pipeline exists?
-                    render_pass.set_pipeline(&self.pipelines[&mesh.pipeline_key]);
+                // TODO: Does the invalid shader pipeline take priority?
+                // TODO: How to handle missing position, tangent, normal?
+                if let Some(info) = shader_database.get(&mesh.shader_label) {
+                    if info
+                        .vertex_attributes
+                        .iter()
+                        .all(|a| mesh.attribute_names.contains(a))
+                    {
+                        // TODO: Don't assume the pipeline exists?
+                        render_pass.set_pipeline(&self.pipelines[&mesh.pipeline_key]);
+                    } else {
+                        render_pass.set_pipeline(invalid_attributes_pipeline);
+                    }
                 } else {
                     // TODO: Does this include invalid tags?
                     render_pass.set_pipeline(invalid_shader_pipeline);
@@ -824,6 +837,21 @@ fn create_render_mesh(
         .unwrap_or("")
         .to_string();
 
+    let attribute_names = mesh_object
+        .positions
+        .iter()
+        .map(|a| a.name.clone())
+        .chain(mesh_object.normals.iter().map(|a| a.name.clone()))
+        .chain(mesh_object.tangents.iter().map(|a| a.name.clone()))
+        .chain(
+            mesh_object
+                .texture_coordinates
+                .iter()
+                .map(|a| a.name.clone()),
+        )
+        .chain(mesh_object.color_sets.iter().map(|a| a.name.clone()))
+        .collect();
+
     RenderMesh {
         name: mesh_object.name.clone(),
         material_label: material_label.clone(),
@@ -840,6 +868,7 @@ fn create_render_mesh(
         vertex_count: mesh_object.vertex_count().unwrap(),
         vertex_index_count: mesh_object.vertex_indices.len(),
         access,
+        attribute_names,
     }
 }
 
