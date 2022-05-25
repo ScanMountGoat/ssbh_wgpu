@@ -1,5 +1,6 @@
 use std::{iter, path::Path};
 
+use ssbh_wgpu::{create_database, ShaderDatabase};
 use ssbh_wgpu::create_default_textures;
 use ssbh_wgpu::load_default_cube;
 use ssbh_wgpu::CameraTransforms;
@@ -41,6 +42,8 @@ struct State {
     config: wgpu::SurfaceConfiguration,
     render_models: Vec<RenderModel>,
     renderer: SsbhRenderer,
+    shader_database: ShaderDatabase,
+
     // TODO: Separate camera/window state struct?
     size: winit::dpi::PhysicalSize<u32>,
 
@@ -114,6 +117,8 @@ impl State {
         let stage_cube = load_default_cube(&device, &queue).unwrap();
         let stage_cube = (stage_cube.0, stage_cube.1);
 
+        let shader_database = create_database();
+
         let pipeline_data = PipelineData::new(&device, surface_format);
 
         let models = load_model_folders(folder);
@@ -149,6 +154,7 @@ impl State {
             stage_cube,
             pipeline_data,
             is_playing: false,
+            shader_database,
         }
     }
 
@@ -294,8 +300,12 @@ impl State {
             }
         }
 
-        self.renderer
-            .render_ssbh_passes(&mut encoder, &output_view, &self.render_models);
+        self.renderer.render_ssbh_passes(
+            &mut encoder,
+            &output_view,
+            &self.render_models,
+            &self.shader_database,
+        );
 
         self.queue.submit(iter::once(encoder.finish()));
         // Actually draw the frame.

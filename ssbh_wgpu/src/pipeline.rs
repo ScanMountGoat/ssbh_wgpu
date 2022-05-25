@@ -73,27 +73,10 @@ pub fn create_pipeline(
     device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
         label: Some("Render Pipeline"),
         layout: Some(&pipeline_data.layout),
-        vertex: wgpu::VertexState {
-            module: &pipeline_data.shader,
-            entry_point: "vs_main",
-            buffers: &[
-                // Assume tightly packed elements with no additional padding or alignment.
-                wgpu::VertexBufferLayout {
-                    array_stride: crate::shader::model::VertexInput0::SIZE_IN_BYTES,
-                    step_mode: wgpu::VertexStepMode::Vertex,
-                    attributes: &crate::shader::model::VertexInput0::VERTEX_ATTRIBUTES,
-                },
-                wgpu::VertexBufferLayout {
-                    array_stride: crate::shader::model::VertexInput1::SIZE_IN_BYTES,
-                    step_mode: wgpu::VertexStepMode::Vertex,
-                    attributes: &crate::shader::model::VertexInput1::VERTEX_ATTRIBUTES,
-                },
-            ],
-        },
+        vertex: vertex_state(&pipeline_data.shader),
         fragment: Some(wgpu::FragmentState {
             module: &pipeline_data.shader,
             entry_point: "fs_main",
-            // TODO: Automatically create a target for each fragment output?
             targets: &[wgpu::ColorTargetState {
                 format: pipeline_data.surface_format,
                 blend: pipeline_key.blend,
@@ -140,24 +123,7 @@ pub fn create_depth_pipeline(device: &wgpu::Device) -> wgpu::RenderPipeline {
     device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
         label: Some("Render Pipeline Depth"),
         layout: Some(&render_pipeline_layout),
-        vertex: wgpu::VertexState {
-            module: &shader,
-            entry_point: "vs_main",
-            buffers: &[
-                // TODO: Can this be derived by wgsl_to_wgpu?
-                // Assume tightly packed elements with no additional padding or alignment.
-                wgpu::VertexBufferLayout {
-                    array_stride: crate::shader::model_depth::VertexInput0::SIZE_IN_BYTES,
-                    step_mode: wgpu::VertexStepMode::Vertex,
-                    attributes: &crate::shader::model_depth::VertexInput0::VERTEX_ATTRIBUTES,
-                },
-                wgpu::VertexBufferLayout {
-                    array_stride: crate::shader::model_depth::VertexInput1::SIZE_IN_BYTES,
-                    step_mode: wgpu::VertexStepMode::Vertex,
-                    attributes: &crate::shader::model_depth::VertexInput1::VERTEX_ATTRIBUTES,
-                },
-            ],
-        },
+        vertex: vertex_state_depth(&shader),
         fragment: None,
         primitive: wgpu::PrimitiveState::default(),
         depth_stencil: Some(wgpu::DepthStencilState {
@@ -170,6 +136,77 @@ pub fn create_depth_pipeline(device: &wgpu::Device) -> wgpu::RenderPipeline {
         multisample: wgpu::MultisampleState::default(),
         multiview: None,
     })
+}
+
+pub fn create_invalid_shader_pipeline(
+    device: &wgpu::Device,
+    surface_format: wgpu::TextureFormat,
+) -> wgpu::RenderPipeline {
+    let shader = crate::shader::model::create_shader_module(device);
+    let render_pipeline_layout = crate::shader::model::create_pipeline_layout(device);
+
+    device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+        label: Some("Render Pipeline"),
+        layout: Some(&render_pipeline_layout),
+        vertex: vertex_state(&shader),
+        fragment: Some(wgpu::FragmentState {
+            module: &shader,
+            entry_point: "fs_invalid_shader",
+            targets: &[surface_format.into()],
+        }),
+        primitive: wgpu::PrimitiveState::default(),
+        depth_stencil: Some(wgpu::DepthStencilState {
+            format: crate::renderer::DEPTH_FORMAT,
+            depth_write_enabled: true,
+            depth_compare: wgpu::CompareFunction::LessEqual,
+            stencil: wgpu::StencilState::default(),
+            bias: wgpu::DepthBiasState::default(),
+        }),
+        multisample: wgpu::MultisampleState::default(),
+        multiview: None,
+    })
+}
+
+fn vertex_state(shader: &wgpu::ShaderModule) -> wgpu::VertexState {
+    wgpu::VertexState {
+        module: shader,
+        entry_point: "vs_main",
+        buffers: &[
+            // TODO: Can this be derived by wgsl_to_wgpu?
+            // Assume tightly packed elements with no additional padding or alignment.
+            wgpu::VertexBufferLayout {
+                array_stride: crate::shader::model_depth::VertexInput0::SIZE_IN_BYTES,
+                step_mode: wgpu::VertexStepMode::Vertex,
+                attributes: &crate::shader::model_depth::VertexInput0::VERTEX_ATTRIBUTES,
+            },
+            wgpu::VertexBufferLayout {
+                array_stride: crate::shader::model_depth::VertexInput1::SIZE_IN_BYTES,
+                step_mode: wgpu::VertexStepMode::Vertex,
+                attributes: &crate::shader::model_depth::VertexInput1::VERTEX_ATTRIBUTES,
+            },
+        ],
+    }
+}
+
+fn vertex_state_depth(shader: &wgpu::ShaderModule) -> wgpu::VertexState {
+    wgpu::VertexState {
+        module: shader,
+        entry_point: "vs_main",
+        buffers: &[
+            // TODO: Can this be derived by wgsl_to_wgpu?
+            // Assume tightly packed elements with no additional padding or alignment.
+            wgpu::VertexBufferLayout {
+                array_stride: crate::shader::model::VertexInput0::SIZE_IN_BYTES,
+                step_mode: wgpu::VertexStepMode::Vertex,
+                attributes: &crate::shader::model::VertexInput0::VERTEX_ATTRIBUTES,
+            },
+            wgpu::VertexBufferLayout {
+                array_stride: crate::shader::model::VertexInput1::SIZE_IN_BYTES,
+                step_mode: wgpu::VertexStepMode::Vertex,
+                attributes: &crate::shader::model::VertexInput1::VERTEX_ATTRIBUTES,
+            },
+        ],
+    }
 }
 
 // TODO: These can be easily unit tested.

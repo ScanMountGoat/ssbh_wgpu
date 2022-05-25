@@ -1,9 +1,11 @@
 use wgpu::{util::DeviceExt, ComputePassDescriptor, ComputePipelineDescriptor};
 
 use crate::{
-    camera::create_camera_bind_group, lighting::calculate_light_transform,
-    pipeline::create_depth_pipeline, texture::load_texture_sampler_3d, CameraTransforms,
-    RenderModel,
+    camera::create_camera_bind_group,
+    lighting::calculate_light_transform,
+    pipeline::{create_depth_pipeline, create_invalid_shader_pipeline},
+    texture::load_texture_sampler_3d,
+    CameraTransforms, RenderModel, ShaderDatabase,
 };
 
 // Rgba16Float is widely supported.
@@ -39,7 +41,7 @@ pub struct SsbhRenderer {
     renormal_pipeline: wgpu::ComputePipeline,
     shadow_pipeline: wgpu::RenderPipeline,
     variance_shadow_pipeline: wgpu::RenderPipeline,
-
+    invalid_shader_pipeline: wgpu::RenderPipeline,
     skeleton_pipeline: wgpu::RenderPipeline,
 
     // Store camera state for efficiently updating it later.
@@ -247,6 +249,8 @@ impl SsbhRenderer {
                 },
             );
 
+        let invalid_shader_pipeline = create_invalid_shader_pipeline(device, RGBA_COLOR_FORMAT);
+
         Self {
             bloom_threshold_pipeline,
             bloom_blur_pipeline,
@@ -271,6 +275,7 @@ impl SsbhRenderer {
             stage_uniforms_buffer,
             stage_uniforms_bind_group,
             skeleton_pipeline,
+            invalid_shader_pipeline,
         }
     }
 
@@ -296,6 +301,7 @@ impl SsbhRenderer {
         encoder: &mut wgpu::CommandEncoder,
         output_view: &wgpu::TextureView,
         render_models: &[RenderModel],
+        shader_database: &ShaderDatabase,
     ) {
         // Render meshes are sorted globally rather than per folder.
         // This allows all transparent draw calls to happen after opaque draw calls.
@@ -314,7 +320,7 @@ impl SsbhRenderer {
         self.variance_shadow_pass(encoder);
 
         // Draw the models to the initial color buffer.
-        self.model_pass(encoder, render_models);
+        self.model_pass(encoder, render_models, shader_database);
 
         // TODO: Should this happen after post processing?
         self.skeleton_pass(encoder, render_models);
@@ -418,7 +424,12 @@ impl SsbhRenderer {
         }
     }
 
-    fn model_pass(&self, encoder: &mut wgpu::CommandEncoder, render_models: &[RenderModel]) {
+    fn model_pass(
+        &self,
+        encoder: &mut wgpu::CommandEncoder,
+        render_models: &[RenderModel],
+        shader_database: &ShaderDatabase,
+    ) {
         // TODO: Force having a color attachment for each fragment shader output in wgsl_to_wgpu?
         // TODO: Should this pass draw to a floating point target?
         // The in game format isn't 8-bit yet.
@@ -447,6 +458,8 @@ impl SsbhRenderer {
                 &self.camera_bind_group,
                 &self.stage_uniforms_bind_group,
                 &self.model_shadow_bind_group,
+                shader_database,
+                &self.invalid_shader_pipeline,
             );
         }
     }

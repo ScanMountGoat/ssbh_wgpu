@@ -12,12 +12,14 @@ mod camera;
 mod lighting;
 mod renderer;
 mod rendermesh;
+mod shader_database;
 
 use nutexb_wgpu::NutexbFile;
 
 pub use renderer::SsbhRenderer;
 pub use rendermesh::{RenderMesh, RenderModel};
 pub use shader::model::CameraTransforms;
+pub use shader_database::{create_database, ShaderProgram, ShaderDatabase};
 pub use texture::{create_default_textures, load_default_cube};
 
 use ssbh_data::prelude::*;

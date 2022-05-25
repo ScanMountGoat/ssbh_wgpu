@@ -519,26 +519,6 @@ fn RoughnessToLod(roughness: f32) -> f32
     return log2((1.0 / a) * 2.0 - 2.0) * -0.4545 + 4.0;
 }
 
-// fn GetInvalidCheckerBoard() -> f32
-// {
-//     // TODO: Account for screen resolution and use the values from in game for scaling.
-//     let screenPosition = gl_FragCoord.xyz;
-//     let checkSize = 0.15;
-//     let checkerBoard = mod(floor(screenPosition.x * checkSize) + floor(screenPosition.y * checkSize), 2.0);
-//     let checkerBoardFinal = max(sign(checkerBoard), 0.0);
-//     return mix(0.8,1.0,checkerBoardFinal);
-// }
-
-// fn GetInvalidShaderLabelColor() -> vec3<f32>
-// {
-//     return vec3<f32>(GetInvalidCheckerBoard(), 0.0, 0.0);
-// }
-
-// fn GetMissingRequiredAttributeColor() -> vec3<f32>
-// {
-//     return vec3<f32>(GetInvalidCheckerBoard(), GetInvalidCheckerBoard(), 0.0);
-// }
-
 fn GetAngleFade(nDotV: f32, ior: f32, specularf0: f32) -> f32
 {
     // CustomFloat19 defines the IOR for a separate fresnel based fade.
@@ -603,6 +583,31 @@ fn vs_main(
 
     out.light_position = light.light_transform * vec4<f32>(buffer0.position0.xyz, 1.0);
     return out;
+}
+
+fn ScreenCheckerBoard(screenPosition: vec2<f32>) -> f32
+{
+    // Port of in game shader code for screen checkerboard.
+    let x = screenPosition.x - 16.0 * floor(screenPosition.x / 16.0);
+    let y = screenPosition.y - 16.0 * floor(screenPosition.y / 16.0);
+
+    if ((x <= 8.0 && y >= 8.0) || (x >= 8.0 && y < 8.0)) {
+        return 1.0;
+    } else {
+        return 0.0;
+    }
+}
+
+[[stage(fragment)]]
+fn fs_invalid_shader([[builtin(position)]] frag_pos: vec4<f32>) -> [[location(0)]] vec4<f32> {
+    let checker = ScreenCheckerBoard(frag_pos.xy);
+    return vec4<f32>(checker, 0.0, 0.0, 1.0);
+}
+
+[[stage(fragment)]]
+fn fs_invalid_attributes([[builtin(position)]] frag_pos: vec4<f32>) -> [[location(0)]] vec4<f32> {
+    let checker = ScreenCheckerBoard(frag_pos.xy);
+    return vec4<f32>(checker, checker, 0.0, 1.0);
 }
 
 [[stage(fragment)]]

@@ -4,7 +4,7 @@ use crate::{
     texture::{load_sampler, load_texture},
     uniforms::create_uniforms_buffer,
     vertex::{buffer0, buffer1, mesh_object_buffers, skin_weights, MeshObjectBufferData},
-    PipelineData,
+    PipelineData, ShaderDatabase,
 };
 use nutexb_wgpu::NutexbFile;
 use ssbh_data::{
@@ -46,7 +46,8 @@ pub struct RenderMesh {
     pub name: String,
     pub is_visible: bool,
     material_label: String,
-    shader_tag: String,
+    shader_label: String,
+    shader_tag: String, // TODO: Don't store the tag?
     sub_index: u64,
     sort_bias: i32,
     normals_bind_group: crate::shader::renormal::bind_groups::BindGroup0,
@@ -217,13 +218,20 @@ impl RenderModel {
         camera_bind_group: &'a crate::shader::model::bind_groups::BindGroup0,
         stage_uniforms_bind_group: &'a crate::shader::model::bind_groups::BindGroup2,
         shadow_bind_group: &'a crate::shader::model::bind_groups::BindGroup3,
+        shader_database: &ShaderDatabase,
+        invalid_shader_pipeline: &'a wgpu::RenderPipeline,
     ) {
         // TODO: How to store all data in RenderModel but still draw sorted meshes?
         for mesh in self.meshes.iter().filter(|m| m.is_visible) {
             // Mesh objects with no modl entry or an invalid material label are skipped entirely in game.
             if let Some(material_data) = self.material_data_by_label.get(&mesh.material_label) {
-                // TODO: Don't assume the pipeline exists?
-                render_pass.set_pipeline(&self.pipelines[&mesh.pipeline_key]);
+                if shader_database.contains_key(&mesh.shader_label) {
+                    // TODO: Don't assume the pipeline exists?
+                    render_pass.set_pipeline(&self.pipelines[&mesh.pipeline_key]);
+                } else {
+                    // TODO: Does this include invalid tags?
+                    render_pass.set_pipeline(invalid_shader_pipeline);
+                }
 
                 crate::shader::model::bind_groups::set_bind_groups(
                     render_pass,
@@ -811,9 +819,15 @@ fn create_render_mesh(
         .unwrap_or("")
         .to_string();
 
+    let shader_label = material
+        .and_then(|m| m.shader_label.get(..24))
+        .unwrap_or("")
+        .to_string();
+
     RenderMesh {
         name: mesh_object.name.clone(),
         material_label: material_label.clone(),
+        shader_label,
         shader_tag,
         is_visible: true,
         sort_bias: mesh_object.sort_bias,
