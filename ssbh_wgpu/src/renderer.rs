@@ -1,9 +1,11 @@
 use wgpu::{util::DeviceExt, ComputePassDescriptor, ComputePipelineDescriptor};
 
 use crate::{
-    camera::create_camera_bind_group,
     lighting::calculate_light_transform,
-    pipeline::{create_depth_pipeline, create_invalid_shader_pipeline, create_invalid_attributes_pipeline},
+    pipeline::{
+        create_debug_pipeline, create_depth_pipeline, create_invalid_attributes_pipeline,
+        create_invalid_shader_pipeline,
+    },
     texture::load_texture_sampler_3d,
     CameraTransforms, RenderModel, ShaderDatabase,
 };
@@ -30,6 +32,34 @@ const SHADOW_MAP_HEIGHT: u32 = 1024;
 const VARIANCE_SHADOW_WIDTH: u32 = 512;
 const VARIANCE_SHADOW_HEIGHT: u32 = 512;
 
+#[derive(PartialEq, Eq, Copy, Clone)]
+pub enum DebugMode {
+    ColorSet1,
+    ColorSet2,
+    ColorSet3,
+    ColorSet4,
+    ColorSet5,
+    ColorSet6,
+    ColorSet7,
+    Texture0,
+    Texture1,
+    Texture2,
+    Texture3,
+    Texture4,
+    Texture5,
+    Texture6,
+    Texture7,
+    Texture8,
+    Texture9,
+    Texture10,
+    Texture11,
+    Texture12,
+    Texture13,
+    Texture14,
+    Texture16,
+    // TODO: Separate modes for selecting parameters by index (ex: Booleans[3])?
+}
+
 /// A renderer for drawing a collection of [RenderModel].
 pub struct SsbhRenderer {
     bloom_threshold_pipeline: wgpu::RenderPipeline,
@@ -43,18 +73,18 @@ pub struct SsbhRenderer {
     variance_shadow_pipeline: wgpu::RenderPipeline,
     invalid_shader_pipeline: wgpu::RenderPipeline,
     invalid_attributes_pipeline: wgpu::RenderPipeline,
+    debug_pipeline: wgpu::RenderPipeline,
     skeleton_pipeline: wgpu::RenderPipeline,
 
     // Store camera state for efficiently updating it later.
     // This avoids exposing shader implementations like bind groups.
     camera_buffer: wgpu::Buffer,
-    camera_bind_group: crate::shader::model::bind_groups::BindGroup0,
+    per_frame_bind_group: crate::shader::model::bind_groups::BindGroup0,
     skeleton_camera_bind_group: crate::shader::skeleton::bind_groups::BindGroup0,
 
     stage_uniforms_buffer: wgpu::Buffer,
     stage_uniforms_bind_group: crate::shader::model::bind_groups::BindGroup2,
 
-    model_shadow_bind_group: crate::shader::model::bind_groups::BindGroup3,
     shadow_transform_bind_group: crate::shader::model_depth::bind_groups::BindGroup0,
     shadow_depth: TextureSamplerView,
     variance_shadow: TextureSamplerView,
@@ -67,6 +97,8 @@ pub struct SsbhRenderer {
 
     // TODO: Should this be configurable at runtime?
     clear_color: wgpu::Color,
+
+    render_settings_buffer: wgpu::Buffer,
 }
 
 impl SsbhRenderer {
@@ -171,8 +203,15 @@ impl SsbhRenderer {
         // TODO: Create a struct to store the stage rendering data?
         let pass_info = PassInfo::new(device, initial_width, initial_height, &color_lut);
 
-        let (camera_buffer, camera_bind_group) =
-            create_camera_bind_group(device, glam::Vec4::ZERO, glam::Mat4::IDENTITY);
+        // Assume the user will update the camera, so these values don't matter.
+        let camera_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Camera Buffer"),
+            contents: bytemuck::cast_slice(&[crate::shader::model::CameraTransforms {
+                mvp_matrix: glam::Mat4::IDENTITY,
+                camera_pos: [0.0; 4],
+            }]),
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        });
 
         // TODO: Don't always assume that the camera bind groups are identical.
         let skeleton_camera_bind_group =
@@ -214,13 +253,22 @@ impl SsbhRenderer {
             VARIANCE_SHADOW_FORMAT,
         );
 
-        // TODO: Create a separate stage lighting bind group?
-        let model_shadow_bind_group = crate::shader::model::bind_groups::BindGroup3::from_bindings(
+        let render_settings_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Render Settings Buffer"),
+            contents: bytemuck::cast_slice(&[crate::shader::model::RenderSettings {
+                debug_mode: [0, 0, 0, 0],
+            }]),
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        });
+
+        let per_frame_bind_group = crate::shader::model::bind_groups::BindGroup0::from_bindings(
             device,
-            crate::shader::model::bind_groups::BindGroupLayout3 {
+            crate::shader::model::bind_groups::BindGroupLayout0 {
+                camera: camera_buffer.as_entire_buffer_binding(),
                 texture_shadow: &variance_shadow.view,
                 sampler_shadow: &variance_shadow.sampler,
                 light: shadow_buffer.as_entire_buffer_binding(),
+                render_settings: render_settings_buffer.as_entire_buffer_binding(),
             },
         );
 
@@ -251,7 +299,9 @@ impl SsbhRenderer {
             );
 
         let invalid_shader_pipeline = create_invalid_shader_pipeline(device, RGBA_COLOR_FORMAT);
-        let invalid_attributes_pipeline = create_invalid_attributes_pipeline(device, RGBA_COLOR_FORMAT);
+        let invalid_attributes_pipeline =
+            create_invalid_attributes_pipeline(device, RGBA_COLOR_FORMAT);
+        let debug_pipeline = create_debug_pipeline(device, RGBA_COLOR_FORMAT);
 
         Self {
             bloom_threshold_pipeline,
@@ -263,9 +313,8 @@ impl SsbhRenderer {
             renormal_pipeline,
             shadow_pipeline,
             camera_buffer,
-            camera_bind_group,
+            per_frame_bind_group,
             skeleton_camera_bind_group,
-            model_shadow_bind_group,
             pass_info,
             color_lut,
             shadow_transform_bind_group,
@@ -278,7 +327,9 @@ impl SsbhRenderer {
             stage_uniforms_bind_group,
             skeleton_pipeline,
             invalid_shader_pipeline,
-            invalid_attributes_pipeline
+            invalid_attributes_pipeline,
+            debug_pipeline,
+            render_settings_buffer,
         }
     }
 
@@ -302,10 +353,22 @@ impl SsbhRenderer {
     pub fn render_ssbh_passes(
         &self,
         encoder: &mut wgpu::CommandEncoder,
+        queue: &wgpu::Queue,
         output_view: &wgpu::TextureView,
         render_models: &[RenderModel],
         shader_database: &ShaderDatabase,
+        debug_mode: Option<DebugMode>,
     ) {
+        // TODO: Avoid passing the queue?
+        // TODO: Move debug_mode to being set similar to camera state?
+        queue.write_buffer(
+            &self.render_settings_buffer,
+            0,
+            bytemuck::cast_slice(&[crate::shader::model::RenderSettings {
+                debug_mode: [debug_mode.unwrap_or(DebugMode::Texture0) as i32, 0, 0, 0],
+            }]),
+        );
+
         // Render meshes are sorted globally rather than per folder.
         // This allows all transparent draw calls to happen after opaque draw calls.
         // TODO: How to have RenderModel own all resources but still sort RenderMesh?
@@ -313,38 +376,44 @@ impl SsbhRenderer {
         // meshes.sort_by_key(|m| m.render_order());
 
         // Transform the vertex positions and normals.
+        // Always run compute passes to preserve vertex positions when switching to debug shading.
         self.skinning_pass(encoder, render_models);
         self.renormal_pass(encoder, render_models);
 
-        // Depth only pass for shadow maps.
-        self.shadow_pass(encoder, render_models);
+        if let Some(debug_mode) = debug_mode {
+            // Draw the models directly to the output.
+            self.model_debug_pass(encoder, render_models, output_view, debug_mode);
+        } else {
+            // Depth only pass for shadow maps.
+            self.shadow_pass(encoder, render_models);
 
-        // Create the two channel shadow map for variance shadows.
-        self.variance_shadow_pass(encoder);
+            // Create the two channel shadow map for variance shadows.
+            self.variance_shadow_pass(encoder);
 
-        // Draw the models to the initial color buffer.
-        self.model_pass(encoder, render_models, shader_database);
+            // Draw the models to the initial color texture.
+            self.model_pass(encoder, render_models, shader_database);
 
-        // TODO: Should this happen after post processing?
-        self.skeleton_pass(encoder, render_models);
+            // TODO: Should this happen after post processing?
+            self.skeleton_pass(encoder, render_models);
 
-        // Extract the portions of the image that contribute to bloom.
-        self.bloom_threshold_pass(encoder);
+            // Extract the portions of the image that contribute to bloom.
+            self.bloom_threshold_pass(encoder);
 
-        // Repeatedly downsample and blur the thresholded bloom colors.
-        self.bloom_blur_passes(encoder);
+            // Repeatedly downsample and blur the thresholded bloom colors.
+            self.bloom_blur_passes(encoder);
 
-        // Combine the bloom textures into a single texture.
-        self.bloom_combine_pass(encoder);
+            // Combine the bloom textures into a single texture.
+            self.bloom_combine_pass(encoder);
 
-        // Upscale with bilinear filtering to smooth the result.
-        self.bloom_upscale_pass(encoder);
+            // Upscale with bilinear filtering to smooth the result.
+            self.bloom_upscale_pass(encoder);
 
-        // TODO: Models with _near should be drawn after bloom but before post processing?
-        // TODO: How does this impact the depth buffer?
+            // TODO: Models with _near should be drawn after bloom but before post processing?
+            // TODO: How does this impact the depth buffer?
 
-        // Combine the model and bloom contributions and apply color grading.
-        self.post_processing_pass(encoder, output_view);
+            // Combine the model and bloom contributions and apply color grading.
+            self.post_processing_pass(encoder, output_view);
+        }
     }
 
     fn bloom_upscale_pass(&self, encoder: &mut wgpu::CommandEncoder) {
@@ -458,12 +527,50 @@ impl SsbhRenderer {
         for model in render_models {
             model.draw_render_meshes(
                 &mut model_pass,
-                &self.camera_bind_group,
+                &self.per_frame_bind_group,
                 &self.stage_uniforms_bind_group,
-                &self.model_shadow_bind_group,
                 shader_database,
                 &self.invalid_shader_pipeline,
                 &self.invalid_attributes_pipeline,
+            );
+        }
+    }
+
+    fn model_debug_pass(
+        &self,
+        encoder: &mut wgpu::CommandEncoder,
+        render_models: &[RenderModel],
+        output_view: &wgpu::TextureView,
+        debug_mode: DebugMode,
+    ) {
+        let mut debug_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("Model Debug Pass"),
+            color_attachments: &[wgpu::RenderPassColorAttachment {
+                view: output_view,
+                resolve_target: None,
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(self.clear_color),
+                    store: true,
+                },
+            }],
+            depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                view: &self.pass_info.depth.view,
+                depth_ops: Some(wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(1.0),
+                    store: true,
+                }),
+                stencil_ops: None,
+            }),
+        });
+
+        debug_pass.set_pipeline(&self.debug_pipeline);
+
+        for model in render_models {
+            model.draw_render_meshes_debug(
+                &mut debug_pass,
+                &self.per_frame_bind_group,
+                &self.stage_uniforms_bind_group,
+                debug_mode,
             );
         }
     }

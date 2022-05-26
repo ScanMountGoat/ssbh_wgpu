@@ -1,6 +1,6 @@
 use std::{iter, path::Path};
 
-use ssbh_wgpu::{create_database, ShaderDatabase};
+use ssbh_wgpu::{create_database, ShaderDatabase, DebugMode};
 use ssbh_wgpu::create_default_textures;
 use ssbh_wgpu::load_default_cube;
 use ssbh_wgpu::CameraTransforms;
@@ -66,6 +66,8 @@ struct State {
     pipeline_data: PipelineData,
 
     is_playing: bool,
+
+    debug_mode: Option<DebugMode>
 }
 
 impl State {
@@ -155,6 +157,7 @@ impl State {
             pipeline_data,
             is_playing: false,
             shader_database,
+            debug_mode: None
         }
     }
 
@@ -234,6 +237,31 @@ impl State {
                             VirtualKeyCode::Up => self.translation_xyz.z += 10.0,
                             VirtualKeyCode::Down => self.translation_xyz.z -= 10.0,
                             VirtualKeyCode::Space => self.is_playing = !self.is_playing,
+                            // Debug Modes
+                            VirtualKeyCode::Key1 => self.debug_mode = None,
+                            VirtualKeyCode::Key2 => self.debug_mode = Some(DebugMode::ColorSet1),
+                            VirtualKeyCode::Key3 => self.debug_mode = Some(DebugMode::ColorSet2),
+                            VirtualKeyCode::Key4 => self.debug_mode = Some(DebugMode::ColorSet3),
+                            VirtualKeyCode::Key5 => self.debug_mode = Some(DebugMode::ColorSet4),
+                            VirtualKeyCode::Key6 => self.debug_mode = Some(DebugMode::ColorSet5),
+                            VirtualKeyCode::Key7 => self.debug_mode = Some(DebugMode::ColorSet6),
+                            VirtualKeyCode::Key8 => self.debug_mode = Some(DebugMode::ColorSet7),
+                            VirtualKeyCode::Q => self.debug_mode = Some(DebugMode::Texture0),
+                            VirtualKeyCode::W => self.debug_mode = Some(DebugMode::Texture1),
+                            VirtualKeyCode::E => self.debug_mode = Some(DebugMode::Texture2),
+                            VirtualKeyCode::R => self.debug_mode = Some(DebugMode::Texture3),
+                            VirtualKeyCode::T => self.debug_mode = Some(DebugMode::Texture4),
+                            VirtualKeyCode::Y => self.debug_mode = Some(DebugMode::Texture5),
+                            VirtualKeyCode::U => self.debug_mode = Some(DebugMode::Texture6),
+                            VirtualKeyCode::I => self.debug_mode = Some(DebugMode::Texture7),
+                            VirtualKeyCode::O => self.debug_mode = Some(DebugMode::Texture8),
+                            VirtualKeyCode::P => self.debug_mode = Some(DebugMode::Texture9),
+                            VirtualKeyCode::A => self.debug_mode = Some(DebugMode::Texture10),
+                            VirtualKeyCode::S => self.debug_mode = Some(DebugMode::Texture11),
+                            VirtualKeyCode::D => self.debug_mode = Some(DebugMode::Texture12),
+                            VirtualKeyCode::F => self.debug_mode = Some(DebugMode::Texture13),
+                            VirtualKeyCode::G => self.debug_mode = Some(DebugMode::Texture14),
+                            VirtualKeyCode::H => self.debug_mode = Some(DebugMode::Texture16),
                             _ => (),
                         }
                     }
@@ -302,9 +330,11 @@ impl State {
 
         self.renderer.render_ssbh_passes(
             &mut encoder,
+            &self.queue,
             &output_view,
             &self.render_models,
             &self.shader_database,
+            self.debug_mode
         );
 
         self.queue.submit(iter::once(encoder.finish()));

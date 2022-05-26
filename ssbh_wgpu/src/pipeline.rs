@@ -142,34 +142,28 @@ pub fn create_invalid_shader_pipeline(
     device: &wgpu::Device,
     surface_format: wgpu::TextureFormat,
 ) -> wgpu::RenderPipeline {
-    let shader = crate::shader::model::create_shader_module(device);
-    let render_pipeline_layout = crate::shader::model::create_pipeline_layout(device);
-
-    device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-        label: Some("Render Pipeline"),
-        layout: Some(&render_pipeline_layout),
-        vertex: vertex_state(&shader),
-        fragment: Some(wgpu::FragmentState {
-            module: &shader,
-            entry_point: "fs_invalid_shader",
-            targets: &[surface_format.into()],
-        }),
-        primitive: wgpu::PrimitiveState::default(),
-        depth_stencil: Some(wgpu::DepthStencilState {
-            format: crate::renderer::DEPTH_FORMAT,
-            depth_write_enabled: true,
-            depth_compare: wgpu::CompareFunction::LessEqual,
-            stencil: wgpu::StencilState::default(),
-            bias: wgpu::DepthBiasState::default(),
-        }),
-        multisample: wgpu::MultisampleState::default(),
-        multiview: None,
-    })
+    create_model_pipeline_from_entry(device, surface_format, "fs_invalid_shader")
 }
 
 pub fn create_invalid_attributes_pipeline(
     device: &wgpu::Device,
     surface_format: wgpu::TextureFormat,
+) -> wgpu::RenderPipeline {
+    create_model_pipeline_from_entry(device, surface_format, "fs_invalid_attributes")
+}
+
+
+pub fn create_debug_pipeline(
+    device: &wgpu::Device,
+    surface_format: wgpu::TextureFormat,
+) -> wgpu::RenderPipeline {
+    create_model_pipeline_from_entry(device, surface_format, "fs_debug")
+}
+
+pub fn create_model_pipeline_from_entry(
+    device: &wgpu::Device,
+    surface_format: wgpu::TextureFormat,
+    entry_point: &str,
 ) -> wgpu::RenderPipeline {
     let shader = crate::shader::model::create_shader_module(device);
     let render_pipeline_layout = crate::shader::model::create_pipeline_layout(device);
@@ -180,7 +174,7 @@ pub fn create_invalid_attributes_pipeline(
         vertex: vertex_state(&shader),
         fragment: Some(wgpu::FragmentState {
             module: &shader,
-            entry_point: "fs_invalid_attributes",
+            entry_point,
             targets: &[surface_format.into()],
         }),
         primitive: wgpu::PrimitiveState::default(),

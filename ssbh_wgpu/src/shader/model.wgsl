@@ -7,9 +7,28 @@ struct LightTransforms {
     light_transform: mat4x4<f32>;
 };
 
+struct RenderSettings {
+    debug_mode: vec4<i32>;
+};
+
 // TODO: Bind groups should be ordered by how frequently they change for performance.
+// group0 = PerFrame
+// group1 = PerMaterial
+// ... 
 [[group(0), binding(0)]]
 var<uniform> camera: CameraTransforms;
+
+[[group(0), binding(1)]]
+var texture_shadow: texture_2d<f32>;
+[[group(0), binding(2)]]
+var sampler_shadow: sampler;
+// TODO: Specify that this is just the main character light?
+// TODO: Does Smash Ultimate support shadow casting from multiple lights?
+[[group(0), binding(3)]]
+var<uniform> light: LightTransforms;
+
+[[group(0), binding(4)]]
+var<uniform> render_settings: RenderSettings;
 
 // TODO: Is there a better way of organizing this?
 // TODO: How many textures can we have?
@@ -117,16 +136,6 @@ struct StageUniforms {
 [[group(2), binding(0)]]
 var<uniform> stage_uniforms: StageUniforms;
 
-// TODO: Where to store depth information.
-[[group(3), binding(0)]]
-var texture_shadow: texture_2d<f32>;
-[[group(3), binding(1)]]
-var sampler_shadow: sampler;
-// TODO: Specify that this is just the main character light?
-// TODO: Does Smash Ultimate support shadow casting from multiple lights?
-[[group(3), binding(2)]]
-var<uniform> light: LightTransforms;
-
 struct VertexInput0 {
     [[location(0)]] position0: vec4<f32>;
     [[location(1)]] normal0: vec4<f32>;
@@ -153,11 +162,14 @@ struct VertexOutput {
     [[location(3)]] map1_uvset: vec4<f32>;
     [[location(4)]] uv_set1_uv_set2: vec4<f32>;
     [[location(5)]] bake1: vec4<f32>;
-    // TODO: These need to be interpolated but we only have 60 scalar components available.
-    [[location(6)]] color_set1345_packed: vec4<u32>;
-    [[location(7)]] color_set2_packed: vec4<u32>;
-    [[location(8)]] color_set67_packed: vec4<u32>;
-    [[location(9)]] light_position: vec4<f32>;
+    [[location(6)]] color_set1: vec4<f32>;
+    [[location(7)]] color_set2_combined: vec4<f32>;
+    [[location(8)]] color_set3: vec4<f32>;
+    [[location(9)]] color_set4: vec4<f32>;
+    [[location(10)]] color_set5: vec4<f32>;
+    [[location(11)]] color_set6: vec4<f32>;
+    [[location(12)]] color_set7: vec4<f32>;
+    [[location(13)]] light_position: vec4<f32>;
 };
 
 fn Blend(a: vec3<f32>, b: vec4<f32>) -> vec3<f32> {
@@ -574,12 +586,27 @@ fn vs_main(
     out.normal = buffer0.normal0.xyz;
     out.tangent = buffer0.tangent0;
     
+    let colorSet1 = unpack4x8unorm(buffer1.color_set1345_packed.x);
+    let colorSet3 = unpack4x8unorm(buffer1.color_set1345_packed.y);
+    let colorSet4 = unpack4x8unorm(buffer1.color_set1345_packed.z);
+    let colorSet5 = unpack4x8unorm(buffer1.color_set1345_packed.w);
+    let colorSet2 = unpack4x8unorm(buffer1.color_set2_packed.x);
+    let colorSet2_11 = unpack4x8unorm(buffer1.color_set2_packed.y);
+    let colorSet2_2 = unpack4x8unorm(buffer1.color_set2_packed.z);
+    let colorSet2_3 = unpack4x8unorm(buffer1.color_set2_packed.w);
+    let colorSet6 = unpack4x8unorm(buffer1.color_set67_packed.x);
+    let colorSet7 = unpack4x8unorm(buffer1.color_set67_packed.y);
+
     out.map1_uvset = buffer1.map1_uvset;
     out.uv_set1_uv_set2 = buffer1.uv_set1_uv_set2;
     out.bake1 = buffer1.bake1;
-    out.color_set1345_packed = buffer1.color_set1345_packed;
-    out.color_set2_packed = buffer1.color_set2_packed;
-    out.color_set67_packed = buffer1.color_set67_packed;
+    out.color_set1 = colorSet1;
+    out.color_set2_combined = colorSet2; // TODO: colorSet2 is added together?
+    out.color_set3 = colorSet3;
+    out.color_set4 = colorSet4;
+    out.color_set5 = colorSet5;
+    out.color_set6 = colorSet6;
+    out.color_set7 = colorSet7;
 
     out.light_position = light.light_transform * vec4<f32>(buffer0.position0.xyz, 1.0);
     return out;
@@ -610,6 +637,108 @@ fn fs_invalid_attributes([[builtin(position)]] frag_pos: vec4<f32>) -> [[locatio
     return vec4<f32>(checker, checker, 0.0, 1.0);
 }
 
+
+[[stage(fragment)]]
+fn fs_debug(in: VertexOutput) -> [[location(0)]] vec4<f32> {
+    let map1 = in.map1_uvset.xy;
+    let uvSet = in.map1_uvset.zw;
+    let uvSet1 = in.uv_set1_uv_set2.xy;
+    let uvSet2 = in.uv_set1_uv_set2.zw;
+    let bake1 = in.bake1.xy;
+
+    let colorSet1 = in.color_set1;
+    let colorSet2 = in.color_set2_combined;
+    let colorSet3 = in.color_set3;
+    let colorSet4 = in.color_set4;
+    let colorSet5 = in.color_set5;
+    let colorSet6 = in.color_set6;
+    let colorSet7 = in.color_set7;
+
+    let normal = normalize(in.normal.xyz);
+    let tangent = normalize(in.tangent.xyz);
+
+    let viewVector = normalize(camera.camera_pos.xyz - in.position.xyz);
+
+    var reflectionVector = reflect(viewVector, normal);
+    reflectionVector.y = reflectionVector.y * -1.0;
+
+    switch (render_settings.debug_mode.x) {
+        case 0: {
+            return colorSet1;
+        }
+        case 1: {
+            return colorSet2;
+        }
+        case 2: {
+            return colorSet3;
+        }
+        case 3: {
+            return colorSet4;
+        }
+        case 4: {
+            return colorSet5;
+        }
+        case 5: {
+            return colorSet6;
+        }
+        case 6: {
+            return colorSet7;
+        }
+        case 7: {      
+            return textureSample(texture0, sampler0, map1);
+        }
+        case 8: {      
+            return textureSample(texture1, sampler1, uvSet);
+        }
+        case 9: {      
+            return textureSample(texture2, sampler2, reflectionVector);
+        }
+        case 10: {      
+            return textureSample(texture3, sampler3, bake1);
+        }
+        case 11: {      
+            return textureSample(texture4, sampler4, map1);
+        }
+        case 12: {      
+            return textureSample(texture5, sampler5, map1);
+        }
+        case 13: {      
+            return textureSample(texture6, sampler6, map1);
+        }
+        case 14: {      
+            return textureSample(texture7, sampler7, reflectionVector);
+        }
+        case 15: {      
+            return textureSample(texture8, sampler8, reflectionVector);
+        }
+        case 16: {      
+            return textureSample(texture9, sampler9, bake1);
+        }
+        case 17: {      
+            return textureSample(texture10, sampler10, map1);
+        }
+        case 18: {      
+            return textureSample(texture11, sampler11, uvSet);
+        }
+        case 19: {      
+            return textureSample(texture12, sampler12, map1);
+        }
+        case 20: {      
+            return textureSample(texture13, sampler13, map1);
+        }
+        case 21: {      
+            return textureSample(texture14, sampler14, uvSet);
+        }
+        // case 22: {      
+        //     return textureSample(texture16, sampler16, map1);
+        // }
+        default: { 
+            return vec4<f32>(1.0);
+        }
+    }
+    
+}
+
 [[stage(fragment)]]
 fn fs_main(in: VertexOutput) -> [[location(0)]] vec4<f32> {
     let map1 = in.map1_uvset.xy;
@@ -618,19 +747,13 @@ fn fs_main(in: VertexOutput) -> [[location(0)]] vec4<f32> {
     let uvSet2 = in.uv_set1_uv_set2.zw;
     let bake1 = in.bake1.xy;
 
-    // Color sets are packed to use fewer attributes.
-    let colorSet1 = unpack4x8unorm(in.color_set1345_packed.x);
-    let colorSet3 = unpack4x8unorm(in.color_set1345_packed.y);
-    let colorSet4 = unpack4x8unorm(in.color_set1345_packed.z);
-    let colorSet5 = unpack4x8unorm(in.color_set1345_packed.w);
-
-    let colorSet2 = unpack4x8unorm(in.color_set2_packed.x);
-    let colorSet2_11 = unpack4x8unorm(in.color_set2_packed.y);
-    let colorSet2_2 = unpack4x8unorm(in.color_set2_packed.z);
-    let colorSet2_3 = unpack4x8unorm(in.color_set2_packed.w);
-
-    let colorSet6 = unpack4x8unorm(in.color_set67_packed.x);
-    let colorSet7 = unpack4x8unorm(in.color_set67_packed.y);
+    let colorSet1 = in.color_set1;
+    let colorSet2 = in.color_set2_combined;
+    let colorSet3 = in.color_set3;
+    let colorSet4 = in.color_set4;
+    let colorSet5 = in.color_set5;
+    let colorSet6 = in.color_set6;
+    let colorSet7 = in.color_set7;
 
     // TODO: Some of these textures are sampled more than once?
     var nor = vec4<f32>(0.5, 0.5, 1.0, 1.0);
@@ -735,6 +858,5 @@ fn fs_main(in: VertexOutput) -> [[location(0)]] vec4<f32> {
     outColor = GetRimBlend(outColor, albedoColorFinal, nDotV, max(nDotL, 0.0), rimOcclusion, shColor);
 
     // TODO: Color sets?
-    // TODO: Fix color sets to properly interpolate without exceeding hardware limits.
     return vec4<f32>(outColor, outAlpha);
 }

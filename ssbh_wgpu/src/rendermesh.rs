@@ -1,6 +1,7 @@
 use crate::{
     animation::{animate_materials, animate_skel, animate_visibility, AnimationTransforms},
     pipeline::{create_pipeline, PipelineKey},
+    renderer::DebugMode,
     texture::{load_sampler, load_texture},
     uniforms::create_uniforms_buffer,
     vertex::{buffer0, buffer1, mesh_object_buffers, skin_weights, MeshObjectBufferData},
@@ -217,9 +218,8 @@ impl RenderModel {
     pub fn draw_render_meshes<'a>(
         &'a self,
         render_pass: &mut wgpu::RenderPass<'a>,
-        camera_bind_group: &'a crate::shader::model::bind_groups::BindGroup0,
+        per_frame_bind_group: &'a crate::shader::model::bind_groups::BindGroup0,
         stage_uniforms_bind_group: &'a crate::shader::model::bind_groups::BindGroup2,
-        shadow_bind_group: &'a crate::shader::model::bind_groups::BindGroup3,
         shader_database: &ShaderDatabase,
         invalid_shader_pipeline: &'a wgpu::RenderPipeline,
         invalid_attributes_pipeline: &'a wgpu::RenderPipeline,
@@ -249,10 +249,35 @@ impl RenderModel {
                 crate::shader::model::bind_groups::set_bind_groups(
                     render_pass,
                     crate::shader::model::bind_groups::BindGroups::<'a> {
-                        bind_group0: camera_bind_group,
+                        bind_group0: per_frame_bind_group,
                         bind_group1: &material_data.material_uniforms_bind_group,
                         bind_group2: stage_uniforms_bind_group,
-                        bind_group3: shadow_bind_group,
+                    },
+                );
+
+                self.set_mesh_buffers(render_pass, mesh);
+
+                render_pass.draw_indexed(0..mesh.vertex_index_count as u32, 0, 0..1);
+            }
+        }
+    }
+
+    pub fn draw_render_meshes_debug<'a>(
+        &'a self,
+        render_pass: &mut wgpu::RenderPass<'a>,
+        per_frame_bind_group: &'a crate::shader::model::bind_groups::BindGroup0,
+        stage_uniforms_bind_group: &'a crate::shader::model::bind_groups::BindGroup2,
+        debug_mode: DebugMode,
+    ) {
+        // Assume the pipeline is already set.
+        for mesh in self.meshes.iter().filter(|m| m.is_visible) {
+            if let Some(material_data) = self.material_data_by_label.get(&mesh.material_label) {
+                crate::shader::model::bind_groups::set_bind_groups(
+                    render_pass,
+                    crate::shader::model::bind_groups::BindGroups::<'a> {
+                        bind_group0: per_frame_bind_group,
+                        bind_group1: &material_data.material_uniforms_bind_group,
+                        bind_group2: stage_uniforms_bind_group,
                     },
                 );
 

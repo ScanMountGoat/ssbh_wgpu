@@ -8,7 +8,6 @@ mod uniforms;
 mod vertex;
 
 mod animation;
-mod camera;
 mod lighting;
 mod renderer;
 mod rendermesh;
@@ -27,7 +26,7 @@ use ssbh_data::prelude::*;
 pub use crate::pipeline::PipelineData;
 use crate::rendermesh::RenderMeshSharedData;
 
-pub use renderer::RGBA_COLOR_FORMAT;
+pub use renderer::{RGBA_COLOR_FORMAT, DebugMode};
 
 // TODO: Find a way to avoid using the format features for filterable f32 textures.
 /// Required WGPU features for using this library.
