@@ -1,12 +1,12 @@
 use std::{iter, path::Path};
 
-use ssbh_wgpu::{create_database, ShaderDatabase, DebugMode};
 use ssbh_wgpu::create_default_textures;
 use ssbh_wgpu::load_default_cube;
 use ssbh_wgpu::CameraTransforms;
 use ssbh_wgpu::PipelineData;
 use ssbh_wgpu::RenderModel;
 use ssbh_wgpu::REQUIRED_FEATURES;
+use ssbh_wgpu::{create_database, DebugMode, ShaderDatabase};
 use ssbh_wgpu::{load_model_folders, load_render_models, SsbhRenderer};
 
 use ssbh_data::prelude::*;
@@ -67,7 +67,7 @@ struct State {
 
     is_playing: bool,
 
-    debug_mode: Option<DebugMode>
+    debug_mode: Option<DebugMode>,
 }
 
 impl State {
@@ -157,7 +157,7 @@ impl State {
             pipeline_data,
             is_playing: false,
             shader_database,
-            debug_mode: None
+            debug_mode: None,
         }
     }
 
@@ -287,6 +287,11 @@ impl State {
         self.renderer.update_camera(&self.queue, transforms);
     }
 
+    fn update_render_settings(&mut self) {
+        self.renderer
+            .update_render_settings(&self.queue, self.debug_mode);
+    }
+
     fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
         let current_frame_start = std::time::Instant::now();
         if self.is_playing {
@@ -330,11 +335,9 @@ impl State {
 
         self.renderer.render_ssbh_passes(
             &mut encoder,
-            &self.queue,
             &output_view,
             &self.render_models,
             &self.shader_database,
-            self.debug_mode
         );
 
         self.queue.submit(iter::once(encoder.finish()));
@@ -415,6 +418,7 @@ fn main() {
 
                 if state.handle_input(event) {
                     state.update_camera();
+                    state.update_render_settings();
                 }
             }
             Event::RedrawRequested(_) => {

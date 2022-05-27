@@ -15,6 +15,11 @@ pub struct LightTransforms {
 #[derive(Debug, Copy, Clone, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct RenderSettings {
     pub debug_mode: [i32; 4],
+    pub render_diffuse: [f32; 4],
+    pub render_specular: [f32; 4],
+    pub render_emission: [f32; 4],
+    pub render_rim_lighting: [f32; 4],
+    pub render_shadows: [f32; 4],
 }
 #[repr(C)]
 #[derive(Debug, Copy, Clone, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]

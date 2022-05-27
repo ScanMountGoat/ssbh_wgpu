@@ -18,7 +18,7 @@ use nutexb_wgpu::NutexbFile;
 pub use renderer::SsbhRenderer;
 pub use rendermesh::{RenderMesh, RenderModel};
 pub use shader::model::CameraTransforms;
-pub use shader_database::{create_database, ShaderProgram, ShaderDatabase};
+pub use shader_database::{create_database, ShaderDatabase, ShaderProgram};
 pub use texture::{create_default_textures, load_default_cube};
 
 use ssbh_data::prelude::*;
@@ -26,7 +26,7 @@ use ssbh_data::prelude::*;
 pub use crate::pipeline::PipelineData;
 use crate::rendermesh::RenderMeshSharedData;
 
-pub use renderer::{RGBA_COLOR_FORMAT, DebugMode};
+pub use renderer::{DebugMode, RGBA_COLOR_FORMAT};
 
 // TODO: Find a way to avoid using the format features for filterable f32 textures.
 /// Required WGPU features for using this library.

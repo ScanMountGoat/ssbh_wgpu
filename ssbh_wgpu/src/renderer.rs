@@ -99,6 +99,7 @@ pub struct SsbhRenderer {
     clear_color: wgpu::Color,
 
     render_settings_buffer: wgpu::Buffer,
+    debug_mode: Option<DebugMode>,
 }
 
 impl SsbhRenderer {
@@ -257,6 +258,11 @@ impl SsbhRenderer {
             label: Some("Render Settings Buffer"),
             contents: bytemuck::cast_slice(&[crate::shader::model::RenderSettings {
                 debug_mode: [0, 0, 0, 0],
+                render_diffuse: [1.0; 4],
+                render_specular: [1.0; 4],
+                render_emission: [1.0; 4],
+                render_rim_lighting: [1.0; 4],
+                render_shadows: [1.0; 4],
             }]),
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
@@ -330,6 +336,7 @@ impl SsbhRenderer {
             invalid_attributes_pipeline,
             debug_pipeline,
             render_settings_buffer,
+            debug_mode: None,
         }
     }
 
@@ -343,9 +350,30 @@ impl SsbhRenderer {
     }
 
     /// Updates the camera transforms.
-    /// This method is lightweight, so it can be called each frame if necessary in the main renderloop.
+    /// This method is lightweight, so it can be called each frame if necessary.
     pub fn update_camera(&mut self, queue: &wgpu::Queue, transforms: CameraTransforms) {
         queue.write_buffer(&self.camera_buffer, 0, bytemuck::cast_slice(&[transforms]));
+    }
+
+    /// Updates the render settings.
+    /// This method is lightweight, so it can be called each frame if necessary.
+    /// Set `debug_mode` to `None` to use the default shaded view.
+    pub fn update_render_settings(&mut self, queue: &wgpu::Queue, debug_mode: Option<DebugMode>) {
+        // TODO: Create a separate struct that contains render settings with a nicer API?
+        // TODO: Move the conversion logic to a separate module?
+        self.debug_mode = debug_mode; // TODO: This feels redundant.
+        queue.write_buffer(
+            &self.render_settings_buffer,
+            0,
+            bytemuck::cast_slice(&[crate::shader::model::RenderSettings {
+                debug_mode: [debug_mode.unwrap_or(DebugMode::Texture0) as i32, 0, 0, 0],
+                render_diffuse: [1.0; 4],
+                render_specular: [1.0; 4],
+                render_emission: [1.0; 4],
+                render_rim_lighting: [1.0; 4],
+                render_shadows: [1.0; 4],
+            }]),
+        );
     }
 
     /// Renders the `render_meshes` to `output_view` using the standard rendering passes for Smash Ultimate.
@@ -353,22 +381,10 @@ impl SsbhRenderer {
     pub fn render_ssbh_passes(
         &self,
         encoder: &mut wgpu::CommandEncoder,
-        queue: &wgpu::Queue,
         output_view: &wgpu::TextureView,
         render_models: &[RenderModel],
         shader_database: &ShaderDatabase,
-        debug_mode: Option<DebugMode>,
     ) {
-        // TODO: Avoid passing the queue?
-        // TODO: Move debug_mode to being set similar to camera state?
-        queue.write_buffer(
-            &self.render_settings_buffer,
-            0,
-            bytemuck::cast_slice(&[crate::shader::model::RenderSettings {
-                debug_mode: [debug_mode.unwrap_or(DebugMode::Texture0) as i32, 0, 0, 0],
-            }]),
-        );
-
         // Render meshes are sorted globally rather than per folder.
         // This allows all transparent draw calls to happen after opaque draw calls.
         // TODO: How to have RenderModel own all resources but still sort RenderMesh?
@@ -380,7 +396,7 @@ impl SsbhRenderer {
         self.skinning_pass(encoder, render_models);
         self.renormal_pass(encoder, render_models);
 
-        if let Some(debug_mode) = debug_mode {
+        if let Some(debug_mode) = self.debug_mode {
             // Draw the models directly to the output.
             self.model_debug_pass(encoder, render_models, output_view, debug_mode);
         } else {

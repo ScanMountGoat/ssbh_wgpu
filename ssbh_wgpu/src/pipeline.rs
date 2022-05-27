@@ -152,7 +152,6 @@ pub fn create_invalid_attributes_pipeline(
     create_model_pipeline_from_entry(device, surface_format, "fs_invalid_attributes")
 }
 
-
 pub fn create_debug_pipeline(
     device: &wgpu::Device,
     surface_format: wgpu::TextureFormat,

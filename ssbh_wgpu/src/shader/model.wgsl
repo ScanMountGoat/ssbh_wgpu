@@ -7,8 +7,14 @@ struct LightTransforms {
     light_transform: mat4x4<f32>;
 };
 
+// TODO: How to handle alignment?
 struct RenderSettings {
     debug_mode: vec4<i32>;
+    render_diffuse: vec4<f32>;
+    render_specular: vec4<f32>;
+    render_emission: vec4<f32>;
+    render_rim_lighting: vec4<f32>;
+    render_shadows: vec4<f32>;
 };
 
 // TODO: Bind groups should be ordered by how frequently they change for performance.
@@ -133,6 +139,7 @@ struct StageUniforms {
     custom_float: array<vec4<f32>, 20>;
 };
 
+// TODO: Move these to the first group since they don't change much?
 [[group(2), binding(0)]]
 var<uniform> stage_uniforms: StageUniforms;
 
