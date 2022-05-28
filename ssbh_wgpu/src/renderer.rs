@@ -1,5 +1,3 @@
-use wgpu::{util::DeviceExt, ComputePassDescriptor, ComputePipelineDescriptor};
-
 use crate::{
     lighting::calculate_light_transform,
     pipeline::{
@@ -9,6 +7,8 @@ use crate::{
     texture::load_texture_sampler_3d,
     CameraTransforms, RenderModel, ShaderDatabase,
 };
+use strum::{Display, EnumString, EnumVariantNames, FromRepr};
+use wgpu::{util::DeviceExt, ComputePassDescriptor, ComputePipelineDescriptor};
 
 // Rgba16Float is widely supported.
 // The in game format uses less precision.
@@ -32,7 +32,7 @@ const SHADOW_MAP_HEIGHT: u32 = 1024;
 const VARIANCE_SHADOW_WIDTH: u32 = 512;
 const VARIANCE_SHADOW_HEIGHT: u32 = 512;
 
-#[derive(PartialEq, Eq, Copy, Clone)]
+#[derive(PartialEq, Eq, Copy, Clone, Display, EnumVariantNames, EnumString)]
 pub enum DebugMode {
     Position0,
     Normal0,
