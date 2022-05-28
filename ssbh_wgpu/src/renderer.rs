@@ -639,15 +639,7 @@ impl SsbhRenderer {
                     store: true,
                 },
             }],
-            depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                view: &self.pass_info.depth.view,
-                depth_ops: Some(wgpu::Operations {
-                    // TODO: Let the bones draw in front?
-                    load: wgpu::LoadOp::Clear(1.0),
-                    store: true,
-                }),
-                stencil_ops: None,
-            }),
+            depth_stencil_attachment: None,
         });
 
         skeleton_pass.set_pipeline(&self.skeleton_pipeline);
@@ -731,13 +723,7 @@ fn skeleton_pipeline(device: &wgpu::Device) -> wgpu::RenderPipeline {
             targets: &[crate::RGBA_COLOR_FORMAT.into()],
         }),
         primitive: wgpu::PrimitiveState::default(),
-        depth_stencil: Some(wgpu::DepthStencilState {
-            format: crate::renderer::DEPTH_FORMAT,
-            depth_write_enabled: true,
-            depth_compare: wgpu::CompareFunction::Less,
-            stencil: wgpu::StencilState::default(),
-            bias: wgpu::DepthBiasState::default(),
-        }),
+        depth_stencil: None,
         multisample: wgpu::MultisampleState::default(),
         multiview: None,
     })
