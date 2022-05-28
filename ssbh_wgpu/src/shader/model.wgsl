@@ -671,69 +671,81 @@ fn fs_debug(in: VertexOutput) -> [[location(0)]] vec4<f32> {
 
     switch (render_settings.debug_mode.x) {
         case 0: {
-            return colorSet1;
+            let color = normalize(in.position.xyz) * 0.5 + 0.5;
+            return vec4<f32>(pow(color, vec3<f32>(2.2)), 1.0);
         }
         case 1: {
-            return colorSet2;
+            let color = normalize(in.normal.xyz) * 0.5 + 0.5;
+            return vec4<f32>(pow(color, vec3<f32>(2.2)), 1.0);
         }
         case 2: {
-            return colorSet3;
+            let color = normalize(in.tangent.xyz) * 0.5 + 0.5;
+            return vec4<f32>(pow(color, vec3<f32>(2.2)), 1.0);
         }
         case 3: {
-            return colorSet4;
+            return colorSet1;
         }
         case 4: {
-            return colorSet5;
+            return colorSet2;
         }
         case 5: {
-            return colorSet6;
+            return colorSet3;
         }
         case 6: {
+            return colorSet4;
+        }
+        case 7: {
+            return colorSet5;
+        }
+        case 8: {
+            return colorSet6;
+        }
+        case 9: {
             return colorSet7;
         }
-        case 7: {      
+        case 10: {      
             return textureSample(texture0, sampler0, map1);
         }
-        case 8: {      
+        case 11: {      
             return textureSample(texture1, sampler1, uvSet);
         }
-        case 9: {      
+        case 12: {      
             return textureSample(texture2, sampler2, reflectionVector);
         }
-        case 10: {      
+        case 13: {      
             return textureSample(texture3, sampler3, bake1);
         }
-        case 11: {      
+        case 14: {      
             return textureSample(texture4, sampler4, map1);
         }
-        case 12: {      
+        case 15: {      
             return textureSample(texture5, sampler5, map1);
         }
-        case 13: {      
+        case 16: {      
             return textureSample(texture6, sampler6, map1);
         }
-        case 14: {      
+        case 17: {      
             return textureSample(texture7, sampler7, reflectionVector);
         }
-        case 15: {      
+        case 18: {      
             return textureSample(texture8, sampler8, reflectionVector);
         }
-        case 16: {      
+        case 19: {      
             return textureSample(texture9, sampler9, bake1);
         }
-        case 17: {      
+        case 20: {      
             return textureSample(texture10, sampler10, map1);
         }
-        case 18: {      
+        case 21: {      
             return textureSample(texture11, sampler11, uvSet);
         }
-        case 19: {      
+        case 22: {      
             return textureSample(texture12, sampler12, map1);
         }
-        case 20: {      
+        case 23: {      
             return textureSample(texture13, sampler13, map1);
         }
-        case 21: {      
+        case 24: {      
             return textureSample(texture14, sampler14, uvSet);
         }
         // case 22: {      
@@ -822,7 +834,7 @@ fn fs_main(in: VertexOutput) -> [[location(0)]] vec4<f32> {
     let albedoColor = GetAlbedoColor(map1, uvSet, uvSet1, reflectionVector, uvTransform1, uvTransform2, uvTransform3, colorSet5);
     let emissionColor = GetEmissionColor(map1, uvSet, uvTransform1, uvTransform2);
 
-    let shadow = GetShadow(in.light_position);
+    let shadow = mix(1.0, GetShadow(in.light_position), render_settings.render_shadows.x);
 
     var outAlpha = max(albedoColor.a * emissionColor.a, uniforms.custom_vector[0].x);
     if (outAlpha < 0.5) {
@@ -856,12 +868,12 @@ fn fs_main(in: VertexOutput) -> [[location(0)]] vec4<f32> {
     kDiffuse = max(vec3<f32>(1.0 - metalness), vec3<f32>(0.0));
 
     var outColor = vec3<f32>(0.0, 0.0, 0.0);
-    outColor = outColor + (diffusePass * kDiffuse) / 3.14159;
-    outColor = outColor + specularPass * kSpecular * ao;
+    outColor = outColor + (diffusePass * kDiffuse) / 3.14159 * render_settings.render_diffuse.x;
+    outColor = outColor + specularPass * kSpecular * ao * render_settings.render_specular.x;
     // TODO: Emission is weakened somehow?
-    outColor = outColor + EmissionTerm(emissionColor) * 0.5;
+    outColor = outColor + EmissionTerm(emissionColor) * 0.5 * render_settings.render_emission.x;
     // TODO: What affects rim lighting intensity?
-    let rimOcclusion = shadow;
+    let rimOcclusion = shadow * render_settings.render_rim_lighting.x;
     outColor = GetRimBlend(outColor, albedoColorFinal, nDotV, max(nDotL, 0.0), rimOcclusion, shColor);
 
     // TODO: Color sets?

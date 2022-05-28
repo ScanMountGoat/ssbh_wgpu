@@ -26,7 +26,7 @@ use ssbh_data::prelude::*;
 pub use crate::pipeline::PipelineData;
 use crate::rendermesh::RenderMeshSharedData;
 
-pub use renderer::{DebugMode, RGBA_COLOR_FORMAT};
+pub use renderer::{DebugMode, RenderSettings, RGBA_COLOR_FORMAT};
 
 // TODO: Find a way to avoid using the format features for filterable f32 textures.
 /// Required WGPU features for using this library.

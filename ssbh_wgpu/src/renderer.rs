@@ -34,6 +34,9 @@ const VARIANCE_SHADOW_HEIGHT: u32 = 512;
 
 #[derive(PartialEq, Eq, Copy, Clone)]
 pub enum DebugMode {
+    Position0,
+    Normal0,
+    Tangent0,
     ColorSet1,
     ColorSet2,
     ColorSet3,
@@ -58,6 +61,44 @@ pub enum DebugMode {
     Texture14,
     Texture16,
     // TODO: Separate modes for selecting parameters by index (ex: Booleans[3])?
+}
+
+/// Settings for configuring the rendered output of an [SsbhRenderer].
+pub struct RenderSettings {
+    /// The attribute to render as the output color when [Some].
+    /// Setting this value to [None] uses the default shaded view.
+    pub debug_mode: Option<DebugMode>,
+    pub render_diffuse: bool,
+    pub render_specular: bool,
+    pub render_emission: bool,
+    pub render_rim_lighting: bool,
+    pub render_shadows: bool,
+}
+
+impl From<&RenderSettings> for crate::shader::model::RenderSettings {
+    fn from(r: &RenderSettings) -> Self {
+        Self {
+            debug_mode: [r.debug_mode.unwrap_or(DebugMode::Position0) as i32; 4],
+            render_diffuse: [if r.render_diffuse { 1.0 } else { 0.0 }; 4],
+            render_specular: [if r.render_specular { 1.0 } else { 0.0 }; 4],
+            render_emission: [if r.render_emission { 1.0 } else { 0.0 }; 4],
+            render_rim_lighting: [if r.render_rim_lighting { 1.0 } else { 0.0 }; 4],
+            render_shadows: [if r.render_shadows { 1.0 } else { 0.0 }; 4],
+        }
+    }
+}
+
+impl Default for RenderSettings {
+    fn default() -> Self {
+        Self {
+            debug_mode: None,
+            render_diffuse: true,
+            render_specular: true,
+            render_emission: true,
+            render_rim_lighting: true,
+            render_shadows: true,
+        }
+    }
 }
 
 /// A renderer for drawing a collection of [RenderModel].
@@ -357,22 +398,16 @@ impl SsbhRenderer {
 
     /// Updates the render settings.
     /// This method is lightweight, so it can be called each frame if necessary.
-    /// Set `debug_mode` to `None` to use the default shaded view.
-    pub fn update_render_settings(&mut self, queue: &wgpu::Queue, debug_mode: Option<DebugMode>) {
-        // TODO: Create a separate struct that contains render settings with a nicer API?
-        // TODO: Move the conversion logic to a separate module?
-        self.debug_mode = debug_mode; // TODO: This feels redundant.
+    pub fn update_render_settings(
+        &mut self,
+        queue: &wgpu::Queue,
+        render_settings: &RenderSettings,
+    ) {
+        self.debug_mode = render_settings.debug_mode; // TODO: This feels redundant.
         queue.write_buffer(
             &self.render_settings_buffer,
             0,
-            bytemuck::cast_slice(&[crate::shader::model::RenderSettings {
-                debug_mode: [debug_mode.unwrap_or(DebugMode::Texture0) as i32, 0, 0, 0],
-                render_diffuse: [1.0; 4],
-                render_specular: [1.0; 4],
-                render_emission: [1.0; 4],
-                render_rim_lighting: [1.0; 4],
-                render_shadows: [1.0; 4],
-            }]),
+            bytemuck::cast_slice(&[crate::shader::model::RenderSettings::from(render_settings)]),
         );
     }
 
