@@ -32,6 +32,7 @@ const SHADOW_MAP_HEIGHT: u32 = 1024;
 const VARIANCE_SHADOW_WIDTH: u32 = 512;
 const VARIANCE_SHADOW_HEIGHT: u32 = 512;
 
+// TODO: Just make the shaded mode an entry here?
 #[derive(PartialEq, Eq, Copy, Clone, Display, EnumVariantNames, EnumString)]
 pub enum DebugMode {
     Position0,

@@ -455,6 +455,7 @@ pub fn create_render_model(
         usage: wgpu::BufferUsages::UNIFORM,
     });
 
+    // TODO: How to avoid applying scale to the bone geometry?
     let bone_data_bind_group = crate::shader::skeleton::bind_groups::BindGroup1::from_bindings(
         device,
         crate::shader::skeleton::bind_groups::BindGroupLayout1 {

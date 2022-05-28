@@ -22,6 +22,10 @@ pub struct AnimatedBone {
     compensate_scale: bool,
     inherit_scale: bool,
     flags: TransformFlags,
+    // Record the world transform to avoid duplicate work.
+    // In the ideal case, calculating all world transforms is O(N) instead of O(N^2).
+    world_transform: Option<glam::Mat4>,
+    anim_world_transform: Option<glam::Mat4>,
 }
 
 impl AnimatedBone {
@@ -173,6 +177,7 @@ impl Visibility for (String, bool) {
 }
 
 // TODO: Separate module for skeletal animation?
+// TODO: Benchmarks for criterion.rs that test performance scaling with bone and constraint count.
 pub fn animate_skel(
     skel: &SkelData,
     anim: &AnimData,
@@ -184,12 +189,10 @@ pub fn animate_skel(
     let mut transforms = [glam::Mat4::IDENTITY; MAX_BONE_COUNT];
 
     // TODO: Investigate optimizations for animations.
-    // TODO: Function for this?
-    // TODO: Helper bones should also be applied to the animated bones?
-    // TODO: Create a tree structure for this?
     let mut animated_bones: Vec<_> = skel
         .bones
         .iter()
+        .take(MAX_BONE_COUNT)
         .map(|b| {
             find_transform(anim, b.clone(), frame).unwrap_or(AnimatedBone {
                 bone: b.clone(),
@@ -197,12 +200,17 @@ pub fn animate_skel(
                 inherit_scale: true,
                 anim_transform: None,
                 flags: TransformFlags::default(),
+                world_transform: None,
+                anim_world_transform: None,
             })
         })
         .collect();
 
     let start = std::time::Instant::now();
 
+    // TODO: Does the order of constraints here affect the world transforms?
+    // Constraining a bone affects the world transforms of its children.
+    // This step should initialize most of the anim world transforms if everything works.
     if let Some(hlpb) = hlpb {
         apply_hlpb_constraints(&mut animated_bones, hlpb);
     }
@@ -210,12 +218,12 @@ pub fn animate_skel(
     // TODO: Avoid enumerate here?
     // TODO: Should scale inheritance be part of ssbh_data itself?
     // TODO: Is there a more efficient way of calculating this?
-    for (i, animated_bone) in animated_bones.iter().enumerate().take(MAX_BONE_COUNT) {
+    for i in 0..animated_bones.len() {
         // Smash is row-major but glam is column-major.
         // TODO: Is there an efficient way to calculate world transforms of all bones?
         // Avoid the slower ssbh_data method since it can't assume the max bone count.
-        let bone_world = world_transform(&animated_bones, animated_bone, false).unwrap();
-        let bone_anim_world = world_transform(&animated_bones, animated_bone, true).unwrap();
+        let bone_world = world_transform(&mut animated_bones, i, false).unwrap();
+        let bone_anim_world = world_transform(&mut animated_bones, i, true).unwrap();
 
         transforms[i] = bone_anim_world * bone_world.inverse();
         world_transforms[i] = bone_anim_world;
@@ -241,18 +249,20 @@ fn mat4_from_row2d(elements: &[[f32; 4]; 4]) -> glam::Mat4 {
 }
 
 fn world_transform(
-    bones: &[AnimatedBone],
-    root: &AnimatedBone,
+    bones: &mut [AnimatedBone],
+    bone_index: usize,
     include_anim: bool,
 ) -> Result<glam::Mat4, BoneTransformError> {
     // TODO: Should we always include the root bone's scale?
-    let mut current = root;
+    let mut current = &bones[bone_index];
     let mut transform = current.animated_transform(true, include_anim);
 
     let mut inherit_scale = current.inherit_scale;
 
     // Check for cycles by keeping track of previously visited locations.
     let mut visited = [false; MAX_BONE_COUNT];
+
+    // TODO: Avoid setting a bone's world transform more than once?
 
     // Accumulate transforms by travelling up the bone heirarchy.
     while let Some(parent_index) = current.bone.parent_index {
@@ -267,33 +277,64 @@ fn world_transform(
             *visited = true;
         }
 
+        // TODO: This step can be faster if we've already calculated the parent world transform.
         if let Some(parent_bone) = bones.get(parent_index) {
-            // TODO: Does scale compensation take into account scaling in the skeleton?
-            let parent_transform = parent_bone.animated_transform(inherit_scale, include_anim);
-
-            // Compensate scale only takes into account the immediate parent.
-            // TODO: Test for inheritance being set.
-            // TODO: Should this be current.inherit_scale instead?
-            // TODO: What happens compensate_scale is true and inherit_scale is false?
-            // Only apply scale compensation if the anim is included.
-            if include_anim && current.compensate_scale && inherit_scale {
-                if let Some(parent_transform) = &parent_bone.anim_transform {
-                    let scale_compensation = glam::Mat4::from_scale(1.0 / parent_transform.scale);
-                    // TODO: Make the tests more specific to account for this application order?
-                    transform = scale_compensation * transform;
+            if parent_bone.anim_world_transform.is_some() && include_anim {
+                if !inherit_scale {
+                    // Scale inheritance compensates for all accumulated scale.
+                    transform =
+                        compensate_scale(transform, parent_bone.anim_world_transform.unwrap());
                 }
-            }
+                if inherit_scale && current.compensate_scale {
+                    // compensate_scale only compensates for the immediate parent's scale.
+                    let parent_transform =
+                        parent_bone.animated_transform(inherit_scale, include_anim);
+                    transform = compensate_scale(transform, parent_transform);
+                }
 
-            transform = parent_transform * transform;
-            current = parent_bone;
-            // Disabling scale inheritance propogates up the bone chain.
-            inherit_scale &= parent_bone.inherit_scale;
+                transform = parent_bone.anim_world_transform.unwrap() * transform;
+                break;
+            } else if parent_bone.world_transform.is_some() {
+                // The skeleton transforms don't have any scale settings.
+                transform = parent_bone.world_transform.unwrap() * transform;
+                break;
+            } else {
+                // TODO: Does scale compensation take into account scaling in the skeleton?
+                let parent_transform = parent_bone.animated_transform(inherit_scale, include_anim);
+                // Compensate scale only takes into account the immediate parent.
+                // TODO: Test for inheritance being set.
+                // TODO: What happens compensate_scale is true and inherit_scale is false?
+                // Only apply scale compensation if the anim is included.
+                if include_anim && current.compensate_scale && inherit_scale {
+                    // TODO: Does this also compensate the parent's skel scale?
+                    transform = compensate_scale(transform, parent_transform);
+                }
+
+                transform = parent_transform * transform;
+                current = parent_bone;
+                // Disabling scale inheritance propogates up the bone chain.
+                inherit_scale &= parent_bone.inherit_scale;
+            }
         } else {
             break;
         }
     }
 
+    // Cache the transforms to improve performance.
+    if include_anim {
+        bones[bone_index].anim_world_transform = Some(transform);
+    } else {
+        bones[bone_index].world_transform = Some(transform);
+    }
     Ok(transform)
+}
+
+fn compensate_scale(transform: glam::Mat4, parent_transform: glam::Mat4) -> glam::Mat4 {
+    // TODO: Optimize this?
+    let (parent_scale, _, _) = parent_transform.to_scale_rotation_translation();
+    let scale_compensation = glam::Mat4::from_scale(1.0 / parent_scale);
+    // TODO: Make the tests more specific to account for this application order?
+    scale_compensation * transform
 }
 
 fn find_transform(anim: &AnimData, bone: BoneData, frame: f32) -> Option<AnimatedBone> {
@@ -452,6 +493,8 @@ fn create_animated_bone(
         compensate_scale: track.scale_options.compensate_scale,
         inherit_scale: track.scale_options.inherit_scale,
         flags: track.transform_flags,
+        world_transform: None,
+        anim_world_transform: None,
     }
 }
 

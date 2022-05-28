@@ -20,24 +20,24 @@ pub fn apply_hlpb_constraints(animated_bones: &mut [AnimatedBone], hlpb: &HlpbDa
     }
 }
 
+// TODO: Test this?
 fn apply_aim_constraint(animated_bones: &mut [AnimatedBone], constraint: &AimConstraintData) {
-    // TODO: Investigate the remaining bone name fields.
+    // // TODO: Investigate the remaining bone name fields.
     let source = animated_bones
         .iter()
-        .find(|b| b.bone.name == constraint.aim_bone_name1)
-        .cloned()
+        .position(|b| b.bone.name == constraint.aim_bone_name1)
         .unwrap();
 
     // We want the target bone to point at the source bone.
     // TODO: Is there a way to do this without using the world transforms?
-    let source_world = world_transform(animated_bones, &source, true).unwrap();
+    let source_world = world_transform(animated_bones, source, true).unwrap();
 
     // TODO: Avoid finding the bone twice?
     let target_world = world_transform(
         animated_bones,
         animated_bones
             .iter()
-            .find(|b| b.bone.name == constraint.target_bone_name1)
+            .position(|b| b.bone.name == constraint.target_bone_name1)
             .unwrap(),
         true,
     )
@@ -69,6 +69,7 @@ fn apply_aim_constraint(animated_bones: &mut [AnimatedBone], constraint: &AimCon
     target.anim_transform = Some(target_transform);
 }
 
+// TODO: Improve tests.
 fn apply_orient_constraint(animated_bones: &mut [AnimatedBone], constraint: &OrientConstraintData) {
     // TODO: Investigate the remaining bone name fields.
     // TODO: What's the difference between root and bone name?
@@ -76,21 +77,19 @@ fn apply_orient_constraint(animated_bones: &mut [AnimatedBone], constraint: &Ori
     // TODO: quat1 and quat2 correct for twists?
     let source = animated_bones
         .iter()
-        .find(|b| b.bone.name == constraint.parent_bone_name)
-        .cloned()
+        .position(|b| b.bone.name == constraint.parent_bone_name)
         .unwrap();
 
     let target = animated_bones
         .iter()
-        .find(|b| b.bone.name == constraint.driver_bone_name)
-        .cloned()
+        .position(|b| b.bone.name == constraint.driver_bone_name)
         .unwrap();
 
-    let source_parent = source.bone.parent_index.and_then(|i| animated_bones.get(i));
-    let target_parent = target.bone.parent_index.and_then(|i| animated_bones.get(i));
+    let source_parent = animated_bones[source].bone.parent_index;
+    let target_parent = animated_bones[target].bone.parent_index;
 
-    let source_world = world_transform(animated_bones, &source, true).unwrap();
-    let target_world = world_transform(animated_bones, &target, true).unwrap();
+    let source_world = world_transform(animated_bones, source, true).unwrap();
+    let target_world = world_transform(animated_bones, target, true).unwrap();
     let source_parent_world = source_parent
         .map(|p| world_transform(animated_bones, p, true).unwrap())
         .unwrap_or(glam::Mat4::IDENTITY);
@@ -170,6 +169,8 @@ mod tests {
                 compensate_scale: false,
                 inherit_scale: false,
                 flags: TransformFlags::default(),
+                world_transform: None,
+                anim_world_transform: None,
             },
             AnimatedBone {
                 bone: identity_bone("B", Some(0)),
@@ -177,6 +178,8 @@ mod tests {
                 compensate_scale: false,
                 inherit_scale: false,
                 flags: TransformFlags::default(),
+                world_transform: None,
+                anim_world_transform: None,
             },
         ];
 
@@ -219,6 +222,8 @@ mod tests {
                 compensate_scale: false,
                 inherit_scale: false,
                 flags: TransformFlags::default(),
+                world_transform: None,
+                anim_world_transform: None,
             },
             AnimatedBone {
                 bone: identity_bone("B", None),
@@ -226,6 +231,8 @@ mod tests {
                 compensate_scale: false,
                 inherit_scale: false,
                 flags: TransformFlags::default(),
+                world_transform: None,
+                anim_world_transform: None,
             },
         ];
 
@@ -271,6 +278,8 @@ mod tests {
                 compensate_scale: false,
                 inherit_scale: false,
                 flags: TransformFlags::default(),
+                world_transform: None,
+                anim_world_transform: None,
             },
             AnimatedBone {
                 bone: identity_bone("A", Some(0)),
@@ -282,6 +291,8 @@ mod tests {
                 compensate_scale: false,
                 inherit_scale: false,
                 flags: TransformFlags::default(),
+                world_transform: None,
+                anim_world_transform: None,
             },
             AnimatedBone {
                 bone: identity_bone("B", Some(0)),
@@ -293,6 +304,8 @@ mod tests {
                 compensate_scale: false,
                 inherit_scale: false,
                 flags: TransformFlags::default(),
+                world_transform: None,
+                anim_world_transform: None,
             },
         ];
 
@@ -350,6 +363,8 @@ mod tests {
                 compensate_scale: false,
                 inherit_scale: false,
                 flags: TransformFlags::default(),
+                world_transform: None,
+                anim_world_transform: None,
             },
             AnimatedBone {
                 bone: identity_bone("L1", Some(0)),
@@ -361,6 +376,8 @@ mod tests {
                 compensate_scale: false,
                 inherit_scale: false,
                 flags: TransformFlags::default(),
+                world_transform: None,
+                anim_world_transform: None,
             },
             AnimatedBone {
                 bone: identity_bone("L2", Some(1)),
@@ -372,6 +389,8 @@ mod tests {
                 compensate_scale: false,
                 inherit_scale: false,
                 flags: TransformFlags::default(),
+                world_transform: None,
+                anim_world_transform: None,
             },
             AnimatedBone {
                 bone: identity_bone("R0", None),
@@ -383,6 +402,8 @@ mod tests {
                 compensate_scale: false,
                 inherit_scale: false,
                 flags: TransformFlags::default(),
+                world_transform: None,
+                anim_world_transform: None,
             },
             AnimatedBone {
                 bone: identity_bone("R1", Some(3)),
@@ -395,6 +416,8 @@ mod tests {
                 compensate_scale: false,
                 inherit_scale: false,
                 flags: TransformFlags::default(),
+                world_transform: None,
+                anim_world_transform: None,
             },
             AnimatedBone {
                 bone: identity_bone("R2", Some(4)),
@@ -406,6 +429,8 @@ mod tests {
                 compensate_scale: false,
                 inherit_scale: false,
                 flags: TransformFlags::default(),
+                world_transform: None,
+                anim_world_transform: None,
             },
         ];
 
@@ -459,8 +484,8 @@ mod tests {
         //     bones[5].anim_transform.unwrap().rotation.to_array()
         // );
 
-        let position_world = |bone| {
-            world_transform(&bones, bone, true)
+        let mut position_world = |bone| {
+            world_transform(&mut bones, bone, true)
                 .unwrap()
                 .to_scale_rotation_translation()
                 .2
@@ -468,13 +493,13 @@ mod tests {
         };
 
         // L0, L1, L2
-        assert_vector_relative_eq!([-1.0, 0.0, 0.0], position_world(&bones[0]));
-        assert_vector_relative_eq!([-2.0, 0.0, 0.0], position_world(&bones[1]));
-        assert_vector_relative_eq!([-2.0, 1.0, 0.0], position_world(&bones[2]));
+        assert_vector_relative_eq!([-1.0, 0.0, 0.0], position_world(0));
+        assert_vector_relative_eq!([-2.0, 0.0, 0.0], position_world(1));
+        assert_vector_relative_eq!([-2.0, 1.0, 0.0], position_world(2));
 
         // R0, R1, R2
-        assert_vector_relative_eq!([1.0, 0.0, 0.0], position_world(&bones[3]));
-        assert_vector_relative_eq!([2.0, 0.0, 0.0], position_world(&bones[4]));
-        assert_vector_relative_eq!([2.0, 1.0, 0.0], position_world(&bones[5]));
+        assert_vector_relative_eq!([1.0, 0.0, 0.0], position_world(3));
+        assert_vector_relative_eq!([2.0, 0.0, 0.0], position_world(4));
+        assert_vector_relative_eq!([2.0, 1.0, 0.0], position_world(5));
     }
 }

@@ -7,7 +7,7 @@ mod texture;
 mod uniforms;
 mod vertex;
 
-mod animation;
+pub mod animation;
 mod lighting;
 mod renderer;
 mod rendermesh;
