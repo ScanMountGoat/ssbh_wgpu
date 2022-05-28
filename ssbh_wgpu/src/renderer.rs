@@ -838,7 +838,7 @@ impl PassInfo {
         );
 
         let post_process_bind_group =
-            create_post_process_bind_group(device, &color, &bloom_combined, color_lut);
+            create_post_process_bind_group(device, &color, &bloom_upscaled, color_lut);
         Self {
             depth,
             color,
