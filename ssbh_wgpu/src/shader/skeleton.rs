@@ -3,7 +3,7 @@
 #[repr(C)]
 #[derive(Debug, Copy, Clone, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct VertexInput {
-    pub position: [f32; 3],
+    pub position: [f32; 4],
 }
 #[repr(C)]
 #[derive(Debug, Copy, Clone, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
@@ -24,7 +24,7 @@ pub struct BoneColors {
 #[repr(C)]
 #[derive(Debug, Copy, Clone, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct PerBone {
-    pub index: [i32; 4],
+    pub indices: [i32; 4],
 }
 pub mod bind_groups {
     pub struct BindGroup0(wgpu::BindGroup);
@@ -187,9 +187,9 @@ pub mod bind_groups {
 }
 pub mod vertex {
     impl super::VertexInput {
-        pub const VERTEX_ATTRIBUTES: [wgpu::VertexAttribute; 1] = wgpu::vertex_attr_array![0 => Float32x3];
+        pub const VERTEX_ATTRIBUTES: [wgpu::VertexAttribute; 1] = wgpu::vertex_attr_array![0 => Float32x4];
         /// The total size in bytes of all fields without considering padding or alignment.
-        pub const SIZE_IN_BYTES: u64 = 12;
+        pub const SIZE_IN_BYTES: u64 = 16;
     }
 }
 pub fn create_shader_module(device: &wgpu::Device) -> wgpu::ShaderModule {
