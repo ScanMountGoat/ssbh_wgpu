@@ -32,9 +32,12 @@ pub struct RenderModel {
     material_data_by_label: HashMap<String, MaterialData>,
     pipelines: HashMap<PipelineKey, wgpu::RenderPipeline>,
     textures: Vec<(String, wgpu::Texture)>, // (file name, texture)
+    // TODO: Store this with the renderer since we only need one?
     bone_vertex_buffer: wgpu::Buffer,
+    bone_vertex_buffer_outer: wgpu::Buffer,
     bone_index_buffer: wgpu::Buffer,
     bone_data_bind_group: crate::shader::skeleton::bind_groups::BindGroup1,
+    bone_data_outer_bind_group: crate::shader::skeleton::bind_groups::BindGroup1,
     // TODO: Use instancing instead.
     bone_bind_groups: Vec<crate::shader::skeleton::bind_groups::BindGroup2>,
     buffer_data: MeshObjectBufferData,
@@ -193,13 +196,32 @@ impl RenderModel {
         &'a self,
         render_pass: &mut wgpu::RenderPass<'a>,
         camera_bind_group: &'a crate::shader::skeleton::bind_groups::BindGroup0,
+        skeleton_pipeline: &'a wgpu::RenderPipeline,
+        skeleton_outer_pipeline: &'a wgpu::RenderPipeline,
+
     ) {
         if let Some(skel) = self.skel.as_ref() {
-            render_pass.set_vertex_buffer(0, self.bone_vertex_buffer.slice(..));
             render_pass
-                .set_index_buffer(self.bone_index_buffer.slice(..), wgpu::IndexFormat::Uint32);
-
+            .set_index_buffer(self.bone_index_buffer.slice(..), wgpu::IndexFormat::Uint32);
+            
             // TODO: Instancing?
+            render_pass.set_pipeline(skeleton_outer_pipeline);
+            render_pass.set_vertex_buffer(0, self.bone_vertex_buffer_outer.slice(..));
+            for i in 0..skel.bones.len() {
+                crate::shader::skeleton::bind_groups::set_bind_groups(
+                    render_pass,
+                    crate::shader::skeleton::bind_groups::BindGroups::<'a> {
+                        bind_group0: camera_bind_group,
+                        bind_group1: &self.bone_data_outer_bind_group,
+                        bind_group2: &self.bone_bind_groups[i],
+                    },
+                );
+
+                render_pass.draw_indexed(0..sphere_indices().len() as u32, 0, 0..1);
+            }
+
+            render_pass.set_pipeline(skeleton_pipeline);
+            render_pass.set_vertex_buffer(0, self.bone_vertex_buffer.slice(..));
             for i in 0..skel.bones.len() {
                 crate::shader::skeleton::bind_groups::set_bind_groups(
                     render_pass,
@@ -406,6 +428,12 @@ fn sphere() -> Vec<[f32; 4]> {
     ]
 }
 
+
+fn sphere_outer() -> Vec<[f32; 4]> {
+    let scale = 1.25;
+    sphere().iter().map(|v| [v[0]*scale, v[1]*scale, v[2]*scale, 0.0]).collect()
+}
+
 fn sphere_indices() -> Vec<u32> {
     vec![
         5, 13, 6, 3, 11, 4, 1, 9, 2, 0, 35, 7, 50, 6, 13, 4, 12, 5, 2, 10, 3, 0, 8, 1, 7, 35, 14,
@@ -501,6 +529,20 @@ pub fn create_render_model(
         },
     );
 
+    let bone_colors_buffer_outer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        label: Some("Bone Colors Buffer"),
+        contents: bytemuck::cast_slice(&vec![[0.0; 4]; crate::animation::MAX_BONE_COUNT]),
+        usage: wgpu::BufferUsages::UNIFORM,
+    });
+
+    let bone_data_outer_bind_group = crate::shader::skeleton::bind_groups::BindGroup1::from_bindings(
+        device,
+        crate::shader::skeleton::bind_groups::BindGroupLayout1 {
+            world_transforms: world_transforms_buffer.as_entire_buffer_binding(),
+            bone_colors: bone_colors_buffer_outer.as_entire_buffer_binding(),
+        },
+    );
+
     let mesh_buffers = MeshBuffers {
         skinning_transforms: skinning_transforms_buffer,
         world_transforms: world_transforms_buffer,
@@ -518,6 +560,12 @@ pub fn create_render_model(
     let bone_vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
         label: Some("Bone Vertex Buffer"),
         contents: bytemuck::cast_slice(&sphere()),
+        usage: wgpu::BufferUsages::VERTEX,
+    });
+
+    let bone_vertex_buffer_outer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        label: Some("Bone Vertex Buffer"),
+        contents: bytemuck::cast_slice(&sphere_outer()),
         usage: wgpu::BufferUsages::VERTEX,
     });
 
@@ -573,8 +621,10 @@ pub fn create_render_model(
         textures,
         pipelines,
         bone_vertex_buffer,
+        bone_vertex_buffer_outer,
         bone_index_buffer,
         bone_data_bind_group,
+        bone_data_outer_bind_group,
         bone_bind_groups,
         buffer_data,
     }
