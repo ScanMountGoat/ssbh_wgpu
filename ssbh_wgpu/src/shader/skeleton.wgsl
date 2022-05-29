@@ -1,5 +1,5 @@
 struct VertexInput {
-    [[location(0)]] position: vec4<f32>;
+    [[location(0)]] position: vec3<f32>;
 };
 
 struct CameraTransforms {
@@ -45,7 +45,10 @@ fn vs_main(
     let bone_pos = world_transforms.transforms[per_bone.indices.x] * vec4<f32>(0.0, 0.0, 0.0, 1.0);
     let scale_factor = distance(bone_pos.xyz, camera.camera_pos.xyz) * 0.0025;
 
-    let position = vec4<f32>(in.position.xyz * scale_factor, 1.0);
+    // TODO: Find a better way to avoid scaling the pyramid height.
+    // let position = vec4<f32>(in.position.xyz * scale_factor, 1.0);
+    let position = vec4<f32>(in.position.xyz, 1.0);
+
     return camera.mvp_matrix * world_transforms.transforms[per_bone.indices.x] * position;
 }
 

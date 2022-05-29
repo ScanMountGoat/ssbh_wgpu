@@ -7,6 +7,7 @@ use crate::{
     vertex::{buffer0, buffer1, mesh_object_buffers, skin_weights, MeshObjectBufferData},
     PipelineData, ShaderDatabase,
 };
+use glam::Vec4Swizzles;
 use nutexb_wgpu::NutexbFile;
 use ssbh_data::{
     adj_data::AdjEntryData,
@@ -33,11 +34,18 @@ pub struct RenderModel {
     pipelines: HashMap<PipelineKey, wgpu::RenderPipeline>,
     textures: Vec<(String, wgpu::Texture)>, // (file name, texture)
     // TODO: Store this with the renderer since we only need one?
+    // TODO: Avoid storing duplicate geometry for the scaled version?
     bone_vertex_buffer: wgpu::Buffer,
     bone_vertex_buffer_outer: wgpu::Buffer,
     bone_index_buffer: wgpu::Buffer,
+    joint_vertex_buffer: wgpu::Buffer,
+    joint_vertex_buffer_outer: wgpu::Buffer,
+    joint_index_buffer: wgpu::Buffer,
     bone_data_bind_group: crate::shader::skeleton::bind_groups::BindGroup1,
     bone_data_outer_bind_group: crate::shader::skeleton::bind_groups::BindGroup1,
+    joint_data_bind_group: crate::shader::skeleton::bind_groups::BindGroup1,
+    joint_data_outer_bind_group: crate::shader::skeleton::bind_groups::BindGroup1,
+
     // TODO: Use instancing instead.
     bone_bind_groups: Vec<crate::shader::skeleton::bind_groups::BindGroup2>,
     buffer_data: MeshObjectBufferData,
@@ -198,42 +206,107 @@ impl RenderModel {
         camera_bind_group: &'a crate::shader::skeleton::bind_groups::BindGroup0,
         skeleton_pipeline: &'a wgpu::RenderPipeline,
         skeleton_outer_pipeline: &'a wgpu::RenderPipeline,
-
     ) {
         if let Some(skel) = self.skel.as_ref() {
-            render_pass
-            .set_index_buffer(self.bone_index_buffer.slice(..), wgpu::IndexFormat::Uint32);
-            
-            // TODO: Instancing?
-            render_pass.set_pipeline(skeleton_outer_pipeline);
-            render_pass.set_vertex_buffer(0, self.bone_vertex_buffer_outer.slice(..));
-            for i in 0..skel.bones.len() {
+            self.draw_joints(
+                render_pass,
+                skel,
+                camera_bind_group,
+                skeleton_pipeline,
+                skeleton_outer_pipeline,
+            );
+            self.draw_bones(
+                render_pass,
+                skel,
+                camera_bind_group,
+                skeleton_pipeline,
+                skeleton_outer_pipeline,
+            );
+        }
+    }
+
+    fn draw_joints<'a>(
+        &'a self,
+        render_pass: &mut wgpu::RenderPass<'a>,
+        skel: &SkelData,
+        camera_bind_group: &'a crate::shader::skeleton::bind_groups::BindGroup0,
+        skeleton_pipeline: &'a wgpu::RenderPipeline,
+        skeleton_outer_pipeline: &'a wgpu::RenderPipeline,
+    ) {
+        render_pass.set_pipeline(skeleton_outer_pipeline);
+        render_pass.set_index_buffer(self.joint_index_buffer.slice(..), wgpu::IndexFormat::Uint32);
+        render_pass.set_vertex_buffer(0, self.joint_vertex_buffer_outer.slice(..));
+        for i in 0..skel.bones.len() {
+            // Check for the parent to only draw joints between connected bones.
+            if skel.bones[i].parent_index.is_some() {
                 crate::shader::skeleton::bind_groups::set_bind_groups(
                     render_pass,
                     crate::shader::skeleton::bind_groups::BindGroups::<'a> {
                         bind_group0: camera_bind_group,
-                        bind_group1: &self.bone_data_outer_bind_group,
+                        bind_group1: &self.joint_data_outer_bind_group,
                         bind_group2: &self.bone_bind_groups[i],
                     },
                 );
 
-                render_pass.draw_indexed(0..sphere_indices().len() as u32, 0, 0..1);
+                render_pass.draw_indexed(0..pyramid_indices().len() as u32, 0, 0..1);
             }
+        }
 
-            render_pass.set_pipeline(skeleton_pipeline);
-            render_pass.set_vertex_buffer(0, self.bone_vertex_buffer.slice(..));
-            for i in 0..skel.bones.len() {
+        render_pass.set_pipeline(skeleton_pipeline);
+        render_pass.set_vertex_buffer(0, self.joint_vertex_buffer.slice(..));
+        for i in 0..skel.bones.len() {
+            if skel.bones[i].parent_index.is_some() {
                 crate::shader::skeleton::bind_groups::set_bind_groups(
                     render_pass,
                     crate::shader::skeleton::bind_groups::BindGroups::<'a> {
                         bind_group0: camera_bind_group,
-                        bind_group1: &self.bone_data_bind_group,
+                        bind_group1: &self.joint_data_bind_group,
                         bind_group2: &self.bone_bind_groups[i],
                     },
                 );
 
-                render_pass.draw_indexed(0..sphere_indices().len() as u32, 0, 0..1);
+                render_pass.draw_indexed(0..pyramid_indices().len() as u32, 0, 0..1);
             }
+        }
+    }
+
+    fn draw_bones<'a>(
+        &'a self,
+        render_pass: &mut wgpu::RenderPass<'a>,
+        skel: &SkelData,
+        camera_bind_group: &'a crate::shader::skeleton::bind_groups::BindGroup0,
+        skeleton_pipeline: &'a wgpu::RenderPipeline,
+        skeleton_outer_pipeline: &'a wgpu::RenderPipeline,
+    ) {
+        render_pass.set_pipeline(skeleton_outer_pipeline);
+        render_pass.set_index_buffer(self.bone_index_buffer.slice(..), wgpu::IndexFormat::Uint32);
+        // TODO: Instancing?
+        render_pass.set_vertex_buffer(0, self.bone_vertex_buffer_outer.slice(..));
+        for i in 0..skel.bones.len() {
+            crate::shader::skeleton::bind_groups::set_bind_groups(
+                render_pass,
+                crate::shader::skeleton::bind_groups::BindGroups::<'a> {
+                    bind_group0: camera_bind_group,
+                    bind_group1: &self.bone_data_outer_bind_group,
+                    bind_group2: &self.bone_bind_groups[i],
+                },
+            );
+
+            render_pass.draw_indexed(0..sphere_indices().len() as u32, 0, 0..1);
+        }
+        render_pass.set_pipeline(skeleton_pipeline);
+        render_pass.set_vertex_buffer(0, self.bone_vertex_buffer.slice(..));
+        for i in 0..skel.bones.len() {
+            crate::shader::skeleton::bind_groups::set_bind_groups(
+                render_pass,
+                crate::shader::skeleton::bind_groups::BindGroups::<'a> {
+                    bind_group0: camera_bind_group,
+                    bind_group1: &self.bone_data_bind_group,
+                    bind_group2: &self.bone_bind_groups[i],
+                },
+            );
+
+            render_pass.draw_indexed(0..sphere_indices().len() as u32, 0, 0..1);
         }
     }
 
@@ -365,73 +438,104 @@ pub struct RenderMeshSharedData<'a> {
     pub nutexbs: &'a [(String, NutexbFile)],
 }
 
-fn sphere() -> Vec<[f32; 4]> {
+fn pyramid() -> Vec<[f32; 3]> {
+    let scale = 0.1;
     vec![
-        [0.000000, 0.923880, -0.382683, 0.0],
-        [0.000000, 0.707107, -0.707107, 0.0],
-        [0.000000, 0.382683, -0.923880, 0.0],
-        [0.000000, -0.000000, -1.000000, 0.0],
-        [0.000000, -0.382683, -0.923880, 0.0],
-        [0.000000, -0.707107, -0.707107, 0.0],
-        [0.000000, -0.923880, -0.382683, 0.0],
-        [0.270598, 0.923880, -0.270598, 0.0],
-        [0.500000, 0.707107, -0.500000, 0.0],
-        [0.653282, 0.382683, -0.653281, 0.0],
-        [0.707107, -0.000000, -0.707107, 0.0],
-        [0.653282, -0.382683, -0.653282, 0.0],
-        [0.500000, -0.707107, -0.500000, 0.0],
-        [0.270598, -0.923880, -0.270598, 0.0],
-        [0.382684, 0.923880, 0.000000, 0.0],
-        [0.707107, 0.707107, 0.000000, 0.0],
-        [0.923880, 0.382683, 0.000000, 0.0],
-        [1.000000, -0.000000, 0.000000, 0.0],
-        [0.923880, -0.382683, 0.000000, 0.0],
-        [0.707107, -0.707107, 0.000000, 0.0],
-        [0.382684, -0.923880, 0.000000, 0.0],
-        [0.270598, 0.923880, 0.270598, 0.0],
-        [0.500000, 0.707107, 0.500000, 0.0],
-        [0.653282, 0.382683, 0.653282, 0.0],
-        [0.707107, -0.000000, 0.707107, 0.0],
-        [0.653282, -0.382683, 0.653282, 0.0],
-        [0.500000, -0.707107, 0.500000, 0.0],
-        [0.270598, -0.923880, 0.270598, 0.0],
-        [0.000000, 0.923880, 0.382684, 0.0],
-        [0.000000, 0.707107, 0.707107, 0.0],
-        [0.000000, 0.382683, 0.923880, 0.0],
-        [0.000000, -0.000000, 1.000000, 0.0],
-        [0.000000, -0.382683, 0.923880, 0.0],
-        [0.000000, -0.707107, 0.707107, 0.0],
-        [0.000000, -0.923880, 0.382684, 0.0],
-        [-0.000000, 1.000000, 0.000000, 0.0],
-        [-0.270598, 0.923880, 0.270598, 0.0],
-        [-0.500000, 0.707107, 0.500000, 0.0],
-        [-0.653281, 0.382683, 0.653282, 0.0],
-        [-0.707107, -0.000000, 0.707107, 0.0],
-        [-0.653282, -0.382683, 0.653282, 0.0],
-        [-0.500000, -0.707107, 0.500000, 0.0],
-        [-0.270598, -0.923880, 0.270598, 0.0],
-        [-0.382684, 0.923880, 0.000000, 0.0],
-        [-0.707107, 0.707107, 0.000000, 0.0],
-        [-0.923879, 0.382683, 0.000000, 0.0],
-        [-1.000000, -0.000000, 0.000000, 0.0],
-        [-0.923880, -0.382683, 0.000000, 0.0],
-        [-0.707107, -0.707107, 0.000000, 0.0],
-        [-0.382684, -0.923880, 0.000000, 0.0],
-        [0.000000, -1.000000, 0.000000, 0.0],
-        [-0.270598, 0.923880, -0.270598, 0.0],
-        [-0.500000, 0.707107, -0.500000, 0.0],
-        [-0.653281, 0.382683, -0.653281, 0.0],
-        [-0.707107, -0.000000, -0.707107, 0.0],
-        [-0.653282, -0.382683, -0.653281, 0.0],
-        [-0.500000, -0.707107, -0.500000, 0.0],
-        [-0.270598, -0.923880, -0.270598, 0.0],
+        [-scale, 1.0, -scale],
+        [scale, 1.0, -scale],
+        [scale, 1.0, scale],
+        [-scale, 1.0, scale],
+        [0.0, 0.0, 0.0],
     ]
 }
 
-
-fn sphere_outer() -> Vec<[f32; 4]> {
+fn pyramid_outer() -> Vec<[f32; 3]> {
     let scale = 1.25;
-    sphere().iter().map(|v| [v[0]*scale, v[1]*scale, v[2]*scale, 0.0]).collect()
+    pyramid()
+        .iter()
+        .map(|v| [v[0] * scale, v[1], v[2] * scale])
+        .collect()
+}
+
+fn pyramid_indices() -> Vec<u32> {
+    vec![2, 1, 3, 0, 1, 4, 1, 2, 4, 2, 3, 4, 3, 0, 4, 1, 0, 3]
+}
+
+fn sphere() -> Vec<[f32; 3]> {
+    let verts = vec![
+        [0.000000, 0.923880, -0.382683],
+        [0.000000, 0.707107, -0.707107],
+        [0.000000, 0.382683, -0.923880],
+        [0.000000, -0.000000, -1.000000],
+        [0.000000, -0.382683, -0.923880],
+        [0.000000, -0.707107, -0.707107],
+        [0.000000, -0.923880, -0.382683],
+        [0.270598, 0.923880, -0.270598],
+        [0.500000, 0.707107, -0.500000],
+        [0.653282, 0.382683, -0.653281],
+        [0.707107, -0.000000, -0.707107],
+        [0.653282, -0.382683, -0.653282],
+        [0.500000, -0.707107, -0.500000],
+        [0.270598, -0.923880, -0.270598],
+        [0.382684, 0.923880, 0.000000],
+        [0.707107, 0.707107, 0.000000],
+        [0.923880, 0.382683, 0.000000],
+        [1.000000, -0.000000, 0.000000],
+        [0.923880, -0.382683, 0.000000],
+        [0.707107, -0.707107, 0.000000],
+        [0.382684, -0.923880, 0.000000],
+        [0.270598, 0.923880, 0.270598],
+        [0.500000, 0.707107, 0.500000],
+        [0.653282, 0.382683, 0.653282],
+        [0.707107, -0.000000, 0.707107],
+        [0.653282, -0.382683, 0.653282],
+        [0.500000, -0.707107, 0.500000],
+        [0.270598, -0.923880, 0.270598],
+        [0.000000, 0.923880, 0.382684],
+        [0.000000, 0.707107, 0.707107],
+        [0.000000, 0.382683, 0.923880],
+        [0.000000, -0.000000, 1.000000],
+        [0.000000, -0.382683, 0.923880],
+        [0.000000, -0.707107, 0.707107],
+        [0.000000, -0.923880, 0.382684],
+        [-0.000000, 1.000000, 0.000000],
+        [-0.270598, 0.923880, 0.270598],
+        [-0.500000, 0.707107, 0.500000],
+        [-0.653281, 0.382683, 0.653282],
+        [-0.707107, -0.000000, 0.707107],
+        [-0.653282, -0.382683, 0.653282],
+        [-0.500000, -0.707107, 0.500000],
+        [-0.270598, -0.923880, 0.270598],
+        [-0.382684, 0.923880, 0.000000],
+        [-0.707107, 0.707107, 0.000000],
+        [-0.923879, 0.382683, 0.000000],
+        [-1.000000, -0.000000, 0.000000],
+        [-0.923880, -0.382683, 0.000000],
+        [-0.707107, -0.707107, 0.000000],
+        [-0.382684, -0.923880, 0.000000],
+        [0.000000, -1.000000, 0.000000],
+        [-0.270598, 0.923880, -0.270598],
+        [-0.500000, 0.707107, -0.500000],
+        [-0.653281, 0.382683, -0.653281],
+        [-0.707107, -0.000000, -0.707107],
+        [-0.653282, -0.382683, -0.653281],
+        [-0.500000, -0.707107, -0.500000],
+        [-0.270598, -0.923880, -0.270598],
+    ];
+    // TODO: Get the shader scale_factor working again.
+    let scale = 0.1;
+    verts
+        .iter()
+        .map(|v| [v[0] * scale, v[1] * scale, v[2] * scale])
+        .collect()
+}
+
+fn sphere_outer() -> Vec<[f32; 3]> {
+    let scale = 1.25;
+    sphere()
+        .iter()
+        .map(|v| [v[0] * scale, v[1] * scale, v[2] * scale])
+        .collect()
 }
 
 fn sphere_indices() -> Vec<u32> {
@@ -456,8 +560,8 @@ fn sphere_indices() -> Vec<u32> {
 
 fn bone_colors(skel: Option<&SkelData>, hlpb: Option<&HlpbData>) -> Vec<[f32; 4]> {
     // Match the color scheme used for the Blender addon.
-    let helper_color = [0.2510, 0.1451, 0.3529, 1.0];
-    let default_color = [0.6902, 0.6902, 0.6902, 1.0];
+    let helper_color = [0.3, 0.0, 0.6, 1.0];
+    let default_color = [0.65, 0.65, 0.65, 1.0];
 
     let mut colors = vec![[0.0; 4]; crate::animation::MAX_BONE_COUNT];
     if let Some(skel) = skel {
@@ -514,6 +618,8 @@ pub fn create_render_model(
     let world_transforms_buffer =
         create_world_transforms_buffer(device, &anim_transforms.world_transforms);
 
+    // TODO: Add bone drawing to its own module.
+    // TODO: Clean this up.
     let bone_colors_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
         label: Some("Bone Colors Buffer"),
         contents: bytemuck::cast_slice(&bone_colors(shared_data.skel, shared_data.hlpb)),
@@ -529,19 +635,76 @@ pub fn create_render_model(
         },
     );
 
+    // TODO: Make a function for this?
+    // TODO: Make the joint pipeline separate.
+    // This would allow using the existing transforms buffer.
+    let mut joint_transforms: Vec<_> = shared_data
+        .skel
+        .unwrap()
+        .bones
+        .iter()
+        .enumerate()
+        .map(|(i, bone)| {
+            let pos = anim_transforms.world_transforms[i].col(3).xyz();
+            let mut parent_pos = pos;
+            if let Some(skel) = shared_data.skel {
+                if let Some(parent_index) = bone.parent_index {
+                    parent_pos = anim_transforms.world_transforms[parent_index].col(3).xyz();
+                }
+            }
+            let scale = pos.distance(parent_pos);
+
+            // Assume an inverted pyramid with up as the Y-axis.
+            // 1. Scale the pyramid along the Y-axis to have the appropriate length.
+            // 2. Rotate the pyramid to point to its parent.
+            // 3. Translate the bone to its world position.
+            let rotation =
+                glam::Quat::from_rotation_arc(glam::Vec3::Y, (parent_pos - pos).normalize());
+            glam::Mat4::from_translation(pos)
+                * glam::Mat4::from_quat(rotation)
+                * glam::Mat4::from_scale(glam::Vec3::new(1.0, scale, 1.0))
+        })
+        .collect();
+    joint_transforms.resize(crate::animation::MAX_BONE_COUNT, glam::Mat4::IDENTITY);
+
+    let joint_world_transforms_buffer =
+        device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Joint World Transforms Buffer"),
+            contents: bytemuck::cast_slice(&joint_transforms),
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        });
+
     let bone_colors_buffer_outer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
         label: Some("Bone Colors Buffer"),
-        contents: bytemuck::cast_slice(&vec![[0.0; 4]; crate::animation::MAX_BONE_COUNT]),
+        contents: bytemuck::cast_slice(&vec![[0.0f32; 4]; crate::animation::MAX_BONE_COUNT]),
         usage: wgpu::BufferUsages::UNIFORM,
     });
 
-    let bone_data_outer_bind_group = crate::shader::skeleton::bind_groups::BindGroup1::from_bindings(
+    let bone_data_outer_bind_group =
+        crate::shader::skeleton::bind_groups::BindGroup1::from_bindings(
+            device,
+            crate::shader::skeleton::bind_groups::BindGroupLayout1 {
+                world_transforms: world_transforms_buffer.as_entire_buffer_binding(),
+                bone_colors: bone_colors_buffer_outer.as_entire_buffer_binding(),
+            },
+        );
+
+    let joint_data_bind_group = crate::shader::skeleton::bind_groups::BindGroup1::from_bindings(
         device,
         crate::shader::skeleton::bind_groups::BindGroupLayout1 {
-            world_transforms: world_transforms_buffer.as_entire_buffer_binding(),
-            bone_colors: bone_colors_buffer_outer.as_entire_buffer_binding(),
+            world_transforms: joint_world_transforms_buffer.as_entire_buffer_binding(),
+            bone_colors: bone_colors_buffer.as_entire_buffer_binding(),
         },
     );
+
+    let joint_data_outer_bind_group =
+        crate::shader::skeleton::bind_groups::BindGroup1::from_bindings(
+            device,
+            crate::shader::skeleton::bind_groups::BindGroupLayout1 {
+                world_transforms: joint_world_transforms_buffer.as_entire_buffer_binding(),
+                bone_colors: bone_colors_buffer_outer.as_entire_buffer_binding(),
+            },
+        );
 
     let mesh_buffers = MeshBuffers {
         skinning_transforms: skinning_transforms_buffer,
@@ -564,14 +727,32 @@ pub fn create_render_model(
     });
 
     let bone_vertex_buffer_outer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-        label: Some("Bone Vertex Buffer"),
+        label: Some("Bone Vertex Buffer Outer"),
         contents: bytemuck::cast_slice(&sphere_outer()),
         usage: wgpu::BufferUsages::VERTEX,
     });
 
     let bone_index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-        label: Some("Bone Vertex Buffer"),
+        label: Some("Bone Index Buffer"),
         contents: bytemuck::cast_slice(&sphere_indices()),
+        usage: wgpu::BufferUsages::INDEX,
+    });
+
+    let joint_vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        label: Some("Bone Joint Vertex Buffer"),
+        contents: bytemuck::cast_slice(&pyramid()),
+        usage: wgpu::BufferUsages::VERTEX,
+    });
+
+    let joint_vertex_buffer_outer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        label: Some("Bone Joint Vertex Buffer Outer"),
+        contents: bytemuck::cast_slice(&pyramid_outer()),
+        usage: wgpu::BufferUsages::VERTEX,
+    });
+
+    let joint_index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        label: Some("Join Index Buffer"),
+        contents: bytemuck::cast_slice(&pyramid_indices()),
         usage: wgpu::BufferUsages::INDEX,
     });
 
@@ -622,9 +803,14 @@ pub fn create_render_model(
         pipelines,
         bone_vertex_buffer,
         bone_vertex_buffer_outer,
+        joint_vertex_buffer,
+        joint_vertex_buffer_outer,
+        joint_index_buffer,
         bone_index_buffer,
         bone_data_bind_group,
         bone_data_outer_bind_group,
+        joint_data_bind_group,
+        joint_data_outer_bind_group,
         bone_bind_groups,
         buffer_data,
     }
