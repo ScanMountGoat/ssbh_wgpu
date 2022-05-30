@@ -32,9 +32,10 @@ const SHADOW_MAP_HEIGHT: u32 = 1024;
 const VARIANCE_SHADOW_WIDTH: u32 = 512;
 const VARIANCE_SHADOW_HEIGHT: u32 = 512;
 
-// TODO: Just make the shaded mode an entry here?
 #[derive(PartialEq, Eq, Copy, Clone, Display, EnumVariantNames, EnumString)]
 pub enum DebugMode {
+    /// The default shaded mode.
+    Shaded,
     Position0,
     Normal0,
     Tangent0,
@@ -61,14 +62,23 @@ pub enum DebugMode {
     Texture13,
     Texture14,
     Texture16,
+    /// The map1 vertex attribute.
+    Map1,
+    /// The bake1 vertex attribute.
+    Bake1,
+    /// The uvSet vertex attribute.
+    UvSet,
+    /// The uvSet1 vertex attribute.
+    UvSet1,
+    /// The uvSet2 vertex attribute.
+    UvSet2,
     // TODO: Separate modes for selecting parameters by index (ex: Booleans[3])?
 }
 
 /// Settings for configuring the rendered output of an [SsbhRenderer].
 pub struct RenderSettings {
     /// The attribute to render as the output color when [Some].
-    /// Setting this value to [None] uses the default shaded view.
-    pub debug_mode: Option<DebugMode>,
+    pub debug_mode: DebugMode,
     pub render_diffuse: bool,
     pub render_specular: bool,
     pub render_emission: bool,
@@ -79,7 +89,7 @@ pub struct RenderSettings {
 impl From<&RenderSettings> for crate::shader::model::RenderSettings {
     fn from(r: &RenderSettings) -> Self {
         Self {
-            debug_mode: [r.debug_mode.unwrap_or(DebugMode::Position0) as i32; 4],
+            debug_mode: [r.debug_mode as i32; 4],
             render_diffuse: [if r.render_diffuse { 1.0 } else { 0.0 }; 4],
             render_specular: [if r.render_specular { 1.0 } else { 0.0 }; 4],
             render_emission: [if r.render_emission { 1.0 } else { 0.0 }; 4],
@@ -92,7 +102,7 @@ impl From<&RenderSettings> for crate::shader::model::RenderSettings {
 impl Default for RenderSettings {
     fn default() -> Self {
         Self {
-            debug_mode: None,
+            debug_mode: DebugMode::Shaded,
             render_diffuse: true,
             render_specular: true,
             render_emission: true,
@@ -144,7 +154,7 @@ pub struct SsbhRenderer {
     clear_color: wgpu::Color,
 
     render_settings_buffer: wgpu::Buffer,
-    debug_mode: Option<DebugMode>,
+    debug_mode: DebugMode,
 }
 
 impl SsbhRenderer {
@@ -390,7 +400,7 @@ impl SsbhRenderer {
             invalid_attributes_pipeline,
             debug_pipeline,
             render_settings_buffer,
-            debug_mode: None,
+            debug_mode: DebugMode::Shaded,
         }
     }
 
@@ -444,7 +454,7 @@ impl SsbhRenderer {
         self.skinning_pass(encoder, render_models);
         self.renormal_pass(encoder, render_models);
 
-        if let Some(debug_mode) = self.debug_mode {
+        if self.debug_mode != DebugMode::Shaded {
             // Draw the models directly to the output.
             self.model_debug_pass(encoder, render_models, output_view);
         } else {

@@ -33,7 +33,11 @@ fn calculate_camera_pos_mvp(
 
     let camera_pos = model_view_matrix.inverse().col(3);
 
-    (camera_pos, model_view_matrix, perspective_matrix * model_view_matrix)
+    (
+        camera_pos,
+        model_view_matrix,
+        perspective_matrix * model_view_matrix,
+    )
 }
 
 struct State {
@@ -68,7 +72,7 @@ struct State {
 
     is_playing: bool,
 
-    render_settings: RenderSettings,
+    render: RenderSettings,
 }
 
 impl State {
@@ -158,7 +162,7 @@ impl State {
             pipeline_data,
             is_playing: false,
             shader_database,
-            render_settings: RenderSettings::default(),
+            render: RenderSettings::default(),
         }
     }
 
@@ -238,86 +242,33 @@ impl State {
                             VirtualKeyCode::Up => self.translation_xyz.z += 10.0,
                             VirtualKeyCode::Down => self.translation_xyz.z -= 10.0,
                             VirtualKeyCode::Space => self.is_playing = !self.is_playing,
-                            // Debug Modes
-                            VirtualKeyCode::Key1 => self.render_settings.debug_mode = None,
-                            VirtualKeyCode::Key2 => {
-                                self.render_settings.debug_mode = Some(DebugMode::ColorSet1)
-                            }
-                            VirtualKeyCode::Key3 => {
-                                self.render_settings.debug_mode = Some(DebugMode::ColorSet2)
-                            }
-                            VirtualKeyCode::Key4 => {
-                                self.render_settings.debug_mode = Some(DebugMode::ColorSet3)
-                            }
-                            VirtualKeyCode::Key5 => {
-                                self.render_settings.debug_mode = Some(DebugMode::ColorSet4)
-                            }
-                            VirtualKeyCode::Key6 => {
-                                self.render_settings.debug_mode = Some(DebugMode::ColorSet5)
-                            }
-                            VirtualKeyCode::Key7 => {
-                                self.render_settings.debug_mode = Some(DebugMode::ColorSet6)
-                            }
-                            VirtualKeyCode::Key8 => {
-                                self.render_settings.debug_mode = Some(DebugMode::ColorSet7)
-                            }
-                            VirtualKeyCode::Q => {
-                                self.render_settings.debug_mode = Some(DebugMode::Texture0)
-                            }
-                            VirtualKeyCode::W => {
-                                self.render_settings.debug_mode = Some(DebugMode::Texture1)
-                            }
-                            VirtualKeyCode::E => {
-                                self.render_settings.debug_mode = Some(DebugMode::Texture2)
-                            }
-                            VirtualKeyCode::R => {
-                                self.render_settings.debug_mode = Some(DebugMode::Texture3)
-                            }
-                            VirtualKeyCode::T => {
-                                self.render_settings.debug_mode = Some(DebugMode::Texture4)
-                            }
-                            VirtualKeyCode::Y => {
-                                self.render_settings.debug_mode = Some(DebugMode::Texture5)
-                            }
-                            VirtualKeyCode::U => {
-                                self.render_settings.debug_mode = Some(DebugMode::Texture6)
-                            }
-                            VirtualKeyCode::I => {
-                                self.render_settings.debug_mode = Some(DebugMode::Texture7)
-                            }
-                            VirtualKeyCode::O => {
-                                self.render_settings.debug_mode = Some(DebugMode::Texture8)
-                            }
-                            VirtualKeyCode::P => {
-                                self.render_settings.debug_mode = Some(DebugMode::Texture9)
-                            }
-                            VirtualKeyCode::A => {
-                                self.render_settings.debug_mode = Some(DebugMode::Texture10)
-                            }
-                            VirtualKeyCode::S => {
-                                self.render_settings.debug_mode = Some(DebugMode::Texture11)
-                            }
-                            VirtualKeyCode::D => {
-                                self.render_settings.debug_mode = Some(DebugMode::Texture12)
-                            }
-                            VirtualKeyCode::F => {
-                                self.render_settings.debug_mode = Some(DebugMode::Texture13)
-                            }
-                            VirtualKeyCode::G => {
-                                self.render_settings.debug_mode = Some(DebugMode::Texture14)
-                            }
-                            VirtualKeyCode::H => {
-                                self.render_settings.debug_mode = Some(DebugMode::Texture16)
-                            }
-                            VirtualKeyCode::J => {
-                                self.render_settings.debug_mode = Some(DebugMode::Position0)
-                            }
-                            VirtualKeyCode::K => {
-                                self.render_settings.debug_mode = Some(DebugMode::Normal0)
-                            }
-                            VirtualKeyCode::L => {
-                                self.render_settings.debug_mode = Some(DebugMode::Tangent0)
-                            }
+                            VirtualKeyCode::Key1 => self.render.debug_mode = DebugMode::Shaded,
+                            VirtualKeyCode::Key2 => self.render.debug_mode = DebugMode::ColorSet1,
+                            VirtualKeyCode::Key3 => self.render.debug_mode = DebugMode::ColorSet2,
+                            VirtualKeyCode::Key4 => self.render.debug_mode = DebugMode::ColorSet3,
+                            VirtualKeyCode::Key5 => self.render.debug_mode = DebugMode::ColorSet4,
+                            VirtualKeyCode::Key6 => self.render.debug_mode = DebugMode::ColorSet5,
+                            VirtualKeyCode::Key7 => self.render.debug_mode = DebugMode::ColorSet6,
+                            VirtualKeyCode::Key8 => self.render.debug_mode = DebugMode::ColorSet7,
+                            VirtualKeyCode::Q => self.render.debug_mode = DebugMode::Texture0,
+                            VirtualKeyCode::W => self.render.debug_mode = DebugMode::Texture1,
+                            VirtualKeyCode::E => self.render.debug_mode = DebugMode::Texture2,
+                            VirtualKeyCode::R => self.render.debug_mode = DebugMode::Texture3,
+                            VirtualKeyCode::T => self.render.debug_mode = DebugMode::Texture4,
+                            VirtualKeyCode::Y => self.render.debug_mode = DebugMode::Texture5,
+                            VirtualKeyCode::U => self.render.debug_mode = DebugMode::Texture6,
+                            VirtualKeyCode::I => self.render.debug_mode = DebugMode::Texture7,
+                            VirtualKeyCode::O => self.render.debug_mode = DebugMode::Texture8,
+                            VirtualKeyCode::P => self.render.debug_mode = DebugMode::Texture9,
+                            VirtualKeyCode::A => self.render.debug_mode = DebugMode::Texture10,
+                            VirtualKeyCode::S => self.render.debug_mode = DebugMode::Texture11,
+                            VirtualKeyCode::D => self.render.debug_mode = DebugMode::Texture12,
+                            VirtualKeyCode::F => self.render.debug_mode = DebugMode::Texture13,
+                            VirtualKeyCode::G => self.render.debug_mode = DebugMode::Texture14,
+                            VirtualKeyCode::H => self.render.debug_mode = DebugMode::Texture16,
+                            VirtualKeyCode::J => self.render.debug_mode = DebugMode::Position0,
+                            VirtualKeyCode::K => self.render.debug_mode = DebugMode::Normal0,
+                            VirtualKeyCode::L => self.render.debug_mode = DebugMode::Tangent0,
                             _ => (),
                         }
                     }
@@ -346,7 +297,7 @@ impl State {
 
     fn update_render_settings(&mut self) {
         self.renderer
-            .update_render_settings(&self.queue, &self.render_settings);
+            .update_render_settings(&self.queue, &self.render);
     }
 
     fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
