@@ -37,7 +37,7 @@ var<uniform> bone_colors: BoneColors;
 var<uniform> per_bone: PerBone;
 
 [[stage(vertex)]]
-fn vs_main(
+fn vs_bone(
     in: VertexInput,
 ) -> [[builtin(position)]] vec4<f32> {
     // TODO: Check the bounds.
@@ -45,15 +45,35 @@ fn vs_main(
     let bone_pos = world_transforms.transforms[per_bone.indices.x] * vec4<f32>(0.0, 0.0, 0.0, 1.0);
     let scale_factor = distance(bone_pos.xyz, camera.camera_pos.xyz) * 0.0025;
 
-    // TODO: Find a better way to avoid scaling the pyramid height.
-    // let position = vec4<f32>(in.position.xyz * scale_factor, 1.0);
-    let position = vec4<f32>(in.position.xyz, 1.0);
+    let position = vec4<f32>(in.position.xyz * scale_factor, 1.0);
 
     return camera.mvp_matrix * world_transforms.transforms[per_bone.indices.x] * position;
 }
 
 [[stage(fragment)]]
-fn fs_main() -> [[location(0)]] vec4<f32> {
+fn fs_bone() -> [[location(0)]] vec4<f32> {
+    // TODO: Check the bounds.
+    let color = bone_colors.colors[per_bone.indices.x].xyz;
+    return vec4<f32>(pow(color, vec3<f32>(2.2)), 1.0);
+}
+
+[[stage(vertex)]]
+fn vs_joint(
+    in: VertexInput,
+) -> [[builtin(position)]] vec4<f32> {
+    // TODO: Check the bounds.
+    // Keep a constant size in pixels on screen.
+    let bone_pos = world_transforms.transforms[per_bone.indices.x] * vec4<f32>(0.0, 0.0, 0.0, 1.0);
+    let scale_factor = distance(bone_pos.xyz, camera.camera_pos.xyz) * 0.002;
+
+    // Only scale the ends of the joint without affecting the height.
+    let position = vec4<f32>(in.position.xyz * vec3<f32>(scale_factor, 1.0, scale_factor), 1.0);
+
+    return camera.mvp_matrix * world_transforms.transforms[per_bone.indices.x] * position;
+}
+
+[[stage(fragment)]]
+fn fs_joint() -> [[location(0)]] vec4<f32> {
     // TODO: Check the bounds.
     let color = bone_colors.colors[per_bone.indices.x].xyz;
     return vec4<f32>(pow(color, vec3<f32>(2.2)), 1.0);

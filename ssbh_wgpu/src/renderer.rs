@@ -116,8 +116,10 @@ pub struct SsbhRenderer {
     invalid_shader_pipeline: wgpu::RenderPipeline,
     invalid_attributes_pipeline: wgpu::RenderPipeline,
     debug_pipeline: wgpu::RenderPipeline,
-    skeleton_pipeline: wgpu::RenderPipeline,
-    skeleton_outer_pipeline: wgpu::RenderPipeline,
+    bone_pipeline: wgpu::RenderPipeline,
+    bone_outer_pipeline: wgpu::RenderPipeline,
+    joint_pipeline: wgpu::RenderPipeline,
+    joint_outer_pipeline: wgpu::RenderPipeline,
 
     // Store camera state for efficiently updating it later.
     // This avoids exposing shader implementations like bind groups.
@@ -157,8 +159,12 @@ impl SsbhRenderer {
         initial_height: u32,
         clear_color: wgpu::Color,
     ) -> Self {
-        let skeleton_pipeline = skeleton_pipeline(device);
-        let skeleton_outer_pipeline = skeleton_outer_pipeline(device);
+        let bone_pipeline = skeleton_pipeline(device, "vs_bone", "fs_bone", wgpu::Face::Back);
+        let bone_outer_pipeline =
+            skeleton_pipeline(device, "vs_bone", "fs_bone", wgpu::Face::Front);
+        let joint_pipeline = skeleton_pipeline(device, "vs_joint", "fs_joint", wgpu::Face::Back);
+        let joint_outer_pipeline =
+            skeleton_pipeline(device, "vs_joint", "fs_joint", wgpu::Face::Front);
 
         let shader = crate::shader::post_process::create_shader_module(device);
         let layout = crate::shader::post_process::create_pipeline_layout(device);
@@ -375,8 +381,10 @@ impl SsbhRenderer {
             clear_color,
             stage_uniforms_buffer,
             stage_uniforms_bind_group,
-            skeleton_pipeline,
-            skeleton_outer_pipeline,
+            bone_pipeline,
+            bone_outer_pipeline,
+            joint_pipeline,
+            joint_outer_pipeline,
             invalid_shader_pipeline,
             invalid_attributes_pipeline,
             debug_pipeline,
@@ -437,7 +445,7 @@ impl SsbhRenderer {
 
         if let Some(debug_mode) = self.debug_mode {
             // Draw the models directly to the output.
-            self.model_debug_pass(encoder, render_models, output_view, debug_mode);
+            self.model_debug_pass(encoder, render_models, output_view);
         } else {
             // Depth only pass for shadow maps.
             self.shadow_pass(encoder, render_models);
@@ -449,6 +457,7 @@ impl SsbhRenderer {
             self.model_pass(encoder, render_models, shader_database);
 
             // TODO: Should this happen after post processing?
+            // TODO: Should this also work while using debug shading modes?
             self.skeleton_pass(encoder, render_models);
 
             // Extract the portions of the image that contribute to bloom.
@@ -596,7 +605,6 @@ impl SsbhRenderer {
         encoder: &mut wgpu::CommandEncoder,
         render_models: &[RenderModel],
         output_view: &wgpu::TextureView,
-        debug_mode: DebugMode,
     ) {
         let mut debug_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("Model Debug Pass"),
@@ -625,7 +633,6 @@ impl SsbhRenderer {
                 &mut debug_pass,
                 &self.per_frame_bind_group,
                 &self.stage_uniforms_bind_group,
-                debug_mode,
             );
         }
     }
@@ -653,7 +660,14 @@ impl SsbhRenderer {
         });
 
         for model in render_models {
-            model.draw_skeleton(&mut skeleton_pass, &self.skeleton_camera_bind_group, &self.skeleton_pipeline, &self.skeleton_outer_pipeline);
+            model.draw_skeleton(
+                &mut skeleton_pass,
+                &self.skeleton_camera_bind_group,
+                &self.bone_pipeline,
+                &self.bone_outer_pipeline,
+                &self.joint_pipeline,
+                &self.joint_outer_pipeline,
+            );
         }
     }
 
@@ -711,7 +725,12 @@ impl SsbhRenderer {
     }
 }
 
-fn skeleton_pipeline(device: &wgpu::Device) -> wgpu::RenderPipeline {
+fn skeleton_pipeline(
+    device: &wgpu::Device,
+    vertex_entry: &str,
+    fragment_entry: &str,
+    cull_face: wgpu::Face,
+) -> wgpu::RenderPipeline {
     let shader = crate::shader::skeleton::create_shader_module(device);
     let layout = crate::shader::skeleton::create_pipeline_layout(device);
     device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
@@ -719,7 +738,7 @@ fn skeleton_pipeline(device: &wgpu::Device) -> wgpu::RenderPipeline {
         layout: Some(&layout),
         vertex: wgpu::VertexState {
             module: &shader,
-            entry_point: "vs_main",
+            entry_point: vertex_entry,
             buffers: &[wgpu::VertexBufferLayout {
                 array_stride: crate::shader::skeleton::VertexInput::SIZE_IN_BYTES,
                 step_mode: wgpu::VertexStepMode::Vertex,
@@ -728,51 +747,13 @@ fn skeleton_pipeline(device: &wgpu::Device) -> wgpu::RenderPipeline {
         },
         fragment: Some(wgpu::FragmentState {
             module: &shader,
-            entry_point: "fs_main",
+            entry_point: fragment_entry,
             targets: &[crate::RGBA_COLOR_FORMAT.into()],
         }),
         primitive: wgpu::PrimitiveState {
-            cull_mode: Some(wgpu::Face::Back),
+            cull_mode: Some(cull_face),
             ..Default::default()
-        },        // TODO: Just disable the depth?
-        depth_stencil: Some(wgpu::DepthStencilState {
-            format: crate::renderer::DEPTH_FORMAT,
-            depth_write_enabled: true,
-            depth_compare: wgpu::CompareFunction::LessEqual,
-            stencil: wgpu::StencilState::default(),
-            bias: wgpu::DepthBiasState::default(),
-        }),
-        multisample: wgpu::MultisampleState::default(),
-        multiview: None,
-    })
-}
-
-fn skeleton_outer_pipeline(device: &wgpu::Device) -> wgpu::RenderPipeline {
-    let shader = crate::shader::skeleton::create_shader_module(device);
-    let layout = crate::shader::skeleton::create_pipeline_layout(device);
-    device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-        label: None,
-        layout: Some(&layout),
-        vertex: wgpu::VertexState {
-            module: &shader,
-            entry_point: "vs_main",
-            buffers: &[wgpu::VertexBufferLayout {
-                array_stride: crate::shader::skeleton::VertexInput::SIZE_IN_BYTES,
-                step_mode: wgpu::VertexStepMode::Vertex,
-                attributes: &crate::shader::skeleton::VertexInput::VERTEX_ATTRIBUTES,
-            }],
-        },
-        fragment: Some(wgpu::FragmentState {
-            module: &shader,
-            entry_point: "fs_main",
-            targets: &[crate::RGBA_COLOR_FORMAT.into()],
-        }),
-        primitive: wgpu::PrimitiveState {
-            // Cull front to avoid obscuring the inner object.
-            cull_mode: Some(wgpu::Face::Front),
-            ..Default::default()
-        },
-        // TODO: Just disable the depth?
+        }, // TODO: Just disable the depth?
         depth_stencil: Some(wgpu::DepthStencilState {
             format: crate::renderer::DEPTH_FORMAT,
             depth_write_enabled: true,

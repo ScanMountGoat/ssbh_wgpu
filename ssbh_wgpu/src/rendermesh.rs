@@ -41,6 +41,7 @@ pub struct RenderModel {
     joint_vertex_buffer: wgpu::Buffer,
     joint_vertex_buffer_outer: wgpu::Buffer,
     joint_index_buffer: wgpu::Buffer,
+    joint_world_transforms_buffer: wgpu::Buffer,
     bone_data_bind_group: crate::shader::skeleton::bind_groups::BindGroup1,
     bone_data_outer_bind_group: crate::shader::skeleton::bind_groups::BindGroup1,
     joint_data_bind_group: crate::shader::skeleton::bind_groups::BindGroup1,
@@ -196,6 +197,13 @@ impl RenderModel {
                     0,
                     bytemuck::cast_slice(&(*animation_transforms.world_transforms)),
                 );
+
+                let joint_transforms = joint_transforms(skel, &animation_transforms);
+                queue.write_buffer(
+                    &self.joint_world_transforms_buffer,
+                    0,
+                    bytemuck::cast_slice(&joint_transforms),
+                );
             }
         }
     }
@@ -204,23 +212,26 @@ impl RenderModel {
         &'a self,
         render_pass: &mut wgpu::RenderPass<'a>,
         camera_bind_group: &'a crate::shader::skeleton::bind_groups::BindGroup0,
-        skeleton_pipeline: &'a wgpu::RenderPipeline,
-        skeleton_outer_pipeline: &'a wgpu::RenderPipeline,
+        bone_pipeline: &'a wgpu::RenderPipeline,
+        bone_outer_pipeline: &'a wgpu::RenderPipeline,
+        joint_pipeline: &'a wgpu::RenderPipeline,
+        joint_outer_pipeline: &'a wgpu::RenderPipeline,
     ) {
         if let Some(skel) = self.skel.as_ref() {
             self.draw_joints(
                 render_pass,
                 skel,
                 camera_bind_group,
-                skeleton_pipeline,
-                skeleton_outer_pipeline,
+                joint_pipeline,
+                joint_outer_pipeline,
             );
+            // Draw the bones last to cover up the geometry at the ends of the joints.
             self.draw_bones(
                 render_pass,
                 skel,
                 camera_bind_group,
-                skeleton_pipeline,
-                skeleton_outer_pipeline,
+                bone_pipeline,
+                bone_outer_pipeline,
             );
         }
     }
@@ -362,7 +373,6 @@ impl RenderModel {
         render_pass: &mut wgpu::RenderPass<'a>,
         per_frame_bind_group: &'a crate::shader::model::bind_groups::BindGroup0,
         stage_uniforms_bind_group: &'a crate::shader::model::bind_groups::BindGroup2,
-        debug_mode: DebugMode,
     ) {
         // Assume the pipeline is already set.
         for mesh in self.meshes.iter().filter(|m| m.is_visible) {
@@ -439,12 +449,11 @@ pub struct RenderMeshSharedData<'a> {
 }
 
 fn pyramid() -> Vec<[f32; 3]> {
-    let scale = 0.1;
     vec![
-        [-scale, 1.0, -scale],
-        [scale, 1.0, -scale],
-        [scale, 1.0, scale],
-        [-scale, 1.0, scale],
+        [-1.0, 1.0, -1.0],
+        [1.0, 1.0, -1.0],
+        [1.0, 1.0, 1.0],
+        [-1.0, 1.0, 1.0],
         [0.0, 0.0, 0.0],
     ]
 }
@@ -458,11 +467,12 @@ fn pyramid_outer() -> Vec<[f32; 3]> {
 }
 
 fn pyramid_indices() -> Vec<u32> {
+    // An inverted pyramid with a square base.
     vec![2, 1, 3, 0, 1, 4, 1, 2, 4, 2, 3, 4, 3, 0, 4, 1, 0, 3]
 }
 
 fn sphere() -> Vec<[f32; 3]> {
-    let verts = vec![
+    vec![
         [0.000000, 0.923880, -0.382683],
         [0.000000, 0.707107, -0.707107],
         [0.000000, 0.382683, -0.923880],
@@ -521,13 +531,7 @@ fn sphere() -> Vec<[f32; 3]> {
         [-0.653282, -0.382683, -0.653281],
         [-0.500000, -0.707107, -0.500000],
         [-0.270598, -0.923880, -0.270598],
-    ];
-    // TODO: Get the shader scale_factor working again.
-    let scale = 0.1;
-    verts
-        .iter()
-        .map(|v| [v[0] * scale, v[1] * scale, v[2] * scale])
-        .collect()
+    ]
 }
 
 fn sphere_outer() -> Vec<[f32; 3]> {
@@ -635,37 +639,10 @@ pub fn create_render_model(
         },
     );
 
-    // TODO: Make a function for this?
-    // TODO: Make the joint pipeline separate.
-    // This would allow using the existing transforms buffer.
-    let mut joint_transforms: Vec<_> = shared_data
+    let joint_transforms = shared_data
         .skel
-        .unwrap()
-        .bones
-        .iter()
-        .enumerate()
-        .map(|(i, bone)| {
-            let pos = anim_transforms.world_transforms[i].col(3).xyz();
-            let mut parent_pos = pos;
-            if let Some(skel) = shared_data.skel {
-                if let Some(parent_index) = bone.parent_index {
-                    parent_pos = anim_transforms.world_transforms[parent_index].col(3).xyz();
-                }
-            }
-            let scale = pos.distance(parent_pos);
-
-            // Assume an inverted pyramid with up as the Y-axis.
-            // 1. Scale the pyramid along the Y-axis to have the appropriate length.
-            // 2. Rotate the pyramid to point to its parent.
-            // 3. Translate the bone to its world position.
-            let rotation =
-                glam::Quat::from_rotation_arc(glam::Vec3::Y, (parent_pos - pos).normalize());
-            glam::Mat4::from_translation(pos)
-                * glam::Mat4::from_quat(rotation)
-                * glam::Mat4::from_scale(glam::Vec3::new(1.0, scale, 1.0))
-        })
-        .collect();
-    joint_transforms.resize(crate::animation::MAX_BONE_COUNT, glam::Mat4::IDENTITY);
+        .map(|skel| joint_transforms(skel, &anim_transforms))
+        .unwrap_or_else(|| vec![glam::Mat4::IDENTITY; 512]);
 
     let joint_world_transforms_buffer =
         device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -806,6 +783,7 @@ pub fn create_render_model(
         joint_vertex_buffer,
         joint_vertex_buffer_outer,
         joint_index_buffer,
+        joint_world_transforms_buffer,
         bone_index_buffer,
         bone_data_bind_group,
         bone_data_outer_bind_group,
@@ -814,6 +792,34 @@ pub fn create_render_model(
         bone_bind_groups,
         buffer_data,
     }
+}
+
+fn joint_transforms(skel: &SkelData, anim_transforms: &AnimationTransforms) -> Vec<glam::Mat4> {
+    let mut joint_transforms: Vec<_> = skel
+        .bones
+        .iter()
+        .enumerate()
+        .map(|(i, bone)| {
+            let pos = anim_transforms.world_transforms[i].col(3).xyz();
+            let mut parent_pos = pos;
+            if let Some(parent_index) = bone.parent_index {
+                parent_pos = anim_transforms.world_transforms[parent_index].col(3).xyz();
+            }
+            let scale = pos.distance(parent_pos);
+
+            // Assume an inverted pyramid with up as the Y-axis.
+            // 1. Scale the pyramid along the Y-axis to have the appropriate length.
+            // 2. Rotate the pyramid to point to its parent.
+            // 3. Translate the bone to its world position.
+            let rotation =
+                glam::Quat::from_rotation_arc(glam::Vec3::Y, (parent_pos - pos).normalize());
+            glam::Mat4::from_translation(pos)
+                * glam::Mat4::from_quat(rotation)
+                * glam::Mat4::from_scale(glam::Vec3::new(1.0, scale, 1.0))
+        })
+        .collect();
+    joint_transforms.resize(crate::animation::MAX_BONE_COUNT, glam::Mat4::IDENTITY);
+    joint_transforms
 }
 
 fn create_material_data(
@@ -886,10 +892,6 @@ fn create_render_meshes(
     let mut pipelines = HashMap::new();
 
     // Similarly, materials can be shared between mesh objects.
-    // All the pipelines use the same shader code,
-    // so any MaterialData can be used with any pipeline.
-    // TODO: Should red/yellow checkerboard errors just be separate pipelines?
-    // It doesn't make sense to complicate the shader any further.
     // TODO: Split into PerMaterial, PerObject, etc in the shaders?
     let material_data_by_label: HashMap<_, _> = shared_data
         .matl
@@ -910,7 +912,6 @@ fn create_render_meshes(
         })
         .unwrap_or_default();
 
-    // TODO: Share vertex buffers?
     // TODO: Find a way to have fewer function parameters?
     let mut index_offset = 0;
 
@@ -1017,7 +1018,6 @@ fn create_render_mesh(
 ) -> RenderMesh {
     // TODO: These could be cleaner as functions.
     // TODO: Is using a default for the material label ok?
-    // TODO: How does a missing material work in game for missing matl/modl entry?
     let material_label = shared_data
         .modl
         .and_then(|m| {
