@@ -3,6 +3,7 @@
 #[repr(C)]
 #[derive(Debug, Copy, Clone, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct CameraTransforms {
+    pub model_view_matrix: glam::Mat4,
     pub mvp_matrix: glam::Mat4,
     pub camera_pos: [f32; 4],
 }

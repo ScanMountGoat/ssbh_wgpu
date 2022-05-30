@@ -159,12 +159,12 @@ impl SsbhRenderer {
         initial_height: u32,
         clear_color: wgpu::Color,
     ) -> Self {
-        let bone_pipeline = skeleton_pipeline(device, "vs_bone", "fs_bone", wgpu::Face::Back);
+        let bone_pipeline = skeleton_pipeline(device, "vs_bone", "fs_main", wgpu::Face::Back);
         let bone_outer_pipeline =
-            skeleton_pipeline(device, "vs_bone", "fs_bone", wgpu::Face::Front);
-        let joint_pipeline = skeleton_pipeline(device, "vs_joint", "fs_joint", wgpu::Face::Back);
+            skeleton_pipeline(device, "vs_bone", "fs_main", wgpu::Face::Front);
+        let joint_pipeline = skeleton_pipeline(device, "vs_joint", "fs_main", wgpu::Face::Back);
         let joint_outer_pipeline =
-            skeleton_pipeline(device, "vs_joint", "fs_joint", wgpu::Face::Front);
+            skeleton_pipeline(device, "vs_joint", "fs_main", wgpu::Face::Front);
 
         let shader = crate::shader::post_process::create_shader_module(device);
         let layout = crate::shader::post_process::create_pipeline_layout(device);
@@ -258,6 +258,7 @@ impl SsbhRenderer {
         let camera_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Camera Buffer"),
             contents: bytemuck::cast_slice(&[crate::shader::model::CameraTransforms {
+                model_view_matrix: glam::Mat4::IDENTITY,
                 mvp_matrix: glam::Mat4::IDENTITY,
                 camera_pos: [0.0; 4],
             }]),
@@ -757,7 +758,7 @@ fn skeleton_pipeline(
         depth_stencil: Some(wgpu::DepthStencilState {
             format: crate::renderer::DEPTH_FORMAT,
             depth_write_enabled: true,
-            depth_compare: wgpu::CompareFunction::Always,
+            depth_compare: wgpu::CompareFunction::LessEqual,
             stencil: wgpu::StencilState::default(),
             bias: wgpu::DepthBiasState::default(),
         }),

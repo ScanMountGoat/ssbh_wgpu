@@ -23,7 +23,7 @@ fn calculate_camera_pos_mvp(
     size: winit::dpi::PhysicalSize<u32>,
     translation: glam::Vec3,
     rotation: glam::Vec3,
-) -> (glam::Vec4, glam::Mat4) {
+) -> (glam::Vec4, glam::Mat4, glam::Mat4) {
     let aspect = size.width as f32 / size.height as f32;
     let model_view_matrix = glam::Mat4::from_translation(translation)
         * glam::Mat4::from_rotation_x(rotation.x)
@@ -33,7 +33,7 @@ fn calculate_camera_pos_mvp(
 
     let camera_pos = model_view_matrix.inverse().col(3);
 
-    (camera_pos, perspective_matrix * model_view_matrix)
+    (camera_pos, model_view_matrix, perspective_matrix * model_view_matrix)
 }
 
 struct State {
@@ -334,9 +334,10 @@ impl State {
     }
 
     fn update_camera(&mut self) {
-        let (camera_pos, mvp_matrix) =
+        let (camera_pos, model_view_matrix, mvp_matrix) =
             calculate_camera_pos_mvp(self.size, self.translation_xyz, self.rotation_xyz);
         let transforms = CameraTransforms {
+            model_view_matrix,
             mvp_matrix,
             camera_pos: camera_pos.to_array(),
         };
