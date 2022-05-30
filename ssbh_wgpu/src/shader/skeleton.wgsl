@@ -1,8 +1,16 @@
 struct VertexInput {
     [[location(0)]] position: vec3<f32>;
+    [[location(1)]] normal: vec3<f32>;
+};
+
+struct VertexOutput {
+    [[builtin(position)]] clip_position: vec4<f32>;
+    [[location(0)]] position: vec3<f32>;
+    [[location(1)]] normal: vec3<f32>;
 };
 
 struct CameraTransforms {
+    model_view_matrix: mat4x4<f32>;
     mvp_matrix: mat4x4<f32>;
     camera_pos: vec4<f32>;
 };
@@ -39,7 +47,7 @@ var<uniform> per_bone: PerBone;
 [[stage(vertex)]]
 fn vs_bone(
     in: VertexInput,
-) -> [[builtin(position)]] vec4<f32> {
+) -> VertexOutput {
     // TODO: Check the bounds.
     // Keep a constant size in pixels on screen.
     let bone_pos = world_transforms.transforms[per_bone.indices.x] * vec4<f32>(0.0, 0.0, 0.0, 1.0);
@@ -47,34 +55,37 @@ fn vs_bone(
 
     let position = vec4<f32>(in.position.xyz * scale_factor, 1.0);
 
-    return camera.mvp_matrix * world_transforms.transforms[per_bone.indices.x] * position;
-}
-
-[[stage(fragment)]]
-fn fs_bone() -> [[location(0)]] vec4<f32> {
-    // TODO: Check the bounds.
-    let color = bone_colors.colors[per_bone.indices.x].xyz;
-    return vec4<f32>(pow(color, vec3<f32>(2.2)), 1.0);
+    var out: VertexOutput;
+    out.clip_position = camera.mvp_matrix * world_transforms.transforms[per_bone.indices.x] * position;
+    out.position = in.position;
+    out.normal = (world_transforms.transforms[per_bone.indices.x] * vec4<f32>(in.normal, 0.0)).xyz;
+    return out;
 }
 
 [[stage(vertex)]]
 fn vs_joint(
     in: VertexInput,
-) -> [[builtin(position)]] vec4<f32> {
+) -> VertexOutput {
     // TODO: Check the bounds.
     // Keep a constant size in pixels on screen.
     let bone_pos = world_transforms.transforms[per_bone.indices.x] * vec4<f32>(0.0, 0.0, 0.0, 1.0);
-    let scale_factor = distance(bone_pos.xyz, camera.camera_pos.xyz) * 0.002;
+    let scale_factor = distance(bone_pos.xyz, camera.camera_pos.xyz) * 0.005;
 
     // Only scale the ends of the joint without affecting the height.
     let position = vec4<f32>(in.position.xyz * vec3<f32>(scale_factor, 1.0, scale_factor), 1.0);
 
-    return camera.mvp_matrix * world_transforms.transforms[per_bone.indices.x] * position;
+    var out: VertexOutput;
+    out.clip_position = camera.mvp_matrix * world_transforms.transforms[per_bone.indices.x] * position;
+    out.position = in.position;
+    out.normal = (world_transforms.transforms[per_bone.indices.x] * vec4<f32>(in.normal, 0.0)).xyz;
+    return out;
 }
 
 [[stage(fragment)]]
-fn fs_joint() -> [[location(0)]] vec4<f32> {
+fn fs_main(in: VertexOutput) -> [[location(0)]] vec4<f32> {
     // TODO: Check the bounds.
-    let color = bone_colors.colors[per_bone.indices.x].xyz;
+    let viewVector = normalize(camera.camera_pos.xyz - in.position.xyz);
+    let shading = mix(0.5, 1.0, dot(viewVector, normalize(in.normal)));
+    let color = bone_colors.colors[per_bone.indices.x].xyz * shading;
     return vec4<f32>(pow(color, vec3<f32>(2.2)), 1.0);
 }
