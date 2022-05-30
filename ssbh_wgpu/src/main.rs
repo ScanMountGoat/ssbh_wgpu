@@ -269,6 +269,11 @@ impl State {
                             VirtualKeyCode::J => self.render.debug_mode = DebugMode::Position0,
                             VirtualKeyCode::K => self.render.debug_mode = DebugMode::Normal0,
                             VirtualKeyCode::L => self.render.debug_mode = DebugMode::Tangent0,
+                            VirtualKeyCode::Z => self.render.debug_mode = DebugMode::Map1,
+                            VirtualKeyCode::X => self.render.debug_mode = DebugMode::Bake1,
+                            VirtualKeyCode::C => self.render.debug_mode = DebugMode::UvSet,
+                            VirtualKeyCode::V => self.render.debug_mode = DebugMode::UvSet1,
+                            VirtualKeyCode::B => self.render.debug_mode = DebugMode::UvSet2,
                             _ => (),
                         }
                     }

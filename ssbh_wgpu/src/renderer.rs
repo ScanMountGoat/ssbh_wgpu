@@ -36,8 +36,11 @@ const VARIANCE_SHADOW_HEIGHT: u32 = 512;
 pub enum DebugMode {
     /// The default shaded mode.
     Shaded,
+    /// The Position0 vertex attribute.
     Position0,
+    /// The Normal0 vertex attribute.
     Normal0,
+    /// The Tangent0 vertex attribute.
     Tangent0,
     ColorSet1,
     ColorSet2,
@@ -457,6 +460,9 @@ impl SsbhRenderer {
         if self.debug_mode != DebugMode::Shaded {
             // Draw the models directly to the output.
             self.model_debug_pass(encoder, render_models, output_view);
+
+            // TODO: Toggle skeleton rendering?
+            self.skeleton_pass(encoder, render_models, output_view);
         } else {
             // Depth only pass for shadow maps.
             self.shadow_pass(encoder, render_models);
@@ -466,10 +472,6 @@ impl SsbhRenderer {
 
             // Draw the models to the initial color texture.
             self.model_pass(encoder, render_models, shader_database);
-
-            // TODO: Should this happen after post processing?
-            // TODO: Should this also work while using debug shading modes?
-            self.skeleton_pass(encoder, render_models);
 
             // Extract the portions of the image that contribute to bloom.
             self.bloom_threshold_pass(encoder);
@@ -488,6 +490,9 @@ impl SsbhRenderer {
 
             // Combine the model and bloom contributions and apply color grading.
             self.post_processing_pass(encoder, output_view);
+
+            // TODO: Toggle skeleton rendering?
+            self.skeleton_pass(encoder, render_models, output_view);
         }
     }
 
@@ -648,12 +653,17 @@ impl SsbhRenderer {
         }
     }
 
-    fn skeleton_pass(&self, encoder: &mut wgpu::CommandEncoder, render_models: &[RenderModel]) {
+    fn skeleton_pass(
+        &self,
+        encoder: &mut wgpu::CommandEncoder,
+        render_models: &[RenderModel],
+        view: &wgpu::TextureView,
+    ) {
         // TODO: Force having a color attachment for each fragment shader output in wgsl_to_wgpu?
         let mut skeleton_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("Skeleton Pass"),
             color_attachments: &[wgpu::RenderPassColorAttachment {
-                view: &self.pass_info.color.view,
+                view,
                 resolve_target: None,
                 ops: wgpu::Operations {
                     load: wgpu::LoadOp::Load,

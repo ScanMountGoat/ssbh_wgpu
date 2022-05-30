@@ -671,87 +671,102 @@ fn fs_debug(in: VertexOutput) -> [[location(0)]] vec4<f32> {
     reflectionVector.y = reflectionVector.y * -1.0;
 
     switch (render_settings.debug_mode.x) {
-        case 0: {
+        case 1: {
             let color = normalize(in.position.xyz) * 0.5 + 0.5;
             return vec4<f32>(pow(color, vec3<f32>(2.2)), 1.0);
         }
-        case 1: {
+        case 2: {
             let color = normalize(in.normal.xyz) * 0.5 + 0.5;
             return vec4<f32>(pow(color, vec3<f32>(2.2)), 1.0);
         }
-        case 2: {
+        case 3: {
             let color = normalize(in.tangent.xyz) * 0.5 + 0.5;
             return vec4<f32>(pow(color, vec3<f32>(2.2)), 1.0);
         }
-        case 3: {
+        case 4: {
             return colorSet1;
         }
-        case 4: {
+        case 5: {
             return colorSet2;
         }
-        case 5: {
+        case 6: {
             return colorSet3;
         }
-        case 6: {
+        case 7: {
             return colorSet4;
         }
-        case 7: {
+        case 8: {
             return colorSet5;
         }
-        case 8: {
+        case 9: {
             return colorSet6;
         }
-        case 9: {
+        case 10: {
             return colorSet7;
         }
-        case 10: {      
+        case 11: {      
             return textureSample(texture0, sampler0, map1);
         }
-        case 11: {      
+        case 12: {      
             return textureSample(texture1, sampler1, uvSet);
         }
-        case 12: {      
+        case 13: {      
             return textureSample(texture2, sampler2, reflectionVector);
         }
-        case 13: {      
+        case 14: {      
             return textureSample(texture3, sampler3, bake1);
         }
-        case 14: {      
+        case 15: {      
             return textureSample(texture4, sampler4, map1);
         }
-        case 15: {      
+        case 16: {      
             return textureSample(texture5, sampler5, map1);
         }
-        case 16: {      
+        case 17: {      
             return textureSample(texture6, sampler6, map1);
         }
-        case 17: {      
+        case 18: {      
             return textureSample(texture7, sampler7, reflectionVector);
         }
-        case 18: {      
+        case 19: {      
             return textureSample(texture8, sampler8, reflectionVector);
         }
-        case 19: {      
+        case 20: {      
             return textureSample(texture9, sampler9, bake1);
         }
-        case 20: {      
+        case 21: {      
             return textureSample(texture10, sampler10, map1);
         }
-        case 21: {      
+        case 22: {      
             return textureSample(texture11, sampler11, uvSet);
         }
-        case 22: {      
+        case 23: {      
             return textureSample(texture12, sampler12, map1);
         }
-        case 23: {      
+        case 24: {      
             return textureSample(texture13, sampler13, map1);
         }
-        case 24: {      
+        case 25: {      
             return textureSample(texture14, sampler14, uvSet);
         }
-        // case 22: {      
+        // case 26: {      
         //     return textureSample(texture16, sampler16, map1);
         // }
+        case 27: {      
+            return vec4<f32>(map1, 1.0, 1.0);
+        }
+        case 28: {      
+            return vec4<f32>(bake1, 1.0, 1.0);
+        }
+        case 29: {      
+            return vec4<f32>(uvSet, 1.0, 1.0);
+        }
+        case 30: {      
+            return vec4<f32>(uvSet1, 1.0, 1.0);
+        }
+        case 31: {      
+            return vec4<f32>(uvSet2, 1.0, 1.0);
+        }
         default: { 
             return vec4<f32>(1.0);
         }
