@@ -1,3 +1,4 @@
+use nutexb_wgpu::NutexbFile;
 use rayon::prelude::*;
 use std::path::{Path, PathBuf};
 
@@ -8,12 +9,11 @@ mod uniforms;
 mod vertex;
 
 pub mod animation;
+mod bone_rendering;
 mod lighting;
 mod renderer;
 mod rendermesh;
 mod shader_database;
-
-use nutexb_wgpu::NutexbFile;
 
 pub use renderer::SsbhRenderer;
 pub use rendermesh::{RenderMesh, RenderModel};
