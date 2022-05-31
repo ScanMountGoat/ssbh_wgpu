@@ -235,12 +235,12 @@ impl State {
                 // TODO: Add tests for handling scroll events properly?
                 // Scale zoom speed with distance to make it easier to zoom out large scenes.
                 let delta_z = match delta {
-                    MouseScrollDelta::LineDelta(_x, y) => *y * 5.0 * self.translation_xyz.z.abs(),
-                    MouseScrollDelta::PixelDelta(p) => p.y as f32 * self.translation_xyz.z.abs(),
+                    MouseScrollDelta::LineDelta(_x, y) => *y * self.translation_xyz.z.abs() * 0.1,
+                    MouseScrollDelta::PixelDelta(p) => p.y as f32 * self.translation_xyz.z.abs() * 0.005,
                 };
 
                 // Clamp to prevent the user from zooming through the origin.
-                self.translation_xyz.z = (self.translation_xyz.z + delta_z * 0.005).min(-1.0);
+                self.translation_xyz.z = (self.translation_xyz.z + delta_z).min(-1.0);
                 true
             }
             WindowEvent::KeyboardInput { input, .. } => {
