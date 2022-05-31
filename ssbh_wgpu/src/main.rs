@@ -190,7 +190,7 @@ impl State {
         // Test that some_fn(event, state) returns new state?
         match event {
             WindowEvent::MouseInput { button, state, .. } => {
-                // Keep track mouse clicks to only rotate when dragging while clicked.
+                // Track mouse clicks to only rotate when dragging while clicked.
                 match (button, state) {
                     (MouseButton::Left, ElementState::Pressed) => self.is_mouse_left_clicked = true,
                     (MouseButton::Left, ElementState::Released) => {
@@ -233,10 +233,14 @@ impl State {
             }
             WindowEvent::MouseWheel { delta, .. } => {
                 // TODO: Add tests for handling scroll events properly?
-                self.translation_xyz.z += match delta {
-                    MouseScrollDelta::LineDelta(_x, y) => *y * 5.0,
-                    MouseScrollDelta::PixelDelta(p) => p.y as f32,
+                // Scale zoom speed with distance to make it easier to zoom out large scenes.
+                let delta_z = match delta {
+                    MouseScrollDelta::LineDelta(_x, y) => *y * 5.0 * self.translation_xyz.z.abs(),
+                    MouseScrollDelta::PixelDelta(p) => p.y as f32 * self.translation_xyz.z.abs(),
                 };
+
+                // Clamp to prevent the user from zooming through the origin.
+                self.translation_xyz.z = (self.translation_xyz.z + delta_z * 0.005).min(-1.0);
                 true
             }
             WindowEvent::KeyboardInput { input, .. } => {
