@@ -3,6 +3,7 @@ use std::path::Path;
 use ssbh_wgpu::create_default_textures;
 use ssbh_wgpu::load_default_cube;
 use ssbh_wgpu::CameraTransforms;
+use ssbh_wgpu::ModelFolder;
 use ssbh_wgpu::PipelineData;
 use ssbh_wgpu::RenderModel;
 use ssbh_wgpu::RenderSettings;
@@ -47,7 +48,11 @@ struct State {
     device: wgpu::Device,
     queue: wgpu::Queue,
     config: wgpu::SurfaceConfiguration,
+
+    // Parallel lists for models and renderable models.
+    models: Vec<ModelFolder>,
     render_models: Vec<RenderModel>,
+
     renderer: SsbhRenderer,
     shader_database: ShaderDatabase,
 
@@ -131,7 +136,7 @@ impl State {
         let pipeline_data = PipelineData::new(&device, surface_format);
 
         let models = load_model_folders(folder);
-        let render_meshes = load_render_models(
+        let render_models = load_render_models(
             &device,
             &queue,
             &pipeline_data,
@@ -149,7 +154,8 @@ impl State {
             queue,
             config,
             size,
-            render_models: render_meshes,
+            models,
+            render_models,
             renderer,
             previous_cursor_position: PhysicalPosition { x: 0.0, y: 0.0 },
             is_mouse_left_clicked: false,
@@ -236,7 +242,9 @@ impl State {
                 // Scale zoom speed with distance to make it easier to zoom out large scenes.
                 let delta_z = match delta {
                     MouseScrollDelta::LineDelta(_x, y) => *y * self.translation_xyz.z.abs() * 0.1,
-                    MouseScrollDelta::PixelDelta(p) => p.y as f32 * self.translation_xyz.z.abs() * 0.005,
+                    MouseScrollDelta::PixelDelta(p) => {
+                        p.y as f32 * self.translation_xyz.z.abs() * 0.005
+                    }
                 };
 
                 // Clamp to prevent the user from zooming through the origin.
@@ -368,11 +376,28 @@ impl State {
         // Apply animations for each model.
         // This is more efficient than animating per mesh since state is shared between render meshes.
         if self.is_playing {
-            for model in &mut self.render_models {
+            // TODO: Combine these into one list?
+            for (i, model) in self.render_models.iter_mut().enumerate() {
                 model.apply_anim(
                     &self.device,
                     &self.queue,
                     self.animation.as_ref(),
+                    // TODO: Make these functions of ModelFolder?
+                    self.models[i]
+                        .skels
+                        .iter()
+                        .find(|(f, _)| f == "model.nusktb")
+                        .map(|h| &h.1),
+                    self.models[i]
+                        .matls
+                        .iter()
+                        .find(|(f, _)| f == "model.numatb")
+                        .map(|h| &h.1),
+                    self.models[i]
+                        .hlpbs
+                        .iter()
+                        .find(|(f, _)| f == "model.nuhlpb")
+                        .map(|h| &h.1),
                     self.current_frame,
                     &self.pipeline_data,
                     &self.default_textures,
@@ -388,6 +413,14 @@ impl State {
             &self.shader_database,
         );
 
+        let skel = self
+            .models
+            .get(0)
+            .and_then(|m| m.skels.get(0).map(|s| &s.1));
+        self.renderer
+            .render_skeleton(&mut encoder, &output_view, &self.render_models, skel);
+
+        // TODO: merge font rendering with above?
         let mut brush = BrushBuilder::using_font_bytes(include_bytes!("fonts/Hack-Regular.ttf"))
             .unwrap()
             .build(&self.device, &self.config);
@@ -397,9 +430,10 @@ impl State {
             calculate_camera_pos_mvp(self.size, self.translation_xyz, self.rotation_xyz);
 
         for model in &self.render_models {
-            model.queue_bone_names(&mut brush, self.config.width, self.config.height, mvp);
+            model.queue_bone_names(skel, &mut brush, self.config.width, self.config.height, mvp);
         }
 
+        // TODO: Make text rendering optional.
         let text_command_buffer = brush.draw(&self.device, &output_view, &self.queue);
 
         self.queue.submit([encoder.finish(), text_command_buffer]);

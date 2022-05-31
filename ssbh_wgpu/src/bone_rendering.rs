@@ -10,6 +10,8 @@ pub fn joint_transforms(skel: &SkelData, anim_transforms: &AnimationTransforms) 
         .iter()
         .enumerate()
         .map(|(i, bone)| {
+            // TODO: Add an option to show the bone's actual rotation?
+            // TODO: The bones wont be connected and should use a different model for rendering.
             let pos = anim_transforms.world_transforms[i].col(3).xyz();
             let mut parent_pos = pos;
             if let Some(parent_index) = bone.parent_index {

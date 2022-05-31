@@ -20,8 +20,8 @@ use wgpu::{util::DeviceExt, SamplerDescriptor, TextureViewDescriptor};
 
 use wgpu_text::{
     font::FontRef,
-    section::{BuiltInLineBreaker, Layout, OwnedText, Section, Text, VerticalAlign},
-    BrushBuilder, TextBrush,
+    section::{BuiltInLineBreaker, Layout, Section, Text, VerticalAlign},
+    TextBrush,
 };
 
 // Group resources shared between mesh objects.
@@ -32,9 +32,6 @@ use wgpu_text::{
 // TODO: Is it worth allowing models to reference textures from other folders?
 pub struct RenderModel {
     pub meshes: Vec<RenderMesh>,
-    skel: Option<SkelData>,
-    matl: Option<MatlData>,
-    hlpb: Option<HlpbData>,
     mesh_buffers: MeshBuffers,
     material_data_by_label: HashMap<String, MaterialData>,
     pipelines: HashMap<PipelineKey, wgpu::RenderPipeline>,
@@ -165,6 +162,9 @@ impl RenderModel {
         device: &wgpu::Device,
         queue: &wgpu::Queue,
         anim: Option<&AnimData>,
+        skel: Option<&SkelData>,
+        matl: Option<&MatlData>,
+        hlpb: Option<&HlpbData>,
         frame: f32,
         pipeline_data: &PipelineData,
         default_textures: &[(String, wgpu::Texture)],
@@ -177,7 +177,7 @@ impl RenderModel {
         if let Some(anim) = anim {
             animate_visibility(anim, frame, &mut self.meshes);
 
-            if let Some(matl) = &self.matl {
+            if let Some(matl) = matl {
                 // Get a list of changed materials.
                 let animated_materials = animate_materials(anim, frame, &matl.entries);
                 for material in animated_materials {
@@ -193,8 +193,8 @@ impl RenderModel {
                 }
             }
 
-            if let Some(skel) = &self.skel {
-                let animation_transforms = animate_skel(skel, anim, self.hlpb.as_ref(), frame);
+            if let Some(skel) = skel {
+                let animation_transforms = animate_skel(skel, anim, hlpb, frame);
                 queue.write_buffer(
                     &self.mesh_buffers.skinning_transforms,
                     0,
@@ -221,6 +221,7 @@ impl RenderModel {
 
     pub fn draw_skeleton<'a>(
         &'a self,
+        skel: Option<&SkelData>,
         render_pass: &mut wgpu::RenderPass<'a>,
         camera_bind_group: &'a crate::shader::skeleton::bind_groups::BindGroup0,
         bone_pipeline: &'a wgpu::RenderPipeline,
@@ -228,7 +229,7 @@ impl RenderModel {
         joint_pipeline: &'a wgpu::RenderPipeline,
         joint_outer_pipeline: &'a wgpu::RenderPipeline,
     ) {
-        if let Some(skel) = self.skel.as_ref() {
+        if let Some(skel) = skel {
             self.draw_joints(
                 render_pass,
                 skel,
@@ -409,12 +410,13 @@ impl RenderModel {
     // TODO: Make a world_to_screen function?
     pub fn queue_bone_names(
         &self,
+        skel: Option<&SkelData>,
         brush: &mut TextBrush<FontRef>,
         width: u32,
         height: u32,
         mvp: glam::Mat4,
     ) {
-        if let Some(skel) = &self.skel {
+        if let Some(skel) = skel {
             for (i, bone) in skel.bones.iter().enumerate() {
                 let bone_world = *self
                     .animation_transforms
@@ -434,7 +436,8 @@ impl RenderModel {
                 let section = Section::default()
                     .add_text(
                         (Text::new(&bone.name))
-                            .with_scale(25.0)
+                            // TODO: Use the window's scale factor?
+                            .with_scale(12.0)
                             .with_color([1.0, 1.0, 1.0, 1.0]),
                     )
                     .with_bounds((width as f32, height as f32))
@@ -443,7 +446,7 @@ impl RenderModel {
                             .v_align(VerticalAlign::Center)
                             .line_breaker(BuiltInLineBreaker::AnyCharLineBreaker),
                     )
-                    .with_screen_position((position_x_screen + 20.0, position_y_screen))
+                    .with_screen_position((position_x_screen + 10.0, position_y_screen))
                     .to_owned();
 
                 brush.queue(&section);
@@ -647,12 +650,8 @@ pub fn create_render_model(
         start.elapsed()
     );
 
-    // TODO: Avoid clone.
     RenderModel {
         meshes,
-        skel: shared_data.skel.cloned(),
-        matl: shared_data.matl.cloned(),
-        hlpb: shared_data.hlpb.cloned(),
         mesh_buffers,
         material_data_by_label,
         textures,

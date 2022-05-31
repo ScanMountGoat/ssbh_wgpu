@@ -7,6 +7,7 @@ use crate::{
     texture::load_texture_sampler_3d,
     CameraTransforms, RenderModel, ShaderDatabase,
 };
+use ssbh_data::skel_data::SkelData;
 use strum::{Display, EnumString, EnumVariantNames, FromRepr};
 use wgpu::{util::DeviceExt, ComputePassDescriptor, ComputePipelineDescriptor};
 
@@ -460,9 +461,6 @@ impl SsbhRenderer {
         if self.debug_mode != DebugMode::Shaded {
             // Draw the models directly to the output.
             self.model_debug_pass(encoder, render_models, output_view);
-
-            // TODO: Toggle skeleton rendering?
-            self.skeleton_pass(encoder, render_models, output_view);
         } else {
             // Depth only pass for shadow maps.
             self.shadow_pass(encoder, render_models);
@@ -491,9 +489,18 @@ impl SsbhRenderer {
             // Combine the model and bloom contributions and apply color grading.
             self.post_processing_pass(encoder, output_view);
 
-            // TODO: Toggle skeleton rendering?
-            self.skeleton_pass(encoder, render_models, output_view);
         }
+    }
+
+    pub fn render_skeleton(
+        &self,
+        encoder: &mut wgpu::CommandEncoder,
+        output_view: &wgpu::TextureView,
+        render_models: &[RenderModel],
+        skel: Option<&SkelData>
+    ) {
+        // TODO: Toggle skeleton rendering?
+        self.skeleton_pass(encoder, render_models, output_view, skel);
     }
 
     fn bloom_upscale_pass(&self, encoder: &mut wgpu::CommandEncoder) {
@@ -658,6 +665,7 @@ impl SsbhRenderer {
         encoder: &mut wgpu::CommandEncoder,
         render_models: &[RenderModel],
         view: &wgpu::TextureView,
+        skel: Option<&SkelData>
     ) {
         // TODO: Force having a color attachment for each fragment shader output in wgsl_to_wgpu?
         let mut skeleton_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
@@ -682,6 +690,7 @@ impl SsbhRenderer {
 
         for model in render_models {
             model.draw_skeleton(
+                skel,
                 &mut skeleton_pass,
                 &self.skeleton_camera_bind_group,
                 &self.bone_pipeline,

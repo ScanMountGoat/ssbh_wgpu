@@ -39,7 +39,8 @@ impl AnimatedBone {
                     // For example, suppose Mario throws a different fighter like Bowser.
                     // Mario's "thrown" anim needs to use some transforms from Bowser's skel.
                     let (skel_scale, skel_rot, scale_trans) =
-                        mat4_from_row2d(&self.bone.transform).to_scale_rotation_translation();
+                        glam::Mat4::from_cols_array_2d(&self.bone.transform)
+                            .to_scale_rotation_translation();
 
                     let adjusted_transform = AnimTransform {
                         translation: if self.flags.override_translation {
@@ -61,9 +62,9 @@ impl AnimatedBone {
 
                     adjusted_transform.to_mat4(include_anim_scale)
                 })
-                .unwrap_or_else(|| mat4_from_row2d(&self.bone.transform))
+                .unwrap_or_else(|| glam::Mat4::from_cols_array_2d(&self.bone.transform))
         } else {
-            mat4_from_row2d(&self.bone.transform)
+            glam::Mat4::from_cols_array_2d(&self.bone.transform)
         }
     }
 }
@@ -244,10 +245,7 @@ pub fn animate_skel(
     }
 }
 
-fn mat4_from_row2d(elements: &[[f32; 4]; 4]) -> glam::Mat4 {
-    glam::Mat4::from_cols_array_2d(elements)
-}
-
+// TODO: Move matrix utilities to a separate module?
 fn world_transform(
     bones: &mut [AnimatedBone],
     bone_index: usize,
