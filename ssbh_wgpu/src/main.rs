@@ -1,4 +1,4 @@
-use std::{iter, path::Path};
+use std::path::Path;
 
 use ssbh_wgpu::create_default_textures;
 use ssbh_wgpu::load_default_cube;
@@ -9,6 +9,8 @@ use ssbh_wgpu::RenderSettings;
 use ssbh_wgpu::REQUIRED_FEATURES;
 use ssbh_wgpu::{create_database, DebugMode, ShaderDatabase};
 use ssbh_wgpu::{load_model_folders, load_render_models, SsbhRenderer};
+
+use wgpu_text::BrushBuilder;
 
 use ssbh_data::prelude::*;
 
@@ -382,7 +384,22 @@ impl State {
             &self.shader_database,
         );
 
-        self.queue.submit(iter::once(encoder.finish()));
+        let mut brush = BrushBuilder::using_font_bytes(include_bytes!("fonts/Hack-Regular.ttf"))
+            .unwrap()
+            .build(&self.device, &self.config);
+
+        // TODO: Avoid calculating this matrix more than once.
+        let (_, _, mvp) =
+            calculate_camera_pos_mvp(self.size, self.translation_xyz, self.rotation_xyz);
+
+        for model in &self.render_models {
+            model.queue_bone_names(&mut brush, self.config.width, self.config.height, mvp);
+        }
+
+        let text_command_buffer = brush.draw(&self.device, &output_view, &self.queue);
+
+        self.queue.submit([encoder.finish(), text_command_buffer]);
+
         // Actually draw the frame.
         output.present();
 

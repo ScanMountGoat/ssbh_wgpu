@@ -7,6 +7,7 @@ use crate::{
     vertex::{buffer0, buffer1, mesh_object_buffers, skin_weights, MeshObjectBufferData},
     PipelineData, ShaderDatabase,
 };
+use glam::Vec4Swizzles;
 use nutexb_wgpu::NutexbFile;
 use ssbh_data::{
     adj_data::AdjEntryData,
@@ -16,6 +17,12 @@ use ssbh_data::{
 };
 use std::collections::HashMap;
 use wgpu::{util::DeviceExt, SamplerDescriptor, TextureViewDescriptor};
+
+use wgpu_text::{
+    font::FontRef,
+    section::{BuiltInLineBreaker, Layout, OwnedText, Section, Text, VerticalAlign},
+    BrushBuilder, TextBrush,
+};
 
 // Group resources shared between mesh objects.
 // Shared resources can be updated once per model instead of per mesh.
@@ -49,6 +56,9 @@ pub struct RenderModel {
     // TODO: Use instancing instead.
     bone_bind_groups: Vec<crate::shader::skeleton::bind_groups::BindGroup2>,
     buffer_data: MeshObjectBufferData,
+
+    // Used for text rendering.
+    animation_transforms: AnimationTransforms,
 }
 
 // A RenderMesh is view over a portion of the RenderModel data.
@@ -203,6 +213,8 @@ impl RenderModel {
                     0,
                     bytemuck::cast_slice(&joint_transforms),
                 );
+
+                self.animation_transforms = animation_transforms;
             }
         }
     }
@@ -393,6 +405,52 @@ impl RenderModel {
         }
     }
 
+    // TODO: Move this to bone_rendering?
+    // TODO: Make a world_to_screen function?
+    pub fn queue_bone_names(
+        &self,
+        brush: &mut TextBrush<FontRef>,
+        width: u32,
+        height: u32,
+        mvp: glam::Mat4,
+    ) {
+        if let Some(skel) = &self.skel {
+            for (i, bone) in skel.bones.iter().enumerate() {
+                let bone_world = *self
+                    .animation_transforms
+                    .world_transforms
+                    .get(i)
+                    .unwrap_or(&glam::Mat4::IDENTITY);
+                let position = (mvp * bone_world) * glam::Vec4::new(0.0, 0.0, 0.0, 1.0);
+                // Account for perspective correction.
+                let position_clip = position.xyz() / position.w;
+
+                // Convert from clip space [-1,1] to screen space [0,width] or [0,height].
+                // Flip y vertically to match wgpu conventions.
+                let position_x_screen = width as f32 * (position_clip.x * 0.5 + 0.5);
+                let position_y_screen = height as f32 * (1.0 - (position_clip.y * 0.5 + 0.5));
+
+                // Add a small offset to the bone position to reduce overlaps.
+                let section = Section::default()
+                    .add_text(
+                        (Text::new(&bone.name))
+                            .with_scale(25.0)
+                            .with_color([1.0, 1.0, 1.0, 1.0]),
+                    )
+                    .with_bounds((width as f32, height as f32))
+                    .with_layout(
+                        Layout::default()
+                            .v_align(VerticalAlign::Center)
+                            .line_breaker(BuiltInLineBreaker::AnyCharLineBreaker),
+                    )
+                    .with_screen_position((position_x_screen + 20.0, position_y_screen))
+                    .to_owned();
+
+                brush.queue(&section);
+            }
+        }
+    }
+
     fn set_mesh_buffers<'a>(&'a self, render_pass: &mut wgpu::RenderPass<'a>, mesh: &RenderMesh) {
         render_pass.set_vertex_buffer(
             0,
@@ -460,7 +518,7 @@ pub fn create_render_model(
     // Otherwise, don't apply any transformations.
     // TODO: Is it worth matching the in game behavior for a missing skel?
     // "Invisible" models might be more confusing for users to understand.
-    let anim_transforms = shared_data
+    let animation_transforms = shared_data
         .skel
         .map(AnimationTransforms::from_skel)
         .unwrap_or_else(AnimationTransforms::identity);
@@ -469,13 +527,13 @@ pub fn create_render_model(
     // TODO: Enforce bone count being at most 511?
     let skinning_transforms_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
         label: Some("Bone Transforms Buffer"),
-        contents: bytemuck::cast_slice(&[*anim_transforms.animated_world_transforms]),
+        contents: bytemuck::cast_slice(&[*animation_transforms.animated_world_transforms]),
         // COPY_DST allows applying animations without allocating new buffers
         usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
     });
 
     let world_transforms_buffer =
-        create_world_transforms_buffer(device, &anim_transforms.world_transforms);
+        create_world_transforms_buffer(device, &animation_transforms.world_transforms);
 
     // TODO: Clean this up.
     let bone_colors_buffer = bone_colors_buffer(device, shared_data.skel, shared_data.hlpb);
@@ -491,7 +549,7 @@ pub fn create_render_model(
 
     let joint_transforms = shared_data
         .skel
-        .map(|skel| joint_transforms(skel, &anim_transforms))
+        .map(|skel| joint_transforms(skel, &animation_transforms))
         .unwrap_or_else(|| vec![glam::Mat4::IDENTITY; 512]);
 
     let joint_world_transforms_buffer =
@@ -612,6 +670,7 @@ pub fn create_render_model(
         joint_data_outer_bind_group,
         bone_bind_groups,
         buffer_data,
+        animation_transforms,
     }
 }
 
