@@ -68,6 +68,62 @@ impl ModelFolder {
             nutexbs: read_files(folder.as_ref(), "nutexb", NutexbFile::read_from_file),
         }
     }
+
+    /// Searches for the `"model.numdlb"` file in [modls](#structfield.modls).
+    pub fn find_modl(&self) -> Option<&ModlData> {
+        self.modls
+            .iter()
+            .find(|(f, _)| f == "model.numdlb")
+            .map(|(_, m)| m)
+    }
+
+    /// Searches for the `"model.numatb"` file  in [matls](#structfield.matls).
+    pub fn find_matl(&self) -> Option<&MatlData> {
+        self.matls
+            .iter()
+            .find(|(f, _)| f == "model.numatb")
+            .map(|(_, m)| m)
+    }
+
+    /// Searches for the `"model.nusktb"` file  in [skels](#structfield.skels).
+    pub fn find_skel(&self) -> Option<&SkelData> {
+        self.skels
+            .iter()
+            .find(|(f, _)| f == "model.nusktb")
+            .map(|(_, m)| m)
+    }
+
+    /// Searches for the `"model.nuanmb"` file  in [anims](#structfield.anims).
+    pub fn find_anim(&self) -> Option<&AnimData> {
+        self.anims
+            .iter()
+            .find(|(f, _)| f == "model.nuanmb")
+            .map(|(_, m)| m)
+    }
+
+    /// Searches for the `"model.nuhlpb"` file  in [hlpbs](#structfield.hlpbs).
+    pub fn find_hlpb(&self) -> Option<&HlpbData> {
+        self.hlpbs
+            .iter()
+            .find(|(f, _)| f == "model.nuhlpb")
+            .map(|(_, m)| m)
+    }
+
+    /// Searches for the `"model.numshb"` file  in [meshes](#structfield.meshes).
+    pub fn find_mesh(&self) -> Option<&MeshData> {
+        self.meshes
+            .iter()
+            .find(|(f, _)| f == "model.numshb")
+            .map(|(_, m)| m)
+    }
+
+    /// Searches for the `"model.adjb"` file  in [adjs](#structfield.adjs).
+    pub fn find_adj(&self) -> Option<&AdjData> {
+        self.adjs
+            .iter()
+            .find(|(f, _)| f == "model.adjb")
+            .map(|(_, m)| m)
+    }
 }
 
 pub fn load_render_models(
@@ -86,36 +142,15 @@ pub fn load_render_models(
         .iter()
         .map(|model| {
             // TODO: Should this use the file names in the modl itself?
-            // TODO: Make this a method instead?
             let shared_data = RenderMeshSharedData {
                 pipeline_data,
                 default_textures,
                 stage_cube,
-                mesh: model
-                    .meshes
-                    .iter()
-                    .find(|(f, _)| f == "model.numshb")
-                    .map(|(_, m)| m),
-                modl: model
-                    .modls
-                    .iter()
-                    .find(|(f, _)| f == "model.numdlb")
-                    .map(|(_, m)| m),
-                skel: model
-                    .skels
-                    .iter()
-                    .find(|(f, _)| f == "model.nusktb")
-                    .map(|(_, m)| m),
-                matl: model
-                    .matls
-                    .iter()
-                    .find(|(f, _)| f == "model.numatb")
-                    .map(|(_, m)| m),
-                adj: model
-                    .adjs
-                    .iter()
-                    .find(|(f, _)| f == "model.adjb")
-                    .map(|(_, m)| m),
+                mesh: model.find_mesh(),
+                modl: model.find_modl(),
+                skel: model.find_skel(),
+                matl: model.find_matl(),
+                adj: model.find_adj(),
                 nutexbs: &model.nutexbs,
                 hlpb: model
                     .hlpbs

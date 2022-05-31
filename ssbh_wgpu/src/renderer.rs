@@ -488,7 +488,6 @@ impl SsbhRenderer {
 
             // Combine the model and bloom contributions and apply color grading.
             self.post_processing_pass(encoder, output_view);
-
         }
     }
 
@@ -497,7 +496,7 @@ impl SsbhRenderer {
         encoder: &mut wgpu::CommandEncoder,
         output_view: &wgpu::TextureView,
         render_models: &[RenderModel],
-        skel: Option<&SkelData>
+        skel: Option<&SkelData>,
     ) {
         // TODO: Toggle skeleton rendering?
         self.skeleton_pass(encoder, render_models, output_view, skel);
@@ -665,7 +664,7 @@ impl SsbhRenderer {
         encoder: &mut wgpu::CommandEncoder,
         render_models: &[RenderModel],
         view: &wgpu::TextureView,
-        skel: Option<&SkelData>
+        skel: Option<&SkelData>,
     ) {
         // TODO: Force having a color attachment for each fragment shader output in wgsl_to_wgpu?
         let mut skeleton_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {

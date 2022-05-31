@@ -382,22 +382,9 @@ impl State {
                     &self.device,
                     &self.queue,
                     self.animation.as_ref(),
-                    // TODO: Make these functions of ModelFolder?
-                    self.models[i]
-                        .skels
-                        .iter()
-                        .find(|(f, _)| f == "model.nusktb")
-                        .map(|h| &h.1),
-                    self.models[i]
-                        .matls
-                        .iter()
-                        .find(|(f, _)| f == "model.numatb")
-                        .map(|h| &h.1),
-                    self.models[i]
-                        .hlpbs
-                        .iter()
-                        .find(|(f, _)| f == "model.nuhlpb")
-                        .map(|h| &h.1),
+                    self.models[i].find_skel(),
+                    self.models[i].find_matl(),
+                    self.models[i].find_hlpb(),
                     self.current_frame,
                     &self.pipeline_data,
                     &self.default_textures,
