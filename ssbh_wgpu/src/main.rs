@@ -29,7 +29,7 @@ fn calculate_camera_pos_mvp(
         * glam::Mat4::from_rotation_x(rotation.x)
         * glam::Mat4::from_rotation_y(rotation.y);
     // Use a large far clip distance to include stage skyboxes.
-    let perspective_matrix = glam::Mat4::perspective_rh_gl(0.5, aspect, 1.0, 400000.0);
+    let perspective_matrix = glam::Mat4::perspective_rh(0.5, aspect, 1.0, 400000.0);
 
     let camera_pos = model_view_matrix.inverse().col(3);
 
@@ -213,13 +213,16 @@ impl State {
                     self.rotation_xyz.x += (delta_y * 0.01) as f32;
                     self.rotation_xyz.y += (delta_x * 0.01) as f32;
                 } else if self.is_mouse_right_clicked {
-                    // TODO: Adjust speed based on camera distance and handle 0 distance.
-                    let delta_x = position.x - self.previous_cursor_position.x;
-                    let delta_y = position.y - self.previous_cursor_position.y;
+                    let (current_x_world, current_y_world) = self.screen_to_world(*position);
+                    let (previous_x_world, previous_y_world) =
+                        self.screen_to_world(self.previous_cursor_position);
+
+                    let delta_x_world = current_x_world - previous_x_world;
+                    let delta_y_world = current_y_world - previous_y_world;
 
                     // Negate y so that dragging up "drags" the model up.
-                    self.translation_xyz.x += (delta_x * 0.1) as f32;
-                    self.translation_xyz.y -= (delta_y * 0.1) as f32;
+                    self.translation_xyz.x += delta_x_world;
+                    self.translation_xyz.y -= delta_y_world;
                 }
                 // Always update the position to avoid jumps when moving between clicks.
                 self.previous_cursor_position = *position;
@@ -283,6 +286,32 @@ impl State {
             }
             _ => false,
         }
+    }
+
+    // TODO: Module and tests for a viewport camera.
+    fn screen_to_world(&mut self, position: PhysicalPosition<f64>) -> (f32, f32) {
+        // The translation input is in pixels.
+        let x_pixels = position.x;
+        let y_pixels = position.y;
+        // dbg!(x_pixels, y_pixels);
+        // We want a world translation to move the scene origin that many pixels.
+        // Map from screen space to clip space in the range [-1,1].
+        let x_clip = 2.0 * x_pixels / self.size.width as f64 - 1.0;
+        let y_clip = 2.0 * y_pixels / self.size.height as f64 - 1.0;
+        // dbg!(x_clip, y_clip);
+        // Map to world space using the model, view, and projection matrix.
+        // TODO: Avoid recalculating the matrix?
+        // Rotation is applied first, so always translate in XY.
+        // TODO: Does ignoring rotation like this work in general?
+        let (_, _, mvp) =
+            calculate_camera_pos_mvp(self.size, self.translation_xyz, self.rotation_xyz * 0.0);
+        // TODO: This doesn't work properly when the camera rotates?
+        let world = mvp.inverse() * glam::Vec4::new(x_clip as f32, y_clip as f32, 0.0, 1.0);
+        // dbg!(world);
+        // TODO: What's the correct scale for this step?
+        let world_x = world.x * world.z;
+        let world_y = world.y * world.z;
+        (world_x, world_y)
     }
 
     fn update(&mut self) {
