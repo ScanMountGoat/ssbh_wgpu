@@ -169,7 +169,7 @@ struct VertexOutput {
     [[location(2)]] tangent: vec4<f32>;
     [[location(3)]] map1_uvset: vec4<f32>;
     [[location(4)]] uv_set1_uv_set2: vec4<f32>;
-    [[location(5)]] bake1: vec4<f32>;
+    [[location(5)]] bake1: vec2<f32>;
     [[location(6)]] color_set1: vec4<f32>;
     [[location(7)]] color_set2_combined: vec4<f32>;
     [[location(8)]] color_set3: vec4<f32>;
@@ -214,28 +214,26 @@ fn TransformUv(uv: vec2<f32>, transform: vec4<f32>) -> vec2<f32>
 // This requires a conditional check for each texture to render correctly.
 // TODO: Ignore textures not used by the shader?
 // This could probably be loaded from Rust as has_attribute & requires_attribute.
-fn GetEmissionColor(uv1: vec2<f32>, uv2: vec2<f32>, transform1: vec4<f32>, transform2: vec4<f32>) -> vec4<f32> {
+fn GetEmissionColor(uv1: vec2<f32>, uv2: vec2<f32>) -> vec4<f32> {
     var emissionColor = vec4<f32>(0.0, 0.0, 0.0, 1.0);
     
     if (uniforms.has_texture[5].x == 1.0) {
-        let uvLayer1 = TransformUv(uv1, transform1);
-        emissionColor = textureSample(texture5, sampler5, uvLayer1);
+        emissionColor = textureSample(texture5, sampler5, uv1);
     }
 
     if (uniforms.has_texture[14].x == 1.0) {
-        let uvLayer2 = TransformUv(uv2, transform2);
-        let emission2Color = textureSample(texture14, sampler14, uvLayer2);
+        let emission2Color = textureSample(texture14, sampler14, uv2);
         return vec4<f32>(Blend(emissionColor.rgb, emission2Color), emissionColor.a);
     }
 
     return emissionColor;
 }
 
-fn GetAlbedoColor(uv1: vec2<f32>, uv2: vec2<f32>, uv3: vec2<f32>, R: vec3<f32>, transform1: vec4<f32>, transform2: vec4<f32>, transform3: vec4<f32>, colorSet5: vec4<f32>) -> vec4<f32>
+fn GetAlbedoColor(uv1: vec2<f32>, uv2: vec2<f32>, uv3: vec2<f32>, R: vec3<f32>, colorSet5: vec4<f32>) -> vec4<f32>
 {
-    let uvLayer1 = TransformUv(uv1, transform1);
-    let uvLayer2 = TransformUv(uv2, transform2);
-    let uvLayer3 = TransformUv(uv3, transform3);
+    let uvLayer1 = uv1;
+    let uvLayer2 = uv2;
+    let uvLayer3 = uv3;
 
     var outRgb = vec3<f32>(0.0);
     var outAlpha = 1.0;
@@ -605,9 +603,32 @@ fn vs_main(
     let colorSet6 = unpack4x8unorm(buffer1.color_set67_packed.x);
     let colorSet7 = unpack4x8unorm(buffer1.color_set67_packed.y);
 
-    out.map1_uvset = buffer1.map1_uvset;
-    out.uv_set1_uv_set2 = buffer1.uv_set1_uv_set2;
-    out.bake1 = buffer1.bake1;
+
+    // TODO: Also apply transforms to the debug shader?
+    var uvTransform1 = vec4<f32>(1.0, 1.0, 0.0, 0.0);
+    if (uniforms.has_vector[6].x == 1.0) {
+        uvTransform1 = uniforms.custom_vector[6];
+    }
+
+    var uvTransform2 = vec4<f32>(1.0, 1.0, 0.0, 0.0);
+    if (uniforms.has_vector[31].x == 1.0) {
+        uvTransform2 = uniforms.custom_vector[31];
+    }
+
+    var uvTransform3 = vec4<f32>(1.0, 1.0, 0.0, 0.0);
+    if (uniforms.has_vector[32].x == 1.0) {
+        uvTransform3 = uniforms.custom_vector[32];
+    }
+
+    let map1 = TransformUv(buffer1.map1_uvset.xy, uvTransform1);
+    let uvSet = TransformUv(buffer1.map1_uvset.zw, uvTransform2);
+    let uvSet1 = TransformUv(buffer1.uv_set1_uv_set2.xy, uvTransform3);
+    // TODO: Transform for uvSet2?
+    let uvSet2 = TransformUv(buffer1.uv_set1_uv_set2.xy, uvTransform3);
+
+    out.map1_uvset = vec4<f32>(map1, uvSet);
+    out.uv_set1_uv_set2 = vec4<f32>(uvSet1, uvSet2);
+    out.bake1 = buffer1.bake1.xy;
     out.color_set1 = colorSet1;
     out.color_set2_combined = colorSet2; // TODO: colorSet2 is added together?
     out.color_set3 = colorSet3;
@@ -832,23 +853,8 @@ fn fs_main(in: VertexOutput) -> [[location(0)]] vec4<f32> {
     let nDotH = clamp(dot(fragmentNormal, halfAngle), 0.0, 1.0);
     let nDotL = dot(fragmentNormal, normalize(chrLightDir));
 
-    var uvTransform1 = vec4<f32>(1.0, 1.0, 0.0, 0.0);
-    if (uniforms.has_vector[6].x == 1.0) {
-        uvTransform1 = uniforms.custom_vector[6];
-    }
-
-    var uvTransform2 = vec4<f32>(1.0, 1.0, 0.0, 0.0);
-    if (uniforms.has_vector[31].x == 1.0) {
-        uvTransform2 = uniforms.custom_vector[31];
-    }
-
-    var uvTransform3 = vec4<f32>(1.0, 1.0, 0.0, 0.0);
-    if (uniforms.has_vector[32].x == 1.0) {
-        uvTransform3 = uniforms.custom_vector[32];
-    }
-
-    let albedoColor = GetAlbedoColor(map1, uvSet, uvSet1, reflectionVector, uvTransform1, uvTransform2, uvTransform3, colorSet5);
-    let emissionColor = GetEmissionColor(map1, uvSet, uvTransform1, uvTransform2);
+    let albedoColor = GetAlbedoColor(map1, uvSet, uvSet1, reflectionVector, colorSet5);
+    let emissionColor = GetEmissionColor(map1, uvSet);
 
     let shadow = mix(1.0, GetShadow(in.light_position), render_settings.render_shadows.x);
 

@@ -66,7 +66,7 @@ pub struct VertexOutput {
     pub tangent: [f32; 4],
     pub map1_uvset: [f32; 4],
     pub uv_set1_uv_set2: [f32; 4],
-    pub bake1: [f32; 4],
+    pub bake1: [f32; 2],
     pub color_set1: [f32; 4],
     pub color_set2_combined: [f32; 4],
     pub color_set3: [f32; 4],
