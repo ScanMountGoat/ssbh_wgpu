@@ -55,7 +55,7 @@ pub struct RenderModel {
     buffer_data: MeshObjectBufferData,
 
     // Used for text rendering.
-    animation_transforms: AnimationTransforms,
+    animation_transforms: Box<AnimationTransforms>,
 }
 
 // A RenderMesh is view over a portion of the RenderModel data.
@@ -176,7 +176,8 @@ impl RenderModel {
         // Update the buffers associated with each skel.
         // This avoids updating per mesh object and allocating new buffers.
         // TODO: How to "reset" an animation?
-
+        let start = std::time::Instant::now();
+    
         if let Some(anim) = anim {
             animate_visibility(anim, frame, &mut self.meshes);
 
@@ -198,29 +199,29 @@ impl RenderModel {
             }
 
             if let Some(skel) = skel {
-                let animation_transforms = animate_skel(skel, anim, hlpb, frame);
+                animate_skel(&mut self.animation_transforms, skel, anim, hlpb, frame);
                 queue.write_buffer(
                     &self.mesh_buffers.skinning_transforms,
                     0,
-                    bytemuck::cast_slice(&[*animation_transforms.animated_world_transforms]),
+                    bytemuck::cast_slice(&[self.animation_transforms.animated_world_transforms]),
                 );
 
                 queue.write_buffer(
                     &self.mesh_buffers.world_transforms,
                     0,
-                    bytemuck::cast_slice(&(*animation_transforms.world_transforms)),
+                    bytemuck::cast_slice(&self.animation_transforms.world_transforms),
                 );
 
-                let joint_transforms = joint_transforms(skel, &animation_transforms);
+                let joint_transforms = joint_transforms(skel, &self.animation_transforms);
                 queue.write_buffer(
                     &self.joint_world_transforms_buffer,
                     0,
                     bytemuck::cast_slice(&joint_transforms),
                 );
-
-                self.animation_transforms = animation_transforms;
             }
         }
+
+        println!("Anim: {:?}", start.elapsed());
     }
 
     pub fn draw_skeleton<'a>(
@@ -534,7 +535,7 @@ pub fn create_render_model(
     // TODO: Enforce bone count being at most 511?
     let skinning_transforms_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
         label: Some("Bone Transforms Buffer"),
-        contents: bytemuck::cast_slice(&[*animation_transforms.animated_world_transforms]),
+        contents: bytemuck::cast_slice(&[animation_transforms.animated_world_transforms]),
         // COPY_DST allows applying animations without allocating new buffers
         usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
     });
@@ -673,7 +674,7 @@ pub fn create_render_model(
         joint_data_outer_bind_group,
         bone_bind_groups,
         buffer_data,
-        animation_transforms,
+        animation_transforms: Box::new(animation_transforms),
     }
 }
 

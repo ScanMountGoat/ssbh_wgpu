@@ -162,9 +162,11 @@ mod tests {
     #[test]
     #[ignore]
     fn single_orient_constraint_missing_bones() {
+        let a = identity_bone("A", None);
+        let b = identity_bone("B", Some(0));
         let mut bones = vec![
             AnimatedBone {
-                bone: identity_bone("A", None),
+                bone: &a,
                 anim_transform: None,
                 compensate_scale: false,
                 inherit_scale: false,
@@ -173,7 +175,7 @@ mod tests {
                 anim_world_transform: None,
             },
             AnimatedBone {
-                bone: identity_bone("B", Some(0)),
+                bone: &b,
                 anim_transform: None,
                 compensate_scale: false,
                 inherit_scale: false,
@@ -208,9 +210,11 @@ mod tests {
 
     #[test]
     fn single_orient_constraint_copy_xyz() {
+        let a = identity_bone("A", None);
+        let b = identity_bone("B", None);
         let mut bones = vec![
             AnimatedBone {
-                bone: identity_bone("A", None),
+                bone: &a,
                 anim_transform: Some(AnimTransform {
                     translation: glam::Vec3::ZERO,
                     rotation: glam::Quat::from_axis_angle(
@@ -226,7 +230,7 @@ mod tests {
                 anim_world_transform: None,
             },
             AnimatedBone {
-                bone: identity_bone("B", None),
+                bone: &b,
                 anim_transform: None,
                 compensate_scale: false,
                 inherit_scale: false,
@@ -267,9 +271,12 @@ mod tests {
 
     #[test]
     fn orient_constraints_same_parent() {
+        let bone_root = identity_bone("Root", None);
+        let a = identity_bone("A", Some(0));
+        let b = identity_bone("B", Some(0));
         let mut bones = vec![
             AnimatedBone {
-                bone: identity_bone("Root", None),
+                bone: &bone_root,
                 anim_transform: Some(AnimTransform {
                     translation: glam::Vec3::new(0.0, 0.0, 0.0),
                     rotation: glam::Quat::from_rotation_z(0.0f32.to_radians()),
@@ -282,7 +289,7 @@ mod tests {
                 anim_world_transform: None,
             },
             AnimatedBone {
-                bone: identity_bone("A", Some(0)),
+                bone: &a,
                 anim_transform: Some(AnimTransform {
                     translation: glam::Vec3::new(-1.0, 0.0, 0.0),
                     rotation: glam::Quat::from_rotation_z(90.0f32.to_radians()),
@@ -295,7 +302,7 @@ mod tests {
                 anim_world_transform: None,
             },
             AnimatedBone {
-                bone: identity_bone("B", Some(0)),
+                bone: &b,
                 anim_transform: Some(AnimTransform {
                     translation: glam::Vec3::new(1.0, 0.0, 0.0),
                     rotation: glam::Quat::from_rotation_z(0.0f32.to_radians()),
@@ -351,10 +358,15 @@ mod tests {
         // ^                   ^
         // |                   |
         // L1 <-- L0    R0 --> R1
-
+        let l0 = identity_bone("L0", None);
+        let l1 = identity_bone("L1", Some(0));
+        let l2 = identity_bone("L2", Some(1));
+        let r0 = identity_bone("R0", None);
+        let r1 = identity_bone("R1", Some(3));
+        let r2 = identity_bone("R2", Some(4));
         let mut bones = vec![
             AnimatedBone {
-                bone: identity_bone("L0", None),
+                bone: &l0,
                 anim_transform: Some(AnimTransform {
                     translation: glam::Vec3::new(-1.0, 0.0, 0.0),
                     rotation: glam::Quat::from_rotation_z(90.0f32.to_radians()),
@@ -367,7 +379,7 @@ mod tests {
                 anim_world_transform: None,
             },
             AnimatedBone {
-                bone: identity_bone("L1", Some(0)),
+                bone: &l1,
                 anim_transform: Some(AnimTransform {
                     translation: glam::Vec3::new(0.0, 1.0, 0.0),
                     rotation: glam::Quat::from_rotation_z(-90.0f32.to_radians()),
@@ -380,7 +392,7 @@ mod tests {
                 anim_world_transform: None,
             },
             AnimatedBone {
-                bone: identity_bone("L2", Some(1)),
+                bone: &l2,
                 anim_transform: Some(AnimTransform {
                     translation: glam::Vec3::new(0.0, 1.0, 0.0),
                     rotation: glam::Quat::from_rotation_z(0.0f32.to_radians()),
@@ -393,7 +405,7 @@ mod tests {
                 anim_world_transform: None,
             },
             AnimatedBone {
-                bone: identity_bone("R0", None),
+                bone: &r0,
                 anim_transform: Some(AnimTransform {
                     translation: glam::Vec3::new(1.0, 0.0, 0.0),
                     rotation: glam::Quat::from_rotation_z(-90.0f32.to_radians()),
@@ -406,7 +418,7 @@ mod tests {
                 anim_world_transform: None,
             },
             AnimatedBone {
-                bone: identity_bone("R1", Some(3)),
+                bone: &r1,
                 anim_transform: Some(AnimTransform {
                     translation: glam::Vec3::new(0.0, 1.0, 0.0),
                     // TODO: What should this be without constraints?
@@ -420,7 +432,7 @@ mod tests {
                 anim_world_transform: None,
             },
             AnimatedBone {
-                bone: identity_bone("R2", Some(4)),
+                bone: &r2,
                 anim_transform: Some(AnimTransform {
                     translation: glam::Vec3::new(0.0, 1.0, 0.0),
                     rotation: glam::Quat::from_rotation_z(0.0f32.to_radians()),

@@ -6,6 +6,7 @@ use criterion::Throughput;
 use ssbh_data::skel_data::BillboardType;
 use ssbh_data::skel_data::BoneData;
 use ssbh_wgpu::animation::animate_skel;
+use ssbh_wgpu::animation::AnimationTransforms;
 
 fn identity_bone(name: &str, parent_index: Option<usize>) -> BoneData {
     BoneData {
@@ -39,9 +40,11 @@ fn animate_skel_roots_benchmark(c: &mut Criterion) {
             groups: Vec::new(),
         };
 
+        let mut transforms = AnimationTransforms::identity();
+
         group.throughput(Throughput::Elements(count as u64));
         group.bench_with_input(BenchmarkId::from_parameter(count), &count, |b, _| {
-            b.iter(|| animate_skel(&skel, &anim, None, 0.0));
+            b.iter(|| animate_skel(&mut transforms, &skel, &anim, None, 0.0));
         });
     }
     group.finish();
@@ -70,9 +73,11 @@ fn animate_skel_chain_benchmark(c: &mut Criterion) {
             groups: Vec::new(),
         };
 
+        let mut transforms = AnimationTransforms::identity();
+
         group.throughput(Throughput::Elements(count as u64));
         group.bench_with_input(BenchmarkId::from_parameter(count), &count, |b, _| {
-            b.iter(|| animate_skel(&skel, &anim, None, 0.0));
+            b.iter(|| animate_skel(&mut transforms, &skel, &anim, None, 0.0));
         });
     }
     group.finish();

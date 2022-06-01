@@ -16,8 +16,8 @@ pub const MAX_BONE_COUNT: usize = 512;
 // Animation process is Skel, Anim -> Vec<AnimatedBone> -> [Mat4; 512], [Mat4; 512] -> Buffers.
 // Evaluate the "tree" of Vec<AnimatedBone> to compute the final world transforms.
 #[derive(Clone)]
-pub struct AnimatedBone {
-    bone: BoneData,
+pub struct AnimatedBone<'a> {
+    bone: &'a BoneData,
     anim_transform: Option<AnimTransform>,
     compensate_scale: bool,
     inherit_scale: bool,
@@ -28,7 +28,7 @@ pub struct AnimatedBone {
     anim_world_transform: Option<glam::Mat4>,
 }
 
-impl AnimatedBone {
+impl<'a> AnimatedBone<'a> {
     fn animated_transform(&self, include_anim_scale: bool, include_anim: bool) -> glam::Mat4 {
         if include_anim {
             self.anim_transform
@@ -109,9 +109,9 @@ pub struct AnimationTransforms {
     // Box large arrays to avoid stack overflows in debug mode.
     /// The animated world transform of each bone relative to its resting pose.
     /// This is equal to `bone_world.inv() * animated_bone_world`.
-    pub animated_world_transforms: Box<AnimatedWorldTransforms>,
+    pub animated_world_transforms: AnimatedWorldTransforms,
     /// The world transform of each bone in the skeleton.
-    pub world_transforms: Box<[glam::Mat4; MAX_BONE_COUNT]>,
+    pub world_transforms: [glam::Mat4; MAX_BONE_COUNT],
 }
 
 impl AnimationTransforms {
@@ -119,11 +119,11 @@ impl AnimationTransforms {
         // We can just use the identity transform to represent no animation.
         // Mesh objects parented to a parent bone will likely be positioned at the origin.
         Self {
-            animated_world_transforms: Box::new(AnimatedWorldTransforms {
+            animated_world_transforms: AnimatedWorldTransforms {
                 transforms: [glam::Mat4::IDENTITY; MAX_BONE_COUNT],
                 transforms_inv_transpose: [glam::Mat4::IDENTITY; MAX_BONE_COUNT],
-            }),
-            world_transforms: Box::new([glam::Mat4::IDENTITY; MAX_BONE_COUNT]),
+            },
+            world_transforms: [glam::Mat4::IDENTITY; MAX_BONE_COUNT],
         }
     }
 
@@ -141,11 +141,11 @@ impl AnimationTransforms {
         }
 
         Self {
-            animated_world_transforms: Box::new(AnimatedWorldTransforms {
+            animated_world_transforms: AnimatedWorldTransforms {
                 transforms: [glam::Mat4::IDENTITY; MAX_BONE_COUNT],
                 transforms_inv_transpose: [glam::Mat4::IDENTITY; MAX_BONE_COUNT],
-            }),
-            world_transforms: Box::new(world_transforms),
+            },
+            world_transforms,
         }
     }
 }
@@ -180,23 +180,20 @@ impl Visibility for (String, bool) {
 // TODO: Separate module for skeletal animation?
 // TODO: Benchmarks for criterion.rs that test performance scaling with bone and constraint count.
 pub fn animate_skel(
+    animation_transforms: &mut AnimationTransforms,
     skel: &SkelData,
     anim: &AnimData,
     hlpb: Option<&HlpbData>,
     frame: f32,
-) -> AnimationTransforms {
-    // TODO: Is this redundant with the initialization below?
-    let mut world_transforms = [glam::Mat4::IDENTITY; MAX_BONE_COUNT];
-    let mut transforms = [glam::Mat4::IDENTITY; MAX_BONE_COUNT];
-
-    // TODO: Investigate optimizations for animations.
+) {
+    // TODO: Avoid allocating here?
     let mut animated_bones: Vec<_> = skel
         .bones
         .iter()
         .take(MAX_BONE_COUNT)
         .map(|b| {
-            find_transform(anim, b.clone(), frame).unwrap_or(AnimatedBone {
-                bone: b.clone(),
+            find_transform(anim, b, frame).unwrap_or(AnimatedBone {
+                bone: b,
                 compensate_scale: false,
                 inherit_scale: true,
                 anim_transform: None,
@@ -206,8 +203,6 @@ pub fn animate_skel(
             })
         })
         .collect();
-
-    let start = std::time::Instant::now();
 
     // TODO: Does the order of constraints here affect the world transforms?
     // Constraining a bone affects the world transforms of its children.
@@ -225,23 +220,13 @@ pub fn animate_skel(
         // Avoid the slower ssbh_data method since it can't assume the max bone count.
         let bone_world = world_transform(&mut animated_bones, i, false).unwrap();
         let bone_anim_world = world_transform(&mut animated_bones, i, true).unwrap();
+        let anim_transform = bone_anim_world * bone_world.inverse();
 
-        transforms[i] = bone_anim_world * bone_world.inverse();
-        world_transforms[i] = bone_anim_world;
-    }
-
-    let transforms_inv_transpose = transforms.map(|t| t.inverse().transpose());
-
-    println!("{:?}", start.elapsed());
-
-    // TODO: Does it make more sense to use vec here?
-    // This function is an implementation detail, so we can test/enforce the length.
-    AnimationTransforms {
-        world_transforms: Box::new(world_transforms),
-        animated_world_transforms: Box::new(AnimatedWorldTransforms {
-            transforms,
-            transforms_inv_transpose,
-        }),
+        animation_transforms.animated_world_transforms.transforms[i] = anim_transform;
+        animation_transforms.world_transforms[i] = bone_anim_world;
+        animation_transforms
+            .animated_world_transforms
+            .transforms_inv_transpose[i] = anim_transform.inverse().transpose();
     }
 }
 
@@ -335,7 +320,7 @@ fn compensate_scale(transform: glam::Mat4, parent_transform: glam::Mat4) -> glam
     scale_compensation * transform
 }
 
-fn find_transform(anim: &AnimData, bone: BoneData, frame: f32) -> Option<AnimatedBone> {
+fn find_transform<'a>(anim: &AnimData, bone: &'a BoneData, frame: f32) -> Option<AnimatedBone<'a>> {
     for group in &anim.groups {
         if group.group_type == GroupType::Transform {
             for node in &group.nodes {
@@ -470,12 +455,12 @@ fn interp_vec3(a: &Vector3, b: &Vector3, factor: f32) -> glam::Vec3 {
     glam::Vec3::from(a.to_array()).lerp(glam::Vec3::from(b.to_array()), factor)
 }
 
-fn create_animated_bone(
+fn create_animated_bone<'a>(
     frame: f32,
-    bone: BoneData,
+    bone: &'a BoneData,
     track: &ssbh_data::anim_data::TrackData,
     values: &[ssbh_data::anim_data::Transform],
-) -> AnimatedBone {
+) -> AnimatedBone<'a> {
     let (current_frame, next_frame, factor) = frame_values(frame, track);
 
     let current = values[current_frame];
@@ -562,6 +547,7 @@ mod tests {
     fn apply_empty_animation_512_bones() {
         // TODO: Should this enforce the limit in Smash Ultimate of 511 instead?
         animate_skel(
+            &mut AnimationTransforms::identity(),
             &SkelData {
                 major_version: 1,
                 minor_version: 0,
@@ -582,6 +568,7 @@ mod tests {
     fn apply_empty_animation_too_many_bones() {
         // TODO: Should this be an error?
         animate_skel(
+            &mut AnimationTransforms::identity(),
             &SkelData {
                 major_version: 1,
                 minor_version: 0,
@@ -601,6 +588,7 @@ mod tests {
     #[test]
     fn apply_empty_animation_no_bones() {
         animate_skel(
+            &mut AnimationTransforms::identity(),
             &SkelData {
                 major_version: 1,
                 minor_version: 0,
@@ -621,7 +609,9 @@ mod tests {
     fn apply_animation_single_animated_bone() {
         // Check that the appropriate bones are set.
         // Check the construction of transformation matrices.
-        let transforms = animate_skel(
+        let mut transforms = AnimationTransforms::identity();
+        animate_skel(
+            &mut transforms,
             &SkelData {
                 major_version: 1,
                 minor_version: 0,
@@ -694,7 +684,9 @@ mod tests {
     #[test]
     fn apply_animation_bone_chain_inherit_scale() {
         // Include parent scale up the chain until a bone disables inheritance.
-        let transforms = animate_skel(
+        let mut transforms = AnimationTransforms::identity();
+        animate_skel(
+            &mut transforms,
             &SkelData {
                 major_version: 1,
                 minor_version: 0,
@@ -800,7 +792,9 @@ mod tests {
     #[test]
     fn apply_animation_bone_chain_no_inherit_scale() {
         // Test if the root bone doesn't inherit scale.
-        let transforms = animate_skel(
+        let mut transforms = AnimationTransforms::identity();
+        animate_skel(
+            &mut transforms,
             &SkelData {
                 major_version: 1,
                 minor_version: 0,
@@ -906,7 +900,9 @@ mod tests {
     #[test]
     fn apply_animation_bone_chain_compensate_scale() {
         // Test an entire chain with scale compensation.
-        let transforms = animate_skel(
+        let mut transforms = AnimationTransforms::identity();
+        animate_skel(
+            &mut transforms,
             &SkelData {
                 major_version: 1,
                 minor_version: 0,
@@ -1013,7 +1009,9 @@ mod tests {
     #[test]
     fn apply_animation_bone_chain_override_transforms() {
         // Test resetting all transforms to their "resting" pose from the skel.
-        let transforms = animate_skel(
+        let mut transforms = AnimationTransforms::identity();
+        animate_skel(
+            &mut transforms,
             &SkelData {
                 major_version: 1,
                 minor_version: 0,
