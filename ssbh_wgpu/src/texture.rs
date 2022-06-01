@@ -30,7 +30,7 @@ pub fn load_texture(
     // TODO: This check shouldn't be case sensitive?
     let default = default_textures
         .iter()
-        .find(|d| d.0 == material_path.to_lowercase());
+        .find(|d| d.0.eq_ignore_ascii_case(material_path));
 
     let view = match default {
         Some((_, texture)) => texture.create_view(&TextureViewDescriptor::default()),
@@ -42,8 +42,10 @@ pub fn load_texture(
             textures
                 .iter()
                 .find(|(p, _)| {
-                    Path::new(&p.to_lowercase()).with_extension("")
-                        == Path::new(&material_path.to_lowercase())
+                    Path::new(&p)
+                        .with_extension("")
+                        .as_os_str()
+                        .eq_ignore_ascii_case(material_path)
                 })
                 .map(|(_, t)| t)
                 .unwrap_or_else(|| {

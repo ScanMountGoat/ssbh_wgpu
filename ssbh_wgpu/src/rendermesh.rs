@@ -3,7 +3,7 @@ use crate::{
     bone_rendering::*,
     pipeline::{create_pipeline, PipelineKey},
     texture::{load_sampler, load_texture},
-    uniforms::create_uniforms_buffer,
+    uniforms::{create_uniforms, create_uniforms_buffer},
     vertex::{buffer0, buffer1, mesh_object_buffers, skin_weights, MeshObjectBufferData},
     PipelineData, ShaderDatabase,
 };
@@ -117,25 +117,28 @@ impl RenderModel {
     pub fn update_material(
         &mut self,
         device: &wgpu::Device,
+        queue: &wgpu::Queue,
         material: &MatlEntryData,
         pipeline_data: &PipelineData,
         default_textures: &[(String, wgpu::Texture)],
         stage_cube: &(wgpu::TextureView, wgpu::Sampler),
     ) {
+        // TODO: Handle missing entries.
         if let Some(data) = self
             .material_data_by_label
             .get_mut(&material.material_label)
         {
+            let uniforms = create_uniforms(Some(material));
+            queue.write_buffer(&data.uniforms_buffer, 0, bytemuck::cast_slice(&[uniforms]));
+
             // TODO: Update textures and materials separately?
-            // TODO: Reuse the existing uniforms buffer and write to it instead.
-            let uniforms_buffer = create_uniforms_buffer(Some(material), device);
             data.material_uniforms_bind_group = create_material_uniforms_bind_group(
                 Some(material),
                 device,
                 &self.textures,
                 default_textures,
                 stage_cube,
-                &uniforms_buffer,
+                &data.uniforms_buffer,
             );
 
             // Create a new pipeline if needed.
@@ -185,6 +188,7 @@ impl RenderModel {
                     // Get updated uniform buffers for animated materials
                     self.update_material(
                         device,
+                        queue,
                         &material,
                         pipeline_data,
                         default_textures,
