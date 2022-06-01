@@ -433,8 +433,9 @@ impl SsbhRenderer {
     /// Prefer this method over calling [SsbhRenderer::new] with the updated dimensions.
     /// To update the camera to a potentially new aspect ratio,
     /// pass the appropriate matrix to [SsbhRenderer::update_camera].
-    pub fn resize(&mut self, device: &wgpu::Device, width: u32, height: u32) {
+    pub fn resize(&mut self, device: &wgpu::Device, queue: &wgpu::Queue, width: u32, height: u32) {
         self.pass_info = PassInfo::new(device, width, height, &self.color_lut);
+        self.brush.resize_view(width as f32, height as f32, queue);
     }
 
     /// Updates the camera transforms.
@@ -924,17 +925,40 @@ impl PassInfo {
         // Fix the width and height for consistent levels of blur across screen resolutions.
         // Some devices like laptops or mobile have weak GPUs but high resolution screens.
         // Running bloom at less than native resolution improves performance on these devices.
-        let (bloom_threshold, bloom_threshold_bind_group) =
-            create_bloom_bind_group(device, 1920 / 4, 1080 / 4, &color, BLOOM_COLOR_FORMAT);
-        let bloom_blur_colors =
-            create_bloom_blur_bind_groups(device, 1920 / 4, 1080 / 4, &bloom_threshold);
-        let (bloom_combined, bloom_combine_bind_group) =
-            create_bloom_combine_bind_group(device, 1920 / 4, 1080 / 4, &bloom_blur_colors);
+        // Preserve the original aspect ratio to avoid asymmetrical blurring.
+        // TODO: This still isn't right when making the window smaller?
+        let (bloom_width, bloom_height) = if width > height {
+            // (1920, ((height as f64 / width as f64) * 1920 as f64) as u32)
+            (width, height)
+        } else {
+            // (((width as f64 / height as f64) * 1080 as f64) as u32, 1080)
+            (width, height)
+        };
+
+        let (bloom_threshold, bloom_threshold_bind_group) = create_bloom_bind_group(
+            device,
+            bloom_width / 4,
+            bloom_height / 4,
+            &color,
+            BLOOM_COLOR_FORMAT,
+        );
+        let bloom_blur_colors = create_bloom_blur_bind_groups(
+            device,
+            bloom_width / 4,
+            bloom_height / 4,
+            &bloom_threshold,
+        );
+        let (bloom_combined, bloom_combine_bind_group) = create_bloom_combine_bind_group(
+            device,
+            bloom_width / 4,
+            bloom_height / 4,
+            &bloom_blur_colors,
+        );
         // A 2x bilinear upscale smooths the overall result.
         let (bloom_upscaled, bloom_upscale_bind_group) = create_bloom_bind_group(
             device,
-            1920 / 2,
-            1080 / 2,
+            bloom_width / 2,
+            bloom_height / 2,
             &bloom_combined,
             crate::RGBA_COLOR_FORMAT,
         );
