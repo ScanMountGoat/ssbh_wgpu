@@ -11,7 +11,10 @@ use glyph_brush::DefaultSectionHasher;
 use ssbh_data::skel_data::SkelData;
 use strum::{Display, EnumString, EnumVariantNames, FromRepr};
 use wgpu::{util::DeviceExt, ComputePassDescriptor, ComputePipelineDescriptor};
-use wgpu_text::{BrushBuilder, font::{FontRef, Font}, TextBrush};
+use wgpu_text::{
+    font::{Font, FontRef},
+    BrushBuilder, TextBrush,
+};
 
 // Rgba16Float is widely supported.
 // The in game format uses less precision.
@@ -387,8 +390,8 @@ impl SsbhRenderer {
             present_mode: wgpu::PresentMode::Mailbox,
         };
         let brush = BrushBuilder::using_font_bytes(include_bytes!("fonts/Hack-Regular.ttf"))
-        .unwrap()
-        .build(&device, &config);
+            .unwrap()
+            .build(&device, &config);
 
         Self {
             bloom_threshold_pipeline,
@@ -421,7 +424,7 @@ impl SsbhRenderer {
             debug_pipeline,
             render_settings_buffer,
             debug_mode: DebugMode::Shaded,
-            brush
+            brush,
         }
     }
 
@@ -518,7 +521,7 @@ impl SsbhRenderer {
         skel: Option<&SkelData>,
         width: u32,
         height: u32,
-        mvp: glam::Mat4
+        mvp: glam::Mat4,
     ) -> wgpu::CommandBuffer {
         // TODO: Toggle skeleton rendering?
         self.skeleton_pass(encoder, render_models, output_view, skel);
@@ -918,17 +921,20 @@ impl PassInfo {
         let color = create_texture_sampler(device, width, height, crate::RGBA_COLOR_FORMAT);
 
         // Bloom uses successively smaller render targets to increase the blur.
+        // Fix the width and height for consistent levels of blur across screen resolutions.
+        // Some devices like laptops or mobile have weak GPUs but high resolution screens.
+        // Running bloom at less than native resolution improves performance on these devices.
         let (bloom_threshold, bloom_threshold_bind_group) =
-            create_bloom_bind_group(device, width / 4, height / 4, &color, BLOOM_COLOR_FORMAT);
+            create_bloom_bind_group(device, 1920 / 4, 1080 / 4, &color, BLOOM_COLOR_FORMAT);
         let bloom_blur_colors =
-            create_bloom_blur_bind_groups(device, width / 4, height / 4, &bloom_threshold);
+            create_bloom_blur_bind_groups(device, 1920 / 4, 1080 / 4, &bloom_threshold);
         let (bloom_combined, bloom_combine_bind_group) =
-            create_bloom_combine_bind_group(device, width / 4, height / 4, &bloom_blur_colors);
+            create_bloom_combine_bind_group(device, 1920 / 4, 1080 / 4, &bloom_blur_colors);
         // A 2x bilinear upscale smooths the overall result.
         let (bloom_upscaled, bloom_upscale_bind_group) = create_bloom_bind_group(
             device,
-            width / 2,
-            height / 2,
+            1920 / 2,
+            1080 / 2,
             &bloom_combined,
             crate::RGBA_COLOR_FORMAT,
         );
