@@ -400,28 +400,20 @@ impl State {
             &self.shader_database,
         );
 
-        let skel = self
-            .models
-            .get(0)
-            .and_then(|m| m.skels.get(0).map(|s| &s.1));
-        self.renderer
-            .render_skeleton(&mut encoder, &output_view, &self.render_models, skel);
-
-        // TODO: merge font rendering with above?
-        let mut brush = BrushBuilder::using_font_bytes(include_bytes!("fonts/Hack-Regular.ttf"))
-            .unwrap()
-            .build(&self.device, &self.config);
-
-        // TODO: Avoid calculating this matrix more than once.
+        let skel = self.models.get(0).and_then(|m| m.find_skel());
         let (_, _, mvp) =
             calculate_camera_pos_mvp(self.size, self.translation_xyz, self.rotation_xyz);
-
-        for model in &self.render_models {
-            model.queue_bone_names(skel, &mut brush, self.config.width, self.config.height, mvp);
-        }
-
-        // TODO: Make text rendering optional.
-        let text_command_buffer = brush.draw(&self.device, &output_view, &self.queue);
+        let text_command_buffer = self.renderer.render_skeleton(
+            &self.device,
+            &self.queue,
+            &mut encoder,
+            &output_view,
+            &self.render_models,
+            skel,
+            self.size.width,
+            self.size.height,
+            mvp,
+        );
 
         self.queue.submit([encoder.finish(), text_command_buffer]);
 

@@ -7,9 +7,11 @@ use crate::{
     texture::load_texture_sampler_3d,
     CameraTransforms, RenderModel, ShaderDatabase,
 };
+use glyph_brush::DefaultSectionHasher;
 use ssbh_data::skel_data::SkelData;
 use strum::{Display, EnumString, EnumVariantNames, FromRepr};
 use wgpu::{util::DeviceExt, ComputePassDescriptor, ComputePipelineDescriptor};
+use wgpu_text::{BrushBuilder, font::{FontRef, Font}, TextBrush};
 
 // Rgba16Float is widely supported.
 // The in game format uses less precision.
@@ -159,6 +161,8 @@ pub struct SsbhRenderer {
 
     render_settings_buffer: wgpu::Buffer,
     debug_mode: DebugMode,
+
+    brush: TextBrush<FontRef<'static>, DefaultSectionHasher>,
 }
 
 impl SsbhRenderer {
@@ -374,6 +378,18 @@ impl SsbhRenderer {
             create_invalid_attributes_pipeline(device, RGBA_COLOR_FORMAT);
         let debug_pipeline = create_debug_pipeline(device, RGBA_COLOR_FORMAT);
 
+        // TODO: Does this need to match the initial config?
+        let config = wgpu::SurfaceConfiguration {
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+            format: RGBA_COLOR_FORMAT,
+            width: initial_width,
+            height: initial_height,
+            present_mode: wgpu::PresentMode::Mailbox,
+        };
+        let brush = BrushBuilder::using_font_bytes(include_bytes!("fonts/Hack-Regular.ttf"))
+        .unwrap()
+        .build(&device, &config);
+
         Self {
             bloom_threshold_pipeline,
             bloom_blur_pipeline,
@@ -405,6 +421,7 @@ impl SsbhRenderer {
             debug_pipeline,
             render_settings_buffer,
             debug_mode: DebugMode::Shaded,
+            brush
         }
     }
 
@@ -492,14 +509,27 @@ impl SsbhRenderer {
     }
 
     pub fn render_skeleton(
-        &self,
+        &mut self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
         encoder: &mut wgpu::CommandEncoder,
         output_view: &wgpu::TextureView,
         render_models: &[RenderModel],
         skel: Option<&SkelData>,
-    ) {
+        width: u32,
+        height: u32,
+        mvp: glam::Mat4
+    ) -> wgpu::CommandBuffer {
         // TODO: Toggle skeleton rendering?
         self.skeleton_pass(encoder, render_models, output_view, skel);
+
+        for model in render_models {
+            model.queue_bone_names(skel, &mut self.brush, width, height, mvp);
+        }
+
+        // TODO: Make text rendering optional.
+        // TODO: Is there a way to do this without returning the command buffer?
+        self.brush.draw(device, &output_view, queue)
     }
 
     fn bloom_upscale_pass(&self, encoder: &mut wgpu::CommandEncoder) {
