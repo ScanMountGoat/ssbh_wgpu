@@ -66,7 +66,6 @@ pub struct RenderMesh {
     pub is_visible: bool,
     material_label: String,
     shader_label: String,
-    shader_tag: String, // TODO: Don't store the tag?
     sub_index: u64,
     sort_bias: i32,
     normals_bind_group: crate::shader::renormal::bind_groups::BindGroup0,
@@ -83,7 +82,7 @@ pub struct RenderMesh {
 
 impl RenderMesh {
     pub fn render_order(&self) -> isize {
-        render_pass_index(&self.shader_tag) + self.sort_bias as isize
+        render_pass_index(self.shader_label.get(25..).unwrap_or("")) + self.sort_bias as isize
     }
 }
 
@@ -101,7 +100,7 @@ struct MeshBuffers {
 impl RenderModel {
     /// Reassign the mesh materials based on `modl`.
     /// This does not create materials that do not already exist.
-    pub fn reassign_materials(&mut self, modl: &ModlData) {
+    pub fn reassign_materials(&mut self, modl: &ModlData, matl: Option<&MatlData>) {
         // TODO: There should be a separate pipeline to use if the material assignment fails?
         // TODO: How does in game handle invalid material labels?
         for mesh in &mut self.meshes {
@@ -109,6 +108,18 @@ impl RenderModel {
                 e.mesh_object_name == mesh.name && e.mesh_object_sub_index == mesh.sub_index
             }) {
                 mesh.material_label = entry.material_label.clone();
+                mesh.shader_label = matl
+                    .and_then(|matl| {
+                        matl.entries
+                            .iter()
+                            .find(|e| e.material_label == entry.material_label)
+                    })
+                    .map(|e| e.shader_label.to_string())
+                    .unwrap_or_default();
+            } else {
+                // TODO: Should this use Option to avoid the case where a material has an emptry string label?
+                mesh.material_label = String::new();
+                mesh.shader_label = String::new();
             }
         }
     }
@@ -177,7 +188,7 @@ impl RenderModel {
         // This avoids updating per mesh object and allocating new buffers.
         // TODO: How to "reset" an animation?
         let start = std::time::Instant::now();
-    
+
         if let Some(anim) = anim {
             animate_visibility(anim, frame, &mut self.meshes);
 
@@ -354,7 +365,7 @@ impl RenderModel {
             if let Some(material_data) = self.material_data_by_label.get(&mesh.material_label) {
                 // TODO: Does the invalid shader pipeline take priority?
                 // TODO: How to handle missing position, tangent, normal?
-                if let Some(info) = shader_database.get(&mesh.shader_label) {
+                if let Some(info) = shader_database.get(mesh.shader_label.get(..24).unwrap_or("")) {
                     if info
                         .vertex_attributes
                         .iter()
@@ -987,13 +998,8 @@ fn create_render_mesh(
     // ex: "SFX_PBS_0101000008018278_sort" has a tag of "sort".
     // The render order is opaque -> far -> sort -> near.
     // TODO: How to handle missing tags?
-    let shader_tag = material
-        .and_then(|m| m.shader_label.get(25..))
-        .unwrap_or("")
-        .to_string();
-
     let shader_label = material
-        .and_then(|m| m.shader_label.get(..24))
+        .map(|m| m.shader_label.as_str())
         .unwrap_or("")
         .to_string();
 
@@ -1016,7 +1022,6 @@ fn create_render_mesh(
         name: mesh_object.name.clone(),
         material_label: material_label.clone(),
         shader_label,
-        shader_tag,
         is_visible: true,
         sort_bias: mesh_object.sort_bias,
         skinning_bind_group,
