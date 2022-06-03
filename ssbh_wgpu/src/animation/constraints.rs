@@ -469,7 +469,6 @@ mod tests {
             },
         );
 
-        // TODO: Test the rotations?
         assert_vector_relative_eq!(
             [0.0, 0.0, 0.7071, 0.7071],
             bones[0].anim_transform.unwrap().rotation.to_array()
@@ -486,15 +485,14 @@ mod tests {
             [0.0, 0.0, -0.7071, 0.7071],
             bones[3].anim_transform.unwrap().rotation.to_array()
         );
-        // TODO: This should be +90 degrees?
-        // assert_vector_relative_eq!(
-        //     [0.0, 0.0, 0.0, 1.0],
-        //     bones[4].anim_transform.unwrap().rotation.to_array()
-        // );
-        // assert_vector_relative_eq!(
-        //     [0.0, 0.0, 0.0, 1.0],
-        //     bones[5].anim_transform.unwrap().rotation.to_array()
-        // );
+        assert_vector_relative_eq!(
+            [0.0, 0.0, 0.7071, 0.7071],
+            bones[4].anim_transform.unwrap().rotation.to_array()
+        );
+        assert_vector_relative_eq!(
+            [0.0, 0.0, 0.0, 1.0],
+            bones[5].anim_transform.unwrap().rotation.to_array()
+        );
 
         let mut position_world = |bone| {
             world_transform(&mut bones, bone, true)
