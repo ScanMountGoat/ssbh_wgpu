@@ -58,7 +58,9 @@ fn apply_aim_constraint(animated_bones: &mut [AnimatedBone], constraint: &AimCon
     let target_pos = target_world.col(3);
 
     // Get the local axes of the bone to constrain.
-    let aim = (target_world * glam::Vec4::new(1.0, 0.0, 0.0, 0.0)).xyz();
+    let aim = (target_world
+        * glam::Vec4::new(constraint.aim.x, constraint.aim.y, constraint.aim.z, 0.0))
+    .xyz();
 
     // Get the vector pointing to the desired bone.
     let v = src_pos.xyz() - target_pos.xyz();
@@ -90,6 +92,7 @@ fn apply_orient_constraint(animated_bones: &mut [AnimatedBone], constraint: &Ori
 
     let source_world = world_transform(animated_bones, source, true).unwrap();
     let target_world = world_transform(animated_bones, target, true).unwrap();
+    // TODO: Do we need the source parent world?
     let source_parent_world = source_parent
         .map(|p| world_transform(animated_bones, p, true).unwrap())
         .unwrap_or(glam::Mat4::IDENTITY);
@@ -246,7 +249,7 @@ mod tests {
             &HlpbData {
                 major_version: 1,
                 minor_version: 0,
-                aim_constraints: Vec::new().into(),
+                aim_constraints: Vec::new(),
                 orient_constraints: vec![OrientConstraintData {
                     name: "constraint1".into(),
                     bone_name: "A".into(),
@@ -353,7 +356,7 @@ mod tests {
         // |
         // L1 <-- L0    R0 --> R1 --> R2
 
-        // TODO: Skel + Anim + Hlpb (constrain R1 to L1):
+        // Skel + Anim + Hlpb (constrain R1 to L1):
         // L2                  R2
         // ^                   ^
         // |                   |
@@ -511,5 +514,92 @@ mod tests {
         assert_vector_relative_eq!([1.0, 0.0, 0.0], position_world(3));
         assert_vector_relative_eq!([2.0, 0.0, 0.0], position_world(4));
         assert_vector_relative_eq!([2.0, 1.0, 0.0], position_world(5));
+    }
+
+    #[test]
+    fn single_aim_constraint_xz_plane() {
+        // TODO: How test up vector?
+        // Skel + Anim:
+        //      B ->
+        // A ->
+
+        // Skel + Anim + Hlpb (point A to B):
+        //    B ->
+        // A /
+        let a = identity_bone("A", None);
+        let b = identity_bone("B", None);
+        let mut bones = vec![
+            AnimatedBone {
+                bone: &a,
+                anim_transform: Some(AnimTransform {
+                    translation: glam::Vec3::new(0.0, 0.0, 0.0),
+                    rotation: glam::Quat::IDENTITY,
+                    scale: glam::Vec3::ONE,
+                }),
+                compensate_scale: false,
+                inherit_scale: false,
+                flags: TransformFlags::default(),
+                world_transform: None,
+                anim_world_transform: None,
+            },
+            AnimatedBone {
+                bone: &b,
+                anim_transform: Some(AnimTransform {
+                    translation: glam::Vec3::new(1.0, 0.0, 1.0),
+                    rotation: glam::Quat::IDENTITY,
+                    scale: glam::Vec3::ONE,
+                }),
+                compensate_scale: false,
+                inherit_scale: false,
+                flags: TransformFlags::default(),
+                world_transform: None,
+                anim_world_transform: None,
+            },
+        ];
+
+        // Point the X-axis of A to B.
+        apply_hlpb_constraints(
+            &mut bones,
+            &HlpbData {
+                major_version: 1,
+                minor_version: 0,
+                aim_constraints: vec![AimConstraintData {
+                    name: "constraint".to_string(),
+                    aim_bone_name1: "B".to_string(), // TODO: What to put here?
+                    aim_bone_name2: "B".to_string(),
+                    aim_type1: "DEFAULT".to_string(),
+                    aim_type2: "DEFAULT".to_string(),
+                    target_bone_name1: "A".to_string(),
+                    target_bone_name2: "A".to_string(),
+                    unk1: 0,
+                    unk2: 0,
+                    aim: Vector3::new(1.0, 0.0, 0.0),
+                    up: Vector3::new(0.0, 1.0, 0.0),
+                    quat1: Vector4::new(0.0, 0.0, 0.0, 1.0),
+                    quat2: Vector4::new(0.0, 0.0, 0.0, 1.0),
+                }],
+                orient_constraints: Vec::new(),
+            },
+        );
+
+        // A rotates along the Y-axis to point to B.
+        assert_vector_relative_eq!(
+            [0.0, 0.0, 0.0],
+            bones[0].anim_transform.unwrap().translation.to_array()
+        );
+        assert_vector_relative_eq!(
+            glam::Quat::from_rotation_y(-45.0f32.to_radians()).to_array(),
+            bones[0].anim_transform.unwrap().rotation.to_array()
+        );
+
+        // B remains the same.
+        assert_vector_relative_eq!(
+            [1.0, 0.0, 1.0],
+            bones[1].anim_transform.unwrap().translation.to_array()
+        );
+        assert_vector_relative_eq!(
+            [0.0, 0.0, 0.0, 1.0],
+            bones[1].anim_transform.unwrap().rotation.to_array()
+        );
     }
 }
