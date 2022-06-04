@@ -55,9 +55,13 @@ pub struct VertexInput1 {
     pub map1_uvset: [f32; 4],
     pub uv_set1_uv_set2: [f32; 4],
     pub bake1: [f32; 4],
-    pub color_set1345_packed: [u32; 4],
-    pub color_set2_packed: [u32; 4],
-    pub color_set67_packed: [u32; 4],
+    pub color_set1: [f32; 4],
+    pub color_set2_combined: [f32; 4],
+    pub color_set3: [f32; 4],
+    pub color_set4: [f32; 4],
+    pub color_set5: [f32; 4],
+    pub color_set6: [f32; 4],
+    pub color_set7: [f32; 4],
 }
 #[repr(C)]
 #[derive(Debug, Copy, Clone, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
@@ -77,6 +81,12 @@ pub struct VertexOutput {
     pub color_set6: [f32; 4],
     pub color_set7: [f32; 4],
     pub light_position: [f32; 4],
+}
+#[repr(C)]
+#[derive(Debug, Copy, Clone, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
+pub struct VertexOutputInvalid {
+    pub clip_position: [f32; 4],
+    pub position: [f32; 4],
 }
 pub mod bind_groups {
     pub struct BindGroup0(wgpu::BindGroup);
@@ -675,9 +685,9 @@ pub mod vertex {
         pub const SIZE_IN_BYTES: u64 = 48;
     }
     impl super::VertexInput1 {
-        pub const VERTEX_ATTRIBUTES: [wgpu::VertexAttribute; 6] = wgpu::vertex_attr_array![3 => Float32x4, 4 => Float32x4, 5 => Float32x4, 6 => Uint32x4, 7 => Uint32x4, 8 => Uint32x4];
+        pub const VERTEX_ATTRIBUTES: [wgpu::VertexAttribute; 10] = wgpu::vertex_attr_array![3 => Float32x4, 4 => Float32x4, 5 => Float32x4, 6 => Float32x4, 7 => Float32x4, 8 => Float32x4, 9 => Float32x4, 10 => Float32x4, 11 => Float32x4, 12 => Float32x4];
         /// The total size in bytes of all fields without considering padding or alignment.
-        pub const SIZE_IN_BYTES: u64 = 96;
+        pub const SIZE_IN_BYTES: u64 = 160;
     }
 }
 pub fn create_shader_module(device: &wgpu::Device) -> wgpu::ShaderModule {

@@ -73,7 +73,7 @@ pub fn create_pipeline(
     device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
         label: Some("Render Pipeline"),
         layout: Some(&pipeline_data.layout),
-        vertex: vertex_state(&pipeline_data.shader),
+        vertex: vertex_state(&pipeline_data.shader, "vs_main"),
         fragment: Some(wgpu::FragmentState {
             module: &pipeline_data.shader,
             entry_point: "fs_main",
@@ -142,35 +142,49 @@ pub fn create_invalid_shader_pipeline(
     device: &wgpu::Device,
     surface_format: wgpu::TextureFormat,
 ) -> wgpu::RenderPipeline {
-    create_model_pipeline_from_entry(device, surface_format, "fs_invalid_shader")
+    create_model_pipeline_from_entry(
+        device,
+        surface_format,
+        "vs_main_invalid",
+        "fs_invalid_shader",
+        "Model Invalid Shader",
+    )
 }
 
 pub fn create_invalid_attributes_pipeline(
     device: &wgpu::Device,
     surface_format: wgpu::TextureFormat,
 ) -> wgpu::RenderPipeline {
-    create_model_pipeline_from_entry(device, surface_format, "fs_invalid_attributes")
+    create_model_pipeline_from_entry(
+        device,
+        surface_format,
+        "vs_main_invalid",
+        "fs_invalid_attributes",
+        "Model Invalid Attributes",
+    )
 }
 
 pub fn create_debug_pipeline(
     device: &wgpu::Device,
     surface_format: wgpu::TextureFormat,
 ) -> wgpu::RenderPipeline {
-    create_model_pipeline_from_entry(device, surface_format, "fs_debug")
+    create_model_pipeline_from_entry(device, surface_format, "vs_main", "fs_debug", "Model Debug")
 }
 
 pub fn create_model_pipeline_from_entry(
     device: &wgpu::Device,
     surface_format: wgpu::TextureFormat,
+    vertex_entry: &str,
     entry_point: &str,
+    label: &str,
 ) -> wgpu::RenderPipeline {
     let shader = crate::shader::model::create_shader_module(device);
     let render_pipeline_layout = crate::shader::model::create_pipeline_layout(device);
 
     device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-        label: Some("Render Pipeline"),
+        label: Some(label),
         layout: Some(&render_pipeline_layout),
-        vertex: vertex_state(&shader),
+        vertex: vertex_state(&shader, vertex_entry),
         fragment: Some(wgpu::FragmentState {
             module: &shader,
             entry_point,
@@ -189,10 +203,10 @@ pub fn create_model_pipeline_from_entry(
     })
 }
 
-fn vertex_state(shader: &wgpu::ShaderModule) -> wgpu::VertexState {
+fn vertex_state<'a>(shader: &'a wgpu::ShaderModule, entry_point: &'a str) -> wgpu::VertexState<'a> {
     wgpu::VertexState {
         module: shader,
-        entry_point: "vs_main",
+        entry_point,
         buffers: &[
             // TODO: Can this be derived by wgsl_to_wgpu?
             // Assume tightly packed elements with no additional padding or alignment.

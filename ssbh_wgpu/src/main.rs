@@ -1,6 +1,5 @@
 use std::path::Path;
 
-use ssbh_wgpu::TransitionMaterial;
 use ssbh_wgpu::create_default_textures;
 use ssbh_wgpu::load_default_cube;
 use ssbh_wgpu::CameraTransforms;
@@ -8,6 +7,7 @@ use ssbh_wgpu::ModelFolder;
 use ssbh_wgpu::PipelineData;
 use ssbh_wgpu::RenderModel;
 use ssbh_wgpu::RenderSettings;
+use ssbh_wgpu::TransitionMaterial;
 use ssbh_wgpu::REQUIRED_FEATURES;
 use ssbh_wgpu::{create_database, DebugMode, ShaderDatabase};
 use ssbh_wgpu::{load_model_folders, load_render_models, SsbhRenderer};
@@ -294,13 +294,21 @@ impl State {
                             VirtualKeyCode::B => self.render.debug_mode = DebugMode::UvSet2,
                             // TODO: Add more steps?
                             VirtualKeyCode::Numpad0 => self.render.transition_factor = 0.0,
-                            VirtualKeyCode::Numpad1 => self.render.transition_factor = 1.0/3.0,
-                            VirtualKeyCode::Numpad2 => self.render.transition_factor = 2.0/3.0,
+                            VirtualKeyCode::Numpad1 => self.render.transition_factor = 1.0 / 3.0,
+                            VirtualKeyCode::Numpad2 => self.render.transition_factor = 2.0 / 3.0,
                             VirtualKeyCode::Numpad3 => self.render.transition_factor = 1.0,
-                            VirtualKeyCode::Numpad4 => self.render.transition_material = TransitionMaterial::Ink,
-                            VirtualKeyCode::Numpad5 => self.render.transition_material = TransitionMaterial::MetalBox,
-                            VirtualKeyCode::Numpad6 => self.render.transition_material = TransitionMaterial::Gold,
-                            VirtualKeyCode::Numpad7 => self.render.transition_material = TransitionMaterial::Ditto,
+                            VirtualKeyCode::Numpad4 => {
+                                self.render.transition_material = TransitionMaterial::Ink
+                            }
+                            VirtualKeyCode::Numpad5 => {
+                                self.render.transition_material = TransitionMaterial::MetalBox
+                            }
+                            VirtualKeyCode::Numpad6 => {
+                                self.render.transition_material = TransitionMaterial::Gold
+                            }
+                            VirtualKeyCode::Numpad7 => {
+                                self.render.transition_material = TransitionMaterial::Ditto
+                            }
                             _ => (),
                         }
                     }

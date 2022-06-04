@@ -95,7 +95,10 @@ macro_rules! set_color_attribute {
             ssbh_data::mesh_data::VectorData::Vector3(_) => todo!(),
             ssbh_data::mesh_data::VectorData::Vector4(values) => {
                 for (i, value) in values.iter().enumerate() {
-                    $v[i].$field[$dst] = floats_to_u32(&value);
+                    $v[i].$field[$dst] = value[0];
+                    $v[i].$field[$dst+1] = value[1];
+                    $v[i].$field[$dst+2] = value[2];
+                    $v[i].$field[$dst+3] = value[3];
                 }
             }
         }
@@ -112,9 +115,13 @@ pub fn buffer1(mesh_data: &MeshObjectData) -> Vec<VertexInput1> {
             map1_uvset: [0.0; 4],
             uv_set1_uv_set2: [0.0; 4],
             bake1: [0.0; 4],
-            color_set1345_packed: [0; 4],
-            color_set2_packed: [0; 4],
-            color_set67_packed: [0; 4]
+            color_set1: [0.0; 4],
+            color_set2_combined: [0.0; 4],
+            color_set3: [0.0; 4],
+            color_set4: [0.0; 4],
+            color_set5: [0.0; 4],
+            color_set6: [0.0; 4],
+            color_set7: [0.0; 4]
         };
         vertex_count
     ];
@@ -131,17 +138,15 @@ pub fn buffer1(mesh_data: &MeshObjectData) -> Vec<VertexInput1> {
     }
 
     for attribute in &mesh_data.color_sets {
+        // TODO: Investigate how the game combines colorSet2, colorSet2_1, colorSet2_2.
         match attribute.name.as_str() {
-            "colorSet1" => set_color_attribute!(vertices, &attribute.data, color_set1345_packed, 0),
-            "colorSet3" => set_color_attribute!(vertices, &attribute.data, color_set1345_packed, 1),
-            "colorSet4" => set_color_attribute!(vertices, &attribute.data, color_set1345_packed, 2),
-            "colorSet5" => set_color_attribute!(vertices, &attribute.data, color_set1345_packed, 3),
-            "colorSet2" => set_color_attribute!(vertices, &attribute.data, color_set2_packed, 0),
-            "colorSet2_1" => set_color_attribute!(vertices, &attribute.data, color_set2_packed, 1),
-            "colorSet2_2" => set_color_attribute!(vertices, &attribute.data, color_set2_packed, 2),
-            "colorSet2_3" => set_color_attribute!(vertices, &attribute.data, color_set2_packed, 3),
-            "colorSet6" => set_color_attribute!(vertices, &attribute.data, color_set67_packed, 0),
-            "colorSet7" => set_color_attribute!(vertices, &attribute.data, color_set67_packed, 1),
+            "colorSet1" => set_color_attribute!(vertices, &attribute.data, color_set1, 0),
+            "colorSet2" => set_color_attribute!(vertices, &attribute.data, color_set2_combined, 0),
+            "colorSet3" => set_color_attribute!(vertices, &attribute.data, color_set3, 0),
+            "colorSet4" => set_color_attribute!(vertices, &attribute.data, color_set4, 0),
+            "colorSet5" => set_color_attribute!(vertices, &attribute.data, color_set5, 0),
+            "colorSet6" => set_color_attribute!(vertices, &attribute.data, color_set6, 0),
+            "colorSet7" => set_color_attribute!(vertices, &attribute.data, color_set7, 0),
             _ => (),
         }
     }

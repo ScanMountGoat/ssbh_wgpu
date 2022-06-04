@@ -158,9 +158,13 @@ struct VertexInput1 {
     [[location(3)]] map1_uvset: vec4<f32>;
     [[location(4)]] uv_set1_uv_set2: vec4<f32>;
     [[location(5)]] bake1: vec4<f32>;
-    [[location(6)]] color_set1345_packed: vec4<u32>;
-    [[location(7)]] color_set2_packed: vec4<u32>;
-    [[location(8)]] color_set67_packed: vec4<u32>;
+    [[location(6)]] color_set1: vec4<f32>;
+    [[location(7)]] color_set2_combined: vec4<f32>;
+    [[location(8)]] color_set3: vec4<f32>;
+    [[location(9)]] color_set4: vec4<f32>;
+    [[location(10)]] color_set5: vec4<f32>;
+    [[location(11)]] color_set6: vec4<f32>;
+    [[location(12)]] color_set7: vec4<f32>;
 };
 
 // TODO: This will need to be reworked at some point.
@@ -180,6 +184,11 @@ struct VertexOutput {
     [[location(11)]] color_set6: vec4<f32>;
     [[location(12)]] color_set7: vec4<f32>;
     [[location(13)]] light_position: vec4<f32>;
+};
+
+struct VertexOutputInvalid {
+    [[builtin(position)]] clip_position: vec4<f32>;
+    [[location(0)]] position: vec4<f32>;
 };
 
 fn Blend(a: vec3<f32>, b: vec4<f32>) -> vec3<f32> {
@@ -596,17 +605,13 @@ fn vs_main(
     out.normal = buffer0.normal0.xyz;
     out.tangent = buffer0.tangent0;
     
-    let colorSet1 = unpack4x8unorm(buffer1.color_set1345_packed.x);
-    let colorSet3 = unpack4x8unorm(buffer1.color_set1345_packed.y);
-    let colorSet4 = unpack4x8unorm(buffer1.color_set1345_packed.z);
-    let colorSet5 = unpack4x8unorm(buffer1.color_set1345_packed.w);
-    let colorSet2 = unpack4x8unorm(buffer1.color_set2_packed.x);
-    let colorSet2_11 = unpack4x8unorm(buffer1.color_set2_packed.y);
-    let colorSet2_2 = unpack4x8unorm(buffer1.color_set2_packed.z);
-    let colorSet2_3 = unpack4x8unorm(buffer1.color_set2_packed.w);
-    let colorSet6 = unpack4x8unorm(buffer1.color_set67_packed.x);
-    let colorSet7 = unpack4x8unorm(buffer1.color_set67_packed.y);
-
+    let colorSet1 = buffer1.color_set1;
+    let colorSet2 = buffer1.color_set2_combined;
+    let colorSet3 = buffer1.color_set3;
+    let colorSet4 = buffer1.color_set4;
+    let colorSet5 = buffer1.color_set5;
+    let colorSet6 = buffer1.color_set6;
+    let colorSet7 = buffer1.color_set7;
 
     // TODO: Also apply transforms to the debug shader?
     var uvTransform1 = vec4<f32>(1.0, 1.0, 0.0, 0.0);
@@ -658,18 +663,29 @@ fn ScreenCheckerBoard(screenPosition: vec2<f32>) -> f32
     }
 }
 
+[[stage(vertex)]]
+fn vs_main_invalid(
+    buffer0: VertexInput0,
+    buffer1: VertexInput1
+) -> VertexOutputInvalid {
+    var out: VertexOutputInvalid;
+    out.clip_position = camera.mvp_matrix * vec4<f32>(buffer0.position0.xyz, 1.0);
+    out.position = out.clip_position;
+
+    return out;
+}
+
 [[stage(fragment)]]
-fn fs_invalid_shader([[builtin(position)]] frag_pos: vec4<f32>) -> [[location(0)]] vec4<f32> {
-    let checker = ScreenCheckerBoard(frag_pos.xy);
+fn fs_invalid_shader(in: VertexOutputInvalid) -> [[location(0)]] vec4<f32> {
+    let checker = ScreenCheckerBoard(in.position.xy);
     return vec4<f32>(checker, 0.0, 0.0, 1.0);
 }
 
 [[stage(fragment)]]
-fn fs_invalid_attributes([[builtin(position)]] frag_pos: vec4<f32>) -> [[location(0)]] vec4<f32> {
-    let checker = ScreenCheckerBoard(frag_pos.xy);
+fn fs_invalid_attributes(in: VertexOutputInvalid) -> [[location(0)]] vec4<f32> {
+    let checker = ScreenCheckerBoard(in.position.xy);
     return vec4<f32>(checker, checker, 0.0, 1.0);
 }
-
 
 [[stage(fragment)]]
 fn fs_debug(in: VertexOutput) -> [[location(0)]] vec4<f32> {
