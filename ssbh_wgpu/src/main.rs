@@ -1,5 +1,6 @@
 use std::path::Path;
 
+use ssbh_wgpu::TransitionMaterial;
 use ssbh_wgpu::create_default_textures;
 use ssbh_wgpu::load_default_cube;
 use ssbh_wgpu::CameraTransforms;
@@ -291,6 +292,15 @@ impl State {
                             VirtualKeyCode::C => self.render.debug_mode = DebugMode::UvSet,
                             VirtualKeyCode::V => self.render.debug_mode = DebugMode::UvSet1,
                             VirtualKeyCode::B => self.render.debug_mode = DebugMode::UvSet2,
+                            // TODO: Add more steps?
+                            VirtualKeyCode::Numpad0 => self.render.transition_factor = 0.0,
+                            VirtualKeyCode::Numpad1 => self.render.transition_factor = 1.0/3.0,
+                            VirtualKeyCode::Numpad2 => self.render.transition_factor = 2.0/3.0,
+                            VirtualKeyCode::Numpad3 => self.render.transition_factor = 1.0,
+                            VirtualKeyCode::Numpad4 => self.render.transition_material = TransitionMaterial::Ink,
+                            VirtualKeyCode::Numpad5 => self.render.transition_material = TransitionMaterial::MetalBox,
+                            VirtualKeyCode::Numpad6 => self.render.transition_material = TransitionMaterial::Gold,
+                            VirtualKeyCode::Numpad7 => self.render.transition_material = TransitionMaterial::Ditto,
                             _ => (),
                         }
                     }
@@ -403,19 +413,19 @@ impl State {
         let skel = self.models.get(0).and_then(|m| m.find_skel());
         let (_, _, mvp) =
             calculate_camera_pos_mvp(self.size, self.translation_xyz, self.rotation_xyz);
-        let text_command_buffer = self.renderer.render_skeleton(
-            &self.device,
-            &self.queue,
-            &mut encoder,
-            &output_view,
-            &self.render_models,
-            skel,
-            self.size.width,
-            self.size.height,
-            mvp,
-        );
+        // let text_command_buffer = self.renderer.render_skeleton(
+        //     &self.device,
+        //     &self.queue,
+        //     &mut encoder,
+        //     &output_view,
+        //     &self.render_models,
+        //     skel,
+        //     self.size.width,
+        //     self.size.height,
+        //     mvp,
+        // );
 
-        self.queue.submit([encoder.finish(), text_command_buffer]);
+        self.queue.submit([encoder.finish()]);
 
         // Actually draw the frame.
         output.present();

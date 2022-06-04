@@ -11,6 +11,8 @@ struct LightTransforms {
 // TODO: How to handle alignment?
 struct RenderSettings {
     debug_mode: vec4<i32>;
+    transition_material: vec4<i32>;
+    transition_factor: vec4<f32>;
     render_diffuse: vec4<f32>;
     render_specular: vec4<f32>;
     render_emission: vec4<f32>;
@@ -386,7 +388,9 @@ fn DiffuseTerm(
     ambientLight: vec3<f32>, 
     ao: vec3<f32>, 
     sssBlend: f32, 
-    shadow: f32) -> vec3<f32>
+    shadow: f32,
+    custom_vector11: vec4<f32>,
+    custom_vector30: vec4<f32>) -> vec3<f32>
 {
     // TODO: This can be cleaned up.
     var directShading = albedo * max(nDotL, 0.0);
@@ -395,9 +399,9 @@ fn DiffuseTerm(
 
     // Diffuse shading is remapped to be softer.
     // Multiplying be a constant and clamping affects the "smoothness".
-    var nDotLSkin = nDotL * uniforms.custom_vector[30].y;
+    var nDotLSkin = nDotL * custom_vector30.y;
     nDotLSkin = clamp(nDotLSkin * 0.5 + 0.5, 0.0, 1.0);
-    let skinShading = uniforms.custom_vector[11].rgb * sssBlend * nDotLSkin;
+    let skinShading = custom_vector11.rgb * sssBlend * nDotLSkin;
 
     // TODO: How many PI terms are there?
     // TODO: Skin shading looks correct without the PI term?
@@ -414,7 +418,7 @@ fn DiffuseTerm(
     }
 
     // Assume the mix factor is 0.0 if the material doesn't have CustomVector11.
-    ambientTerm = ambientTerm * mix(albedo, uniforms.custom_vector[11].rgb, sssBlend);
+    ambientTerm = ambientTerm * mix(albedo, custom_vector11.rgb, sssBlend);
 
     let result = directLight * shadow + ambientTerm;
 
@@ -811,24 +815,79 @@ fn fs_main(in: VertexOutput) -> [[location(0)]] vec4<f32> {
     let colorSet6 = in.color_set6;
     let colorSet7 = in.color_set7;
 
-    // TODO: Some of these textures are sampled more than once?
+    // TODO: Mario's eyes don't render properly for the metal/gold materials.
     var nor = vec4<f32>(0.5, 0.5, 1.0, 1.0);
     if (uniforms.has_texture[4].x == 1.0) {
         nor = textureSample(texture4, sampler4, map1);
     }
+
+    // Check if the factor is non zero to prevent artifacts.
+    var transitionFactor = 0.0;
+    if ((render_settings.transition_factor.x > 0.0) && (nor.b >= (1.0 - render_settings.transition_factor.x))) {
+        transitionFactor = 1.0;
+    }
+
+    // TODO: Finish researching these values from in game.
+    // TODO: Apply the metal/metamon materials.
+    var transitionAlbedo = vec3<f32>(0.0);
+    var transitionPrm = vec4<f32>(0.0);
+    var transitionCustomVector11 = vec4<f32>(0.0);
+    var transitionCustomVector30 = vec4<f32>(0.0);
+
+    switch (render_settings.transition_material.x) {
+        case 0: {      
+            // Inkling's Ink.
+            // TODO: Include other colors from /fighter/common/param/effect.prc?
+            transitionAlbedo = vec3<f32>(0.758027, 0.115859, 0.04);
+            // TODO: Ink PRM?
+            transitionPrm = vec4<f32>(0.0, 0.2, 1.0, 0.16);
+            transitionCustomVector11 = vec4<f32>(0.0);
+            transitionCustomVector30 = vec4<f32>(0.0);
+        }
+        case 1: {      
+            // Metal Box.
+            transitionAlbedo = vec3<f32>(0.257, 0.257, 0.257);
+            transitionPrm = vec4<f32>(1.0, 0.3, 1.0, 0.0);
+            transitionCustomVector11 = vec4<f32>(0.0);
+            transitionCustomVector30 = vec4<f32>(0.0);
+        }
+        case 2: {      
+            // Gold (Xerneas Pokemon).
+            // (0.257, 0.257, 0.257) + (0.125, 0.047, -0.234) in the shader.
+            transitionAlbedo = vec3<f32>(0.382, 0.304, 0.023);
+            transitionPrm = vec4<f32>(1.0, 0.3, 1.0, 0.0);
+            transitionCustomVector11 = vec4<f32>(0.0);
+            transitionCustomVector30 = vec4<f32>(0.0);
+        }
+        case 3: {      
+            // Ditto Pokemon.
+            transitionAlbedo = vec3<f32>(0.1694, 0.0924, 0.2002);
+            transitionPrm = vec4<f32>(1.0, 0.75, 1.0, 0.032); // TODO: Roughness?
+            transitionCustomVector11 = vec4<f32>(0.0); // TODO: What is this?
+            transitionCustomVector30 = vec4<f32>(0.5, 4.0, 0.0, 0.0);
+        }
+        default: { 
+            
+        }
+    }
+
+    let customVector11Final = mix(uniforms.custom_vector[11], transitionCustomVector11, render_settings.transition_factor.x);
+    let customVector30Final = mix(uniforms.custom_vector[30], transitionCustomVector30, render_settings.transition_factor.x);
 
     var prm = vec4<f32>(0.0, 0.0, 1.0, 0.0);
     if (uniforms.has_texture[6].x == 1.0) {
         prm = textureSample(texture6, sampler6, map1);
     }
 
-    var metalness = prm.r;
-    let roughness = prm.g;
+    var metalness = mix(prm.r, transitionPrm.r, transitionFactor);
+    let roughness = mix(prm.g, transitionPrm.g, transitionFactor);
     let ao = prm.b;
-    let spec = prm.a;
+    let spec = mix(prm.a, transitionPrm.a, transitionFactor);
+
+    let sssBlend = prm.r * customVector30Final.x;
 
     // Skin shaders use metalness for masking the fake SSS effect.
-    if (uniforms.custom_vector[30].x > 0.0) {
+    if (customVector30Final.x > 0.0) {
         metalness = 0.0;
     }
 
@@ -843,7 +902,8 @@ fn fs_main(in: VertexOutput) -> [[location(0)]] vec4<f32> {
         fragmentNormal = GetBumpMapNormal(normal, tangent, bitangent, nor);
     }
 
-    var reflectionVector = reflect(viewVector, normal);
+    // TODO: Is it just the metal material that uses the fragment normal?
+    var reflectionVector = reflect(viewVector, fragmentNormal);
     reflectionVector.y = reflectionVector.y * -1.0;
 
     let chrLightDir = stage_uniforms.chr_light_dir.xyz;
@@ -854,6 +914,10 @@ fn fs_main(in: VertexOutput) -> [[location(0)]] vec4<f32> {
     let nDotL = dot(fragmentNormal, normalize(chrLightDir));
 
     let albedoColor = GetAlbedoColor(map1, uvSet, uvSet1, reflectionVector, colorSet5);
+    // TODO: Apply multiplier param?
+    var albedoColorFinal = GetAlbedoColorFinal(albedoColor);
+    albedoColorFinal = mix(albedoColorFinal, transitionAlbedo, transitionFactor);
+
     let emissionColor = GetEmissionColor(map1, uvSet);
 
     let shadow = mix(1.0, GetShadow(in.light_position), render_settings.render_shadows.x);
@@ -863,11 +927,6 @@ fn fs_main(in: VertexOutput) -> [[location(0)]] vec4<f32> {
         // TODO: This is disabled by some shaders.
         discard;
     }
-
-    let sssBlend = prm.r * uniforms.custom_vector[30].x;
-
-    // TODO: Apply multiplier param?
-    var albedoColorFinal = GetAlbedoColorFinal(albedoColor);
 
     let specularF0 = GetF0FromSpecular(prm.a);
 
@@ -880,7 +939,7 @@ fn fs_main(in: VertexOutput) -> [[location(0)]] vec4<f32> {
     let shAmbientB = dot(vec4<f32>(normalize(normal), 1.0), vec4<f32>(0.1419, 0.04334, -0.08283, 1.11018));
     let shColor = vec3<f32>(shAmbientR, shAmbientG, shAmbientB);
 
-    let diffusePass = DiffuseTerm(bake1, albedoColorFinal.rgb, nDotL, shColor, vec3<f32>(ao), sssBlend, shadow);
+    let diffusePass = DiffuseTerm(bake1, albedoColorFinal.rgb, nDotL, shColor, vec3<f32>(ao), sssBlend, shadow, customVector11Final, customVector30Final);
 
     let specularPass = SpecularTerm(in.tangent, nDotH, max(nDotL, 0.0), nDotV, halfAngle, fragmentNormal, roughness, specularIbl, metalness, prm.a, shadow);
 

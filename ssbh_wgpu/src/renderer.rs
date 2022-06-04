@@ -84,10 +84,27 @@ pub enum DebugMode {
     // TODO: Separate modes for selecting parameters by index (ex: Booleans[3])?
 }
 
+/// The secondary material for material transitions when using [DebugMode::Shaded].
+#[derive(PartialEq, Eq, Copy, Clone, Display, EnumVariantNames, EnumString)]
+pub enum TransitionMaterial {
+    /// The colored material of Inkling's ink.
+    Ink,
+    /// The metallic material of the metal box item.
+    MetalBox,
+    /// The gold material of the Xerneas Pokemon summon.
+    Gold,
+    /// The purple material of the Ditto Pokemon summon.
+    Ditto,
+}
+
 /// Settings for configuring the rendered output of an [SsbhRenderer].
 pub struct RenderSettings {
     /// The attribute to render as the output color when [Some].
     pub debug_mode: DebugMode,
+    pub transition_material: TransitionMaterial,
+    /// The amount to blend between the regular material and the [transition_material](#structfield.transition_material).
+    /// 0.0 = regular material, 1.0 = transition material.
+    pub transition_factor: f32,
     pub render_diffuse: bool,
     pub render_specular: bool,
     pub render_emission: bool,
@@ -99,6 +116,8 @@ impl From<&RenderSettings> for crate::shader::model::RenderSettings {
     fn from(r: &RenderSettings) -> Self {
         Self {
             debug_mode: [r.debug_mode as i32; 4],
+            transition_material: [r.transition_material as i32; 4],
+            transition_factor: [r.transition_factor, 0.0, 0.0, 0.0],
             render_diffuse: [if r.render_diffuse { 1.0 } else { 0.0 }; 4],
             render_specular: [if r.render_specular { 1.0 } else { 0.0 }; 4],
             render_emission: [if r.render_emission { 1.0 } else { 0.0 }; 4],
@@ -112,6 +131,8 @@ impl Default for RenderSettings {
     fn default() -> Self {
         Self {
             debug_mode: DebugMode::Shaded,
+            transition_material: TransitionMaterial::Ink,
+            transition_factor: 0.0,
             render_diffuse: true,
             render_specular: true,
             render_emission: true,
@@ -328,14 +349,9 @@ impl SsbhRenderer {
 
         let render_settings_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Render Settings Buffer"),
-            contents: bytemuck::cast_slice(&[crate::shader::model::RenderSettings {
-                debug_mode: [0, 0, 0, 0],
-                render_diffuse: [1.0; 4],
-                render_specular: [1.0; 4],
-                render_emission: [1.0; 4],
-                render_rim_lighting: [1.0; 4],
-                render_shadows: [1.0; 4],
-            }]),
+            contents: bytemuck::cast_slice(&[crate::shader::model::RenderSettings::from(
+                &RenderSettings::default(),
+            )]),
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
 
