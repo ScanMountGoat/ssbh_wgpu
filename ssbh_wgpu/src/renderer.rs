@@ -4,7 +4,7 @@ use crate::{
         create_debug_pipeline, create_depth_pipeline, create_invalid_attributes_pipeline,
         create_invalid_shader_pipeline,
     },
-    texture::load_texture_sampler_3d,
+    texture::load_default_lut,
     CameraTransforms, RenderModel, ShaderDatabase,
 };
 use glyph_brush::DefaultSectionHasher;
@@ -282,9 +282,7 @@ impl SsbhRenderer {
             create_screen_pipeline(device, &shader, &layout, "fs_main", VARIANCE_SHADOW_FORMAT);
 
         // TODO: Where should stage specific assets be loaded?
-        // TODO: Just create the default LUT from code.
-        let (color_lut_view, color_lut_sampler) =
-            load_texture_sampler_3d(device, queue, "color_grading_lut.nutexb");
+        let (color_lut_view, color_lut_sampler) = load_default_lut(device, queue);
         let color_lut = TextureSamplerView {
             view: color_lut_view,
             sampler: color_lut_sampler,

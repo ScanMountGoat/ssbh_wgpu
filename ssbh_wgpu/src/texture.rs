@@ -5,7 +5,7 @@ use std::{
 
 use nutexb_wgpu::NutexbFile;
 use ssbh_data::matl_data::{MagFilter, MatlEntryData, MinFilter, ParamId, WrapMode};
-use wgpu::{Device, Queue, Sampler, Texture, TextureView, TextureViewDescriptor};
+use wgpu::{util::DeviceExt, Device, Queue, Sampler, Texture, TextureView, TextureViewDescriptor};
 
 pub fn load_texture(
     material: Option<&MatlEntryData>,
@@ -123,14 +123,32 @@ pub fn load_default_cube(
     Some((view, sampler, texture))
 }
 
-pub fn load_texture_sampler_3d<P: AsRef<Path>>(
+pub fn load_default_lut(
     device: &Device,
     queue: &wgpu::Queue,
-    path: P,
 ) -> (wgpu::TextureView, wgpu::Sampler) {
-    // TODO: This function should return an error.
-    let nutexb = NutexbFile::read_from_file(path).unwrap();
-    let texture = nutexb_wgpu::create_texture(&nutexb, device, queue);
+    let default_lut = create_default_lut();
+
+    let size = wgpu::Extent3d {
+        width: 16,
+        height: 16,
+        depth_or_array_layers: 16,
+    };
+
+    let texture = device.create_texture_with_data(
+        queue,
+        &wgpu::TextureDescriptor {
+            label: Some("Default Color Grading Lut"),
+            size,
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D3,
+            format: wgpu::TextureFormat::Rgba8Unorm,
+            usage: wgpu::TextureUsages::COPY_DST | wgpu::TextureUsages::TEXTURE_BINDING,
+        },
+        &default_lut,
+    );
+
     let view = texture.create_view(&wgpu::TextureViewDescriptor {
         dimension: Some(wgpu::TextureViewDimension::D3),
         ..Default::default()
@@ -343,6 +361,31 @@ pub fn solid_color_texture_2d(
     );
 
     (label.to_string(), texture)
+}
+
+fn create_default_lut() -> Vec<u8> {
+    // Create a 16x16x16 RGB LUT used as the default stage LUT.
+    // This applies a subtle contrast/saturation adjustment.
+    let gradient_values = [
+        0u8, 15u8, 30u8, 46u8, 64u8, 82u8, 101u8, 121u8, 140u8, 158u8, 176u8, 193u8, 209u8, 224u8,
+        240u8, 255u8,
+    ];
+
+    let bpp = 4;
+    let mut result = vec![0u8; 16 * 16 * 16 * bpp];
+    for z in 0..16 {
+        for y in 0..16 {
+            for x in 0..16 {
+                let offset = (z * 16 * 16 + y * 16 + x) * bpp;
+                result[offset] = gradient_values[x];
+                result[offset + 1] = gradient_values[y];
+                result[offset + 2] = gradient_values[z];
+                result[offset + 3] = 255u8;
+            }
+        }
+    }
+
+    result
 }
 
 #[cfg(test)]
