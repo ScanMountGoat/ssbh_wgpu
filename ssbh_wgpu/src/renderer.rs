@@ -9,12 +9,9 @@ use crate::{
 };
 use glyph_brush::DefaultSectionHasher;
 use ssbh_data::skel_data::SkelData;
-use strum::{Display, EnumString, EnumVariantNames, FromRepr};
+use strum::{Display, EnumString, EnumVariantNames};
 use wgpu::{util::DeviceExt, ComputePassDescriptor, ComputePipelineDescriptor};
-use wgpu_text::{
-    font::{Font, FontRef},
-    BrushBuilder, TextBrush,
-};
+use wgpu_text::{font::FontRef, BrushBuilder, TextBrush};
 
 // Rgba16Float is widely supported.
 // The in game format uses less precision.
@@ -170,7 +167,6 @@ pub struct SsbhRenderer {
     stage_uniforms_buffer: wgpu::Buffer,
     stage_uniforms_bind_group: crate::shader::model::bind_groups::BindGroup2,
 
-    shadow_transform_bind_group: crate::shader::model_depth::bind_groups::BindGroup0,
     shadow_depth: TextureSamplerView,
     variance_shadow: TextureSamplerView,
     variance_bind_group: crate::shader::variance_shadow::bind_groups::BindGroup0,
@@ -286,6 +282,7 @@ impl SsbhRenderer {
             create_screen_pipeline(device, &shader, &layout, "fs_main", VARIANCE_SHADOW_FORMAT);
 
         // TODO: Where should stage specific assets be loaded?
+        // TODO: Just create the default LUT from code.
         let (color_lut_view, color_lut_sampler) =
             load_texture_sampler_3d(device, queue, "color_grading_lut.nutexb");
         let color_lut = TextureSamplerView {
@@ -321,20 +318,13 @@ impl SsbhRenderer {
             glam::Vec3::new(25.0, 25.0, 50.0),
         );
 
-        let shadow_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Camera Buffer"),
-            contents: bytemuck::cast_slice(&[crate::shader::model_depth::CameraTransforms {
-                mvp_matrix: light_transform,
+        let light_transform_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Light Transform Buffer"),
+            contents: bytemuck::cast_slice(&[crate::shader::model::LightTransforms {
+                light_transform,
             }]),
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
-        let shadow_transform_bind_group =
-            crate::shader::model_depth::bind_groups::BindGroup0::from_bindings(
-                device,
-                crate::shader::model_depth::bind_groups::BindGroupLayout0 {
-                    camera: shadow_buffer.as_entire_buffer_binding(),
-                },
-            );
 
         // Depth from the perspective of the light.
         // TODO: Multiple lights require multiple depth maps?
@@ -361,7 +351,7 @@ impl SsbhRenderer {
                 camera: camera_buffer.as_entire_buffer_binding(),
                 texture_shadow: &variance_shadow.view,
                 sampler_shadow: &variance_shadow.sampler,
-                light: shadow_buffer.as_entire_buffer_binding(),
+                light: light_transform_buffer.as_entire_buffer_binding(),
                 render_settings: render_settings_buffer.as_entire_buffer_binding(),
             },
         );
@@ -423,7 +413,6 @@ impl SsbhRenderer {
             skeleton_camera_bind_group,
             pass_info,
             color_lut,
-            shadow_transform_bind_group,
             shadow_depth,
             variance_shadow_pipeline,
             variance_shadow,
@@ -799,7 +788,7 @@ impl SsbhRenderer {
         });
         shadow_pass.set_pipeline(&self.shadow_pipeline);
         for model in render_models {
-            model.draw_render_meshes_depth(&mut shadow_pass, &self.shadow_transform_bind_group);
+            model.draw_render_meshes_depth(&mut shadow_pass, &self.per_frame_bind_group);
         }
     }
 }

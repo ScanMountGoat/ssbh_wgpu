@@ -650,6 +650,14 @@ fn vs_main(
     return out;
 }
 
+[[stage(vertex)]]
+fn vs_depth(
+    buffer0: VertexInput0,
+    buffer1: VertexInput1
+) -> [[builtin(position)]] vec4<f32> {
+    return light.light_transform * vec4<f32>(buffer0.position0.xyz, 1.0);
+}
+
 fn ScreenCheckerBoard(screenPosition: vec2<f32>) -> f32
 {
     // Port of in game shader code for screen checkerboard.

@@ -3,7 +3,6 @@
 pub mod bloom;
 pub mod bloom_combine;
 pub mod model;
-pub mod model_depth;
 pub mod post_process;
 pub mod renormal;
 pub mod skeleton;

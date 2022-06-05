@@ -115,15 +115,23 @@ pub fn create_pipeline(
 }
 
 pub fn create_depth_pipeline(device: &wgpu::Device) -> wgpu::RenderPipeline {
-    let shader = crate::shader::model_depth::create_shader_module(device);
-    let render_pipeline_layout = crate::shader::model_depth::create_pipeline_layout(device);
+    let shader = crate::shader::model::create_shader_module(device);
+
+    // We only need the per frame light transforms.
+    let render_pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+        label: None,
+        bind_group_layouts: &[
+            &crate::shader::model::bind_groups::BindGroup0::get_bind_group_layout(device),
+        ],
+        push_constant_ranges: &[],
+    });
 
     // TODO: Some of these values should come from wgsl_to_wgpu
     // TODO: Get entry points from wgsl shader.
     device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
         label: Some("Render Pipeline Depth"),
         layout: Some(&render_pipeline_layout),
-        vertex: vertex_state_depth(&shader),
+        vertex: vertex_state(&shader, "vs_depth"),
         fragment: None,
         primitive: wgpu::PrimitiveState::default(),
         depth_stencil: Some(wgpu::DepthStencilState {
@@ -207,27 +215,6 @@ fn vertex_state<'a>(shader: &'a wgpu::ShaderModule, entry_point: &'a str) -> wgp
     wgpu::VertexState {
         module: shader,
         entry_point,
-        buffers: &[
-            // TODO: Can this be derived by wgsl_to_wgpu?
-            // Assume tightly packed elements with no additional padding or alignment.
-            wgpu::VertexBufferLayout {
-                array_stride: crate::shader::model_depth::VertexInput0::SIZE_IN_BYTES,
-                step_mode: wgpu::VertexStepMode::Vertex,
-                attributes: &crate::shader::model_depth::VertexInput0::VERTEX_ATTRIBUTES,
-            },
-            wgpu::VertexBufferLayout {
-                array_stride: crate::shader::model_depth::VertexInput1::SIZE_IN_BYTES,
-                step_mode: wgpu::VertexStepMode::Vertex,
-                attributes: &crate::shader::model_depth::VertexInput1::VERTEX_ATTRIBUTES,
-            },
-        ],
-    }
-}
-
-fn vertex_state_depth(shader: &wgpu::ShaderModule) -> wgpu::VertexState {
-    wgpu::VertexState {
-        module: shader,
-        entry_point: "vs_main",
         buffers: &[
             // TODO: Can this be derived by wgsl_to_wgpu?
             // Assume tightly packed elements with no additional padding or alignment.

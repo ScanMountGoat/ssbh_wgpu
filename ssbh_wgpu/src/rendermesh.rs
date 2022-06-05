@@ -494,16 +494,11 @@ impl RenderModel {
     pub fn draw_render_meshes_depth<'a>(
         &'a self,
         render_pass: &mut wgpu::RenderPass<'a>,
-        camera_bind_group: &'a crate::shader::model_depth::bind_groups::BindGroup0,
+        camera_bind_group: &'a crate::shader::model::bind_groups::BindGroup0,
     ) {
+        // Assume only one shared bind group for all meshes.
+        camera_bind_group.set(render_pass);
         for mesh in self.meshes.iter().filter(|m| m.is_visible) {
-            crate::shader::model_depth::bind_groups::set_bind_groups(
-                render_pass,
-                crate::shader::model_depth::bind_groups::BindGroups::<'a> {
-                    bind_group0: camera_bind_group,
-                },
-            );
-
             self.set_mesh_buffers(render_pass, mesh);
 
             render_pass.draw_indexed(0..mesh.vertex_index_count as u32, 0, 0..1);
