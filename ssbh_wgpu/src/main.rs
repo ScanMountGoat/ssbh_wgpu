@@ -129,8 +129,7 @@ impl State {
 
         // TODO: Combine these into a single global textures struct?
         let default_textures = create_default_textures(&device, &queue);
-        let stage_cube = load_default_cube(&device, &queue).unwrap();
-        let stage_cube = (stage_cube.0, stage_cube.1);
+        let stage_cube = load_default_cube(&device, &queue);
 
         let shader_database = create_database();
 

@@ -3,7 +3,6 @@ use std::{
     path::Path,
 };
 
-use nutexb_wgpu::NutexbFile;
 use ssbh_data::matl_data::{MagFilter, MatlEntryData, MinFilter, ParamId, WrapMode};
 use wgpu::{util::DeviceExt, Device, Queue, Sampler, Texture, TextureView, TextureViewDescriptor};
 
@@ -96,18 +95,27 @@ pub fn load_sampler(
     Some(sampler)
 }
 
-// TODO: Rework return type?
-pub fn load_default_cube(
-    device: &Device,
-    queue: &Queue,
-) -> Option<(TextureView, Sampler, Texture)> {
-    // TODO: Is there an actual default texture used in game?
-    // TODO: This should only be used for texture7?
-    let absolute_path = std::path::Path::new("reflection_cubemap.nutexb");
+pub fn load_default_cube(device: &Device, queue: &Queue) -> (TextureView, Sampler) {
+    let size = wgpu::Extent3d {
+        width: 64,
+        height: 64,
+        depth_or_array_layers: 6,
+    };
 
-    // TODO: This function should return an error.
-    let nutexb = NutexbFile::read_from_file(absolute_path).unwrap();
-    let texture = nutexb_wgpu::create_texture(&nutexb, device, queue);
+    let texture = device.create_texture_with_data(
+        queue,
+        &wgpu::TextureDescriptor {
+            label: Some("Default Stage Specular Cube"),
+            size,
+            mip_level_count: 7,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Bc6hRgbUfloat,
+            usage: wgpu::TextureUsages::COPY_DST | wgpu::TextureUsages::TEXTURE_BINDING,
+        },
+        include_bytes!("stage_cube_surface.bin"),
+    );
+
     let view = texture.create_view(&TextureViewDescriptor {
         dimension: Some(wgpu::TextureViewDimension::Cube),
         ..Default::default()
@@ -120,7 +128,7 @@ pub fn load_default_cube(
         ..Default::default()
     });
 
-    Some((view, sampler, texture))
+    (view, sampler)
 }
 
 pub fn load_default_lut(
@@ -199,14 +207,10 @@ fn address_mode(wrap_mode: WrapMode) -> wgpu::AddressMode {
     }
 }
 
-// TODO: Do we really need samplers here?
-// The sampler won't matter for solid color defaults.
-// The material may be missing the texture but not the sampler.
 pub fn create_default_textures(
     device: &Device,
     queue: &wgpu::Queue,
 ) -> Vec<(String, wgpu::Texture)> {
-    // TODO: Avoid duplicates.
     // TODO: Return a dictionary?
     vec![
         solid_color_texture_2d(
