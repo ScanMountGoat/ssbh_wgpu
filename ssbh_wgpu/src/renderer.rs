@@ -395,7 +395,7 @@ impl SsbhRenderer {
         };
         let brush = BrushBuilder::using_font_bytes(include_bytes!("fonts/Hack-Regular.ttf"))
             .unwrap()
-            .build(&device, &config);
+            .build(device, &config);
 
         Self {
             bloom_threshold_pipeline,
@@ -536,7 +536,7 @@ impl SsbhRenderer {
 
         // TODO: Make text rendering optional.
         // TODO: Is there a way to do this without returning the command buffer?
-        self.brush.draw(device, &output_view, queue)
+        self.brush.draw(device, output_view, queue)
     }
 
     fn bloom_upscale_pass(&self, encoder: &mut wgpu::CommandEncoder) {

@@ -52,7 +52,7 @@ fn apply_aim_constraint(animated_bones: &mut [AnimatedBone], constraint: &AimCon
     // TODO: Will the target of a constraint ever be animated?
     let mut target_transform = target
         .anim_transform
-        .unwrap_or_else(|| AnimTransform::from_bone(&target.bone));
+        .unwrap_or_else(|| AnimTransform::from_bone(target.bone));
 
     let src_pos = source_world.col(3);
     let target_pos = target_world.col(3);
@@ -91,17 +91,17 @@ fn apply_orient_constraint(animated_bones: &mut [AnimatedBone], constraint: &Ori
     let target_parent = animated_bones[target].bone.parent_index;
 
     let source_world = world_transform(animated_bones, source, true).unwrap();
-    let target_world = world_transform(animated_bones, target, true).unwrap();
+    let _target_world = world_transform(animated_bones, target, true).unwrap();
     // TODO: Do we need the source parent world?
-    let source_parent_world = source_parent
+    let _source_parent_world = source_parent
         .map(|p| world_transform(animated_bones, p, true).unwrap())
         .unwrap_or(glam::Mat4::IDENTITY);
     let target_parent_world = target_parent
         .map(|p| world_transform(animated_bones, p, true).unwrap())
         .unwrap_or(glam::Mat4::IDENTITY);
 
-    let quat1 = glam::Quat::from_array(constraint.quat1.to_array());
-    let quat2 = glam::Quat::from_array(constraint.quat2.to_array());
+    let _quat1 = glam::Quat::from_array(constraint.quat1.to_array());
+    let _quat2 = glam::Quat::from_array(constraint.quat2.to_array());
 
     let target = animated_bones
         .iter_mut()
@@ -123,7 +123,7 @@ fn apply_orient_constraint(animated_bones: &mut [AnimatedBone], constraint: &Ori
     let (target_rot_x, target_rot_y, target_rot_z) = target_r.to_euler(glam::EulerRot::XYZ);
 
     // TODO: This doesn't work properly.
-    let interp_rotation = glam::Quat::from_euler(
+    let _interp_rotation = glam::Quat::from_euler(
         glam::EulerRot::XYZ,
         interp(target_rot_x, source_rot_x, constraint.constraint_axes.x),
         interp(target_rot_y, source_rot_y, constraint.constraint_axes.y),
@@ -132,7 +132,7 @@ fn apply_orient_constraint(animated_bones: &mut [AnimatedBone], constraint: &Ori
 
     let mut new_transform = target
         .anim_transform
-        .unwrap_or_else(|| AnimTransform::from_bone(&target.bone));
+        .unwrap_or_else(|| AnimTransform::from_bone(target.bone));
 
     new_transform.rotation = source_r;
     target.anim_transform = Some(new_transform);

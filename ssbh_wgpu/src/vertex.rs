@@ -58,20 +58,6 @@ pub fn buffer0(mesh_data: &MeshObjectData) -> Vec<VertexInput0> {
     vertices
 }
 
-fn float_to_u8(f: f32) -> u8 {
-    (f * 255.0).clamp(0.0, 255.0) as u8
-}
-
-fn floats_to_u32(f: &[f32; 4]) -> u32 {
-    // TODO: Does gpu memory enforce an endianness?
-    u32::from_le_bytes([
-        float_to_u8(f[0]),
-        float_to_u8(f[1]),
-        float_to_u8(f[2]),
-        float_to_u8(f[3]),
-    ])
-}
-
 // TODO: Support and test other lengths?
 macro_rules! set_attribute {
     ($v:ident, $data:expr, $field:ident, $dst1: literal, $dst2:literal) => {
@@ -96,9 +82,9 @@ macro_rules! set_color_attribute {
             ssbh_data::mesh_data::VectorData::Vector4(values) => {
                 for (i, value) in values.iter().enumerate() {
                     $v[i].$field[$dst] = value[0];
-                    $v[i].$field[$dst+1] = value[1];
-                    $v[i].$field[$dst+2] = value[2];
-                    $v[i].$field[$dst+3] = value[3];
+                    $v[i].$field[$dst + 1] = value[1];
+                    $v[i].$field[$dst + 2] = value[2];
+                    $v[i].$field[$dst + 3] = value[3];
                 }
             }
         }
