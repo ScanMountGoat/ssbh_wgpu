@@ -475,7 +475,7 @@ fn SpecularTerm(tangent: vec4<f32>, nDotH: f32, nDotL: f32, nDotV: f32, halfAngl
     directSpecular = directSpecular * 1.0;
     let indirectSpecular = specularIbl;
     // TODO: Why is the indirect specular off by a factor of 0.5?
-    let specularTerm = (directSpecular * shadow) + (indirectSpecular * 0.5);
+    let specularTerm = (directSpecular * shadow * uniforms.custom_boolean[3].x) + (indirectSpecular * 0.5 * uniforms.custom_boolean[4].x);
 
     return specularTerm;
 }
