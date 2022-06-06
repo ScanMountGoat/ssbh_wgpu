@@ -67,19 +67,26 @@ pub fn create_uniforms(
                 }
             };
 
-            let has_color_set1234 = if let Some(program) =
+            let (has_color_set1234, has_color_set567) = if let Some(program) =
                 database.get(material.shader_label.get(..24).unwrap_or(""))
             {
-                [
-                    has_attribute(program, "colorSet1"),
-                    has_attribute(program, "colorSet2"),
-                    has_attribute(program, "colorSet3"),
-                    has_attribute(program, "colorSet4"),
-                ]
+                (
+                    [
+                        has_attribute(program, "colorSet1"),
+                        has_attribute(program, "colorSet2"),
+                        has_attribute(program, "colorSet3"),
+                        has_attribute(program, "colorSet4"),
+                    ],
+                    [
+                        has_attribute(program, "colorSet5"),
+                        has_attribute(program, "colorSet6"),
+                        has_attribute(program, "colorSet7"),
+                        0.0,
+                    ],
+                )
             } else {
-                [0.0; 4]
+                ([0.0; 4], [0.0; 4])
             };
-            let has_color_set567 = [0.0; 4];
 
             MaterialUniforms {
                 custom_vector,

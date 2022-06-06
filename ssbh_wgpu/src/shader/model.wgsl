@@ -259,11 +259,15 @@ fn GetAlbedoColor(uv1: vec2<f32>, uv2: vec2<f32>, uv3: vec2<f32>, R: vec3<f32>, 
         outAlpha = albedoColor.a;
     }
 
-    // TODO: colorSet5.w is used to blend between the two col map layers.
-    // TODO: Add has_color_set.
+    // TODO: Refactor blend to take RGB and w separately?
     if (uniforms.has_texture[1].x == 1.0) {
         let albedoColor2 = textureSample(texture1, sampler1, uvLayer2);
-        outRgb = Blend(outRgb, albedoColor2 * vec4<f32>(1.0, 1.0, 1.0, 1.0));
+        if (uniforms.has_color_set567.x == 1.0) {
+            // colorSet5.w is used to blend between the two col map layers.
+            outRgb = Blend(outRgb, albedoColor2 * vec4<f32>(1.0, 1.0, 1.0, colorSet5.w));
+        } else {
+            outRgb = Blend(outRgb, albedoColor2);
+        }
     }
 
     // Materials won't have col and diffuse cube maps.
