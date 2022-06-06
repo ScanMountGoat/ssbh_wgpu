@@ -128,6 +128,9 @@ struct MaterialUniforms {
     has_float: array<vec4<f32>, 20>;
     has_texture: array<vec4<f32>, 19>;
     has_vector: array<vec4<f32>, 64>;
+    // TODO: Use u32 instead?
+    has_color_set1234: vec4<f32>;
+    has_color_set567: vec4<f32>;
 };
 
 [[group(1), binding(30)]]
@@ -399,7 +402,8 @@ fn DiffuseTerm(
     sssBlend: f32, 
     shadow: f32,
     custom_vector11: vec4<f32>,
-    custom_vector30: vec4<f32>) -> vec3<f32>
+    custom_vector30: vec4<f32>,
+    colorSet2: vec4<f32>) -> vec3<f32>
 {
     // TODO: This can be cleaned up.
     var directShading = albedo * max(nDotL, 0.0);
@@ -429,11 +433,12 @@ fn DiffuseTerm(
     // Assume the mix factor is 0.0 if the material doesn't have CustomVector11.
     ambientTerm = ambientTerm * mix(albedo, custom_vector11.rgb, sssBlend);
 
-    let result = directLight * shadow + ambientTerm;
+    var result = directLight * shadow + ambientTerm;
 
     // Baked stage lighting.
-    //if (renderVertexColor == 1 && hasColorSet2 == 1)
-    //    result *= colorSet2.rgb;
+    if (uniforms.has_color_set1234.y == 1.0) {
+       result = result * colorSet2.rgb;
+    }
 
     return result;
 }
@@ -605,11 +610,13 @@ fn vs_main(
     out.normal = buffer0.normal0.xyz;
     out.tangent = buffer0.tangent0;
     
-    let colorSet1 = buffer1.color_set1;
-    let colorSet2 = buffer1.color_set2_combined;
-    let colorSet3 = buffer1.color_set3;
-    let colorSet4 = buffer1.color_set4;
-    let colorSet5 = buffer1.color_set5;
+    // Apply color scaling since the attribute is stored as four bytes.
+    // This allows values greater than the normal 0.0 to 1.0 range.
+    let colorSet1 = buffer1.color_set1 * 2.0;
+    let colorSet2 = (buffer1.color_set2_combined * buffer1.color_set2_combined) * 7.0;
+    let colorSet3 = buffer1.color_set3 * 2.0;
+    let colorSet4 = buffer1.color_set4 * 2.0;
+    let colorSet5 = buffer1.color_set5 * 3.0;
     let colorSet6 = buffer1.color_set6;
     let colorSet7 = buffer1.color_set7;
 
@@ -963,7 +970,7 @@ fn fs_main(in: VertexOutput) -> [[location(0)]] vec4<f32> {
     let shAmbientB = dot(vec4<f32>(normalize(normal), 1.0), vec4<f32>(0.1419, 0.04334, -0.08283, 1.11018));
     let shColor = vec3<f32>(shAmbientR, shAmbientG, shAmbientB);
 
-    let diffusePass = DiffuseTerm(bake1, albedoColorFinal.rgb, nDotL, shColor, vec3<f32>(ao), sssBlend, shadow, customVector11Final, customVector30Final);
+    let diffusePass = DiffuseTerm(bake1, albedoColorFinal.rgb, nDotL, shColor, vec3<f32>(ao), sssBlend, shadow, customVector11Final, customVector30Final, colorSet2);
 
     let specularPass = SpecularTerm(in.tangent, nDotH, max(nDotL, 0.0), nDotV, halfAngle, fragmentNormal, roughness, specularIbl, metalness, prm.a, shadow);
 
@@ -980,6 +987,18 @@ fn fs_main(in: VertexOutput) -> [[location(0)]] vec4<f32> {
     // TODO: What affects rim lighting intensity?
     let rimOcclusion = shadow * render_settings.render_rim_lighting.x;
     outColor = GetRimBlend(outColor, albedoColorFinal, nDotV, max(nDotL, 0.0), rimOcclusion, shColor);
+
+    if (uniforms.has_vector[8].x == 1.0) {
+        outColor = outColor * uniforms.custom_vector[8].rgb;
+    }
+
+    if (uniforms.has_color_set1234.x == 1.0) {
+        outColor = outColor * colorSet1.rgb; 
+    }
+
+    if (uniforms.has_color_set1234.z == 1.0) {
+        outColor = outColor * colorSet3.rgb;
+    }
 
     // TODO: Color sets?
     return vec4<f32>(outColor, outAlpha);

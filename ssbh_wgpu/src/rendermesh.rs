@@ -133,13 +133,14 @@ impl RenderModel {
         pipeline_data: &PipelineData,
         default_textures: &[(String, wgpu::Texture)],
         stage_cube: &(wgpu::TextureView, wgpu::Sampler),
+        database: &ShaderDatabase,
     ) {
         // TODO: Handle missing entries.
         if let Some(data) = self
             .material_data_by_label
             .get_mut(&material.material_label)
         {
-            let uniforms = create_uniforms(Some(material));
+            let uniforms = create_uniforms(Some(material), database);
             queue.write_buffer(&data.uniforms_buffer, 0, bytemuck::cast_slice(&[uniforms]));
 
             // TODO: Update textures and materials separately?
@@ -183,6 +184,7 @@ impl RenderModel {
         pipeline_data: &PipelineData,
         default_textures: &[(String, wgpu::Texture)],
         stage_cube: &(wgpu::TextureView, wgpu::Sampler),
+        database: &ShaderDatabase,
     ) {
         // Update the buffers associated with each skel.
         // This avoids updating per mesh object and allocating new buffers.
@@ -205,6 +207,7 @@ impl RenderModel {
                         pipeline_data,
                         default_textures,
                         stage_cube,
+                        database,
                     );
                 }
             }
@@ -518,6 +521,7 @@ pub struct RenderMeshSharedData<'a> {
     pub adj: Option<&'a AdjData>,
     pub hlpb: Option<&'a HlpbData>,
     pub nutexbs: &'a [(String, NutexbFile)],
+    pub database: &'a ShaderDatabase,
 }
 
 pub fn create_render_model(
@@ -690,8 +694,9 @@ fn create_material_data(
     textures: &[(String, wgpu::Texture)], // TODO: document that this uses file name?
     default_textures: &[(String, wgpu::Texture)], // TODO: document that this is an absolute path?
     stage_cube: &(wgpu::TextureView, wgpu::Sampler),
+    database: &ShaderDatabase,
 ) -> MaterialData {
-    let uniforms_buffer = create_uniforms_buffer(material, device);
+    let uniforms_buffer = create_uniforms_buffer(material, device, database);
     let material_uniforms_bind_group = create_material_uniforms_bind_group(
         material,
         device,
@@ -767,6 +772,7 @@ fn create_render_meshes(
                         &textures,
                         shared_data.default_textures,
                         shared_data.stage_cube,
+                        shared_data.database,
                     );
                     (entry.material_label.clone(), data)
                 })

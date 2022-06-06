@@ -33,6 +33,8 @@ pub struct MaterialUniforms {
     pub has_float: [[f32; 4]; 20],
     pub has_texture: [[f32; 4]; 19],
     pub has_vector: [[f32; 4]; 64],
+    pub has_color_set1234: [f32; 4],
+    pub has_color_set567: [f32; 4],
 }
 #[repr(C)]
 #[derive(Debug, Copy, Clone, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]

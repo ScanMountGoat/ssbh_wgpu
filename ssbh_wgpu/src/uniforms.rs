@@ -1,13 +1,14 @@
 use ssbh_data::matl_data::*;
 use wgpu::util::DeviceExt;
 
-use crate::shader::model::MaterialUniforms;
+use crate::{shader::model::MaterialUniforms, ShaderDatabase, ShaderProgram};
 
 pub fn create_uniforms_buffer(
     material: Option<&MatlEntryData>,
     device: &wgpu::Device,
+    database: &ShaderDatabase,
 ) -> wgpu::Buffer {
-    let uniforms = create_uniforms(material);
+    let uniforms = create_uniforms(material, database);
 
     device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
         label: Some("Material Uniforms Buffer"),
@@ -19,7 +20,10 @@ pub fn create_uniforms_buffer(
 
 // TODO: This should take the shader database.
 // TODO: Test attributes, non required attributes, missing required attributes, etc.
-pub fn create_uniforms(material: Option<&MatlEntryData>) -> MaterialUniforms {
+pub fn create_uniforms(
+    material: Option<&MatlEntryData>,
+    database: &ShaderDatabase,
+) -> MaterialUniforms {
     material
         .map(|material| {
             // Ignore invalid parameters for now to avoid an error or panic.
@@ -55,6 +59,28 @@ pub fn create_uniforms(material: Option<&MatlEntryData>) -> MaterialUniforms {
                 }
             }
 
+            let has_attribute = |p: &ShaderProgram, a: &str| {
+                if p.vertex_attributes.contains(&a.to_string()) {
+                    1.0
+                } else {
+                    0.0
+                }
+            };
+
+            let has_color_set1234 = if let Some(program) =
+                database.get(material.shader_label.get(..24).unwrap_or(""))
+            {
+                [
+                    has_attribute(program, "colorSet1"),
+                    has_attribute(program, "colorSet2"),
+                    has_attribute(program, "colorSet3"),
+                    has_attribute(program, "colorSet4"),
+                ]
+            } else {
+                [0.0; 4]
+            };
+            let has_color_set567 = [0.0; 4];
+
             MaterialUniforms {
                 custom_vector,
                 custom_boolean,
@@ -62,6 +88,8 @@ pub fn create_uniforms(material: Option<&MatlEntryData>) -> MaterialUniforms {
                 has_texture,
                 has_float,
                 has_vector,
+                has_color_set1234,
+                has_color_set567,
             }
         })
         .unwrap_or(
@@ -73,6 +101,8 @@ pub fn create_uniforms(material: Option<&MatlEntryData>) -> MaterialUniforms {
                 has_texture: [[0.0; 4]; 19],
                 has_float: [[0.0; 4]; 20],
                 has_vector: [[0.0; 4]; 64],
+                has_color_set1234: [0.0; 4],
+                has_color_set567: [0.0; 4],
             },
         )
 }
@@ -238,9 +268,11 @@ mod tests {
                 custom_float: [[0.0; 4]; 20],
                 has_float: [[0.0; 4]; 20],
                 has_texture: [[0.0; 4]; 19],
-                has_vector: [[0.0; 4]; 64]
+                has_vector: [[0.0; 4]; 64],
+                has_color_set1234: [0.0; 4],
+                has_color_set567: [0.0; 4]
             },
-            create_uniforms(None)
+            create_uniforms(None, &ShaderDatabase::new())
         );
     }
 
@@ -253,19 +285,24 @@ mod tests {
                 custom_float: [[0.0; 4]; 20],
                 has_float: [[0.0; 4]; 20],
                 has_texture: [[0.0; 4]; 19],
-                has_vector: [[0.0; 4]; 64]
+                has_vector: [[0.0; 4]; 64],
+                has_color_set1234: [0.0; 4],
+                has_color_set567: [0.0; 4]
             },
-            create_uniforms(Some(&MatlEntryData {
-                material_label: String::new(),
-                shader_label: String::new(),
-                blend_states: Vec::new(),
-                floats: Vec::new(),
-                booleans: Vec::new(),
-                vectors: Vec::new(),
-                rasterizer_states: Vec::new(),
-                samplers: Vec::new(),
-                textures: Vec::new()
-            }))
+            create_uniforms(
+                Some(&MatlEntryData {
+                    material_label: String::new(),
+                    shader_label: String::new(),
+                    blend_states: Vec::new(),
+                    floats: Vec::new(),
+                    booleans: Vec::new(),
+                    vectors: Vec::new(),
+                    rasterizer_states: Vec::new(),
+                    samplers: Vec::new(),
+                    textures: Vec::new(),
+                }),
+                &ShaderDatabase::new()
+            )
         );
     }
 
@@ -280,40 +317,45 @@ mod tests {
                 custom_float: [[0.0; 4]; 20],
                 has_float: [[0.0; 4]; 20],
                 has_texture: [[0.0; 4]; 19],
-                has_vector: [[0.0; 4]; 64]
+                has_vector: [[0.0; 4]; 64],
+                has_color_set1234: [0.0; 4],
+                has_color_set567: [0.0; 4]
             },
-            create_uniforms(Some(&MatlEntryData {
-                material_label: String::new(),
-                shader_label: String::new(),
-                blend_states: vec![BlendStateParam {
-                    param_id: ParamId::RasterizerState0,
-                    data: BlendStateData::default()
-                }],
-                floats: vec![FloatParam {
-                    param_id: ParamId::BlendState0,
-                    data: 0.0
-                }],
-                booleans: vec![BooleanParam {
-                    param_id: ParamId::CustomVector0,
-                    data: false
-                }],
-                vectors: vec![Vector4Param {
-                    param_id: ParamId::CustomBoolean0,
-                    data: Vector4::default()
-                }],
-                rasterizer_states: vec![RasterizerStateParam {
-                    param_id: ParamId::BlendState0,
-                    data: RasterizerStateData::default()
-                }],
-                samplers: vec![SamplerParam {
-                    param_id: ParamId::Texture0,
-                    data: SamplerData::default()
-                }],
-                textures: vec![TextureParam {
-                    param_id: ParamId::Sampler0,
-                    data: String::new()
-                }],
-            }))
+            create_uniforms(
+                Some(&MatlEntryData {
+                    material_label: String::new(),
+                    shader_label: String::new(),
+                    blend_states: vec![BlendStateParam {
+                        param_id: ParamId::RasterizerState0,
+                        data: BlendStateData::default()
+                    }],
+                    floats: vec![FloatParam {
+                        param_id: ParamId::BlendState0,
+                        data: 0.0
+                    }],
+                    booleans: vec![BooleanParam {
+                        param_id: ParamId::CustomVector0,
+                        data: false
+                    }],
+                    vectors: vec![Vector4Param {
+                        param_id: ParamId::CustomBoolean0,
+                        data: Vector4::default()
+                    }],
+                    rasterizer_states: vec![RasterizerStateParam {
+                        param_id: ParamId::BlendState0,
+                        data: RasterizerStateData::default()
+                    }],
+                    samplers: vec![SamplerParam {
+                        param_id: ParamId::Texture0,
+                        data: SamplerData::default()
+                    }],
+                    textures: vec![TextureParam {
+                        param_id: ParamId::Sampler0,
+                        data: String::new()
+                    }],
+                }),
+                &ShaderDatabase::new()
+            )
         );
     }
 
@@ -326,6 +368,8 @@ mod tests {
             has_float: [[0.0; 4]; 20],
             has_texture: [[0.0; 4]; 19],
             has_vector: [[0.0; 4]; 64],
+            has_color_set1234: [0.0; 4],
+            has_color_set567: [0.0; 4],
         };
         expected.custom_vector[8] = [1.0; 4];
         expected.has_vector[8] = [1.0, 0.0, 0.0, 0.0];
@@ -336,43 +380,46 @@ mod tests {
 
         assert_eq!(
             expected,
-            create_uniforms(Some(&MatlEntryData {
-                material_label: String::new(),
-                shader_label: String::new(),
-                blend_states: vec![BlendStateParam {
-                    param_id: ParamId::BlendState0,
-                    data: BlendStateData::default()
-                }],
-                floats: vec![FloatParam {
-                    param_id: ParamId::CustomFloat3,
-                    data: 0.7
-                }],
-                booleans: vec![BooleanParam {
-                    param_id: ParamId::CustomBoolean5,
-                    data: true
-                }],
-                vectors: vec![Vector4Param {
-                    param_id: ParamId::CustomVector8,
-                    data: Vector4 {
-                        x: 1.0,
-                        y: 1.0,
-                        z: 1.0,
-                        w: 1.0
-                    }
-                }],
-                rasterizer_states: vec![RasterizerStateParam {
-                    param_id: ParamId::RasterizerState0,
-                    data: RasterizerStateData::default()
-                }],
-                samplers: vec![SamplerParam {
-                    param_id: ParamId::Sampler1,
-                    data: SamplerData::default()
-                }],
-                textures: vec![TextureParam {
-                    param_id: ParamId::Texture1,
-                    data: String::new()
-                }],
-            }))
+            create_uniforms(
+                Some(&MatlEntryData {
+                    material_label: String::new(),
+                    shader_label: String::new(),
+                    blend_states: vec![BlendStateParam {
+                        param_id: ParamId::BlendState0,
+                        data: BlendStateData::default()
+                    }],
+                    floats: vec![FloatParam {
+                        param_id: ParamId::CustomFloat3,
+                        data: 0.7
+                    }],
+                    booleans: vec![BooleanParam {
+                        param_id: ParamId::CustomBoolean5,
+                        data: true
+                    }],
+                    vectors: vec![Vector4Param {
+                        param_id: ParamId::CustomVector8,
+                        data: Vector4 {
+                            x: 1.0,
+                            y: 1.0,
+                            z: 1.0,
+                            w: 1.0
+                        }
+                    }],
+                    rasterizer_states: vec![RasterizerStateParam {
+                        param_id: ParamId::RasterizerState0,
+                        data: RasterizerStateData::default()
+                    }],
+                    samplers: vec![SamplerParam {
+                        param_id: ParamId::Sampler1,
+                        data: SamplerData::default()
+                    }],
+                    textures: vec![TextureParam {
+                        param_id: ParamId::Texture1,
+                        data: String::new()
+                    }],
+                }),
+                &ShaderDatabase::new()
+            )
         );
     }
 }

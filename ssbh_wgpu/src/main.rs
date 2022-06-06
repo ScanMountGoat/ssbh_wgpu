@@ -143,6 +143,7 @@ impl State {
             &models,
             &default_textures,
             &stage_cube,
+            &shader_database,
         );
 
         let renderer =
@@ -406,6 +407,7 @@ impl State {
                     &self.pipeline_data,
                     &self.default_textures,
                     &self.stage_cube,
+                    &self.shader_database,
                 );
             }
         }
