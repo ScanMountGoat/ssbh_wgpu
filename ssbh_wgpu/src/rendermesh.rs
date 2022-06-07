@@ -124,51 +124,65 @@ impl RenderModel {
         }
     }
 
-    /// Update the render data associated with `material`.
-    pub fn update_material(
+    /// Update the render data associated with `materials`.
+    pub fn update_materials(
         &mut self,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
-        material: &MatlEntryData,
+        materials: &[MatlEntryData],
         pipeline_data: &PipelineData,
         default_textures: &[(String, wgpu::Texture)],
         stage_cube: &(wgpu::TextureView, wgpu::Sampler),
         database: &ShaderDatabase,
     ) {
-        // TODO: Handle missing entries.
-        if let Some(data) = self
-            .material_data_by_label
-            .get_mut(&material.material_label)
-        {
-            let uniforms = create_uniforms(Some(material), database);
-            queue.write_buffer(&data.uniforms_buffer, 0, bytemuck::cast_slice(&[uniforms]));
+        for material in materials {
+            // Modify the buffer in place if possible to avoid allocations.
+            self.material_data_by_label
+                .entry(material.material_label.clone())
+                .and_modify(|data| {
+                    let uniforms = create_uniforms(Some(material), database);
+                    queue.write_buffer(&data.uniforms_buffer, 0, bytemuck::cast_slice(&[uniforms]));
 
-            // TODO: Update textures and materials separately?
-            data.material_uniforms_bind_group = create_material_uniforms_bind_group(
-                Some(material),
-                device,
-                &self.textures,
-                default_textures,
-                stage_cube,
-                &data.uniforms_buffer,
-            );
+                    // TODO: Update textures and materials separately?
+                    data.material_uniforms_bind_group = create_material_uniforms_bind_group(
+                        Some(material),
+                        device,
+                        &self.textures,
+                        default_textures,
+                        stage_cube,
+                        &data.uniforms_buffer,
+                    );
 
-            // Create a new pipeline if needed.
-            // TODO: How to get the mesh depth write and depth test information?
-            let pipeline_key = PipelineKey::new(false, false, Some(material));
-            self.pipelines
-                .entry(pipeline_key)
-                .or_insert_with(|| create_pipeline(device, pipeline_data, &pipeline_key));
+                    // Create a new pipeline if needed.
+                    // TODO: How to get the mesh depth write and depth test information?
+                    let pipeline_key = PipelineKey::new(false, false, Some(material));
+                    self.pipelines
+                        .entry(pipeline_key)
+                        .or_insert_with(|| create_pipeline(device, pipeline_data, &pipeline_key));
 
-            // Update the pipeline key for associated RenderMeshes.
-            for mesh in self
-                .meshes
-                .iter_mut()
-                .filter(|m| m.material_label == material.material_label)
-            {
-                mesh.pipeline_key = pipeline_key;
-            }
+                    // Update the pipeline key for associated RenderMeshes.
+                    for mesh in self
+                        .meshes
+                        .iter_mut()
+                        .filter(|m| m.material_label == material.material_label)
+                    {
+                        mesh.pipeline_key = pipeline_key;
+                    }
+                })
+                .or_insert_with(|| {
+                    create_material_data(
+                        device,
+                        Some(material),
+                        &self.textures,
+                        default_textures,
+                        stage_cube,
+                        database,
+                    )
+                });
         }
+
+        // TODO: Efficiently remove unused entries if the counts have changed?
+        // Renaming materials will quickly fill this cache.
     }
 
     // TODO: Does it make sense to just pass None to "reset" the animation?
@@ -196,20 +210,19 @@ impl RenderModel {
 
             if let Some(matl) = matl {
                 // Get a list of changed materials.
+                // TODO: Is it possible to avoid per frame allocations here?
                 let animated_materials = animate_materials(anim, frame, &matl.entries);
-                for material in animated_materials {
-                    // TODO: Should this go in a separate module?
-                    // Get updated uniform buffers for animated materials
-                    self.update_material(
-                        device,
-                        queue,
-                        &material,
-                        pipeline_data,
-                        default_textures,
-                        stage_cube,
-                        database,
-                    );
-                }
+                // TODO: Should this go in a separate module?
+                // Get updated uniform buffers for animated materials
+                self.update_materials(
+                    device,
+                    queue,
+                    &animated_materials,
+                    pipeline_data,
+                    default_textures,
+                    stage_cube,
+                    database,
+                );
             }
 
             if let Some(skel) = skel {
