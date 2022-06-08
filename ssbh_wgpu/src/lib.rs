@@ -134,7 +134,7 @@ pub fn load_render_models(
     // TODO: Group textures together?
     default_textures: &[(String, wgpu::Texture)],
     stage_cube: &(wgpu::TextureView, wgpu::Sampler),
-    database: &ShaderDatabase
+    database: &ShaderDatabase,
 ) -> Vec<RenderModel> {
     let start = std::time::Instant::now();
 
@@ -158,9 +158,10 @@ pub fn load_render_models(
                     .iter()
                     .find(|(f, _)| f == "model.nuhlpb")
                     .map(|(_, m)| m),
-                database
+                database,
             };
 
+            // TODO: Avoid creating the render model if there is no mesh?
             rendermesh::create_render_model(device, queue, &shared_data)
         })
         .collect();

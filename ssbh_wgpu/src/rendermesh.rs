@@ -805,42 +805,44 @@ fn create_render_meshes(
 
     let align = |x, n| ((x + n - 1) / n) * n;
 
-    for mesh_object in &shared_data.mesh.unwrap().objects {
-        let buffer0_offset = model_buffer0_data.len();
-        let buffer1_offset = model_buffer1_data.len();
-        let weights_offset = model_skin_weights_data.len();
+    if let Some(mesh) = shared_data.mesh.as_ref() {
+        for mesh_object in &mesh.objects {
+            let buffer0_offset = model_buffer0_data.len();
+            let buffer1_offset = model_buffer1_data.len();
+            let weights_offset = model_skin_weights_data.len();
 
-        // TODO: Offset alignment of 256?
-        let buffer0_vertices = buffer0(mesh_object);
-        let buffer0_data = bytemuck::cast_slice::<_, u8>(&buffer0_vertices);
-        model_buffer0_data.extend_from_slice(buffer0_data);
-        model_buffer0_data.resize(align(model_buffer0_data.len(), 256), 0u8);
+            // TODO: Offset alignment of 256?
+            let buffer0_vertices = buffer0(mesh_object);
+            let buffer0_data = bytemuck::cast_slice::<_, u8>(&buffer0_vertices);
+            model_buffer0_data.extend_from_slice(buffer0_data);
+            model_buffer0_data.resize(align(model_buffer0_data.len(), 256), 0u8);
 
-        let buffer1_vertices = buffer1(mesh_object);
-        let buffer1_data = bytemuck::cast_slice::<_, u8>(&buffer1_vertices);
-        model_buffer1_data.extend_from_slice(buffer1_data);
-        model_buffer1_data.resize(align(model_buffer1_data.len(), 256), 0u8);
+            let buffer1_vertices = buffer1(mesh_object);
+            let buffer1_data = bytemuck::cast_slice::<_, u8>(&buffer1_vertices);
+            model_buffer1_data.extend_from_slice(buffer1_data);
+            model_buffer1_data.resize(align(model_buffer1_data.len(), 256), 0u8);
 
-        let skin_weights = skin_weights(mesh_object, shared_data.skel);
-        let skin_weights_data = bytemuck::cast_slice::<_, u8>(&skin_weights);
-        model_skin_weights_data.extend_from_slice(skin_weights_data);
-        model_skin_weights_data.resize(align(model_skin_weights_data.len(), 256), 0u8);
+            let skin_weights = skin_weights(mesh_object, shared_data.skel);
+            let skin_weights_data = bytemuck::cast_slice::<_, u8>(&skin_weights);
+            model_skin_weights_data.extend_from_slice(skin_weights_data);
+            model_skin_weights_data.resize(align(model_skin_weights_data.len(), 256), 0u8);
 
-        let indices_size = bytemuck::cast_slice::<_, u8>(&mesh_object.vertex_indices).len();
-        model_vertex_indices.extend_from_slice(&mesh_object.vertex_indices);
+            let indices_size = bytemuck::cast_slice::<_, u8>(&mesh_object.vertex_indices).len();
+            model_vertex_indices.extend_from_slice(&mesh_object.vertex_indices);
 
-        accesses.push(MeshBufferAccess {
-            buffer0_start: buffer0_offset as u64,
-            buffer0_size: buffer0_data.len() as u64,
-            buffer1_start: buffer1_offset as u64,
-            buffer1_size: buffer1_data.len() as u64,
-            weights_start: weights_offset as u64,
-            weights_size: skin_weights_data.len() as u64,
-            indices_start: index_offset as u64,
-            indices_size: indices_size as u64,
-        });
+            accesses.push(MeshBufferAccess {
+                buffer0_start: buffer0_offset as u64,
+                buffer0_size: buffer0_data.len() as u64,
+                buffer1_start: buffer1_offset as u64,
+                buffer1_size: buffer1_data.len() as u64,
+                weights_start: weights_offset as u64,
+                weights_size: skin_weights_data.len() as u64,
+                indices_start: index_offset as u64,
+                indices_size: indices_size as u64,
+            });
 
-        index_offset += indices_size;
+            index_offset += indices_size;
+        }
     }
 
     let buffer_data = mesh_object_buffers(
@@ -851,31 +853,33 @@ fn create_render_meshes(
         &model_vertex_indices,
     );
 
-    let meshes: Vec<_> = shared_data
+    let meshes = shared_data
         .mesh
-        .unwrap()
-        .objects
-        .iter() // TODO: par_iter?
-        .zip(accesses.into_iter())
-        .enumerate()
-        .map(|(i, (mesh_object, access))| {
-            // Some mesh objects have associated triangle adjacency.
-            let adj_entry = shared_data
-                .adj
-                .and_then(|adj| adj.entries.iter().find(|e| e.mesh_object_index == i));
+        .map(|mesh| {
+            mesh.objects
+                .iter() // TODO: par_iter?
+                .zip(accesses.into_iter())
+                .enumerate()
+                .map(|(i, (mesh_object, access))| {
+                    // Some mesh objects have associated triangle adjacency.
+                    let adj_entry = shared_data
+                        .adj
+                        .and_then(|adj| adj.entries.iter().find(|e| e.mesh_object_index == i));
 
-            create_render_mesh(
-                device,
-                mesh_object,
-                adj_entry,
-                &mut pipelines,
-                mesh_buffers,
-                access,
-                shared_data,
-                &buffer_data,
-            )
+                    create_render_mesh(
+                        device,
+                        mesh_object,
+                        adj_entry,
+                        &mut pipelines,
+                        mesh_buffers,
+                        access,
+                        shared_data,
+                        &buffer_data,
+                    )
+                })
+                .collect()
         })
-        .collect();
+        .unwrap_or(Vec::new());
 
     RenderMeshData {
         meshes,
