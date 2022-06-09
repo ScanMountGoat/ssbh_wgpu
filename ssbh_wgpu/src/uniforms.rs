@@ -18,7 +18,6 @@ pub fn create_uniforms_buffer(
     })
 }
 
-// TODO: This should take the shader database.
 // TODO: Test attributes, non required attributes, missing required attributes, etc.
 pub fn create_uniforms(
     material: Option<&MatlEntryData>,

@@ -1073,12 +1073,14 @@ fn create_material_uniforms_bind_group(
         .1;
 
     let load_texture = |texture_id| {
-        load_texture(material, texture_id, textures, default_textures)
+        material
+            .and_then(|material| load_texture(material, texture_id, textures, default_textures))
             .unwrap_or_else(|| default_white.create_view(&TextureViewDescriptor::default()))
     };
 
     let load_sampler = |sampler_id| {
-        load_sampler(material, device, sampler_id)
+        material
+            .and_then(|material| load_sampler(material, device, sampler_id))
             .unwrap_or_else(|| device.create_sampler(&SamplerDescriptor::default()))
     };
 

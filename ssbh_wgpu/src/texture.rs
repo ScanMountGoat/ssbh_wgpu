@@ -8,16 +8,13 @@ use ssbh_data::matl_data::{MagFilter, MatlEntryData, MinFilter, ParamId, WrapMod
 use wgpu::{util::DeviceExt, Device, Queue, Sampler, Texture, TextureView, TextureViewDescriptor};
 
 pub fn load_texture(
-    material: Option<&MatlEntryData>,
+    material: &MatlEntryData,
     texture_id: ParamId,
     textures: &[(String, Texture)],
     default_textures: &[(String, Texture)],
 ) -> Option<TextureView> {
     // TODO: Add proper path and parameter handling.
     // TODO: Handle missing paths.
-    // TODO: This shouldn't take an option?
-    let material = material?;
-
     // TODO: Find a way to test texture path loading.
     // For example, "#replace_cubemap" needs special handling.
     // This should also handle paths like "../texture.nutexb" and "/render/shader/bin/texture.nutexb".
@@ -67,12 +64,10 @@ pub fn load_texture(
 }
 
 pub fn load_sampler(
-    material: Option<&MatlEntryData>,
+    material: &MatlEntryData,
     device: &Device,
     sampler_id: ParamId,
 ) -> Option<Sampler> {
-    let material = material?;
-
     let sampler = material
         .samplers
         .iter()
