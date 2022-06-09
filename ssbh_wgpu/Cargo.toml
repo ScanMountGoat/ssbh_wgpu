@@ -16,7 +16,9 @@ nutexb_wgpu = { path = "../nutexb_wgpu" }
 serde_json = "1.0.81"
 strum = { version = "0.23", features = ["derive"] }
 wgpu_text = "0.6.1"
+log = "0.4.17"
 glyph_brush = "0.7.4" # TODO: avoid this dependency?
+simple_logger = "2.1.0" # TODO: Make a separate executable to avoid specifying this dependency?
 
 [dev-dependencies]
 approx = "0.5.1"

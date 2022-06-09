@@ -3,6 +3,7 @@ use std::{
     path::Path,
 };
 
+use log::warn;
 use ssbh_data::matl_data::{MagFilter, MatlEntryData, MinFilter, ParamId, WrapMode};
 use wgpu::{util::DeviceExt, Device, Queue, Sampler, Texture, TextureView, TextureViewDescriptor};
 
@@ -14,6 +15,7 @@ pub fn load_texture(
 ) -> Option<TextureView> {
     // TODO: Add proper path and parameter handling.
     // TODO: Handle missing paths.
+    // TODO: This shouldn't take an option?
     let material = material?;
 
     // TODO: Find a way to test texture path loading.
@@ -50,7 +52,7 @@ pub fn load_texture(
                 .unwrap_or_else(|| {
                     // TODO: Is the default in game for missing textures always white (check cube maps)?
                     // TODO: Does changing the default white texture change the "missing" texture?
-                    // TODO: Log/return this error?
+                    warn!("Invalid path {:?} assigned to {} for material {:?}. Applying default texture.", material_path, texture_id, material.material_label);
                     &default_textures
                         .iter()
                         .find(|d| d.0 == "/common/shader/sfxpbs/default_white")

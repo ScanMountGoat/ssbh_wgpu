@@ -8,6 +8,7 @@ use crate::{
     PipelineData, ShaderDatabase,
 };
 use glam::Vec4Swizzles;
+use log::{debug, info};
 use nutexb_wgpu::NutexbFile;
 use ssbh_data::{
     adj_data::AdjEntryData,
@@ -248,7 +249,7 @@ impl RenderModel {
             }
         }
 
-        println!("Anim: {:?}", start.elapsed());
+        debug!("Apply Anim: {:?}", start.elapsed());
     }
 
     pub fn draw_skeleton<'a>(
@@ -670,8 +671,8 @@ pub fn create_render_model(
         }
     }
 
-    println!(
-        "Create {:?} render meshes, {:?} materials, {:?} pipelines: {:?}",
+    info!(
+        "Create {:?} render meshe(s), {:?} material(s), {:?} pipeline(s): {:?}",
         meshes.len(),
         material_data_by_label.len(),
         pipelines.len(),

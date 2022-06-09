@@ -1,3 +1,4 @@
+use log::info;
 use nutexb_wgpu::NutexbFile;
 use rayon::prelude::*;
 use std::path::{Path, PathBuf};
@@ -166,7 +167,7 @@ pub fn load_render_models(
         })
         .collect();
 
-    println!(
+    info!(
         "Load {:?} render model(s): {:?}",
         models.len(),
         start.elapsed()
@@ -200,7 +201,7 @@ pub fn load_model_folders<P: AsRef<Path>>(root: P) -> Vec<ModelFolder> {
             Some(ModelFolder::load_folder(parent))
         })
         .collect();
-    println!("Load {:?} model(s): {:?}", models.len(), start.elapsed());
+    info!("Load {:?} ModelFolder(s): {:?}", models.len(), start.elapsed());
     models
 }
 

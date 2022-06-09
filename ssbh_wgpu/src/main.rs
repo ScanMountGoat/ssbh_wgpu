@@ -86,14 +86,10 @@ struct State {
 impl State {
     async fn new(window: &Window, folder: &Path, anim_path: Option<&Path>) -> Self {
         // The instance is a handle to our GPU
-        let instance = wgpu::Instance::new(wgpu::Backends::PRIMARY);
+        let instance = wgpu::Instance::new(wgpu::Backends::all());
         let surface = unsafe { instance.create_surface(&window) };
         let adapter = instance
-            .request_adapter(&wgpu::RequestAdapterOptions {
-                power_preference: wgpu::PowerPreference::HighPerformance,
-                compatible_surface: Some(&surface),
-                force_fallback_adapter: false,
-            })
+            .request_adapter(&wgpu::RequestAdapterOptions::default())
             .await
             .unwrap();
 
@@ -118,7 +114,7 @@ impl State {
             format: surface_format,
             width: size.width as u32,
             height: size.height as u32,
-            present_mode: wgpu::PresentMode::Mailbox,
+            present_mode: wgpu::PresentMode::Fifo,
         };
         surface.configure(&device, &config);
 
@@ -146,8 +142,14 @@ impl State {
             &shader_database,
         );
 
-        let renderer =
-            SsbhRenderer::new(&device, &queue, size.width, size.height, window.scale_factor(), wgpu::Color::BLACK);
+        let renderer = SsbhRenderer::new(
+            &device,
+            &queue,
+            size.width,
+            size.height,
+            window.scale_factor(),
+            wgpu::Color::BLACK,
+        );
 
         Self {
             surface,
@@ -185,8 +187,13 @@ impl State {
             self.update_camera();
 
             // We also need to recreate the attachments if the size changes.
-            self.renderer
-                .resize(&self.device, &self.queue, new_size.width, new_size.height, scale_factor);
+            self.renderer.resize(
+                &self.device,
+                &self.queue,
+                new_size.width,
+                new_size.height,
+                scale_factor,
+            );
         }
     }
 
@@ -471,6 +478,12 @@ pub fn next_frame(
 }
 
 fn main() {
+    // Ignore most wgpu logs to avoid flooding the console.
+    simple_logger::SimpleLogger::new()
+        .with_level(log::LevelFilter::Warn)
+        .with_module_level("ssbh_wgpu", log::LevelFilter::Info)
+        .init().unwrap();
+
     let args: Vec<_> = std::env::args().collect();
     let folder = Path::new(&args[1]);
     let anim_path = args.get(2).map(Path::new);
@@ -481,7 +494,6 @@ fn main() {
         .build(&event_loop)
         .unwrap();
 
-    // Since main can't be async, we're going to need to block
     let mut state = futures::executor::block_on(State::new(&window, folder, anim_path));
 
     event_loop.run(move |event, _, control_flow| {
@@ -504,7 +516,10 @@ fn main() {
                     WindowEvent::Resized(physical_size) => {
                         state.resize(*physical_size, window.scale_factor());
                     }
-                    WindowEvent::ScaleFactorChanged { scale_factor, new_inner_size} => {
+                    WindowEvent::ScaleFactorChanged {
+                        scale_factor,
+                        new_inner_size,
+                    } => {
                         // new_inner_size is &mut so we have to dereference it twice
                         state.resize(**new_inner_size, *scale_factor);
                     }
@@ -522,7 +537,9 @@ fn main() {
                 match state.render() {
                     Ok(_) => {}
                     // Recreate the swap_chain if lost
-                    Err(wgpu::SurfaceError::Lost) => state.resize(state.size, window.scale_factor()),
+                    Err(wgpu::SurfaceError::Lost) => {
+                        state.resize(state.size, window.scale_factor())
+                    }
                     // The system is out of memory, we should probably quit
                     Err(wgpu::SurfaceError::OutOfMemory) => *control_flow = ControlFlow::Exit,
                     // All other errors (Outdated, Timeout) should be resolved by the next frame

@@ -188,7 +188,7 @@ pub struct SsbhRenderer {
 
 impl SsbhRenderer {
     /// Initializes the renderer for the given dimensions and monitor scaling.
-    /// 
+    ///
     /// The `scale_factor` should typically match the monitor scaling in the OS such as `1.5` for 150% scaling.
     /// If unsure, set `scale_factor` to `1.0`.
     ///
