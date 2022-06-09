@@ -147,7 +147,7 @@ impl State {
         );
 
         let renderer =
-            SsbhRenderer::new(&device, &queue, size.width, size.height, wgpu::Color::BLACK);
+            SsbhRenderer::new(&device, &queue, size.width, size.height, window.scale_factor(), wgpu::Color::BLACK);
 
         Self {
             surface,
@@ -175,7 +175,7 @@ impl State {
         }
     }
 
-    pub fn resize(&mut self, new_size: winit::dpi::PhysicalSize<u32>) {
+    pub fn resize(&mut self, new_size: winit::dpi::PhysicalSize<u32>, scale_factor: f64) {
         if new_size.width > 0 && new_size.height > 0 {
             self.size = new_size;
             self.config.width = new_size.width;
@@ -186,7 +186,7 @@ impl State {
 
             // We also need to recreate the attachments if the size changes.
             self.renderer
-                .resize(&self.device, &self.queue, new_size.width, new_size.height);
+                .resize(&self.device, &self.queue, new_size.width, new_size.height, scale_factor);
         }
     }
 
@@ -502,11 +502,11 @@ fn main() {
                         ..
                     } => *control_flow = ControlFlow::Exit,
                     WindowEvent::Resized(physical_size) => {
-                        state.resize(*physical_size);
+                        state.resize(*physical_size, window.scale_factor());
                     }
-                    WindowEvent::ScaleFactorChanged { new_inner_size, .. } => {
+                    WindowEvent::ScaleFactorChanged { scale_factor, new_inner_size} => {
                         // new_inner_size is &mut so we have to dereference it twice
-                        state.resize(**new_inner_size);
+                        state.resize(**new_inner_size, *scale_factor);
                     }
                     _ => {}
                 }
@@ -522,7 +522,7 @@ fn main() {
                 match state.render() {
                     Ok(_) => {}
                     // Recreate the swap_chain if lost
-                    Err(wgpu::SurfaceError::Lost) => state.resize(state.size),
+                    Err(wgpu::SurfaceError::Lost) => state.resize(state.size, window.scale_factor()),
                     // The system is out of memory, we should probably quit
                     Err(wgpu::SurfaceError::OutOfMemory) => *control_flow = ControlFlow::Exit,
                     // All other errors (Outdated, Timeout) should be resolved by the next frame

@@ -35,6 +35,7 @@ const SHADOW_MAP_HEIGHT: u32 = 1024;
 const VARIANCE_SHADOW_WIDTH: u32 = 512;
 const VARIANCE_SHADOW_HEIGHT: u32 = 512;
 
+// TODO: Module level documention for how to use this?
 #[derive(PartialEq, Eq, Copy, Clone, Display, EnumVariantNames, EnumString)]
 pub enum DebugMode {
     /// The default shaded mode.
@@ -186,7 +187,10 @@ pub struct SsbhRenderer {
 }
 
 impl SsbhRenderer {
-    /// Initializes the renderer for the given dimensions.
+    /// Initializes the renderer for the given dimensions and monitor scaling.
+    /// 
+    /// The `scale_factor` should typically match the monitor scaling in the OS such as `1.5` for 150% scaling.
+    /// If unsure, set `scale_factor` to `1.0`.
     ///
     /// This is an expensive operation, so applications should create and reuse a single [SsbhRenderer].
     /// Use [SsbhRenderer::resize] and [SsbhRenderer::update_camera] for changing window sizes and user interaction.
@@ -195,6 +199,7 @@ impl SsbhRenderer {
         queue: &wgpu::Queue,
         initial_width: u32,
         initial_height: u32,
+        scale_factor: f64,
         clear_color: wgpu::Color,
     ) -> Self {
         let bone_pipeline = skeleton_pipeline(device, "vs_bone", "fs_main", wgpu::Face::Back);
@@ -289,7 +294,13 @@ impl SsbhRenderer {
         };
 
         // TODO: Create a struct to store the stage rendering data?
-        let pass_info = PassInfo::new(device, initial_width, initial_height, &color_lut);
+        let pass_info = PassInfo::new(
+            device,
+            initial_width,
+            initial_height,
+            scale_factor,
+            &color_lut,
+        );
 
         // Assume the user will update the camera, so these values don't matter.
         let camera_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -433,11 +444,23 @@ impl SsbhRenderer {
 
     /// A faster alternative to creating a new [SsbhRenderer] with the desired size.
     ///
+    /// The `scale_factor` maps physical pixels to logical pixels.
+    /// This adjusts screen based effects such as bloom to have a more appropriate scale on high DPI screens.
+    /// This should usually match the current monitor's scaling factor
+    /// in the OS such as `1.5` for 150% scaling.
+    ///
     /// Prefer this method over calling [SsbhRenderer::new] with the updated dimensions.
     /// To update the camera to a potentially new aspect ratio,
     /// pass the appropriate matrix to [SsbhRenderer::update_camera].
-    pub fn resize(&mut self, device: &wgpu::Device, queue: &wgpu::Queue, width: u32, height: u32) {
-        self.pass_info = PassInfo::new(device, width, height, &self.color_lut);
+    pub fn resize(
+        &mut self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        width: u32,
+        height: u32,
+        scale_factor: f64,
+    ) {
+        self.pass_info = PassInfo::new(device, width, height, scale_factor, &self.color_lut);
         self.brush.resize_view(width as f32, height as f32, queue);
     }
 
@@ -919,24 +942,24 @@ struct PassInfo {
 }
 
 impl PassInfo {
-    fn new(device: &wgpu::Device, width: u32, height: u32, color_lut: &TextureSamplerView) -> Self {
+    fn new(
+        device: &wgpu::Device,
+        width: u32,
+        height: u32,
+        scale_factor: f64,
+        color_lut: &TextureSamplerView,
+    ) -> Self {
         let depth = create_depth(device, width, height);
 
         let color = create_texture_sampler(device, width, height, crate::RGBA_COLOR_FORMAT);
 
         // Bloom uses successively smaller render targets to increase the blur.
-        // Fix the width and height for consistent levels of blur across screen resolutions.
-        // Some devices like laptops or mobile have weak GPUs but high resolution screens.
-        // Running bloom at less than native resolution improves performance on these devices.
-        // Preserve the original aspect ratio to avoid asymmetrical blurring.
-        // TODO: This still isn't right when making the window smaller?
-        let (bloom_width, bloom_height) = if width > height {
-            // (1920, ((height as f64 / width as f64) * 1920 as f64) as u32)
-            (width, height)
-        } else {
-            // (((width as f64 / height as f64) * 1080 as f64) as u32, 1080)
-            (width, height)
-        };
+        // Account for monitor scaling to avoid a smaller perceived radius on high DPI screens.
+        // Some devices like laptops or phones have weak GPUs but high DPI screens.
+        // Lowering bloom resolution can reduce performance bottlenecks on these devices.
+        let scale_factor = scale_factor.max(1.0);
+        let bloom_width = (width as f64 / scale_factor) as u32;
+        let bloom_height = (height as f64 / scale_factor) as u32;
 
         let (bloom_threshold, bloom_threshold_bind_group) = create_bloom_bind_group(
             device,
