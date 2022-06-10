@@ -372,21 +372,15 @@ pub fn animate_materials(
     frame: f32,
     materials: &[MatlEntryData],
 ) -> Vec<MatlEntryData> {
-    // Return materials that were changed.
-    // This avoids modifying the original materials.
+    // Avoid modifying the original materials.
     // TODO: Is this approach significantly slower than modifying in place?
-    let mut changed_materials = Vec::new();
+    let mut changed_materials = materials.to_vec();
 
     for group in &anim.groups {
         if group.group_type == GroupType::Material {
             for node in &group.nodes {
-                if let Some(material) = materials.iter().find(|m| m.material_label == node.name) {
-                    // TODO: Does the speed of cloning here matter?
-                    let mut changed_material = material.clone();
-
-                    apply_material_track(node, frame, &mut changed_material);
-
-                    changed_materials.push(changed_material);
+                if let Some(material) = changed_materials.iter_mut().find(|m| m.material_label == node.name) {
+                    apply_material_track(node, frame, material);
                 }
             }
         }
