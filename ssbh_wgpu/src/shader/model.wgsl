@@ -125,12 +125,13 @@ struct MaterialUniforms {
     // TODO: Place the has_ values in an unused vector component?
     custom_boolean: array<vec4<f32>, 20>;
     custom_float: array<vec4<f32>, 20>;
-    has_float: array<vec4<f32>, 20>;
-    has_texture: array<vec4<f32>, 19>;
-    has_vector: array<vec4<f32>, 64>;
+    has_boolean: array<vec4<u32>, 20>;
+    has_float: array<vec4<u32>, 20>;
+    has_texture: array<vec4<u32>, 19>;
+    has_vector: array<vec4<u32>, 64>;
     // TODO: Use u32 instead?
-    has_color_set1234: vec4<f32>;
-    has_color_set567: vec4<f32>;
+    has_color_set1234: vec4<u32>;
+    has_color_set567: vec4<u32>;
 };
 
 [[group(1), binding(30)]]
@@ -231,11 +232,11 @@ fn TransformUv(uv: vec2<f32>, transform: vec4<f32>) -> vec2<f32>
 fn GetEmissionColor(uv1: vec2<f32>, uv2: vec2<f32>) -> vec4<f32> {
     var emissionColor = vec4<f32>(0.0, 0.0, 0.0, 1.0);
     
-    if (uniforms.has_texture[5].x == 1.0) {
+    if (uniforms.has_texture[5].x == 1u) {
         emissionColor = textureSample(texture5, sampler5, uv1);
     }
 
-    if (uniforms.has_texture[14].x == 1.0) {
+    if (uniforms.has_texture[14].x == 1u) {
         let emission2Color = textureSample(texture14, sampler14, uv2);
         return vec4<f32>(Blend(emissionColor.rgb, emission2Color), emissionColor.a);
     }
@@ -253,16 +254,16 @@ fn GetAlbedoColor(uv1: vec2<f32>, uv2: vec2<f32>, uv3: vec2<f32>, R: vec3<f32>, 
     var outAlpha = 1.0;
 
     // TODO: Do additional layers affect alpha?
-    if (uniforms.has_texture[0].x == 1.0) {
+    if (uniforms.has_texture[0].x == 1u) {
         let albedoColor = textureSample(texture0, sampler0, uvLayer1);
         outRgb = Blend(outRgb, albedoColor);
         outAlpha = albedoColor.a;
     }
 
     // TODO: Refactor blend to take RGB and w separately?
-    if (uniforms.has_texture[1].x == 1.0) {
+    if (uniforms.has_texture[1].x == 1u) {
         let albedoColor2 = textureSample(texture1, sampler1, uvLayer2);
-        if (uniforms.has_color_set567.x == 1.0) {
+        if (uniforms.has_color_set567.x == 1u) {
             // colorSet5.w is used to blend between the two col map layers.
             outRgb = Blend(outRgb, albedoColor2 * vec4<f32>(1.0, 1.0, 1.0, colorSet5.w));
         } else {
@@ -271,18 +272,18 @@ fn GetAlbedoColor(uv1: vec2<f32>, uv2: vec2<f32>, uv3: vec2<f32>, R: vec3<f32>, 
     }
 
     // Materials won't have col and diffuse cube maps.
-    if (uniforms.has_texture[8].x == 1.0) {
+    if (uniforms.has_texture[8].x == 1u) {
         outRgb = textureSample(texture8, sampler8, R).rgb;
     }
 
-    if (uniforms.has_texture[10].x == 1.0) {
+    if (uniforms.has_texture[10].x == 1u) {
         outRgb = Blend(outRgb, textureSample(texture10, sampler10, uvLayer1));
     }
     // TODO: Is the blending always additive?
-    if (uniforms.has_texture[11].x == 1.0) {
+    if (uniforms.has_texture[11].x == 1u) {
         outRgb = Blend(outRgb, textureSample(texture11, sampler11, uvLayer2));
     }
-    if (uniforms.has_texture[12].x == 1.0) {
+    if (uniforms.has_texture[12].x == 1u) {
         outRgb = outRgb + textureSample(texture12, sampler12, uvLayer3).rgb;
     }
 
@@ -294,12 +295,12 @@ fn GetAlbedoColorFinal(albedoColor: vec4<f32>) -> vec3<f32>
     var albedoColorFinal = albedoColor.rgb;
 
     // Color multiplier param.
-    if (uniforms.has_vector[13].x == 1.0) {
+    if (uniforms.has_vector[13].x == 1u) {
         albedoColorFinal = albedoColorFinal * uniforms.custom_vector[13].rgb;
     }
 
     // TODO: Wiifit stage model color.
-    // if (hasCustomVector44 == 1) {
+    // if (hasCustomVector44 == 1u) {
     //     albedoColorFinal = uniforms.custom_vector[44].rgb + uniforms.custom_vector[45].rgb;
     // }
 
@@ -427,7 +428,7 @@ fn DiffuseTerm(
     var directLight = stage_uniforms.custom_vector[0].rgb * stage_uniforms.custom_float[0].x * directShading;
     var ambientTerm = (ambientLight * ao);
 
-    if (uniforms.has_texture[9].x == 1.0) {
+    if (uniforms.has_texture[9].x == 1u) {
         let bakedLitColor = textureSample(texture9, sampler9, bake1).rgba;
         directLight = directLight * bakedLitColor.a;
         // Baked lighting maps are not affected by ambient occlusion.
@@ -440,7 +441,7 @@ fn DiffuseTerm(
     var result = directLight * shadow + ambientTerm;
 
     // Baked stage lighting.
-    if (uniforms.has_color_set1234.y == 1.0) {
+    if (uniforms.has_color_set1234.y == 1u) {
        result = result * colorSet2.rgb;
     }
 
@@ -468,7 +469,7 @@ fn SpecularBrdf(tangent: vec4<f32>, nDotH: f32, nDotL: f32, nDotV: f32, halfAngl
     // TODO: How is the rotation calculated for tangents and bitangents?
     let bitangent = GetBitangent(normal, tangent.xyz, tangent.w);
     // The two BRDFs look very different so don't just use anisotropic for everything.
-    if (uniforms.has_float[10].x == 1.0) {
+    if (uniforms.has_float[10].x == 1u) {
         return GgxAnisotropic(nDotH, halfAngle, tangent.xyz, bitangent, roughness, uniforms.custom_float[10].x);
     } else {
         return Ggx(nDotH, nDotL, nDotV, roughness);
@@ -481,10 +482,17 @@ fn SpecularTerm(tangent: vec4<f32>, nDotH: f32, nDotL: f32, nDotV: f32, halfAngl
 {
     var directSpecular = vec3<f32>(4.0);
     directSpecular = directSpecular * SpecularBrdf(tangent, nDotH, nDotL, nDotV, halfAngle, normal, roughness, anisotropicRotation);
-    directSpecular = directSpecular * 1.0;
-    let indirectSpecular = specularIbl;
+    if (uniforms.has_boolean[3].x == 1u && uniforms.custom_boolean[3].x == 0.0) {
+        directSpecular = vec3<f32>(0.0);
+    }
+
+    var indirectSpecular = specularIbl;
+    if (uniforms.has_boolean[4].x == 1u && uniforms.custom_boolean[4].x == 0.0) {
+        directSpecular = vec3<f32>(0.0);
+    }
+
     // TODO: Why is the indirect specular off by a factor of 0.5?
-    let specularTerm = (directSpecular * shadow * uniforms.custom_boolean[3].x) + (indirectSpecular * 0.5 * uniforms.custom_boolean[4].x);
+    let specularTerm = (directSpecular * shadow) + (indirectSpecular * 0.5);
 
     return specularTerm;
 }
@@ -492,7 +500,7 @@ fn SpecularTerm(tangent: vec4<f32>, nDotH: f32, nDotL: f32, nDotV: f32, halfAngl
 fn EmissionTerm(emissionColor: vec4<f32>) -> vec3<f32>
 {
     var result = emissionColor.rgb;
-    if (uniforms.has_vector[3].x == 1.0) {
+    if (uniforms.has_vector[3].x == 1u) {
         result = result * uniforms.custom_vector[3].rgb;
     }
 
@@ -626,17 +634,17 @@ fn vs_main(
 
     // TODO: Also apply transforms to the debug shader?
     var uvTransform1 = vec4<f32>(1.0, 1.0, 0.0, 0.0);
-    if (uniforms.has_vector[6].x == 1.0) {
+    if (uniforms.has_vector[6].x == 1u) {
         uvTransform1 = uniforms.custom_vector[6];
     }
 
     var uvTransform2 = vec4<f32>(1.0, 1.0, 0.0, 0.0);
-    if (uniforms.has_vector[31].x == 1.0) {
+    if (uniforms.has_vector[31].x == 1u) {
         uvTransform2 = uniforms.custom_vector[31];
     }
 
     var uvTransform3 = vec4<f32>(1.0, 1.0, 0.0, 0.0);
-    if (uniforms.has_vector[32].x == 1.0) {
+    if (uniforms.has_vector[32].x == 1u) {
         uvTransform3 = uniforms.custom_vector[32];
     }
 
@@ -852,7 +860,7 @@ fn fs_main(in: VertexOutput) -> [[location(0)]] vec4<f32> {
 
     // TODO: Mario's eyes don't render properly for the metal/gold materials.
     var nor = vec4<f32>(0.5, 0.5, 1.0, 1.0);
-    if (uniforms.has_texture[4].x == 1.0) {
+    if (uniforms.has_texture[4].x == 1u) {
         nor = textureSample(texture4, sampler4, map1);
     }
 
@@ -910,7 +918,7 @@ fn fs_main(in: VertexOutput) -> [[location(0)]] vec4<f32> {
     let customVector30Final = mix(uniforms.custom_vector[30], transitionCustomVector30, render_settings.transition_factor.x);
 
     var prm = vec4<f32>(0.0, 0.0, 1.0, 0.0);
-    if (uniforms.has_texture[6].x == 1.0) {
+    if (uniforms.has_texture[6].x == 1u) {
         prm = textureSample(texture6, sampler6, map1);
     }
 
@@ -933,7 +941,7 @@ fn fs_main(in: VertexOutput) -> [[location(0)]] vec4<f32> {
     let bitangent = normalize(cross(normal, tangent)) * in.tangent.w * -1.0;
 
     var fragmentNormal = normal;
-    if (uniforms.has_texture[4].x == 1.0) {
+    if (uniforms.has_texture[4].x == 1u) {
         fragmentNormal = GetBumpMapNormal(normal, tangent, bitangent, nor);
     }
 
@@ -949,8 +957,8 @@ fn fs_main(in: VertexOutput) -> [[location(0)]] vec4<f32> {
     let nDotL = dot(fragmentNormal, normalize(chrLightDir));
 
     let albedoColor = GetAlbedoColor(map1, uvSet, uvSet1, reflectionVector, colorSet5);
-    // TODO: Apply multiplier param?
     var albedoColorFinal = GetAlbedoColorFinal(albedoColor);
+
     albedoColorFinal = mix(albedoColorFinal, transitionAlbedo, transitionFactor);
 
     let emissionColor = GetEmissionColor(map1, uvSet);
@@ -992,18 +1000,17 @@ fn fs_main(in: VertexOutput) -> [[location(0)]] vec4<f32> {
     let rimOcclusion = shadow * render_settings.render_rim_lighting.x;
     outColor = GetRimBlend(outColor, albedoColorFinal, nDotV, max(nDotL, 0.0), rimOcclusion, shColor);
 
-    if (uniforms.has_vector[8].x == 1.0) {
+    if (uniforms.has_vector[8].x == 1u) {
         outColor = outColor * uniforms.custom_vector[8].rgb;
     }
 
-    if (uniforms.has_color_set1234.x == 1.0) {
+    if (uniforms.has_color_set1234.x == 1u) {
         outColor = outColor * colorSet1.rgb; 
     }
 
-    if (uniforms.has_color_set1234.z == 1.0) {
+    if (uniforms.has_color_set1234.z == 1u) {
         outColor = outColor * colorSet3.rgb;
     }
 
-    // TODO: Color sets?
     return vec4<f32>(outColor, outAlpha);
 }

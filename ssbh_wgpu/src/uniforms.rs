@@ -27,42 +27,44 @@ pub fn create_uniforms(
         .map(|material| {
             // Ignore invalid parameters for now to avoid an error or panic.
             let mut custom_vector = [[0.0; 4]; 64];
-            let mut has_vector = [[0.0; 4]; 64];
+            let mut has_vector = [[0; 4]; 64];
             for vector in &material.vectors {
                 if let Some(index) = vector_index(vector) {
                     custom_vector[index] = vector.data.to_array();
-                    has_vector[index][0] = 1.0;
+                    has_vector[index][0] = 1;
                 }
             }
 
             let mut custom_float = [[0.0; 4]; 20];
-            let mut has_float = [[0.0; 4]; 20];
+            let mut has_float = [[0; 4]; 20];
             for float in &material.floats {
                 if let Some(index) = float_index(float) {
                     custom_float[index][0] = float.data;
-                    has_float[index][0] = 1.0;
+                    has_float[index][0] = 1;
                 }
             }
 
             let mut custom_boolean = [[0.0; 4]; 20];
+            let mut has_boolean = [[0; 4]; 20];
             for boolean in &material.booleans {
                 if let Some(index) = boolean_index(boolean) {
                     custom_boolean[index][0] = if boolean.data { 1.0 } else { 0.0 };
+                    has_boolean[index][0] = 1;
                 }
             }
 
-            let mut has_texture = [[0.0; 4]; 19];
+            let mut has_texture = [[0; 4]; 19];
             for texture in &material.textures {
                 if let Some(index) = texture_index(texture) {
-                    has_texture[index][0] = 1.0;
+                    has_texture[index][0] = 1;
                 }
             }
 
             let has_attribute = |p: &ShaderProgram, a: &str| {
                 if p.vertex_attributes.contains(&a.to_string()) {
-                    1.0
+                    1
                 } else {
-                    0.0
+                    0
                 }
             };
 
@@ -80,11 +82,11 @@ pub fn create_uniforms(
                         has_attribute(program, "colorSet5"),
                         has_attribute(program, "colorSet6"),
                         has_attribute(program, "colorSet7"),
-                        0.0,
+                        0,
                     ],
                 )
             } else {
-                ([0.0; 4], [0.0; 4])
+                ([0; 4], [0; 4])
             };
 
             MaterialUniforms {
@@ -92,6 +94,7 @@ pub fn create_uniforms(
                 custom_boolean,
                 custom_float,
                 has_texture,
+                has_boolean,
                 has_float,
                 has_vector,
                 has_color_set1234,
@@ -104,11 +107,12 @@ pub fn create_uniforms(
                 custom_vector: [[0.0; 4]; 64],
                 custom_boolean: [[0.0; 4]; 20],
                 custom_float: [[0.0; 4]; 20],
-                has_texture: [[0.0; 4]; 19],
-                has_float: [[0.0; 4]; 20],
-                has_vector: [[0.0; 4]; 64],
-                has_color_set1234: [0.0; 4],
-                has_color_set567: [0.0; 4],
+                has_boolean: [[0; 4]; 20],
+                has_texture: [[0; 4]; 19],
+                has_float: [[0; 4]; 20],
+                has_vector: [[0; 4]; 64],
+                has_color_set1234: [0; 4],
+                has_color_set567: [0; 4],
             },
         )
 }
@@ -272,11 +276,12 @@ mod tests {
                 custom_vector: [[0.0; 4]; 64],
                 custom_boolean: [[0.0; 4]; 20],
                 custom_float: [[0.0; 4]; 20],
-                has_float: [[0.0; 4]; 20],
-                has_texture: [[0.0; 4]; 19],
-                has_vector: [[0.0; 4]; 64],
-                has_color_set1234: [0.0; 4],
-                has_color_set567: [0.0; 4]
+                has_boolean: [[0; 4]; 20],
+                has_float: [[0; 4]; 20],
+                has_texture: [[0; 4]; 19],
+                has_vector: [[0; 4]; 64],
+                has_color_set1234: [0; 4],
+                has_color_set567: [0; 4]
             },
             create_uniforms(None, &ShaderDatabase::new())
         );
@@ -289,11 +294,12 @@ mod tests {
                 custom_vector: [[0.0; 4]; 64],
                 custom_boolean: [[0.0; 4]; 20],
                 custom_float: [[0.0; 4]; 20],
-                has_float: [[0.0; 4]; 20],
-                has_texture: [[0.0; 4]; 19],
-                has_vector: [[0.0; 4]; 64],
-                has_color_set1234: [0.0; 4],
-                has_color_set567: [0.0; 4]
+                has_boolean: [[0; 4]; 20],
+                has_float: [[0; 4]; 20],
+                has_texture: [[0; 4]; 19],
+                has_vector: [[0; 4]; 64],
+                has_color_set1234: [0; 4],
+                has_color_set567: [0; 4]
             },
             create_uniforms(
                 Some(&MatlEntryData {
@@ -321,11 +327,12 @@ mod tests {
                 custom_vector: [[0.0; 4]; 64],
                 custom_boolean: [[0.0; 4]; 20],
                 custom_float: [[0.0; 4]; 20],
-                has_float: [[0.0; 4]; 20],
-                has_texture: [[0.0; 4]; 19],
-                has_vector: [[0.0; 4]; 64],
-                has_color_set1234: [0.0; 4],
-                has_color_set567: [0.0; 4]
+                has_boolean: [[0; 4]; 20],
+                has_float: [[0; 4]; 20],
+                has_texture: [[0; 4]; 19],
+                has_vector: [[0; 4]; 64],
+                has_color_set1234: [0; 4],
+                has_color_set567: [0; 4]
             },
             create_uniforms(
                 Some(&MatlEntryData {
@@ -371,18 +378,20 @@ mod tests {
             custom_vector: [[0.0; 4]; 64],
             custom_boolean: [[0.0; 4]; 20],
             custom_float: [[0.0; 4]; 20],
-            has_float: [[0.0; 4]; 20],
-            has_texture: [[0.0; 4]; 19],
-            has_vector: [[0.0; 4]; 64],
-            has_color_set1234: [0.0; 4],
-            has_color_set567: [0.0; 4],
+            has_boolean: [[0; 4]; 20],
+            has_float: [[0; 4]; 20],
+            has_texture: [[0; 4]; 19],
+            has_vector: [[0; 4]; 64],
+            has_color_set1234: [0; 4],
+            has_color_set567: [0; 4],
         };
         expected.custom_vector[8] = [1.0; 4];
-        expected.has_vector[8] = [1.0, 0.0, 0.0, 0.0];
+        expected.has_vector[8] = [1, 0, 0, 0];
         expected.custom_boolean[5] = [1.0, 0.0, 0.0, 0.0];
+        expected.has_boolean[5] = [1, 0, 0, 0];
         expected.custom_float[3] = [0.7, 0.0, 0.0, 0.0];
-        expected.has_float[3] = [1.0, 0.0, 0.0, 0.0];
-        expected.has_texture[1] = [1.0, 0.0, 0.0, 0.0];
+        expected.has_float[3] = [1, 0, 0, 0];
+        expected.has_texture[1] = [1, 0, 0, 0];
 
         assert_eq!(
             expected,
