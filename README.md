@@ -1,5 +1,5 @@
 # ssbh_wgpu
-ssbh_wgpu is a lightweight and portable renderer for Smash Ultimate built using [WGPU](https://github.com/gfx-rs/wgpu).
+ssbh_wgpu is a lightweight and portable Smash Ultimate model renderer built using [WGPU](https://github.com/gfx-rs/wgpu).
 
 ## Overview
 - nutexb_wgpu -- texture renderer and library for converting nutexb files to WGPU textures
