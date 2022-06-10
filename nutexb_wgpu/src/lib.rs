@@ -1,3 +1,4 @@
+use log::warn;
 pub use nutexb::NutexbFile;
 use wgpu::util::DeviceExt;
 
@@ -11,9 +12,15 @@ pub fn create_texture(
         height: nutexb.footer.height,
         depth_or_array_layers: std::cmp::max(nutexb.footer.layer_count, nutexb.footer.depth),
     };
-    if nutexb.footer.mipmap_count > size.max_mips() {
-        dbg!(&nutexb.footer.string);
+
+    let max_mips = size.max_mips();
+    if nutexb.footer.mipmap_count > max_mips {
+        warn!(
+            "Mipmap count {} exceeds the maximum of {} for Nutexb {:?}.",
+            nutexb.footer.mipmap_count, max_mips, nutexb.footer.string,
+        );
     }
+
     device.create_texture_with_data(
         queue,
         &wgpu::TextureDescriptor {
@@ -21,7 +28,7 @@ pub fn create_texture(
             size,
             // TODO: SHould this be an error?
             // TODO: How does in game handle this case?
-            mip_level_count: std::cmp::min(nutexb.footer.mipmap_count, size.max_mips()),
+            mip_level_count: std::cmp::min(nutexb.footer.mipmap_count, max_mips),
             sample_count: 1,
             dimension: if nutexb.footer.depth > 1 {
                 wgpu::TextureDimension::D3
