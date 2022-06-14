@@ -201,7 +201,11 @@ pub fn load_model_folders<P: AsRef<Path>>(root: P) -> Vec<ModelFolder> {
             Some(ModelFolder::load_folder(parent))
         })
         .collect();
-    info!("Load {:?} ModelFolder(s): {:?}", models.len(), start.elapsed());
+    info!(
+        "Load {:?} ModelFolder(s): {:?}",
+        models.len(),
+        start.elapsed()
+    );
     models
 }
 

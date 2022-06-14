@@ -139,8 +139,8 @@ impl RenderModel {
         self.material_data_by_label.clear();
         for material in materials {
             self.material_data_by_label
-            .entry(material.material_label.clone())
-            .and_modify(|data| {
+                .entry(material.material_label.clone())
+                .and_modify(|data| {
                     // TODO: Modify the buffer in place if possible to avoid allocations.
                     // This path won't be used because of the clear above.
                     let uniforms = create_uniforms(Some(material), database);
@@ -395,13 +395,8 @@ impl RenderModel {
             // If the material entry is deleted from the matl, the mesh is also skipped.
             if let Some(material_data) = self.material_data_by_label.get(&mesh.material_label) {
                 // TODO: Does the invalid shader pipeline take priority?
-                // TODO: How to handle missing position, tangent, normal?
                 if let Some(info) = shader_database.get(mesh.shader_label.get(..24).unwrap_or("")) {
-                    if info
-                        .vertex_attributes
-                        .iter()
-                        .all(|a| mesh.attribute_names.contains(a))
-                    {
+                    if info.has_required_attributes(&mesh.attribute_names) {
                         // TODO: Don't assume the pipeline exists?
                         render_pass.set_pipeline(&self.pipelines[&mesh.pipeline_key]);
                     } else {
@@ -894,7 +889,7 @@ fn create_render_meshes(
                 })
                 .collect()
         })
-        .unwrap_or(Vec::new());
+        .unwrap_or_default();
 
     RenderMeshData {
         meshes,
