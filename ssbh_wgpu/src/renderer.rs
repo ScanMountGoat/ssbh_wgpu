@@ -96,6 +96,7 @@ pub enum TransitionMaterial {
 }
 
 /// Settings for configuring the rendered output of an [SsbhRenderer].
+#[derive(PartialEq, Clone, Copy)]
 pub struct RenderSettings {
     /// The attribute to render as the output color when [Some].
     pub debug_mode: DebugMode,
@@ -108,19 +109,21 @@ pub struct RenderSettings {
     pub render_emission: bool,
     pub render_rim_lighting: bool,
     pub render_shadows: bool,
+    pub render_bloom: bool,
 }
 
 impl From<&RenderSettings> for crate::shader::model::RenderSettings {
     fn from(r: &RenderSettings) -> Self {
         Self {
-            debug_mode: [r.debug_mode as i32; 4],
-            transition_material: [r.transition_material as i32; 4],
+            debug_mode: [r.debug_mode as u32; 4],
+            transition_material: [r.transition_material as u32; 4],
             transition_factor: [r.transition_factor, 0.0, 0.0, 0.0],
-            render_diffuse: [if r.render_diffuse { 1.0 } else { 0.0 }; 4],
-            render_specular: [if r.render_specular { 1.0 } else { 0.0 }; 4],
-            render_emission: [if r.render_emission { 1.0 } else { 0.0 }; 4],
-            render_rim_lighting: [if r.render_rim_lighting { 1.0 } else { 0.0 }; 4],
-            render_shadows: [if r.render_shadows { 1.0 } else { 0.0 }; 4],
+            render_diffuse: [if r.render_diffuse { 1 } else { 0 }; 4],
+            render_specular: [if r.render_specular { 1 } else { 0 }; 4],
+            render_emission: [if r.render_emission { 1 } else { 0 }; 4],
+            render_rim_lighting: [if r.render_rim_lighting { 1 } else { 0 }; 4],
+            render_shadows: [if r.render_shadows { 1 } else { 0 }; 4],
+            render_bloom: [if r.render_bloom { 1 } else { 0 }; 4],
         }
     }
 }
@@ -136,6 +139,7 @@ impl Default for RenderSettings {
             render_emission: true,
             render_rim_lighting: true,
             render_shadows: true,
+            render_bloom: true,
         }
     }
 }
@@ -180,8 +184,8 @@ pub struct SsbhRenderer {
     // TODO: Should this be configurable at runtime?
     clear_color: wgpu::Color,
 
+    render_settings: RenderSettings,
     render_settings_buffer: wgpu::Buffer,
-    debug_mode: DebugMode,
 
     brush: TextBrush<FontRef<'static>, DefaultSectionHasher>,
 }
@@ -346,10 +350,11 @@ impl SsbhRenderer {
             VARIANCE_SHADOW_FORMAT,
         );
 
+        let render_settings = RenderSettings::default();
         let render_settings_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Render Settings Buffer"),
             contents: bytemuck::cast_slice(&[crate::shader::model::RenderSettings::from(
-                &RenderSettings::default(),
+                &render_settings,
             )]),
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
@@ -436,8 +441,8 @@ impl SsbhRenderer {
             invalid_shader_pipeline,
             invalid_attributes_pipeline,
             debug_pipeline,
+            render_settings,
             render_settings_buffer,
-            debug_mode: DebugMode::Shaded,
             brush,
         }
     }
@@ -477,7 +482,7 @@ impl SsbhRenderer {
         queue: &wgpu::Queue,
         render_settings: &RenderSettings,
     ) {
-        self.debug_mode = render_settings.debug_mode; // TODO: This feels redundant.
+        self.render_settings = *render_settings;
         queue.write_buffer(
             &self.render_settings_buffer,
             0,
@@ -505,7 +510,7 @@ impl SsbhRenderer {
         self.skinning_pass(encoder, render_models);
         self.renormal_pass(encoder, render_models);
 
-        if self.debug_mode != DebugMode::Shaded {
+        if self.render_settings.debug_mode != DebugMode::Shaded {
             // Draw the models directly to the output.
             self.model_debug_pass(encoder, render_models, output_view);
         } else {
@@ -519,7 +524,7 @@ impl SsbhRenderer {
             self.model_pass(encoder, render_models, shader_database);
 
             // Extract the portions of the image that contribute to bloom.
-            self.bloom_threshold_pass(encoder);
+            self.bloom_threshold_pass(encoder, self.render_settings.render_bloom);
 
             // Repeatedly downsample and blur the thresholded bloom colors.
             self.bloom_blur_passes(encoder);
@@ -584,14 +589,30 @@ impl SsbhRenderer {
         }
     }
 
-    fn bloom_threshold_pass(&self, encoder: &mut wgpu::CommandEncoder) {
-        bloom_pass(
-            encoder,
-            "Bloom Threshold Pass",
-            &self.bloom_threshold_pipeline,
-            &self.pass_info.bloom_threshold.view,
-            &self.pass_info.bloom_threshold_bind_group,
-        );
+    fn bloom_threshold_pass(&self, encoder: &mut wgpu::CommandEncoder, enable_bloom: bool) {
+        if enable_bloom {
+            bloom_pass(
+                encoder,
+                "Bloom Threshold Pass",
+                &self.bloom_threshold_pipeline,
+                &self.pass_info.bloom_threshold.view,
+                &self.pass_info.bloom_threshold_bind_group,
+            );
+        } else {
+            // TODO: Find a more efficient way to toggle bloom rendering.
+            encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("Bloom Threshold Pass"),
+                color_attachments: &[wgpu::RenderPassColorAttachment {
+                    view: &self.pass_info.bloom_threshold.view,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+                        store: true,
+                    },
+                }],
+                depth_stencil_attachment: None,
+            });
+        }
     }
 
     fn variance_shadow_pass(&self, encoder: &mut wgpu::CommandEncoder) {

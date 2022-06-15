@@ -10,14 +10,15 @@ struct LightTransforms {
 
 // TODO: How to handle alignment?
 struct RenderSettings {
-    debug_mode: vec4<i32>;
-    transition_material: vec4<i32>;
+    debug_mode: vec4<u32>;
+    transition_material: vec4<u32>;
     transition_factor: vec4<f32>;
-    render_diffuse: vec4<f32>;
-    render_specular: vec4<f32>;
-    render_emission: vec4<f32>;
-    render_rim_lighting: vec4<f32>;
-    render_shadows: vec4<f32>;
+    render_diffuse: vec4<u32>;
+    render_specular: vec4<u32>;
+    render_emission: vec4<u32>;
+    render_rim_lighting: vec4<u32>;
+    render_shadows: vec4<u32>;
+    render_bloom: vec4<u32>;
 };
 
 // TODO: Bind groups should be ordered by how frequently they change for performance.
@@ -963,7 +964,10 @@ fn fs_main(in: VertexOutput) -> [[location(0)]] vec4<f32> {
 
     let emissionColor = GetEmissionColor(map1, uvSet);
 
-    let shadow = mix(1.0, GetShadow(in.light_position), render_settings.render_shadows.x);
+    var shadow = 1.0;
+    if (render_settings.render_shadows.x == 1u) {
+        shadow = GetShadow(in.light_position);
+    }
 
     var outAlpha = max(albedoColor.a * emissionColor.a, uniforms.custom_vector[0].x);
     if (outAlpha < 0.5) {
@@ -992,13 +996,24 @@ fn fs_main(in: VertexOutput) -> [[location(0)]] vec4<f32> {
     kDiffuse = max(vec3<f32>(1.0 - metalness), vec3<f32>(0.0));
 
     var outColor = vec3<f32>(0.0, 0.0, 0.0);
-    outColor = outColor + (diffusePass * kDiffuse) / 3.14159 * render_settings.render_diffuse.x;
-    outColor = outColor + specularPass * kSpecular * ao * render_settings.render_specular.x;
-    // TODO: Emission is weakened somehow?
-    outColor = outColor + EmissionTerm(emissionColor) * 0.5 * render_settings.render_emission.x;
+    if (render_settings.render_diffuse.x == 1u) {
+        outColor = outColor + (diffusePass * kDiffuse) / 3.14159;
+    }
+
+    if (render_settings.render_specular.x == 1u) {
+        outColor = outColor + specularPass * kSpecular * ao;
+    }
+
+    if (render_settings.render_emission.x == 1u) {
+        // TODO: Emission is weakened somehow?
+        outColor = outColor + EmissionTerm(emissionColor) * 0.5;
+    }
+
     // TODO: What affects rim lighting intensity?
-    let rimOcclusion = shadow * render_settings.render_rim_lighting.x;
-    outColor = GetRimBlend(outColor, albedoColorFinal, nDotV, max(nDotL, 0.0), rimOcclusion, shColor);
+    if (render_settings.render_rim_lighting.x == 1u) {
+        let rimOcclusion = shadow;
+        outColor = GetRimBlend(outColor, albedoColorFinal, nDotV, max(nDotL, 0.0), rimOcclusion, shColor);
+    }
 
     if (uniforms.has_vector[8].x == 1u) {
         outColor = outColor * uniforms.custom_vector[8].rgb;
