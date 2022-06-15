@@ -33,6 +33,7 @@ use wgpu_text::{
 // TODO: Is it worth allowing models to reference textures from other folders?
 pub struct RenderModel {
     pub meshes: Vec<RenderMesh>,
+    pub is_visible: bool,
     mesh_buffers: MeshBuffers,
     material_data_by_label: HashMap<String, MaterialData>,
     pipelines: HashMap<PipelineKey, wgpu::RenderPipeline>,
@@ -689,6 +690,7 @@ pub fn create_render_model(
     );
 
     RenderModel {
+        is_visible: true,
         meshes,
         mesh_buffers,
         material_data_by_label,

@@ -670,7 +670,7 @@ impl SsbhRenderer {
                 stencil_ops: None,
             }),
         });
-        for model in render_models {
+        for model in render_models.iter().filter(|m| m.is_visible) {
             model.draw_render_meshes(
                 &mut model_pass,
                 &self.per_frame_bind_group,
