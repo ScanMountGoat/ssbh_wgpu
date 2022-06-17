@@ -429,19 +429,23 @@ impl State {
         let skel = self.models.get(0).and_then(|m| m.find_skel());
         let (_, _, mvp) =
             calculate_camera_pos_mvp(self.size, self.translation_xyz, self.rotation_xyz);
-        // let text_command_buffer = self.renderer.render_skeleton(
-        //     &self.device,
-        //     &self.queue,
-        //     &mut encoder,
-        //     &output_view,
-        //     &self.render_models,
-        //     skel,
-        //     self.size.width,
-        //     self.size.height,
-        //     mvp,
-        // );
 
-        self.queue.submit([encoder.finish()]);
+        if let Some(text_commands) = self.renderer.render_skeleton(
+            &self.device,
+            &self.queue,
+            &mut encoder,
+            &output_view,
+            &self.render_models,
+            skel,
+            self.size.width,
+            self.size.height,
+            mvp,
+            false,
+        ) {
+            self.queue.submit([encoder.finish(), text_commands]);
+        } else {
+            self.queue.submit([encoder.finish()]);
+        }
 
         // Actually draw the frame.
         output.present();
@@ -482,7 +486,8 @@ fn main() {
     simple_logger::SimpleLogger::new()
         .with_level(log::LevelFilter::Warn)
         .with_module_level("ssbh_wgpu", log::LevelFilter::Info)
-        .init().unwrap();
+        .init()
+        .unwrap();
 
     let args: Vec<_> = std::env::args().collect();
     let folder = Path::new(&args[1]);

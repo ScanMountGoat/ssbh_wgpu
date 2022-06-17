@@ -545,17 +545,21 @@ impl SsbhRenderer {
         width: u32,
         height: u32,
         mvp: glam::Mat4,
-    ) -> wgpu::CommandBuffer {
-        // TODO: Toggle skeleton rendering?
+        draw_bone_names: bool,
+    ) -> Option<wgpu::CommandBuffer> {
         self.skeleton_pass(encoder, render_models, output_view, skel);
 
-        for model in render_models {
-            model.queue_bone_names(skel, &mut self.brush, width, height, mvp);
-        }
+        if draw_bone_names {
+            for model in render_models {
+                model.queue_bone_names(skel, &mut self.brush, width, height, mvp);
+            }
 
-        // TODO: Make text rendering optional.
-        // TODO: Is there a way to do this without returning the command buffer?
-        self.brush.draw(device, output_view, queue)
+            // TODO: Make text rendering optional.
+            // TODO: Is there a way to do this without returning the command buffer?
+            Some(self.brush.draw(device, output_view, queue))
+        } else {
+            None
+        }
     }
 
     fn bloom_upscale_pass(&self, encoder: &mut wgpu::CommandEncoder) {

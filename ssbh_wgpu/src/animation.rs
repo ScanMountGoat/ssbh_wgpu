@@ -379,7 +379,10 @@ pub fn animate_materials(
     for group in &anim.groups {
         if group.group_type == GroupType::Material {
             for node in &group.nodes {
-                if let Some(material) = changed_materials.iter_mut().find(|m| m.material_label == node.name) {
+                if let Some(material) = changed_materials
+                    .iter_mut()
+                    .find(|m| m.material_label == node.name)
+                {
                     apply_material_track(node, frame, material);
                 }
             }
