@@ -21,6 +21,15 @@ struct RenderSettings {
     render_bloom: vec4<u32>;
 };
 
+// TODO: Store light transform here as well?
+// TODO: How to store lights?
+struct StageUniforms {
+    chr_light_dir: vec4<f32>;
+    custom_boolean: array<vec4<f32>, 20>;
+    custom_vector: array<vec4<f32>, 64>;
+    custom_float: array<vec4<f32>, 20>;
+};
+
 // TODO: Bind groups should be ordered by how frequently they change for performance.
 // group0 = PerFrame
 // group1 = PerMaterial
@@ -39,6 +48,9 @@ var<uniform> light: LightTransforms;
 
 [[group(0), binding(4)]]
 var<uniform> render_settings: RenderSettings;
+
+[[group(0), binding(5)]]
+var<uniform> stage_uniforms: StageUniforms;
 
 // TODO: Is there a better way of organizing this?
 // TODO: How many textures can we have?
@@ -137,19 +149,6 @@ struct MaterialUniforms {
 
 [[group(1), binding(30)]]
 var<uniform> uniforms: MaterialUniforms;
-
-// TODO: Store light transform here as well?
-// TODO: How to store lights?
-struct StageUniforms {
-    chr_light_dir: vec4<f32>;
-    custom_boolean: array<vec4<f32>, 20>;
-    custom_vector: array<vec4<f32>, 64>;
-    custom_float: array<vec4<f32>, 20>;
-};
-
-// TODO: Move these to the first group since they don't change much?
-[[group(2), binding(0)]]
-var<uniform> stage_uniforms: StageUniforms;
 
 struct VertexInput0 {
     [[location(0)]] position0: vec4<f32>;
@@ -705,6 +704,9 @@ fn vs_main_invalid(
 
 [[stage(fragment)]]
 fn fs_invalid_shader(in: VertexOutputInvalid) -> [[location(0)]] vec4<f32> {
+    // TODO: Multiply x by width and y by height.
+    // TODO: Account for scale factor.
+    // TODO: Use uniforms for this?
     let checker = ScreenCheckerBoard(in.position.xy);
     return vec4<f32>(checker, 0.0, 0.0, 1.0);
 }

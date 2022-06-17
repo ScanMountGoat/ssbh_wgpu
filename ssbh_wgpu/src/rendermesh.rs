@@ -385,7 +385,6 @@ impl RenderModel {
         &'a self,
         render_pass: &mut wgpu::RenderPass<'a>,
         per_frame_bind_group: &'a crate::shader::model::bind_groups::BindGroup0,
-        stage_uniforms_bind_group: &'a crate::shader::model::bind_groups::BindGroup2,
         shader_database: &ShaderDatabase,
         invalid_shader_pipeline: &'a wgpu::RenderPipeline,
         invalid_attributes_pipeline: &'a wgpu::RenderPipeline,
@@ -413,7 +412,6 @@ impl RenderModel {
                     crate::shader::model::bind_groups::BindGroups::<'a> {
                         bind_group0: per_frame_bind_group,
                         bind_group1: &material_data.material_uniforms_bind_group,
-                        bind_group2: stage_uniforms_bind_group,
                     },
                 );
 
@@ -428,7 +426,6 @@ impl RenderModel {
         &'a self,
         render_pass: &mut wgpu::RenderPass<'a>,
         per_frame_bind_group: &'a crate::shader::model::bind_groups::BindGroup0,
-        stage_uniforms_bind_group: &'a crate::shader::model::bind_groups::BindGroup2,
     ) {
         // Assume the pipeline is already set.
         for mesh in self.meshes.iter().filter(|m| m.is_visible) {
@@ -438,7 +435,6 @@ impl RenderModel {
                     crate::shader::model::bind_groups::BindGroups::<'a> {
                         bind_group0: per_frame_bind_group,
                         bind_group1: &material_data.material_uniforms_bind_group,
-                        bind_group2: stage_uniforms_bind_group,
                     },
                 );
 

@@ -11,6 +11,7 @@ pub struct ShaderProgram {
 
 impl ShaderProgram {
     /// Returns `true` if `attributes` has all the vertex attributes required by this shader program.
+    // TODO: Take an iterator instead?
     pub fn has_required_attributes(&self, attributes: &[String]) -> bool {
         self.vertex_attributes
             .iter()
@@ -19,6 +20,7 @@ impl ShaderProgram {
     }
 
     /// Returns the vertex attribute names required by this shader program not present in `attributes`.
+    // TODO: Take an iterator instead?
     pub fn missing_required_attributes(&self, attributes: &[String]) -> Vec<String> {
         self.vertex_attributes
             .iter()

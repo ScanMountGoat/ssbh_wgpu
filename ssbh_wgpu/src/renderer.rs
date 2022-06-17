@@ -166,11 +166,9 @@ pub struct SsbhRenderer {
     // Store camera state for efficiently updating it later.
     // This avoids exposing shader implementations like bind groups.
     camera_buffer: wgpu::Buffer,
+    stage_uniforms_buffer: wgpu::Buffer,
     per_frame_bind_group: crate::shader::model::bind_groups::BindGroup0,
     skeleton_camera_bind_group: crate::shader::skeleton::bind_groups::BindGroup0,
-
-    stage_uniforms_buffer: wgpu::Buffer,
-    stage_uniforms_bind_group: crate::shader::model::bind_groups::BindGroup2,
 
     shadow_depth: TextureSamplerView,
     variance_shadow: TextureSamplerView,
@@ -359,6 +357,14 @@ impl SsbhRenderer {
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
 
+        // The light nuanmb should be public with conversions for quaternions, vectors, etc being private.
+        // stage light nuanmb -> uniform struct -> buffer
+        let stage_uniforms_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Stage Uniforms Buffer"),
+            contents: bytemuck::cast_slice(&[crate::shader::model::StageUniforms::training()]),
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        });
+
         let per_frame_bind_group = crate::shader::model::bind_groups::BindGroup0::from_bindings(
             device,
             crate::shader::model::bind_groups::BindGroupLayout0 {
@@ -367,23 +373,9 @@ impl SsbhRenderer {
                 sampler_shadow: &variance_shadow.sampler,
                 light: light_transform_buffer.as_entire_buffer_binding(),
                 render_settings: render_settings_buffer.as_entire_buffer_binding(),
+                stage_uniforms: stage_uniforms_buffer.as_entire_buffer_binding(),
             },
         );
-
-        // The light nuanmb should be public with conversions for quaternions, vectors, etc being private.
-        // stage light nuanmb -> uniform struct -> buffer
-        let stage_uniforms_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Stage Uniforms Buffer"),
-            contents: bytemuck::cast_slice(&[crate::shader::model::StageUniforms::training()]),
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-        });
-        let stage_uniforms_bind_group =
-            crate::shader::model::bind_groups::BindGroup2::from_bindings(
-                device,
-                crate::shader::model::bind_groups::BindGroupLayout2 {
-                    stage_uniforms: stage_uniforms_buffer.as_entire_buffer_binding(),
-                },
-            );
 
         // TODO: Is it ok to just use the variance shadow map sampler?
         // We don't want a comparison sampler for this pipeline.
@@ -433,7 +425,6 @@ impl SsbhRenderer {
             variance_bind_group,
             clear_color,
             stage_uniforms_buffer,
-            stage_uniforms_bind_group,
             bone_pipeline,
             bone_outer_pipeline,
             joint_pipeline,
@@ -695,7 +686,6 @@ impl SsbhRenderer {
             model.draw_render_meshes(
                 &mut model_pass,
                 &self.per_frame_bind_group,
-                &self.stage_uniforms_bind_group,
                 shader_database,
                 &self.invalid_shader_pipeline,
                 &self.invalid_attributes_pipeline,
@@ -732,11 +722,7 @@ impl SsbhRenderer {
         debug_pass.set_pipeline(&self.debug_pipeline);
 
         for model in render_models {
-            model.draw_render_meshes_debug(
-                &mut debug_pass,
-                &self.per_frame_bind_group,
-                &self.stage_uniforms_bind_group,
-            );
+            model.draw_render_meshes_debug(&mut debug_pass, &self.per_frame_bind_group);
         }
     }
 
