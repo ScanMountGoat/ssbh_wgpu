@@ -12,8 +12,6 @@ use ssbh_wgpu::REQUIRED_FEATURES;
 use ssbh_wgpu::{create_database, DebugMode, ShaderDatabase};
 use ssbh_wgpu::{load_model_folders, load_render_models, SsbhRenderer};
 
-use wgpu_text::BrushBuilder;
-
 use ssbh_data::prelude::*;
 
 use winit::{
@@ -149,6 +147,7 @@ impl State {
             size.height,
             window.scale_factor(),
             wgpu::Color::BLACK,
+            &[],
         );
 
         Self {
@@ -440,7 +439,7 @@ impl State {
             self.size.width,
             self.size.height,
             mvp,
-            false,
+            true,
         ) {
             self.queue.submit([encoder.finish(), text_commands]);
         } else {

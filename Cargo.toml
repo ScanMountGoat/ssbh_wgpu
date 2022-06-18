@@ -1,4 +1,4 @@
 [workspace]
 # wgpu requires the newer resolver
 resolver = "2"
-members = ["ssbh_wgpu", "nutexb_wgpu"]
+members = ["ssbh_wgpu", "ssbh_wgpu_viewer", "nutexb_wgpu", "nutexb_wgpu_viewer"]

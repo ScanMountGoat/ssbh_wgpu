@@ -185,7 +185,8 @@ pub struct SsbhRenderer {
     render_settings: RenderSettings,
     render_settings_buffer: wgpu::Buffer,
 
-    brush: TextBrush<FontRef<'static>, DefaultSectionHasher>,
+    // TODO: Find a way to simplify this?
+    brush: Option<TextBrush<FontRef<'static>, DefaultSectionHasher>>,
 }
 
 impl SsbhRenderer {
@@ -203,6 +204,7 @@ impl SsbhRenderer {
         initial_height: u32,
         scale_factor: f64,
         clear_color: wgpu::Color,
+        font_bytes: &'static [u8],
     ) -> Self {
         let bone_pipeline = skeleton_pipeline(device, "vs_bone", "fs_main", wgpu::Face::Back);
         let bone_outer_pipeline =
@@ -401,9 +403,11 @@ impl SsbhRenderer {
             height: initial_height,
             present_mode: wgpu::PresentMode::Mailbox,
         };
-        let brush = BrushBuilder::using_font_bytes(include_bytes!("fonts/Hack-Regular.ttf"))
-            .unwrap()
-            .build(device, &config);
+
+        // TODO: Log errors?
+        let brush = BrushBuilder::using_font_bytes(font_bytes)
+            .ok()
+            .map(|b| b.build(device, &config));
 
         Self {
             bloom_threshold_pipeline,
@@ -457,7 +461,9 @@ impl SsbhRenderer {
         scale_factor: f64,
     ) {
         self.pass_info = PassInfo::new(device, width, height, scale_factor, &self.color_lut);
-        self.brush.resize_view(width as f32, height as f32, queue);
+        if let Some(brush) = self.brush.as_mut() {
+            brush.resize_view(width as f32, height as f32, queue);
+        }
     }
 
     /// Updates the camera transforms.
@@ -550,15 +556,17 @@ impl SsbhRenderer {
         self.skeleton_pass(encoder, render_models, output_view, skel);
 
         if draw_bone_names {
+            let brush = self.brush.as_mut()?;
+
             // TODO: Each render model should be associated with a skel.
             // TODO: Store the skel information in the render model itself?
             for model in render_models {
-                model.queue_bone_names(skel, &mut self.brush, width, height, mvp);
+                model.queue_bone_names(skel, brush, width, height, mvp);
             }
 
             // TODO: Make text rendering optional.
             // TODO: Is there a way to do this without returning the command buffer?
-            Some(self.brush.draw(device, output_view, queue))
+            Some(brush.draw(device, output_view, queue))
         } else {
             None
         }
