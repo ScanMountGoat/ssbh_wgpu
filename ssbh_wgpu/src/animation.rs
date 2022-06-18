@@ -260,9 +260,9 @@ fn world_transform(
             *visited = true;
         }
 
-        // TODO: This step can be faster if we've already calculated the parent world transform.
         if let Some(parent_bone) = bones.get(parent_index) {
             if parent_bone.anim_world_transform.is_some() && include_anim {
+                // Use an already calculated anim_world_transform.
                 if !inherit_scale {
                     // Scale inheritance compensates for all accumulated scale.
                     transform =
@@ -278,6 +278,7 @@ fn world_transform(
                 transform = parent_bone.anim_world_transform.unwrap() * transform;
                 break;
             } else if parent_bone.world_transform.is_some() {
+                // Use an already calculated world_transform.
                 // The skeleton transforms don't have any scale settings.
                 transform = parent_bone.world_transform.unwrap() * transform;
                 break;
@@ -494,6 +495,7 @@ fn frame_values(frame: f32, track: &ssbh_data::anim_data::TrackData) -> (usize, 
 mod tests {
     use ssbh_data::{
         anim_data::{GroupData, NodeData, ScaleOptions, TrackData, Transform, TransformFlags},
+        hlpb_data::OrientConstraintData,
         skel_data::{BillboardType, BoneData},
     };
 
@@ -1122,6 +1124,173 @@ mod tests {
             transforms.animated_world_transforms.transforms[2].to_cols_array_2d()
         );
         // TODO: Test other matrices?
+    }
+
+    // TODO: How to reproduce the bug caused by precomputed world transforms?
+    #[test]
+    fn orient_constraints_chain() {
+        // Bones are all at the origin but separated in the diagram for clarity.
+        // Skel + Anim:
+        // ^  ^
+        // |  |
+        // L0 L1    R0 -> <- R1
+
+        // Skel + Anim + Hlpb (constrain L0 to R0 and L1 to R1):
+        // L0 -> <- L1    R0 -> <- R1
+        let l0 = identity_bone("L0", None);
+        let l1 = identity_bone("L1", Some(0));
+        let r0 = identity_bone("R0", None);
+        let r1 = identity_bone("R1", Some(2));
+
+        // Check for correctly precomputing world transforms in the hlpb step.
+        // This impacts constraints applied to multiple bones in a chain.
+        let mut transforms = AnimationTransforms::identity();
+
+        // TODO: Adjust this test to detect incorrectly precompuing anim world transforms.
+        animate_skel(
+            &mut transforms,
+            &ssbh_data::skel_data::SkelData {
+                major_version: 1,
+                minor_version: 0,
+                bones: vec![l0, l1, r0, r1],
+            },
+            &AnimData {
+                major_version: 2,
+                minor_version: 0,
+                final_frame_index: 0.0,
+                groups: vec![GroupData {
+                    group_type: GroupType::Transform,
+                    nodes: vec![
+                        NodeData {
+                            name: "L0".to_string(),
+                            tracks: vec![TrackData {
+                                name: "Transform".to_string(),
+                                scale_options: ScaleOptions {
+                                    inherit_scale: true,
+                                    compensate_scale: true,
+                                },
+                                values: TrackValues::Transform(vec![Transform {
+                                    scale: Vector3::new(1.0, 1.0, 1.0),
+                                    rotation: glam::Quat::from_rotation_z(0.0f32.to_radians())
+                                        .to_array()
+                                        .into(),
+                                    translation: Vector3::new(1.0, 2.0, 3.0),
+                                }]),
+                                transform_flags: TransformFlags::default(),
+                            }],
+                        },
+                        NodeData {
+                            name: "L1".to_string(),
+                            tracks: vec![TrackData {
+                                name: "Transform".to_string(),
+                                scale_options: ScaleOptions {
+                                    inherit_scale: true,
+                                    compensate_scale: true,
+                                },
+                                values: TrackValues::Transform(vec![Transform {
+                                    scale: Vector3::new(1.0, 1.0, 1.0),
+                                    rotation: glam::Quat::from_rotation_z(0.0f32.to_radians())
+                                        .to_array()
+                                        .into(),
+                                    translation: Vector3::new(4.0, 5.0, 6.0),
+                                }]),
+                                transform_flags: TransformFlags::default(),
+                            }],
+                        },
+                        NodeData {
+                            name: "R0".to_string(),
+                            tracks: vec![TrackData {
+                                name: "Transform".to_string(),
+                                scale_options: ScaleOptions {
+                                    inherit_scale: true,
+                                    compensate_scale: true,
+                                },
+                                values: TrackValues::Transform(vec![Transform {
+                                    scale: Vector3::new(1.0, 1.0, 1.0),
+                                    rotation: glam::Quat::from_rotation_z(90.0f32.to_radians())
+                                        .to_array()
+                                        .into(),
+                                    translation: Vector3::new(1.0, 2.0, 3.0),
+                                }]),
+                                transform_flags: TransformFlags::default(),
+                            }],
+                        },
+                        NodeData {
+                            name: "R1".to_string(),
+                            tracks: vec![TrackData {
+                                name: "Transform".to_string(),
+                                scale_options: ScaleOptions {
+                                    inherit_scale: true,
+                                    compensate_scale: true,
+                                },
+                                values: TrackValues::Transform(vec![Transform {
+                                    scale: Vector3::new(1.0, 1.0, 1.0),
+                                    rotation: glam::Quat::from_rotation_z(0.0f32.to_radians())
+                                        .to_array()
+                                        .into(),
+                                    translation: Vector3::new(4.0, 5.0, 6.0),
+                                }]),
+                                transform_flags: TransformFlags::default(),
+                            }],
+                        },
+                    ],
+                }],
+            },
+            Some(&HlpbData {
+                major_version: 1,
+                minor_version: 0,
+                aim_constraints: Vec::new().into(),
+                orient_constraints: vec![
+                    OrientConstraintData {
+                        name: "constraint1".into(),
+                        bone_name: "Root".into(), // TODO: What to put here?
+                        root_bone_name: "Root".into(),
+                        parent_bone_name: "R0".into(),
+                        driver_bone_name: "L0".into(),
+                        unk_type: 2,
+                        constraint_axes: Vector3::new(1.0, 1.0, 1.0),
+                        quat1: Vector4::new(0.0, 0.0, 0.0, 1.0),
+                        quat2: Vector4::new(0.0, 0.0, 0.0, 1.0),
+                        range_min: Vector3::new(-180.0, -180.0, -180.0),
+                        range_max: Vector3::new(180.0, 180.0, 180.0),
+                    },
+                    OrientConstraintData {
+                        name: "constraint2".into(),
+                        bone_name: "Root".into(), // TODO: What to put here?
+                        root_bone_name: "Root".into(),
+                        parent_bone_name: "R1".into(),
+                        driver_bone_name: "L1".into(),
+                        unk_type: 2,
+                        constraint_axes: Vector3::new(1.0, 1.0, 1.0),
+                        quat1: Vector4::new(0.0, 0.0, 0.0, 1.0),
+                        quat2: Vector4::new(0.0, 0.0, 0.0, 1.0),
+                        range_min: Vector3::new(-180.0, -180.0, -180.0),
+                        range_max: Vector3::new(180.0, 180.0, 180.0),
+                    },
+                ],
+            }),
+            0.0,
+        );
+
+        assert_matrix_relative_eq!(
+            transforms.animated_world_transforms.transforms[0].to_cols_array_2d(),
+            transforms.animated_world_transforms.transforms[2].to_cols_array_2d()
+        );
+
+        assert_matrix_relative_eq!(
+            transforms.animated_world_transforms.transforms[1].to_cols_array_2d(),
+            transforms.animated_world_transforms.transforms[3].to_cols_array_2d()
+        );
+
+        assert_matrix_relative_eq!(
+            transforms.world_transforms[0].to_cols_array_2d(),
+            transforms.world_transforms[2].to_cols_array_2d()
+        );
+
+        assert_matrix_relative_eq!(
+            transforms.world_transforms[1].to_cols_array_2d(),
+            transforms.world_transforms[3].to_cols_array_2d()
+        );
     }
 
     #[test]

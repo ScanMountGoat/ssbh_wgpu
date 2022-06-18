@@ -550,6 +550,8 @@ impl SsbhRenderer {
         self.skeleton_pass(encoder, render_models, output_view, skel);
 
         if draw_bone_names {
+            // TODO: Each render model should be associated with a skel.
+            // TODO: Store the skel information in the render model itself?
             for model in render_models {
                 model.queue_bone_names(skel, &mut self.brush, width, height, mvp);
             }

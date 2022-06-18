@@ -20,7 +20,6 @@ pub fn apply_hlpb_constraints(animated_bones: &mut [AnimatedBone], hlpb: &HlpbDa
     }
 }
 
-// TODO: Test this?
 fn apply_aim_constraint(animated_bones: &mut [AnimatedBone], constraint: &AimConstraintData) {
     // // TODO: Investigate the remaining bone name fields.
     let source = animated_bones
@@ -69,6 +68,8 @@ fn apply_aim_constraint(animated_bones: &mut [AnimatedBone], constraint: &AimCon
     // TODO: How to also incorporate the up vector?
     target_transform.rotation *= glam::Quat::from_rotation_arc(aim.normalize(), v.normalize());
     target.anim_transform = Some(target_transform);
+    // This bone was modified, so its animated world transform needs to be recalculated.
+    target.anim_world_transform = None
 }
 
 // TODO: Improve tests.
@@ -136,6 +137,8 @@ fn apply_orient_constraint(animated_bones: &mut [AnimatedBone], constraint: &Ori
 
     new_transform.rotation = source_r;
     target.anim_transform = Some(new_transform);
+    // This bone was modified, so its animated world transform needs to be recalculated.
+    target.anim_world_transform = None
 }
 
 #[cfg(test)]
