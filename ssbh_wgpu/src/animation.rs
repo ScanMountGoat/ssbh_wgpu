@@ -260,46 +260,54 @@ fn world_transform(
             *visited = true;
         }
 
-        if let Some(parent_bone) = bones.get(parent_index) {
-            if parent_bone.anim_world_transform.is_some() && include_anim {
-                // Use an already calculated anim_world_transform.
-                if !inherit_scale {
-                    // Scale inheritance compensates for all accumulated scale.
-                    transform =
-                        compensate_scale(transform, parent_bone.anim_world_transform.unwrap());
-                }
-                if inherit_scale && current.compensate_scale {
-                    // compensate_scale only compensates for the immediate parent's scale.
-                    let parent_transform =
-                        parent_bone.animated_transform(inherit_scale, include_anim);
-                    transform = compensate_scale(transform, parent_transform);
-                }
+        if let Some(parent) = bones.get(parent_index) {
+            match (
+                parent.anim_world_transform,
+                parent.world_transform,
+                include_anim,
+            ) {
+                // Use an already calculated animated world transform.
+                (Some(parent_anim_world), _, true) => {
+                    if !inherit_scale {
+                        // Disabling scale inheritance compensates for all accumulated scale.
+                        transform = compensate_scale(transform, parent_anim_world);
+                    } else if current.compensate_scale {
+                        // compensate_scale only compensates for the immediate parent's scale.
+                        let parent_transform =
+                            parent.animated_transform(inherit_scale, include_anim);
+                        transform = compensate_scale(transform, parent_transform);
+                    }
 
-                transform = parent_bone.anim_world_transform.unwrap() * transform;
-                break;
-            } else if parent_bone.world_transform.is_some() {
+                    transform = parent_anim_world * transform;
+                    break;
+                }
                 // Use an already calculated world_transform.
-                // The skeleton transforms don't have any scale settings.
-                transform = parent_bone.world_transform.unwrap() * transform;
-                break;
-            } else {
-                // TODO: Does scale compensation take into account scaling in the skeleton?
-                let parent_transform = parent_bone.animated_transform(inherit_scale, include_anim);
-                // Compensate scale only takes into account the immediate parent.
-                // TODO: Test for inheritance being set.
-                // TODO: What happens compensate_scale is true and inherit_scale is false?
-                // Only apply scale compensation if the anim is included.
-                if include_anim && current.compensate_scale && inherit_scale {
-                    // TODO: Does this also compensate the parent's skel scale?
-                    transform = compensate_scale(transform, parent_transform);
+                (_, Some(parent_world), false) => {
+                    // The skeleton transforms don't have any scale settings.
+                    transform = parent_world * transform;
+                    break;
                 }
+                // Fall back to accumulating transforms up the chain.
+                _ => {
+                    // TODO: Does scale compensation take into account scaling in the skeleton?
+                    let parent_transform = parent.animated_transform(inherit_scale, include_anim);
+                    // Compensate scale only takes into account the immediate parent.
+                    // TODO: Test for inheritance being set.
+                    // TODO: What happens if compensate_scale is true and inherit_scale is false?
+                    // Only apply scale compensation if the anim is included.
+                    if include_anim && current.compensate_scale && inherit_scale {
+                        // TODO: Does this also compensate the parent's skel scale?
+                        transform = compensate_scale(transform, parent_transform);
+                    }
 
-                transform = parent_transform * transform;
-                current = parent_bone;
-                // Disabling scale inheritance propogates up the bone chain.
-                inherit_scale &= parent_bone.inherit_scale;
+                    transform = parent_transform * transform;
+                    current = parent;
+                    // Disabling scale inheritance propogates up the bone chain.
+                    inherit_scale &= parent.inherit_scale;
+                }
             }
         } else {
+            // Stop after reaching a root bone with no parent.
             break;
         }
     }
