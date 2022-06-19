@@ -135,8 +135,12 @@ impl AnimationTransforms {
 
         // TODO: Add tests to make sure this is transposed correctly?
         for (i, bone) in skel.bones.iter().enumerate().take(MAX_BONE_COUNT) {
-            let bone_world = skel.calculate_world_transform(bone).unwrap();
-            let bone_world = glam::Mat4::from_cols_array_2d(&bone_world);
+            // TODO: Return an error instead?
+            let bone_world = skel
+                .calculate_world_transform(bone)
+                .map(|t| glam::Mat4::from_cols_array_2d(&t))
+                .unwrap_or(glam::Mat4::IDENTITY);
+
             world_transforms[i] = bone_world;
         }
 
@@ -187,7 +191,8 @@ pub fn animate_skel(
     frame: f32,
 ) {
     // TODO: Avoid allocating here?
-    let mut animated_bones: Vec<_> = skel
+    // TODO: Just take the bones or groups directly?
+    let mut bones: Vec<_> = skel
         .bones
         .iter()
         .take(MAX_BONE_COUNT)
@@ -208,22 +213,21 @@ pub fn animate_skel(
     // Constraining a bone affects the world transforms of its children.
     // This step should initialize most of the anim world transforms if everything works.
     if let Some(hlpb) = hlpb {
-        apply_hlpb_constraints(&mut animated_bones, hlpb);
+        apply_hlpb_constraints(&mut bones, hlpb);
     }
 
     // TODO: Avoid enumerate here?
     // TODO: Should scale inheritance be part of ssbh_data itself?
     // TODO: Is there a more efficient way of calculating this?
-    for i in 0..animated_bones.len() {
-        // Smash is row-major but glam is column-major.
-        // TODO: Is there an efficient way to calculate world transforms of all bones?
+    for i in 0..bones.len() {
         // Avoid the slower ssbh_data method since it can't assume the max bone count.
-        let bone_world = world_transform(&mut animated_bones, i, false).unwrap();
-        let bone_anim_world = world_transform(&mut animated_bones, i, true).unwrap();
-        let anim_transform = bone_anim_world * bone_world.inverse();
+        // TODO: Return an error instead?
+        let bone_world = world_transform(&mut bones, i, false).unwrap_or(glam::Mat4::IDENTITY);
+        let anim_world = world_transform(&mut bones, i, true).unwrap_or(glam::Mat4::IDENTITY);
+        let anim_transform = anim_world * bone_world.inverse();
 
         animation_transforms.animated_world_transforms.transforms[i] = anim_transform;
-        animation_transforms.world_transforms[i] = bone_anim_world;
+        animation_transforms.world_transforms[i] = anim_world;
         animation_transforms
             .animated_world_transforms
             .transforms_inv_transpose[i] = anim_transform.inverse().transpose();

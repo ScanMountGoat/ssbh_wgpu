@@ -6,35 +6,35 @@ fn interp(a: f32, b: f32, f: f32) -> f32 {
     (1.0 - f) * a + f * b
 }
 
-pub fn apply_hlpb_constraints(animated_bones: &mut [AnimatedBone], hlpb: &HlpbData) {
+pub fn apply_hlpb_constraints(bones: &mut [AnimatedBone], hlpb: &HlpbData) {
     // TODO: Rename the orient constraint to include rotation in the name?
 
     // TODO: Can the effects of constraints stack?
     // TODO: Calculate application order to respect dependencies?
     for aim in &hlpb.aim_constraints {
-        apply_aim_constraint(animated_bones, aim);
+        apply_aim_constraint(bones, aim);
     }
 
     for orient in &hlpb.orient_constraints {
-        apply_orient_constraint(animated_bones, orient);
+        apply_orient_constraint(bones, orient);
     }
 }
 
-fn apply_aim_constraint(animated_bones: &mut [AnimatedBone], constraint: &AimConstraintData) {
-    // // TODO: Investigate the remaining bone name fields.
-    let source = animated_bones
+fn apply_aim_constraint(bones: &mut [AnimatedBone], constraint: &AimConstraintData) {
+    // TODO: Investigate the remaining bone name fields.
+    let source = bones
         .iter()
         .position(|b| b.bone.name == constraint.aim_bone_name1)
         .unwrap();
 
     // We want the target bone to point at the source bone.
     // TODO: Is there a way to do this without using the world transforms?
-    let source_world = world_transform(animated_bones, source, true).unwrap();
+    let source_world = world_transform(bones, source, true).unwrap();
 
     // TODO: Avoid finding the bone twice?
     let target_world = world_transform(
-        animated_bones,
-        animated_bones
+        bones,
+        bones
             .iter()
             .position(|b| b.bone.name == constraint.target_bone_name1)
             .unwrap(),
@@ -42,7 +42,7 @@ fn apply_aim_constraint(animated_bones: &mut [AnimatedBone], constraint: &AimCon
     )
     .unwrap();
 
-    let target = animated_bones
+    let target = bones
         .iter_mut()
         .find(|b| b.bone.name == constraint.target_bone_name1)
         .unwrap();
@@ -73,38 +73,38 @@ fn apply_aim_constraint(animated_bones: &mut [AnimatedBone], constraint: &AimCon
 }
 
 // TODO: Improve tests.
-fn apply_orient_constraint(animated_bones: &mut [AnimatedBone], constraint: &OrientConstraintData) {
+fn apply_orient_constraint(bones: &mut [AnimatedBone], constraint: &OrientConstraintData) {
     // TODO: Investigate the remaining bone name fields.
     // TODO: What's the difference between root and bone name?
     // TODO: Do the unk types matter?
     // TODO: quat1 and quat2 correct for twists?
-    let source = animated_bones
+    let source = bones
         .iter()
         .position(|b| b.bone.name == constraint.parent_bone_name)
         .unwrap();
 
-    let target = animated_bones
+    let target = bones
         .iter()
         .position(|b| b.bone.name == constraint.driver_bone_name)
         .unwrap();
 
-    let source_parent = animated_bones[source].bone.parent_index;
-    let target_parent = animated_bones[target].bone.parent_index;
+    let source_parent = bones[source].bone.parent_index;
+    let target_parent = bones[target].bone.parent_index;
 
-    let source_world = world_transform(animated_bones, source, true).unwrap();
-    let _target_world = world_transform(animated_bones, target, true).unwrap();
+    let source_world = world_transform(bones, source, true).unwrap_or(glam::Mat4::IDENTITY);
+    let _target_world = world_transform(bones, target, true).unwrap_or(glam::Mat4::IDENTITY);
     // TODO: Do we need the source parent world?
     let _source_parent_world = source_parent
-        .map(|p| world_transform(animated_bones, p, true).unwrap())
+        .map(|p| world_transform(bones, p, true).unwrap_or(glam::Mat4::IDENTITY))
         .unwrap_or(glam::Mat4::IDENTITY);
     let target_parent_world = target_parent
-        .map(|p| world_transform(animated_bones, p, true).unwrap())
+        .map(|p| world_transform(bones, p, true).unwrap_or(glam::Mat4::IDENTITY))
         .unwrap_or(glam::Mat4::IDENTITY);
 
     let _quat1 = glam::Quat::from_array(constraint.quat1.to_array());
     let _quat2 = glam::Quat::from_array(constraint.quat2.to_array());
 
-    let target = animated_bones
+    let target = bones
         .iter_mut()
         .find(|b| b.bone.name == constraint.driver_bone_name)
         .unwrap();
