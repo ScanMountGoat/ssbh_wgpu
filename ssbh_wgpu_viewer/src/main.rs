@@ -83,7 +83,8 @@ struct State {
 
 impl State {
     async fn new(window: &Window, folder: &Path, anim_path: Option<&Path>) -> Self {
-        // The instance is a handle to our GPU
+        // TODO: How to try Vulkan and then DX12?
+        // TODO: Some Windows systems don't work on vulkan for some reason.
         let instance = wgpu::Instance::new(wgpu::Backends::all());
         let surface = unsafe { instance.create_surface(&window) };
         let adapter = instance

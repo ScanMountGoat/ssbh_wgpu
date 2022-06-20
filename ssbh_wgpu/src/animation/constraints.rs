@@ -11,6 +11,7 @@ pub fn apply_hlpb_constraints(bones: &mut [AnimatedBone], hlpb: &HlpbData) {
 
     // TODO: Can the effects of constraints stack?
     // TODO: Calculate application order to respect dependencies?
+    // TODO: Return or log errors?
     for aim in &hlpb.aim_constraints {
         apply_aim_constraint(bones, aim);
     }
@@ -20,32 +21,29 @@ pub fn apply_hlpb_constraints(bones: &mut [AnimatedBone], hlpb: &HlpbData) {
     }
 }
 
-fn apply_aim_constraint(bones: &mut [AnimatedBone], constraint: &AimConstraintData) {
+fn apply_aim_constraint(bones: &mut [AnimatedBone], constraint: &AimConstraintData) -> Option<()> {
     // TODO: Investigate the remaining bone name fields.
     let source = bones
         .iter()
-        .position(|b| b.bone.name == constraint.aim_bone_name1)
-        .unwrap();
+        .position(|b| b.bone.name == constraint.aim_bone_name1)?;
 
     // We want the target bone to point at the source bone.
     // TODO: Is there a way to do this without using the world transforms?
-    let source_world = world_transform(bones, source, true).unwrap();
+    let source_world = world_transform(bones, source, true).unwrap_or(glam::Mat4::IDENTITY);
 
     // TODO: Avoid finding the bone twice?
     let target_world = world_transform(
         bones,
         bones
             .iter()
-            .position(|b| b.bone.name == constraint.target_bone_name1)
-            .unwrap(),
+            .position(|b| b.bone.name == constraint.target_bone_name1)?,
         true,
     )
-    .unwrap();
+    .unwrap_or(glam::Mat4::IDENTITY);
 
     let target = bones
         .iter_mut()
-        .find(|b| b.bone.name == constraint.target_bone_name1)
-        .unwrap();
+        .find(|b| b.bone.name == constraint.target_bone_name1)?;
 
     // TODO: Can a bone not affected by the anim be the source?
     // TODO: Will the target of a constraint ever be animated?
@@ -69,24 +67,26 @@ fn apply_aim_constraint(bones: &mut [AnimatedBone], constraint: &AimConstraintDa
     target_transform.rotation *= glam::Quat::from_rotation_arc(aim.normalize(), v.normalize());
     target.anim_transform = Some(target_transform);
     // This bone was modified, so its animated world transform needs to be recalculated.
-    target.anim_world_transform = None
+    target.anim_world_transform = None;
+    Some(())
 }
 
 // TODO: Improve tests.
-fn apply_orient_constraint(bones: &mut [AnimatedBone], constraint: &OrientConstraintData) {
+fn apply_orient_constraint(
+    bones: &mut [AnimatedBone],
+    constraint: &OrientConstraintData,
+) -> Option<()> {
     // TODO: Investigate the remaining bone name fields.
     // TODO: What's the difference between root and bone name?
     // TODO: Do the unk types matter?
     // TODO: quat1 and quat2 correct for twists?
     let source = bones
         .iter()
-        .position(|b| b.bone.name == constraint.parent_bone_name)
-        .unwrap();
+        .position(|b| b.bone.name == constraint.parent_bone_name)?;
 
     let target = bones
         .iter()
-        .position(|b| b.bone.name == constraint.driver_bone_name)
-        .unwrap();
+        .position(|b| b.bone.name == constraint.driver_bone_name)?;
 
     let source_parent = bones[source].bone.parent_index;
     let target_parent = bones[target].bone.parent_index;
@@ -106,8 +106,7 @@ fn apply_orient_constraint(bones: &mut [AnimatedBone], constraint: &OrientConstr
 
     let target = bones
         .iter_mut()
-        .find(|b| b.bone.name == constraint.driver_bone_name)
-        .unwrap();
+        .find(|b| b.bone.name == constraint.driver_bone_name)?;
 
     // Calculate the source bone's world orientation.
     // Convert to be relative to the target's parent using the inverse.
@@ -138,7 +137,8 @@ fn apply_orient_constraint(bones: &mut [AnimatedBone], constraint: &OrientConstr
     new_transform.rotation = source_r;
     target.anim_transform = Some(new_transform);
     // This bone was modified, so its animated world transform needs to be recalculated.
-    target.anim_world_transform = None
+    target.anim_world_transform = None;
+    Some(())
 }
 
 #[cfg(test)]
@@ -166,7 +166,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
     fn single_orient_constraint_missing_bones() {
         let a = identity_bone("A", None);
         let b = identity_bone("B", Some(0));
@@ -198,11 +197,11 @@ mod tests {
                 minor_version: 0,
                 aim_constraints: Vec::new(),
                 orient_constraints: vec![OrientConstraintData {
-                    name: "".to_string(),
-                    bone_name: "".to_string(),
-                    root_bone_name: "".to_string(),
-                    parent_bone_name: "".to_string(),
-                    driver_bone_name: "".to_string(),
+                    name: String::new(),
+                    bone_name: String::new(),
+                    root_bone_name: String::new(),
+                    parent_bone_name: String::new(),
+                    driver_bone_name: String::new(),
                     unk_type: 2,
                     constraint_axes: Vector3::new(1.0, 1.0, 1.0),
                     quat1: Vector4::new(0.0, 0.0, 0.0, 1.0),
@@ -603,6 +602,64 @@ mod tests {
         assert_vector_relative_eq!(
             [0.0, 0.0, 0.0, 1.0],
             bones[1].anim_transform.unwrap().rotation.to_array()
+        );
+    }
+
+    #[test]
+    fn single_aim_constraint_missing_bones() {
+        let a = identity_bone("A", None);
+        let b = identity_bone("B", None);
+        let mut bones = vec![
+            AnimatedBone {
+                bone: &a,
+                anim_transform: Some(AnimTransform {
+                    translation: glam::Vec3::new(0.0, 0.0, 0.0),
+                    rotation: glam::Quat::IDENTITY,
+                    scale: glam::Vec3::ONE,
+                }),
+                compensate_scale: false,
+                inherit_scale: false,
+                flags: TransformFlags::default(),
+                world_transform: None,
+                anim_world_transform: None,
+            },
+            AnimatedBone {
+                bone: &b,
+                anim_transform: Some(AnimTransform {
+                    translation: glam::Vec3::new(1.0, 0.0, 1.0),
+                    rotation: glam::Quat::IDENTITY,
+                    scale: glam::Vec3::ONE,
+                }),
+                compensate_scale: false,
+                inherit_scale: false,
+                flags: TransformFlags::default(),
+                world_transform: None,
+                anim_world_transform: None,
+            },
+        ];
+
+        apply_hlpb_constraints(
+            &mut bones,
+            &HlpbData {
+                major_version: 1,
+                minor_version: 0,
+                aim_constraints: vec![AimConstraintData {
+                    name: "constraint".to_string(),
+                    aim_bone_name1: String::new(),
+                    aim_bone_name2: String::new(),
+                    aim_type1: "DEFAULT".to_string(),
+                    aim_type2: "DEFAULT".to_string(),
+                    target_bone_name1: String::new(),
+                    target_bone_name2: String::new(),
+                    unk1: 0,
+                    unk2: 0,
+                    aim: Vector3::new(1.0, 0.0, 0.0),
+                    up: Vector3::new(0.0, 1.0, 0.0),
+                    quat1: Vector4::new(0.0, 0.0, 0.0, 1.0),
+                    quat2: Vector4::new(0.0, 0.0, 0.0, 1.0),
+                }],
+                orient_constraints: Vec::new(),
+            },
         );
     }
 }
