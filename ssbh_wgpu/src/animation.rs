@@ -183,10 +183,10 @@ impl Visibility for (String, bool) {
 
 // TODO: Separate module for skeletal animation?
 // TODO: Benchmarks for criterion.rs that test performance scaling with bone and constraint count.
-pub fn animate_skel(
+pub fn animate_skel<'a>(
     animation_transforms: &mut AnimationTransforms,
     skel: &SkelData,
-    anims: &[AnimData],
+    anims: impl Iterator<Item = &'a AnimData>,
     hlpb: Option<&HlpbData>,
     frame: f32,
 ) {
@@ -570,12 +570,13 @@ mod tests {
                 minor_version: 0,
                 bones: vec![identity_bone("A", None); 512],
             },
-            &[AnimData {
+            [AnimData {
                 major_version: 2,
                 minor_version: 0,
                 final_frame_index: 0.0,
                 groups: Vec::new(),
-            }],
+            }]
+            .iter(),
             None,
             0.0,
         );
@@ -591,12 +592,13 @@ mod tests {
                 minor_version: 0,
                 bones: vec![identity_bone("A", None); 600],
             },
-            &[AnimData {
+            [AnimData {
                 major_version: 2,
                 minor_version: 0,
                 final_frame_index: 0.0,
                 groups: Vec::new(),
-            }],
+            }]
+            .iter(),
             None,
             0.0,
         );
@@ -611,12 +613,13 @@ mod tests {
                 minor_version: 0,
                 bones: Vec::new(),
             },
-            &[AnimData {
+            [AnimData {
                 major_version: 2,
                 minor_version: 0,
                 final_frame_index: 0.0,
                 groups: Vec::new(),
-            }],
+            }]
+            .iter(),
             None,
             0.0,
         );
@@ -634,7 +637,7 @@ mod tests {
                 minor_version: 0,
                 bones: vec![identity_bone("A", None)],
             },
-            &[AnimData {
+            [AnimData {
                 major_version: 2,
                 minor_version: 0,
                 final_frame_index: 0.0,
@@ -654,7 +657,8 @@ mod tests {
                         }],
                     }],
                 }],
-            }],
+            }]
+            .iter(),
             None,
             0.0,
         );
@@ -707,7 +711,7 @@ mod tests {
                     identity_bone("C", None),
                 ],
             },
-            &[
+            [
                 AnimData {
                     major_version: 2,
                     minor_version: 0,
@@ -780,7 +784,8 @@ mod tests {
                         ],
                     }],
                 },
-            ],
+            ]
+            .iter(),
             None,
             0.0,
         );
@@ -830,7 +835,7 @@ mod tests {
                     identity_bone("C", Some(1)),
                 ],
             },
-            &[AnimData {
+            [AnimData {
                 major_version: 2,
                 minor_version: 0,
                 final_frame_index: 0.0,
@@ -887,7 +892,8 @@ mod tests {
                         },
                     ],
                 }],
-            }],
+            }]
+            .iter(),
             None,
             0.0,
         );
@@ -937,7 +943,7 @@ mod tests {
                     identity_bone("C", Some(1)),
                 ],
             },
-            &[AnimData {
+            [AnimData {
                 major_version: 2,
                 minor_version: 0,
                 final_frame_index: 0.0,
@@ -994,7 +1000,8 @@ mod tests {
                         },
                     ],
                 }],
-            }],
+            }]
+            .iter(),
             None,
             0.0,
         );
@@ -1044,7 +1051,7 @@ mod tests {
                     identity_bone("C", Some(1)),
                 ],
             },
-            &[AnimData {
+            [AnimData {
                 major_version: 2,
                 minor_version: 0,
                 final_frame_index: 0.0,
@@ -1101,7 +1108,8 @@ mod tests {
                         },
                     ],
                 }],
-            }],
+            }]
+            .iter(),
             None,
             0.0,
         );
@@ -1153,7 +1161,7 @@ mod tests {
                     identity_bone("C", Some(1)),
                 ],
             },
-            &[AnimData {
+            [AnimData {
                 major_version: 2,
                 minor_version: 0,
                 final_frame_index: 0.0,
@@ -1222,7 +1230,8 @@ mod tests {
                         },
                     ],
                 }],
-            }],
+            }]
+            .iter(),
             None,
             0.0,
         );
@@ -1285,7 +1294,7 @@ mod tests {
                 minor_version: 0,
                 bones: vec![l0, l1, r0, r1],
             },
-            &[AnimData {
+            [AnimData {
                 major_version: 2,
                 minor_version: 0,
                 final_frame_index: 0.0,
@@ -1366,7 +1375,8 @@ mod tests {
                         },
                     ],
                 }],
-            }],
+            }]
+            .iter(),
             Some(&HlpbData {
                 major_version: 1,
                 minor_version: 0,

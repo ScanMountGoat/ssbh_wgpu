@@ -408,7 +408,7 @@ impl State {
                 model.apply_anim(
                     &self.device,
                     &self.queue,
-                    &self.animations,
+                    self.animations.iter(),
                     self.models[i].find_skel(),
                     self.models[i].find_matl(),
                     self.models[i].find_hlpb(),

@@ -200,11 +200,11 @@ impl RenderModel {
         // Renaming materials will quickly fill this cache.
     }
 
-    pub fn apply_anim(
+    pub fn apply_anim<'a>(
         &mut self,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
-        anims: &[AnimData],
+        anims: impl Iterator<Item = &'a AnimData> + Clone,
         skel: Option<&SkelData>,
         matl: Option<&MatlData>,
         hlpb: Option<&HlpbData>,
@@ -219,7 +219,9 @@ impl RenderModel {
         // TODO: How to "reset" an animation?
         let start = std::time::Instant::now();
 
-        for anim in anims {
+        // TODO: Restructure this to iterate the animations only once?
+        let anims = anims.into_iter();
+        for anim in anims.clone() {
             // TODO: This won't work for multiple animations?
             animate_visibility(anim, frame, &mut self.meshes);
 
