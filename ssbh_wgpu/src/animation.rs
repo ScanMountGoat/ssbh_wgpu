@@ -186,7 +186,7 @@ impl Visibility for (String, bool) {
 pub fn animate_skel(
     animation_transforms: &mut AnimationTransforms,
     skel: &SkelData,
-    anim: &AnimData,
+    anims: &[AnimData],
     hlpb: Option<&HlpbData>,
     frame: f32,
 ) {
@@ -196,18 +196,20 @@ pub fn animate_skel(
         .bones
         .iter()
         .take(MAX_BONE_COUNT)
-        .map(|b| {
-            find_transform(anim, b, frame).unwrap_or(AnimatedBone {
-                bone: b,
-                compensate_scale: false,
-                inherit_scale: true,
-                anim_transform: None,
-                flags: TransformFlags::default(),
-                world_transform: None,
-                anim_world_transform: None,
-            })
+        .map(|b| AnimatedBone {
+            bone: b,
+            compensate_scale: false,
+            inherit_scale: true,
+            anim_transform: None,
+            flags: TransformFlags::default(),
+            world_transform: None,
+            anim_world_transform: None,
         })
         .collect();
+
+    for anim in anims {
+        apply_transforms(&mut bones, anim, frame);
+    }
 
     // TODO: Does the order of constraints here affect the world transforms?
     // Constraining a bone affects the world transforms of its children.
@@ -333,16 +335,20 @@ fn compensate_scale(transform: glam::Mat4, parent_transform: glam::Mat4) -> glam
     scale_compensation * transform
 }
 
-fn find_transform<'a>(anim: &AnimData, bone: &'a BoneData, frame: f32) -> Option<AnimatedBone<'a>> {
+fn apply_transforms<'a>(
+    bones: &mut [AnimatedBone],
+    anim: &AnimData,
+    frame: f32,
+) -> Option<AnimatedBone<'a>> {
     for group in &anim.groups {
         if group.group_type == GroupType::Transform {
             for node in &group.nodes {
                 // TODO: Multiple nodes with the bone's name?
-                if node.name == bone.name {
+                if let Some(bone) = bones.iter_mut().find(|b| b.bone.name == node.name) {
                     // TODO: Multiple transform tracks per bone?
                     if let Some(track) = node.tracks.first() {
                         if let TrackValues::Transform(values) = &track.values {
-                            return Some(create_animated_bone(frame, bone, track, values));
+                            *bone = create_animated_bone(frame, &bone.bone, track, values);
                         }
                     }
                 }
@@ -564,12 +570,12 @@ mod tests {
                 minor_version: 0,
                 bones: vec![identity_bone("A", None); 512],
             },
-            &AnimData {
+            &[AnimData {
                 major_version: 2,
                 minor_version: 0,
                 final_frame_index: 0.0,
                 groups: Vec::new(),
-            },
+            }],
             None,
             0.0,
         );
@@ -585,12 +591,12 @@ mod tests {
                 minor_version: 0,
                 bones: vec![identity_bone("A", None); 600],
             },
-            &AnimData {
+            &[AnimData {
                 major_version: 2,
                 minor_version: 0,
                 final_frame_index: 0.0,
                 groups: Vec::new(),
-            },
+            }],
             None,
             0.0,
         );
@@ -605,12 +611,12 @@ mod tests {
                 minor_version: 0,
                 bones: Vec::new(),
             },
-            &AnimData {
+            &[AnimData {
                 major_version: 2,
                 minor_version: 0,
                 final_frame_index: 0.0,
                 groups: Vec::new(),
-            },
+            }],
             None,
             0.0,
         );
@@ -628,7 +634,7 @@ mod tests {
                 minor_version: 0,
                 bones: vec![identity_bone("A", None)],
             },
-            &AnimData {
+            &[AnimData {
                 major_version: 2,
                 minor_version: 0,
                 final_frame_index: 0.0,
@@ -648,13 +654,12 @@ mod tests {
                         }],
                     }],
                 }],
-            },
+            }],
             None,
             0.0,
         );
 
         // TODO: Test the unused indices?
-        // TODO: No transpose?
         assert_matrix_relative_eq!(
             [
                 [1.0, 0.0, 0.0, 0.0],
@@ -662,9 +667,7 @@ mod tests {
                 [0.0, 0.0, -3.0, 0.0],
                 [4.0, 5.0, 6.0, 1.0],
             ],
-            transforms.animated_world_transforms.transforms[0]
-                // .transpose()
-                .to_cols_array_2d()
+            transforms.animated_world_transforms.transforms[0].to_cols_array_2d()
         );
         assert_matrix_relative_eq!(
             [
@@ -676,7 +679,6 @@ mod tests {
             transforms
                 .animated_world_transforms
                 .transforms_inv_transpose[0]
-                // .transpose()
                 .to_cols_array_2d()
         );
         assert_matrix_relative_eq!(
@@ -686,9 +688,130 @@ mod tests {
                 [0.0, 0.0, -3.0, 0.0],
                 [4.0, 5.0, 6.0, 1.0],
             ],
-            transforms.world_transforms[0]
-                // .transpose()
-                .to_cols_array_2d()
+            transforms.world_transforms[0].to_cols_array_2d()
+        );
+    }
+
+    #[test]
+    fn apply_animation_two_animations() {
+        // Check that animations overlap properly.
+        let mut transforms = AnimationTransforms::identity();
+        animate_skel(
+            &mut transforms,
+            &SkelData {
+                major_version: 1,
+                minor_version: 0,
+                bones: vec![
+                    identity_bone("A", None),
+                    identity_bone("B", None),
+                    identity_bone("C", None),
+                ],
+            },
+            &[
+                AnimData {
+                    major_version: 2,
+                    minor_version: 0,
+                    final_frame_index: 0.0,
+                    groups: vec![GroupData {
+                        group_type: GroupType::Transform,
+                        nodes: vec![
+                            NodeData {
+                                name: "A".to_string(),
+                                tracks: vec![TrackData {
+                                    name: "Transform".to_string(),
+                                    scale_options: ScaleOptions::default(),
+                                    values: TrackValues::Transform(vec![Transform {
+                                        scale: Vector3::new(1.0, 2.0, 3.0),
+                                        rotation: Vector4::new(0.0, 0.0, 0.0, 1.0),
+                                        translation: Vector3::new(0.0, 0.0, 0.0),
+                                    }]),
+                                    transform_flags: TransformFlags::default(),
+                                }],
+                            },
+                            NodeData {
+                                name: "B".to_string(),
+                                tracks: vec![TrackData {
+                                    name: "Transform".to_string(),
+                                    scale_options: ScaleOptions::default(),
+                                    values: TrackValues::Transform(vec![Transform {
+                                        scale: Vector3::new(4.0, 5.0, 6.0),
+                                        rotation: Vector4::new(0.0, 0.0, 0.0, 1.0),
+                                        translation: Vector3::new(0.0, 0.0, 0.0),
+                                    }]),
+                                    transform_flags: TransformFlags::default(),
+                                }],
+                            },
+                        ],
+                    }],
+                },
+                AnimData {
+                    major_version: 2,
+                    minor_version: 0,
+                    final_frame_index: 0.0,
+                    groups: vec![GroupData {
+                        group_type: GroupType::Transform,
+                        nodes: vec![
+                            NodeData {
+                                name: "B".to_string(),
+                                tracks: vec![TrackData {
+                                    name: "Transform".to_string(),
+                                    scale_options: ScaleOptions::default(),
+                                    values: TrackValues::Transform(vec![Transform {
+                                        scale: Vector3::new(4.0, 5.0, 6.0),
+                                        rotation: Vector4::new(0.0, 0.0, 0.0, 1.0),
+                                        translation: Vector3::new(0.0, 0.0, 0.0),
+                                    }]),
+                                    transform_flags: TransformFlags::default(),
+                                }],
+                            },
+                            NodeData {
+                                name: "C".to_string(),
+                                tracks: vec![TrackData {
+                                    name: "Transform".to_string(),
+                                    scale_options: ScaleOptions::default(),
+                                    values: TrackValues::Transform(vec![Transform {
+                                        scale: Vector3::new(7.0, 8.0, 9.0),
+                                        rotation: Vector4::new(0.0, 0.0, 0.0, 1.0),
+                                        translation: Vector3::new(0.0, 0.0, 0.0),
+                                    }]),
+                                    transform_flags: TransformFlags::default(),
+                                }],
+                            },
+                        ],
+                    }],
+                },
+            ],
+            None,
+            0.0,
+        );
+
+        // TODO: Test the unused indices?
+        assert_matrix_relative_eq!(
+            [
+                [1.0, 0.0, 0.0, 0.0],
+                [0.0, 2.0, 0.0, 0.0],
+                [0.0, 0.0, 3.0, 0.0],
+                [0.0, 0.0, 0.0, 1.0],
+            ],
+            transforms.animated_world_transforms.transforms[0].to_cols_array_2d()
+        );
+        assert_matrix_relative_eq!(
+            [
+                [4.0, 0.0, 0.0, 0.0],
+                [0.0, 5.0, 0.0, 0.0],
+                [0.0, 0.0, 6.0, 0.0],
+                [0.0, 0.0, 0.0, 1.0],
+            ],
+            transforms.animated_world_transforms.transforms[1].to_cols_array_2d()
+        );
+        assert_matrix_relative_eq!(
+            [
+                [7.0, 0.0, 0.0, 0.0],
+                [0.0, 8.0, 0.0, 0.0],
+                [0.0, 0.0, 9.0, 0.0],
+                [0.0, 0.0, 0.0, 1.0],
+            ],
+            transforms.animated_world_transforms.transforms[2].to_cols_array_2d()
         );
     }
 
@@ -707,7 +830,7 @@ mod tests {
                     identity_bone("C", Some(1)),
                 ],
             },
-            &AnimData {
+            &[AnimData {
                 major_version: 2,
                 minor_version: 0,
                 final_frame_index: 0.0,
@@ -764,12 +887,11 @@ mod tests {
                         },
                     ],
                 }],
-            },
+            }],
             None,
             0.0,
         );
 
-        // TODO: No transpose?
         assert_matrix_relative_eq!(
             [
                 [1.0, 0.0, 0.0, 0.0],
@@ -815,7 +937,7 @@ mod tests {
                     identity_bone("C", Some(1)),
                 ],
             },
-            &AnimData {
+            &[AnimData {
                 major_version: 2,
                 minor_version: 0,
                 final_frame_index: 0.0,
@@ -872,12 +994,11 @@ mod tests {
                         },
                     ],
                 }],
-            },
+            }],
             None,
             0.0,
         );
 
-        // TODO: No transpose?
         assert_matrix_relative_eq!(
             [
                 [1.0, 0.0, 0.0, 0.0],
@@ -923,7 +1044,7 @@ mod tests {
                     identity_bone("C", Some(1)),
                 ],
             },
-            &AnimData {
+            &[AnimData {
                 major_version: 2,
                 minor_version: 0,
                 final_frame_index: 0.0,
@@ -980,12 +1101,11 @@ mod tests {
                         },
                     ],
                 }],
-            },
+            }],
             None,
             0.0,
         );
 
-        // TODO: No transpose?
         assert_matrix_relative_eq!(
             [
                 [1.0, 0.0, 0.0, 0.0],
@@ -1033,7 +1153,7 @@ mod tests {
                     identity_bone("C", Some(1)),
                 ],
             },
-            &AnimData {
+            &[AnimData {
                 major_version: 2,
                 minor_version: 0,
                 final_frame_index: 0.0,
@@ -1102,12 +1222,11 @@ mod tests {
                         },
                     ],
                 }],
-            },
+            }],
             None,
             0.0,
         );
 
-        // TODO: No transpose?
         assert_matrix_relative_eq!(
             [
                 [1.0, 0.0, 0.0, 0.0],
@@ -1166,7 +1285,7 @@ mod tests {
                 minor_version: 0,
                 bones: vec![l0, l1, r0, r1],
             },
-            &AnimData {
+            &[AnimData {
                 major_version: 2,
                 minor_version: 0,
                 final_frame_index: 0.0,
@@ -1247,7 +1366,7 @@ mod tests {
                         },
                     ],
                 }],
-            },
+            }],
             Some(&HlpbData {
                 major_version: 1,
                 minor_version: 0,

@@ -200,12 +200,11 @@ impl RenderModel {
         // Renaming materials will quickly fill this cache.
     }
 
-    // TODO: Does it make sense to just pass None to "reset" the animation?
     pub fn apply_anim(
         &mut self,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
-        anim: Option<&AnimData>,
+        anims: &[AnimData],
         skel: Option<&SkelData>,
         matl: Option<&MatlData>,
         hlpb: Option<&HlpbData>,
@@ -220,7 +219,8 @@ impl RenderModel {
         // TODO: How to "reset" an animation?
         let start = std::time::Instant::now();
 
-        if let Some(anim) = anim {
+        for anim in anims {
+            // TODO: This won't work for multiple animations?
             animate_visibility(anim, frame, &mut self.meshes);
 
             if let Some(matl) = matl {
@@ -239,28 +239,29 @@ impl RenderModel {
                     database,
                 );
             }
+        }
 
-            if let Some(skel) = skel {
-                animate_skel(&mut self.animation_transforms, skel, anim, hlpb, frame);
-                queue.write_buffer(
-                    &self.mesh_buffers.skinning_transforms,
-                    0,
-                    bytemuck::cast_slice(&[self.animation_transforms.animated_world_transforms]),
-                );
+        if let Some(skel) = skel {
+            animate_skel(&mut self.animation_transforms, skel, anims, hlpb, frame);
 
-                queue.write_buffer(
-                    &self.mesh_buffers.world_transforms,
-                    0,
-                    bytemuck::cast_slice(&self.animation_transforms.world_transforms),
-                );
+            queue.write_buffer(
+                &self.mesh_buffers.skinning_transforms,
+                0,
+                bytemuck::cast_slice(&[self.animation_transforms.animated_world_transforms]),
+            );
 
-                let joint_transforms = joint_transforms(skel, &self.animation_transforms);
-                queue.write_buffer(
-                    &self.joint_world_transforms_buffer,
-                    0,
-                    bytemuck::cast_slice(&joint_transforms),
-                );
-            }
+            queue.write_buffer(
+                &self.mesh_buffers.world_transforms,
+                0,
+                bytemuck::cast_slice(&self.animation_transforms.world_transforms),
+            );
+
+            let joint_transforms = joint_transforms(skel, &self.animation_transforms);
+            queue.write_buffer(
+                &self.joint_world_transforms_buffer,
+                0,
+                bytemuck::cast_slice(&joint_transforms),
+            );
         }
 
         debug!("Apply Anim: {:?}", start.elapsed());

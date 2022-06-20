@@ -66,7 +66,7 @@ struct State {
     rotation_xyz: glam::Vec3,
 
     // Animations
-    animation: Option<AnimData>,
+    animations: Vec<AnimData>,
     // TODO: How to handle overflow if left running too long?
     current_frame: f32,
     previous_frame_start: std::time::Instant,
@@ -82,7 +82,7 @@ struct State {
 }
 
 impl State {
-    async fn new(window: &Window, folder: &Path, anim_path: Option<&Path>) -> Self {
+    async fn new(window: &Window, folder: &Path, anim_paths: &[&Path]) -> Self {
         // TODO: How to try Vulkan and then DX12?
         // TODO: Some Windows systems don't work on vulkan for some reason.
         let instance = wgpu::Instance::new(wgpu::Backends::all());
@@ -119,8 +119,10 @@ impl State {
 
         // TODO: Frame bounding spheres?
 
-        // TODO: Where to store/load anim files?
-        let animation = anim_path.map(|anim_path| AnimData::from_file(anim_path).unwrap());
+        let animations: Vec<_> = anim_paths
+            .iter()
+            .map(|anim_path| AnimData::from_file(anim_path).unwrap())
+            .collect();
 
         // TODO: Combine these into a single global textures struct?
         let default_textures = create_default_textures(&device, &queue);
@@ -165,7 +167,7 @@ impl State {
             is_mouse_right_clicked: false,
             translation_xyz: glam::Vec3::new(0.0, -8.0, -60.0),
             rotation_xyz: glam::Vec3::new(0.0, 0.0, 0.0),
-            animation,
+            animations,
             current_frame: 0.0,
             previous_frame_start: std::time::Instant::now(),
             default_textures,
@@ -380,7 +382,7 @@ impl State {
                 self.current_frame,
                 self.previous_frame_start,
                 current_frame_start,
-                self.animation.as_ref(),
+                &self.animations,
             );
         }
         self.previous_frame_start = current_frame_start;
@@ -406,7 +408,7 @@ impl State {
                 model.apply_anim(
                     &self.device,
                     &self.queue,
-                    self.animation.as_ref(),
+                    &self.animations,
                     self.models[i].find_skel(),
                     self.models[i].find_matl(),
                     self.models[i].find_hlpb(),
@@ -458,7 +460,7 @@ pub fn next_frame(
     current_frame: f32,
     previous: std::time::Instant,
     current: std::time::Instant,
-    animation: Option<&AnimData>,
+    animations: &[AnimData],
 ) -> f32 {
     // Animate at 60 fps regardless of the rendering framerate.
     // This relies on interpolation or frame skipping.
@@ -472,10 +474,13 @@ pub fn next_frame(
 
     let mut next_frame = current_frame + (delta_t_frames * playback_speed) as f32;
 
-    if let Some(animation) = animation {
-        if next_frame > animation.final_frame_index {
-            next_frame = 0.0;
-        }
+    let max_final_frame = animations
+        .iter()
+        .map(|a| a.final_frame_index)
+        .fold(0.0, |a, b| f32::max(a, b));
+
+    if next_frame > max_final_frame {
+        next_frame = 0.0;
     }
 
     next_frame
@@ -491,7 +496,10 @@ fn main() {
 
     let args: Vec<_> = std::env::args().collect();
     let folder = Path::new(&args[1]);
-    let anim_path = args.get(2).map(Path::new);
+    let anim_paths: Vec<_> = args
+        .get(2..)
+        .map(|p| p.iter().map(Path::new).collect())
+        .unwrap_or_default();
 
     let event_loop = EventLoop::new();
     let window = WindowBuilder::new()
@@ -499,7 +507,7 @@ fn main() {
         .build(&event_loop)
         .unwrap();
 
-    let mut state = futures::executor::block_on(State::new(&window, folder, anim_path));
+    let mut state = futures::executor::block_on(State::new(&window, folder, &anim_paths));
 
     event_loop.run(move |event, _, control_flow| {
         match event {
