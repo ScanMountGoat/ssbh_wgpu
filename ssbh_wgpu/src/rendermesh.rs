@@ -38,6 +38,7 @@ pub struct RenderModel {
     material_data_by_label: HashMap<String, MaterialData>,
     pipelines: HashMap<PipelineKey, wgpu::RenderPipeline>,
     textures: Vec<(String, wgpu::Texture)>, // (file name, texture)
+
     // TODO: Store this with the renderer since we only need one?
     // TODO: Avoid storing duplicate geometry for the scaled version?
     bone_vertex_buffer: wgpu::Buffer,
@@ -46,6 +47,7 @@ pub struct RenderModel {
     joint_vertex_buffer: wgpu::Buffer,
     joint_vertex_buffer_outer: wgpu::Buffer,
     joint_index_buffer: wgpu::Buffer,
+
     joint_world_transforms_buffer: wgpu::Buffer,
     bone_data_bind_group: crate::shader::skeleton::bind_groups::BindGroup1,
     bone_data_outer_bind_group: crate::shader::skeleton::bind_groups::BindGroup1,
@@ -805,54 +807,24 @@ fn create_render_meshes(
         .unwrap_or_default();
 
     // TODO: Find a way to have fewer function parameters?
-    let mut index_offset = 0;
-
     let mut model_buffer0_data = Vec::new();
     let mut model_buffer1_data = Vec::new();
     let mut model_skin_weights_data = Vec::new();
-    let mut model_vertex_indices = Vec::new();
+    let mut model_index_data = Vec::new();
 
     let mut accesses = Vec::new();
 
-    let align = |x, n| ((x + n - 1) / n) * n;
-
     if let Some(mesh) = shared_data.mesh.as_ref() {
         for mesh_object in &mesh.objects {
-            let buffer0_offset = model_buffer0_data.len();
-            let buffer1_offset = model_buffer1_data.len();
-            let weights_offset = model_skin_weights_data.len();
-
-            // TODO: Offset alignment of 256?
-            let buffer0_vertices = buffer0(mesh_object);
-            let buffer0_data = bytemuck::cast_slice::<_, u8>(&buffer0_vertices);
-            model_buffer0_data.extend_from_slice(buffer0_data);
-            model_buffer0_data.resize(align(model_buffer0_data.len(), 256), 0u8);
-
-            let buffer1_vertices = buffer1(mesh_object);
-            let buffer1_data = bytemuck::cast_slice::<_, u8>(&buffer1_vertices);
-            model_buffer1_data.extend_from_slice(buffer1_data);
-            model_buffer1_data.resize(align(model_buffer1_data.len(), 256), 0u8);
-
-            let skin_weights = skin_weights(mesh_object, shared_data.skel);
-            let skin_weights_data = bytemuck::cast_slice::<_, u8>(&skin_weights);
-            model_skin_weights_data.extend_from_slice(skin_weights_data);
-            model_skin_weights_data.resize(align(model_skin_weights_data.len(), 256), 0u8);
-
-            let indices_size = bytemuck::cast_slice::<_, u8>(&mesh_object.vertex_indices).len();
-            model_vertex_indices.extend_from_slice(&mesh_object.vertex_indices);
-
-            accesses.push(MeshBufferAccess {
-                buffer0_start: buffer0_offset as u64,
-                buffer0_size: buffer0_data.len() as u64,
-                buffer1_start: buffer1_offset as u64,
-                buffer1_size: buffer1_data.len() as u64,
-                weights_start: weights_offset as u64,
-                weights_size: skin_weights_data.len() as u64,
-                indices_start: index_offset as u64,
-                indices_size: indices_size as u64,
-            });
-
-            index_offset += indices_size;
+            append_mesh_object_buffer_data(
+                &mut model_buffer0_data,
+                &mut model_buffer1_data,
+                &mut model_skin_weights_data,
+                &mut model_index_data,
+                mesh_object,
+                shared_data,
+                &mut accesses,
+            );
         }
     }
 
@@ -861,7 +833,7 @@ fn create_render_meshes(
         &model_buffer0_data,
         &model_buffer1_data,
         &model_skin_weights_data,
-        &model_vertex_indices,
+        &model_index_data,
     );
 
     let meshes = shared_data
@@ -899,6 +871,54 @@ fn create_render_meshes(
         pipelines,
         buffer_data,
     }
+}
+
+fn append_mesh_object_buffer_data(
+    model_buffer0_data: &mut Vec<u8>,
+    model_buffer1_data: &mut Vec<u8>,
+    model_skin_weights_data: &mut Vec<u8>,
+    model_index_data: &mut Vec<u8>,
+    mesh_object: &MeshObjectData,
+    shared_data: &RenderMeshSharedData,
+    accesses: &mut Vec<MeshBufferAccess>,
+) {
+    // Storage buffers require offset alignments of at least 256.
+    let align = |x, n| ((x + n - 1) / n) * n;
+
+    let buffer0_offset = model_buffer0_data.len();
+    let buffer1_offset = model_buffer1_data.len();
+    let weights_offset = model_skin_weights_data.len();
+    let index_offset = model_index_data.len();
+
+    // TODO: Avoid unwrap.
+    let buffer0_vertices = buffer0(mesh_object).unwrap();
+    let buffer0_data = bytemuck::cast_slice::<_, u8>(&buffer0_vertices);
+    model_buffer0_data.extend_from_slice(buffer0_data);
+    model_buffer0_data.resize(align(model_buffer0_data.len(), 256), 0u8);
+
+    let buffer1_vertices = buffer1(mesh_object).unwrap();
+    let buffer1_data = bytemuck::cast_slice::<_, u8>(&buffer1_vertices);
+    model_buffer1_data.extend_from_slice(buffer1_data);
+    model_buffer1_data.resize(align(model_buffer1_data.len(), 256), 0u8);
+
+    let skin_weights = skin_weights(mesh_object, shared_data.skel).unwrap();
+    let skin_weights_data = bytemuck::cast_slice::<_, u8>(&skin_weights);
+    model_skin_weights_data.extend_from_slice(skin_weights_data);
+    model_skin_weights_data.resize(align(model_skin_weights_data.len(), 256), 0u8);
+
+    let index_data = bytemuck::cast_slice::<_, u8>(&mesh_object.vertex_indices);
+    model_index_data.extend_from_slice(index_data);
+
+    accesses.push(MeshBufferAccess {
+        buffer0_start: buffer0_offset as u64,
+        buffer0_size: buffer0_data.len() as u64,
+        buffer1_start: buffer1_offset as u64,
+        buffer1_size: buffer1_data.len() as u64,
+        weights_start: weights_offset as u64,
+        weights_size: skin_weights_data.len() as u64,
+        indices_start: index_offset as u64,
+        indices_size: index_data.len() as u64,
+    });
 }
 
 // TODO: Group these parameters?

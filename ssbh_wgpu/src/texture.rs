@@ -84,7 +84,7 @@ pub fn load_sampler(
         anisotropy_clamp: sampler
             .data
             .max_anisotropy
-            .map(|m| NonZeroU8::new(m as u8).unwrap()),
+            .and_then(|m| NonZeroU8::new(m as u8)),
         // TODO: Set other options?
         ..Default::default()
     });

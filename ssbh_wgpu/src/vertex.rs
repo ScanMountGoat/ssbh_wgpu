@@ -1,19 +1,18 @@
 use crate::shader::model::{VertexInput0, VertexInput1};
-use ssbh_data::{mesh_data::MeshObjectData, skel_data::SkelData};
+use log::warn;
+use ssbh_data::{
+    mesh_data::{error::Error, MeshObjectData},
+    skel_data::SkelData,
+};
 use wgpu::{util::DeviceExt, Device};
 
 // TODO: Create a function and tests that groups attributes into two buffers
-pub fn buffer0(mesh_data: &MeshObjectData) -> Vec<VertexInput0> {
+pub fn buffer0(mesh_data: &MeshObjectData) -> Result<Vec<VertexInput0>, Error> {
     // Use ssbh_data's vertex count validation.
-    // TODO: Return an error if vertex count is ambiguous?
-    let vertex_count = mesh_data.vertex_count().unwrap();
-    if vertex_count == 0 {
-        return Vec::new();
-    }
-
-    let mut vertices = Vec::new();
+    let vertex_count = mesh_data.vertex_count()?;
 
     // TODO: Refactor this to be cleaner.
+    let mut vertices = Vec::new();
 
     // Pad to vec4 to avoid needing separate pipelines for different meshes.
     let positions: Vec<_> = mesh_data
@@ -55,7 +54,7 @@ pub fn buffer0(mesh_data: &MeshObjectData) -> Vec<VertexInput0> {
         })
     }
 
-    vertices
+    Ok(vertices)
 }
 
 // TODO: Support and test other lengths?
@@ -91,9 +90,10 @@ macro_rules! set_color_attribute {
     };
 }
 
-pub fn buffer1(mesh_data: &MeshObjectData) -> Vec<VertexInput1> {
+pub fn buffer1(mesh_data: &MeshObjectData) -> Result<Vec<VertexInput1>, Error> {
     // TODO: How to assign attributes efficiently?
-    let vertex_count = mesh_data.vertex_count().unwrap();
+    // Use ssbh_data's vertex count validation.
+    let vertex_count = mesh_data.vertex_count()?;
 
     // TODO: This could be done by zeroing memory but probably isn't worth it.
     let mut vertices = vec![
@@ -137,7 +137,7 @@ pub fn buffer1(mesh_data: &MeshObjectData) -> Vec<VertexInput1> {
         }
     }
 
-    vertices
+    Ok(vertices)
 }
 
 #[repr(C)]
@@ -148,16 +148,18 @@ pub struct VertexWeight {
 }
 
 impl VertexWeight {
-    fn add_weight(&mut self, index: i32, weight: f32) {
+    fn add_weight(&mut self, index: i32, weight: f32) -> bool {
         // Assume unitialized indices have an index of -1.
         // TODO: How does in game ignore more than 4 influences?
         for i in 0..4 {
             if self.bone_indices[i] < 0 {
                 self.bone_indices[i] = index;
                 self.weights[i] = weight;
-                break;
+                return true;
             }
         }
+
+        false
     }
 }
 
@@ -170,18 +172,21 @@ impl Default for VertexWeight {
     }
 }
 
-pub fn skin_weights(mesh_object: &MeshObjectData, skel: Option<&SkelData>) -> Vec<VertexWeight> {
-    let vertex_count = mesh_object.vertex_count().unwrap();
+pub fn skin_weights(
+    mesh: &MeshObjectData,
+    skel: Option<&SkelData>,
+) -> Result<Vec<VertexWeight>, Error> {
+    let vertex_count = mesh.vertex_count()?;
 
     match skel {
         Some(skel) => {
-            if mesh_object.bone_influences.is_empty() {
-                vec![VertexWeight::default(); vertex_count]
+            if mesh.bone_influences.is_empty() {
+                Ok(vec![VertexWeight::default(); vertex_count])
             } else {
                 // Collect influences per vertex.
                 let mut weights = vec![VertexWeight::default(); vertex_count];
 
-                for influence in &mesh_object.bone_influences {
+                for influence in &mesh.bone_influences {
                     if let Some(bone_index) = skel
                         .bones
                         .iter()
@@ -189,21 +194,32 @@ pub fn skin_weights(mesh_object: &MeshObjectData, skel: Option<&SkelData>) -> Ve
                     {
                         // TODO: How to handle meshes with no influences but a parent bone?
                         for w in &influence.vertex_weights {
-                            // TODO: Invalid indices should be an error if they cause crashes in game.
                             if let Some(weight) = weights.get_mut(w.vertex_index as usize) {
-                                weight.add_weight(bone_index as i32, w.vertex_weight);
+                                if !weight.add_weight(bone_index as i32, w.vertex_weight) {
+                                    warn!(
+                                        "Vertex {} for mesh {} has more than 4 weights. Additional weights will be ignored.", 
+                                        w.vertex_index,
+                                        mesh.name
+                                    );
+                                }
+                            } else {
+                                warn!(
+                                    "Vertex {} for mesh {} has more than 4 weights. Additional weights will be ignored.", 
+                                    w.vertex_index,
+                                    mesh.name
+                                );
                             }
                         }
                     }
                 }
 
-                weights
+                Ok(weights)
             }
         }
         None => {
-            // TODO: Match the in game behavior?
+            // TODO: What is the in game behavior?
             // Use the default weight to represent no influences.
-            vec![VertexWeight::default(); vertex_count]
+            Ok(vec![VertexWeight::default(); vertex_count])
         }
     }
 }
@@ -219,10 +235,10 @@ pub struct MeshObjectBufferData {
 pub fn mesh_object_buffers(
     device: &Device,
     // TODO: Is this the best way to allow for aligning the buffers?
-    buffer0_vertices: &[u8],
-    buffer1_vertices: &[u8],
+    buffer0: &[u8],
+    buffer1: &[u8],
     skin_weights: &[u8],
-    vertex_indices: &[u32],
+    vertex_indices: &[u8],
 ) -> MeshObjectBufferData {
     // TODO: Clean this up.
     // TODO: Validate the vertex count and indices?
@@ -230,21 +246,21 @@ pub fn mesh_object_buffers(
     // Keep a separate copy of the non transformed data.
     let vertex_buffer0_source = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
         label: Some("vertex buffer 0"),
-        contents: buffer0_vertices,
+        contents: buffer0,
         usage: wgpu::BufferUsages::STORAGE,
     });
 
     // This buffer will be filled by the compute shader later.
     let vertex_buffer0 = device.create_buffer(&wgpu::BufferDescriptor {
         label: Some("Vertex Buffer 0"),
-        size: buffer0_vertices.len() as u64,
+        size: buffer0.len() as u64,
         usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::STORAGE,
         mapped_at_creation: false,
     });
 
     let vertex_buffer1 = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
         label: Some("Vertex Buffer 1"),
-        contents: buffer1_vertices,
+        contents: buffer1,
         usage: wgpu::BufferUsages::VERTEX,
     });
 
@@ -256,7 +272,7 @@ pub fn mesh_object_buffers(
 
     let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
         label: Some("Index Buffer"),
-        contents: bytemuck::cast_slice(vertex_indices),
+        contents: vertex_indices,
         usage: wgpu::BufferUsages::INDEX,
     });
 
@@ -306,7 +322,7 @@ mod tests {
 
     #[test]
     fn buffer0_empty() {
-        assert!(buffer0(&MeshObjectData::default()).is_empty());
+        assert!(buffer0(&MeshObjectData::default()).unwrap().is_empty());
     }
 
     #[test]
@@ -320,7 +336,8 @@ mod tests {
                 data: ssbh_data::mesh_data::VectorData::Vector2(vec![[0.0, 1.0]]),
             }],
             ..Default::default()
-        });
+        })
+        .unwrap();
 
         assert_eq!(
             vec![VertexInput0 {
@@ -349,7 +366,8 @@ mod tests {
                 data: ssbh_data::mesh_data::VectorData::Vector3(vec![[4.0, 5.0, 6.0]]),
             }],
             ..Default::default()
-        });
+        })
+        .unwrap();
 
         assert_eq!(
             vec![VertexInput0 {
@@ -363,12 +381,26 @@ mod tests {
 
     #[test]
     fn buffer1_empty() {
-        assert!(buffer1(&MeshObjectData::default()).is_empty());
+        assert!(buffer1(&MeshObjectData::default()).unwrap().is_empty());
+    }
+
+    #[test]
+    fn add_vertex_weights() {
+        let mut weight = VertexWeight::default();
+        assert!(weight.add_weight(1, 1.0));
+        assert!(weight.add_weight(2, 2.0));
+        assert!(weight.add_weight(3, 3.0));
+        assert!(weight.add_weight(4, 4.0));
+        // The final weight should be ignored.
+        assert!(!weight.add_weight(5, 5.0));
+
+        assert_eq!([1, 2, 3, 4], weight.bone_indices);
+        assert_eq!([1.0, 2.0, 3.0, 4.0], weight.weights);
     }
 
     #[test]
     fn skin_weights_no_vertices_no_skel() {
-        let weights = skin_weights(&MeshObjectData::default(), None);
+        let weights = skin_weights(&MeshObjectData::default(), None).unwrap();
         assert!(weights.is_empty());
     }
 
@@ -381,7 +413,8 @@ mod tests {
                 minor_version: 0,
                 bones: vec![identity_bone("a")],
             }),
-        );
+        )
+        .unwrap();
         assert!(weights.is_empty());
     }
 
@@ -397,7 +430,8 @@ mod tests {
                 ..Default::default()
             },
             None,
-        );
+        )
+        .unwrap();
 
         assert_eq!(
             vec![VertexWeight {
@@ -436,7 +470,8 @@ mod tests {
                     identity_bone("ignored"),
                 ],
             }),
-        );
+        )
+        .unwrap();
 
         // Only keep the first four influences.
         // TODO: Does in game keep the first or last four influences?
@@ -465,7 +500,8 @@ mod tests {
                 minor_version: 0,
                 bones: vec![identity_bone("a")],
             }),
-        );
+        )
+        .unwrap();
 
         assert_eq!(
             vec![VertexWeight {
@@ -492,7 +528,8 @@ mod tests {
                 minor_version: 0,
                 bones: vec![identity_bone("a")],
             }),
-        );
+        )
+        .unwrap();
 
         assert_eq!(
             vec![VertexWeight {
