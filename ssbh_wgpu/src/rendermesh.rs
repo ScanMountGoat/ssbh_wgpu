@@ -8,7 +8,7 @@ use crate::{
     PipelineData, ShaderDatabase,
 };
 use glam::Vec4Swizzles;
-use log::{debug, info};
+use log::{debug, error, info};
 use nutexb_wgpu::NutexbFile;
 use ssbh_data::{
     adj_data::AdjEntryData,
@@ -16,7 +16,7 @@ use ssbh_data::{
     mesh_data::MeshObjectData,
     prelude::*,
 };
-use std::collections::HashMap;
+use std::{collections::HashMap, error::Error, num::NonZeroU64};
 use wgpu::{util::DeviceExt, SamplerDescriptor, TextureViewDescriptor};
 
 use wgpu_text::{
@@ -816,15 +816,20 @@ fn create_render_meshes(
 
     if let Some(mesh) = shared_data.mesh.as_ref() {
         for mesh_object in &mesh.objects {
-            append_mesh_object_buffer_data(
+            if let Err(e) = append_mesh_object_buffer_data(
+                &mut accesses,
                 &mut model_buffer0_data,
                 &mut model_buffer1_data,
                 &mut model_skin_weights_data,
                 &mut model_index_data,
                 mesh_object,
                 shared_data,
-                &mut accesses,
-            );
+            ) {
+                error!(
+                    "Error accessing vertex data for mesh {}: {}",
+                    mesh_object.name, e
+                );
+            }
         }
     }
 
@@ -843,7 +848,7 @@ fn create_render_meshes(
                 .iter() // TODO: par_iter?
                 .zip(accesses.into_iter())
                 .enumerate()
-                .map(|(i, (mesh_object, access))| {
+                .filter_map(|(i, (mesh_object, access))| {
                     // Some mesh objects have associated triangle adjacency.
                     let adj_entry = shared_data
                         .adj
@@ -859,6 +864,14 @@ fn create_render_meshes(
                         shared_data,
                         &buffer_data,
                     )
+                    .map_err(|e| {
+                        error!(
+                            "Error creating render mesh for mesh {}: {}",
+                            mesh_object.name, e
+                        );
+                        e
+                    })
+                    .ok()
                 })
                 .collect()
         })
@@ -874,14 +887,14 @@ fn create_render_meshes(
 }
 
 fn append_mesh_object_buffer_data(
+    accesses: &mut Vec<MeshBufferAccess>,
     model_buffer0_data: &mut Vec<u8>,
     model_buffer1_data: &mut Vec<u8>,
     model_skin_weights_data: &mut Vec<u8>,
     model_index_data: &mut Vec<u8>,
     mesh_object: &MeshObjectData,
     shared_data: &RenderMeshSharedData,
-    accesses: &mut Vec<MeshBufferAccess>,
-) {
+) -> Result<(), ssbh_data::mesh_data::error::Error> {
     // Storage buffers require offset alignments of at least 256.
     let align = |x, n| ((x + n - 1) / n) * n;
 
@@ -890,18 +903,18 @@ fn append_mesh_object_buffer_data(
     let weights_offset = model_skin_weights_data.len();
     let index_offset = model_index_data.len();
 
-    // TODO: Avoid unwrap.
-    let buffer0_vertices = buffer0(mesh_object).unwrap();
+    let buffer0_vertices = buffer0(mesh_object)?;
+    let buffer1_vertices = buffer1(mesh_object)?;
+    let skin_weights = skin_weights(mesh_object, shared_data.skel)?;
+
     let buffer0_data = bytemuck::cast_slice::<_, u8>(&buffer0_vertices);
     model_buffer0_data.extend_from_slice(buffer0_data);
     model_buffer0_data.resize(align(model_buffer0_data.len(), 256), 0u8);
 
-    let buffer1_vertices = buffer1(mesh_object).unwrap();
     let buffer1_data = bytemuck::cast_slice::<_, u8>(&buffer1_vertices);
     model_buffer1_data.extend_from_slice(buffer1_data);
     model_buffer1_data.resize(align(model_buffer1_data.len(), 256), 0u8);
 
-    let skin_weights = skin_weights(mesh_object, shared_data.skel).unwrap();
     let skin_weights_data = bytemuck::cast_slice::<_, u8>(&skin_weights);
     model_skin_weights_data.extend_from_slice(skin_weights_data);
     model_skin_weights_data.resize(align(model_skin_weights_data.len(), 256), 0u8);
@@ -919,6 +932,7 @@ fn append_mesh_object_buffer_data(
         indices_start: index_offset as u64,
         indices_size: index_data.len() as u64,
     });
+    Ok(())
 }
 
 // TODO: Group these parameters?
@@ -931,7 +945,7 @@ fn create_render_mesh(
     access: MeshBufferAccess,
     shared_data: &RenderMeshSharedData,
     buffer_data: &MeshObjectBufferData,
-) -> RenderMesh {
+) -> Result<RenderMesh, Box<dyn Error>> {
     // TODO: These could be cleaner as functions.
     // TODO: Is using a default for the material label ok?
     let material_label = shared_data
@@ -967,10 +981,12 @@ fn create_render_mesh(
         .entry(pipeline_key)
         .or_insert_with(|| create_pipeline(device, shared_data.pipeline_data, &pipeline_key));
 
+    let vertex_count = mesh_object.vertex_count()?;
+
     // TODO: Function for this?
     let adjacency = adj_entry
         .map(|e| e.vertex_adjacency.iter().map(|i| *i as i32).collect())
-        .unwrap_or_else(|| vec![-1i32; mesh_object.vertex_count().unwrap() * 18]);
+        .unwrap_or_else(|| vec![-1i32; vertex_count * 18]);
     let adj_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
         label: Some("vertex buffer 0"),
         contents: bytemuck::cast_slice(&adjacency),
@@ -978,26 +994,26 @@ fn create_render_mesh(
     });
 
     // This is applied after skinning, so the source and destination buffer are the same.
-    // TODO: Offsets need to be aligned to 256 bytes?
-    // TODO: Add padding between mesh objects?
     // TODO: Can this be done in a single dispatch for the entire model?
-    // That would avoid any issues with alignment.
+    // TODO: Add a proper error for empty meshes.
+    // TODO: Investigate why empty meshes crash on emulators.
+    let message = "Mesh has no vertices. Failed to create vertex buffers.";
     let buffer0_binding = wgpu::BufferBinding {
         buffer: &buffer_data.vertex_buffer0,
         offset: access.buffer0_start,
-        size: Some(std::num::NonZeroU64::new(access.buffer0_size).unwrap()),
+        size: Some(NonZeroU64::new(access.buffer0_size).ok_or(message)?),
     };
 
     let buffer0_source_binding = wgpu::BufferBinding {
         buffer: &buffer_data.vertex_buffer0_source,
         offset: access.buffer0_start,
-        size: Some(std::num::NonZeroU64::new(access.buffer0_size).unwrap()),
+        size: Some(NonZeroU64::new(access.buffer0_size).ok_or(message)?),
     };
 
     let weights_binding = wgpu::BufferBinding {
         buffer: &buffer_data.skinning_buffer,
         offset: access.weights_start,
-        size: Some(std::num::NonZeroU64::new(access.weights_size).unwrap()),
+        size: Some(NonZeroU64::new(access.weights_size).ok_or(message)?),
     };
 
     let renormal_bind_group = crate::shader::renormal::bind_groups::BindGroup0::from_bindings(
@@ -1067,7 +1083,7 @@ fn create_render_mesh(
         .chain(mesh_object.color_sets.iter().map(|a| a.name.clone()))
         .collect();
 
-    RenderMesh {
+    Ok(RenderMesh {
         name: mesh_object.name.clone(),
         material_label: material_label.clone(),
         shader_label,
@@ -1079,11 +1095,11 @@ fn create_render_mesh(
         pipeline_key,
         normals_bind_group: renormal_bind_group,
         sub_index: mesh_object.sub_index,
-        vertex_count: mesh_object.vertex_count().unwrap(),
+        vertex_count,
         vertex_index_count: mesh_object.vertex_indices.len(),
         access,
         attribute_names,
-    }
+    })
 }
 
 fn create_material_uniforms_bind_group(
