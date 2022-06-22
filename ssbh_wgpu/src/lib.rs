@@ -195,9 +195,7 @@ pub fn load_model_folders<P: AsRef<Path>>(root: P) -> Vec<ModelFolder> {
             // TODO: Some folders don't have a numshb?
             // TODO: Can the mesh be optional?
             // TODO: Find a way to test what happens if files are missing.
-
-            // TODO: Handle missing parent folder?
-            let parent = p.path().parent().unwrap();
+            let parent = p.path().parent()?;
             Some(ModelFolder::load_folder(parent))
         })
         .collect();
@@ -216,17 +214,18 @@ where
     // TODO: Avoid repetitive system calls here?
     // We should be able to just iterate the directory once.
     std::fs::read_dir(parent)
-        .unwrap() // TODO: Avoid unwrap?
-        // .par_bridge()
-        .filter_map(|p| p.ok().map(|p| p.path()))
-        .filter(|p| p.extension().and_then(|p| p.to_str()) == Some(extension))
-        .filter_map(|p| {
-            Some((
-                p.file_name()?.to_string_lossy().to_string(),
-                read_t(p).ok()?,
-            ))
+        .map(|dir| {
+            dir.filter_map(|p| p.ok().map(|p| p.path()))
+                .filter(|p| p.extension().and_then(|p| p.to_str()) == Some(extension))
+                .filter_map(|p| {
+                    Some((
+                        p.file_name()?.to_string_lossy().to_string(),
+                        read_t(p).ok()?,
+                    ))
+                })
+                .collect()
         })
-        .collect()
+        .unwrap_or_default()
 }
 
 #[cfg(test)]
