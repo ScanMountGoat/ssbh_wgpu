@@ -39,15 +39,6 @@ pub struct RenderModel {
     pipelines: HashMap<PipelineKey, wgpu::RenderPipeline>,
     textures: Vec<(String, wgpu::Texture)>, // (file name, texture)
 
-    // TODO: Store this with the renderer since we only need one?
-    // TODO: Avoid storing duplicate geometry for the scaled version?
-    bone_vertex_buffer: wgpu::Buffer,
-    bone_vertex_buffer_outer: wgpu::Buffer,
-    bone_index_buffer: wgpu::Buffer,
-    joint_vertex_buffer: wgpu::Buffer,
-    joint_vertex_buffer_outer: wgpu::Buffer,
-    joint_index_buffer: wgpu::Buffer,
-
     joint_world_transforms_buffer: wgpu::Buffer,
     bone_data_bind_group: crate::shader::skeleton::bind_groups::BindGroup1,
     bone_data_outer_bind_group: crate::shader::skeleton::bind_groups::BindGroup1,
@@ -96,7 +87,6 @@ struct MaterialData {
 }
 
 struct MeshBuffers {
-    // TODO: Share vertex buffers?
     skinning_transforms: wgpu::Buffer,
     world_transforms: wgpu::Buffer,
 }
@@ -105,8 +95,6 @@ impl RenderModel {
     /// Reassign the mesh materials based on `modl`.
     /// This does not create materials that do not already exist.
     pub fn reassign_materials(&mut self, modl: &ModlData, matl: Option<&MatlData>) {
-        // TODO: There should be a separate pipeline to use if the material assignment fails?
-        // TODO: How does in game handle invalid material labels?
         for mesh in &mut self.meshes {
             if let Some(entry) = modl.entries.iter().find(|e| {
                 e.mesh_object_name == mesh.name && e.mesh_object_sub_index == mesh.sub_index
@@ -274,6 +262,7 @@ impl RenderModel {
     pub fn draw_skeleton<'a>(
         &'a self,
         skel: Option<&SkelData>,
+        joint_buffers: &'a JointBuffers,
         render_pass: &mut wgpu::RenderPass<'a>,
         camera_bind_group: &'a crate::shader::skeleton::bind_groups::BindGroup0,
         bone_pipeline: &'a wgpu::RenderPipeline,
@@ -283,6 +272,7 @@ impl RenderModel {
     ) {
         if let Some(skel) = skel {
             self.draw_joints(
+                joint_buffers,
                 render_pass,
                 skel,
                 camera_bind_group,
@@ -291,6 +281,7 @@ impl RenderModel {
             );
             // Draw the bones last to cover up the geometry at the ends of the joints.
             self.draw_bones(
+                joint_buffers,
                 render_pass,
                 skel,
                 camera_bind_group,
@@ -302,16 +293,20 @@ impl RenderModel {
 
     fn draw_joints<'a>(
         &'a self,
+        joint_buffers: &'a JointBuffers,
         render_pass: &mut wgpu::RenderPass<'a>,
         skel: &SkelData,
         camera_bind_group: &'a crate::shader::skeleton::bind_groups::BindGroup0,
         skeleton_pipeline: &'a wgpu::RenderPipeline,
         skeleton_outer_pipeline: &'a wgpu::RenderPipeline,
     ) {
-        render_pass.set_index_buffer(self.joint_index_buffer.slice(..), wgpu::IndexFormat::Uint32);
+        render_pass.set_index_buffer(
+            joint_buffers.joint_index_buffer.slice(..),
+            wgpu::IndexFormat::Uint32,
+        );
 
         render_pass.set_pipeline(skeleton_outer_pipeline);
-        render_pass.set_vertex_buffer(0, self.joint_vertex_buffer_outer.slice(..));
+        render_pass.set_vertex_buffer(0, joint_buffers.joint_vertex_buffer_outer.slice(..));
         for i in 0..skel.bones.len() {
             // Check for the parent to only draw joints between connected bones.
             if skel.bones[i].parent_index.is_some() {
@@ -329,7 +324,7 @@ impl RenderModel {
         }
 
         render_pass.set_pipeline(skeleton_pipeline);
-        render_pass.set_vertex_buffer(0, self.joint_vertex_buffer.slice(..));
+        render_pass.set_vertex_buffer(0, joint_buffers.joint_vertex_buffer.slice(..));
         for i in 0..skel.bones.len() {
             if skel.bones[i].parent_index.is_some() {
                 crate::shader::skeleton::bind_groups::set_bind_groups(
@@ -348,6 +343,7 @@ impl RenderModel {
 
     fn draw_bones<'a>(
         &'a self,
+        joint_buffers: &'a JointBuffers,
         render_pass: &mut wgpu::RenderPass<'a>,
         skel: &SkelData,
         camera_bind_group: &'a crate::shader::skeleton::bind_groups::BindGroup0,
@@ -355,9 +351,12 @@ impl RenderModel {
         skeleton_outer_pipeline: &'a wgpu::RenderPipeline,
     ) {
         render_pass.set_pipeline(skeleton_outer_pipeline);
-        render_pass.set_index_buffer(self.bone_index_buffer.slice(..), wgpu::IndexFormat::Uint32);
+        render_pass.set_index_buffer(
+            joint_buffers.bone_index_buffer.slice(..),
+            wgpu::IndexFormat::Uint32,
+        );
         // TODO: Instancing?
-        render_pass.set_vertex_buffer(0, self.bone_vertex_buffer_outer.slice(..));
+        render_pass.set_vertex_buffer(0, joint_buffers.bone_vertex_buffer_outer.slice(..));
         for i in 0..skel.bones.len() {
             crate::shader::skeleton::bind_groups::set_bind_groups(
                 render_pass,
@@ -371,7 +370,7 @@ impl RenderModel {
             render_pass.draw_indexed(0..bone_index_count() as u32, 0, 0..1);
         }
         render_pass.set_pipeline(skeleton_pipeline);
-        render_pass.set_vertex_buffer(0, self.bone_vertex_buffer.slice(..));
+        render_pass.set_vertex_buffer(0, joint_buffers.bone_vertex_buffer.slice(..));
         for i in 0..skel.bones.len() {
             crate::shader::skeleton::bind_groups::set_bind_groups(
                 render_pass,
@@ -647,14 +646,6 @@ pub fn create_render_model(
         buffer_data,
     } = create_render_meshes(device, queue, &mesh_buffers, shared_data);
 
-    // TODO: Move this to the renderer since it's shared?
-    let bone_vertex_buffer = bone_vertex_buffer(device);
-    let bone_vertex_buffer_outer = bone_vertex_buffer_outer(device);
-    let bone_index_buffer = bone_index_buffer(device);
-    let joint_vertex_buffer = joint_vertex_buffer(device);
-    let joint_vertex_buffer_outer = joint_vertex_buffer_outer(device);
-    let joint_index_buffer = joint_index_buffer(device);
-
     let mut bone_bind_groups = Vec::new();
     if let Some(skel) = shared_data.skel {
         for (i, bone) in skel.bones.iter().enumerate() {
@@ -697,13 +688,7 @@ pub fn create_render_model(
         material_data_by_label,
         textures,
         pipelines,
-        bone_vertex_buffer,
-        bone_vertex_buffer_outer,
-        joint_vertex_buffer,
-        joint_vertex_buffer_outer,
-        joint_index_buffer,
         joint_world_transforms_buffer,
-        bone_index_buffer,
         bone_data_bind_group,
         bone_data_outer_bind_group,
         joint_data_bind_group,

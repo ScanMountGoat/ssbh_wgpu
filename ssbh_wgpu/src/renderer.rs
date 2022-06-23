@@ -1,4 +1,5 @@
 use crate::{
+    bone_rendering::JointBuffers,
     lighting::calculate_light_transform,
     pipeline::{
         create_debug_pipeline, create_depth_pipeline, create_invalid_attributes_pipeline,
@@ -162,6 +163,8 @@ pub struct SsbhRenderer {
     bone_outer_pipeline: wgpu::RenderPipeline,
     joint_pipeline: wgpu::RenderPipeline,
     joint_outer_pipeline: wgpu::RenderPipeline,
+
+    joint_buffers: JointBuffers,
 
     // Store camera state for efficiently updating it later.
     // This avoids exposing shader implementations like bind groups.
@@ -409,6 +412,8 @@ impl SsbhRenderer {
             .ok()
             .map(|b| b.build(device, &config));
 
+        let joint_buffers = JointBuffers::new(device);
+
         Self {
             bloom_threshold_pipeline,
             bloom_blur_pipeline,
@@ -439,6 +444,7 @@ impl SsbhRenderer {
             render_settings,
             render_settings_buffer,
             brush,
+            joint_buffers,
         }
     }
 
@@ -768,9 +774,11 @@ impl SsbhRenderer {
             }),
         });
 
+        // TODO: Draw on skel per model.
         for model in render_models {
             model.draw_skeleton(
                 skel,
+                &self.joint_buffers,
                 &mut skeleton_pass,
                 &self.skeleton_camera_bind_group,
                 &self.bone_pipeline,

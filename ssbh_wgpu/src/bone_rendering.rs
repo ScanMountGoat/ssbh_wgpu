@@ -4,6 +4,35 @@ use ssbh_data::{hlpb_data::HlpbData, skel_data::SkelData};
 use crate::animation::AnimationTransforms;
 use wgpu::util::DeviceExt;
 
+pub struct JointBuffers {
+    pub bone_vertex_buffer: wgpu::Buffer,
+    pub bone_vertex_buffer_outer: wgpu::Buffer,
+    pub bone_index_buffer: wgpu::Buffer,
+    pub joint_vertex_buffer: wgpu::Buffer,
+    pub joint_vertex_buffer_outer: wgpu::Buffer,
+    pub joint_index_buffer: wgpu::Buffer,
+}
+
+impl JointBuffers {
+    pub fn new(device: &wgpu::Device) -> Self {
+        let bone_vertex_buffer = bone_vertex_buffer(device);
+        let bone_vertex_buffer_outer = bone_vertex_buffer_outer(device);
+        let bone_index_buffer = bone_index_buffer(device);
+        let joint_vertex_buffer = joint_vertex_buffer(device);
+        let joint_vertex_buffer_outer = joint_vertex_buffer_outer(device);
+        let joint_index_buffer = joint_index_buffer(device);
+
+        Self {
+            bone_vertex_buffer,
+            bone_vertex_buffer_outer,
+            bone_index_buffer,
+            joint_vertex_buffer,
+            joint_vertex_buffer_outer,
+            joint_index_buffer,
+        }
+    }
+}
+
 pub fn joint_transforms(skel: &SkelData, anim_transforms: &AnimationTransforms) -> Vec<glam::Mat4> {
     let mut joint_transforms: Vec<_> = skel
         .bones
