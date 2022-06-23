@@ -63,11 +63,12 @@ fn fs_main(in: VertexOutput) -> [[location(0)]] vec4<f32> {
     let color = textureSample(color_texture, color_sampler, in.uvs);
 
     let bloom = textureSample(bloom_texture, bloom_sampler, in.uvs).rgb;
+    var output = color.rgb + bloom;
 
-    var output_rgb = color.rgb + bloom;
-    output_rgb = GetPostProcessingResult(output_rgb.rgb);
-    // TODO: Assume an SRGB frame buffer?
-    // output_rgb = GetSrgbVec3(output_rgb);
+    // Don't post process the background but still allow bloom.
+    // TODO: Investigate how this is handled in game.
+    output = mix(output, GetPostProcessingResult(output.rgb), color.a);
 
-    return vec4<f32>(output_rgb, 1.0);
+    // Assume an sRGB frame buffer and don't gamma correct here.
+    return vec4<f32>(output, 1.0);
 }

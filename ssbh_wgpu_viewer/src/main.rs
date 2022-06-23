@@ -149,7 +149,7 @@ impl State {
             size.width,
             size.height,
             window.scale_factor(),
-            wgpu::Color::BLACK,
+            [0.0; 3],
             &[],
         );
 

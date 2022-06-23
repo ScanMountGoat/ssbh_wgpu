@@ -186,7 +186,7 @@ pub struct SsbhRenderer {
     color_lut: TextureSamplerView,
 
     // TODO: Should this be configurable at runtime?
-    clear_color: wgpu::Color,
+    clear_color: [f64; 3],
 
     render_settings: RenderSettings,
     render_settings_buffer: wgpu::Buffer,
@@ -201,6 +201,8 @@ impl SsbhRenderer {
     /// The `scale_factor` should typically match the monitor scaling in the OS such as `1.5` for 150% scaling.
     /// If unsure, set `scale_factor` to `1.0`.
     ///
+    /// The `clear_color` determines the RGB color of the viewport background.
+    ///
     /// This is an expensive operation, so applications should create and reuse a single [SsbhRenderer].
     /// Use [SsbhRenderer::resize] and [SsbhRenderer::update_camera] for changing window sizes and user interaction.
     pub fn new(
@@ -209,7 +211,7 @@ impl SsbhRenderer {
         initial_width: u32,
         initial_height: u32,
         scale_factor: f64,
-        clear_color: wgpu::Color,
+        clear_color: [f64; 3],
         font_bytes: &'static [u8],
     ) -> Self {
         let bone_pipeline = skeleton_pipeline(device, "vs_bone", "fs_main", wgpu::Face::Back);
@@ -692,7 +694,7 @@ impl SsbhRenderer {
                 view: &self.pass_info.color.view,
                 resolve_target: None,
                 ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(self.clear_color),
+                    load: wgpu::LoadOp::Clear(self.clear_color()),
                     store: true,
                 },
             }],
@@ -728,7 +730,7 @@ impl SsbhRenderer {
                 view: output_view,
                 resolve_target: None,
                 ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(self.clear_color),
+                    load: wgpu::LoadOp::Clear(self.clear_color()),
                     store: true,
                 },
             }],
@@ -746,6 +748,16 @@ impl SsbhRenderer {
 
         for model in render_models {
             model.draw_render_meshes_debug(&mut debug_pass, &self.per_frame_bind_group);
+        }
+    }
+
+    fn clear_color(&self) -> wgpu::Color {
+        // Always clear alpha to avoid post processing the background.
+        wgpu::Color {
+            r: self.clear_color[0],
+            g: self.clear_color[1],
+            b: self.clear_color[2],
+            a: 0.0,
         }
     }
 
