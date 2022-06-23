@@ -526,8 +526,9 @@ fn main() {
                             },
                         ..
                     } => *control_flow = ControlFlow::Exit,
-                    WindowEvent::Resized(physical_size) => {
-                        state.resize(*physical_size, window.scale_factor());
+                    WindowEvent::Resized(_) => {
+                        // Use the window size to avoid a potential error from size mismatches.
+                        state.resize(window.inner_size(), window.scale_factor());
                     }
                     WindowEvent::ScaleFactorChanged {
                         scale_factor,
