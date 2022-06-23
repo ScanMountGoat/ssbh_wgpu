@@ -111,6 +111,7 @@ pub struct RenderSettings {
     pub render_rim_lighting: bool,
     pub render_shadows: bool,
     pub render_bloom: bool,
+    pub render_rgba: [bool; 4],
 }
 
 impl From<&RenderSettings> for crate::shader::model::RenderSettings {
@@ -125,6 +126,7 @@ impl From<&RenderSettings> for crate::shader::model::RenderSettings {
             render_rim_lighting: [if r.render_rim_lighting { 1 } else { 0 }; 4],
             render_shadows: [if r.render_shadows { 1 } else { 0 }; 4],
             render_bloom: [if r.render_bloom { 1 } else { 0 }; 4],
+            render_rgba: r.render_rgba.map(|b| if b { 1.0 } else { 0.0 }),
         }
     }
 }
@@ -141,6 +143,7 @@ impl Default for RenderSettings {
             render_rim_lighting: true,
             render_shadows: true,
             render_bloom: true,
+            render_rgba: [true; 4],
         }
     }
 }
