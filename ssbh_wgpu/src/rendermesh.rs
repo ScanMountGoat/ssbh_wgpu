@@ -120,62 +120,34 @@ impl RenderModel {
     pub fn update_materials(
         &mut self,
         device: &wgpu::Device,
-        queue: &wgpu::Queue,
+        _queue: &wgpu::Queue,
         materials: &[MatlEntryData],
         pipeline_data: &PipelineData,
         default_textures: &[(String, wgpu::Texture)],
         stage_cube: &(wgpu::TextureView, wgpu::Sampler),
         database: &ShaderDatabase,
     ) {
+        // TODO: Modify the buffer in place if possible to avoid allocations.
         self.material_data_by_label.clear();
         for material in materials {
             self.material_data_by_label
                 .entry(material.material_label.clone())
-                .and_modify(|data| {
-                    // TODO: Modify the buffer in place if possible to avoid allocations.
-                    // This path won't be used because of the clear above.
-                    let uniforms = create_uniforms(Some(material), database);
-                    queue.write_buffer(&data.uniforms_buffer, 0, bytemuck::cast_slice(&[uniforms]));
-                    // TODO: Update textures and materials separately?
-                    data.material_uniforms_bind_group = create_material_uniforms_bind_group(
-                        Some(material),
-                        device,
-                        &self.textures,
-                        default_textures,
-                        stage_cube,
-                        &data.uniforms_buffer,
-                    );
-                    // Create a new pipeline if needed.
-                    // TODO: How to get the mesh depth write and depth test information?
-                    let pipeline_key = PipelineKey::new(false, false, Some(material));
-                    self.pipelines
-                        .entry(pipeline_key)
-                        .or_insert_with(|| create_pipeline(device, pipeline_data, &pipeline_key));
-                    // Update the pipeline key for associated RenderMeshes.
-                    for mesh in self
-                        .meshes
-                        .iter_mut()
-                        .filter(|m| m.material_label == material.material_label)
-                    {
-                        mesh.pipeline_key = pipeline_key;
-                    }
-                })
                 .or_insert_with(|| {
                     // Create a new pipeline if needed.
-                    // TODO: How to get the mesh depth write and depth test information?
-                    let pipeline_key = PipelineKey::new(false, false, Some(material));
-                    self.pipelines
-                        .entry(pipeline_key)
-                        .or_insert_with(|| create_pipeline(device, pipeline_data, &pipeline_key));
                     // Update the pipeline key for associated RenderMeshes.
+                    // TODO: Update the pipeline key if the mesh depth settings change.
                     for mesh in self
                         .meshes
                         .iter_mut()
                         .filter(|m| m.material_label == material.material_label)
                     {
+                        let pipeline_key = mesh.pipeline_key.with_material(Some(material));
+                        self.pipelines.entry(pipeline_key).or_insert_with(|| {
+                            create_pipeline(device, pipeline_data, &pipeline_key)
+                        });
+
                         mesh.pipeline_key = pipeline_key;
                     }
-
                     create_material_data(
                         device,
                         Some(material),
@@ -397,7 +369,11 @@ impl RenderModel {
         // TODO: How to store all data in RenderModel but still draw sorted meshes?
         // TODO: Does sort bias only effect meshes within a model or the entire pass?
         // TODO: Test in game and add test cases for sorting.
-        for mesh in self.meshes.iter().filter(|m| m.is_visible && m.shader_label.ends_with(pass)) {
+        for mesh in self
+            .meshes
+            .iter()
+            .filter(|m| m.is_visible && m.shader_label.ends_with(pass))
+        {
             // Meshes with no modl entry or an entry with an invalid material label are skipped entirely in game.
             // If the material entry is deleted from the matl, the mesh is also skipped.
             if let Some(material_data) = self.material_data_by_label.get(&mesh.material_label) {

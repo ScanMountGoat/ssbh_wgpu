@@ -61,6 +61,10 @@ impl PipelineKey {
                 .unwrap_or(false),
         }
     }
+
+    pub fn with_material(&self, material: Option<&MatlEntryData>) -> Self {
+        Self::new(!self.enable_depth_write, !self.enable_depth_test, material)
+    }
 }
 
 pub fn create_pipeline(
