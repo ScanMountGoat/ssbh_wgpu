@@ -38,7 +38,7 @@ pub struct StageUniforms {
 #[derive(Debug, Copy, Clone, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct MaterialUniforms {
     pub custom_vector: [[f32; 4]; 64],
-    pub custom_boolean: [[f32; 4]; 20],
+    pub custom_boolean: [[u32; 4]; 20],
     pub custom_float: [[f32; 4]; 20],
     pub has_boolean: [[u32; 4]; 20],
     pub has_float: [[u32; 4]; 20],
@@ -46,6 +46,7 @@ pub struct MaterialUniforms {
     pub has_vector: [[u32; 4]; 64],
     pub has_color_set1234: [u32; 4],
     pub has_color_set567: [u32; 4],
+    pub is_discard: [u32; 4],
 }
 #[repr(C)]
 #[derive(Debug, Copy, Clone, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]

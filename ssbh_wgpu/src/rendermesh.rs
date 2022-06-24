@@ -392,9 +392,12 @@ impl RenderModel {
         shader_database: &ShaderDatabase,
         invalid_shader_pipeline: &'a wgpu::RenderPipeline,
         invalid_attributes_pipeline: &'a wgpu::RenderPipeline,
+        pass: &str,
     ) {
         // TODO: How to store all data in RenderModel but still draw sorted meshes?
-        for mesh in self.meshes.iter().filter(|m| m.is_visible) {
+        // TODO: Does sort bias only effect meshes within a model or the entire pass?
+        // TODO: Test in game and add test cases for sorting.
+        for mesh in self.meshes.iter().filter(|m| m.is_visible && m.shader_label.ends_with(pass)) {
             // Meshes with no modl entry or an entry with an invalid material label are skipped entirely in game.
             // If the material entry is deleted from the matl, the mesh is also skipped.
             if let Some(material_data) = self.material_data_by_label.get(&mesh.material_label) {

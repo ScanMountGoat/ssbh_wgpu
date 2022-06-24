@@ -707,13 +707,23 @@ impl SsbhRenderer {
                 stencil_ops: None,
             }),
         });
+
+        // TODO: Investigate sorting.
+        self.draw_render_models(render_models, &mut model_pass, shader_database,"opaque");
+        self.draw_render_models(render_models, &mut model_pass, shader_database,"far");
+        self.draw_render_models(render_models, &mut model_pass, shader_database,"sort");
+        self.draw_render_models(render_models, &mut model_pass, shader_database,"near");
+    }
+
+    fn draw_render_models<'a>(&'a self, render_models: &'a [RenderModel], model_pass: &mut wgpu::RenderPass<'a>, shader_database: &ShaderDatabase, pass: &str) {
         for model in render_models.iter().filter(|m| m.is_visible) {
             model.draw_render_meshes(
-                &mut model_pass,
+                model_pass,
                 &self.per_frame_bind_group,
                 shader_database,
                 &self.invalid_shader_pipeline,
                 &self.invalid_attributes_pipeline,
+                pass,
             );
         }
     }

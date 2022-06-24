@@ -137,15 +137,15 @@ var sampler14: sampler;
 struct MaterialUniforms {
     custom_vector: array<vec4<f32>, 64>;
     // TODO: Place the has_ values in an unused vector component?
-    custom_boolean: array<vec4<f32>, 20>;
+    custom_boolean: array<vec4<u32>, 20>;
     custom_float: array<vec4<f32>, 20>;
     has_boolean: array<vec4<u32>, 20>;
     has_float: array<vec4<u32>, 20>;
     has_texture: array<vec4<u32>, 19>;
     has_vector: array<vec4<u32>, 64>;
-    // TODO: Use u32 instead?
     has_color_set1234: vec4<u32>;
     has_color_set567: vec4<u32>;
+    is_discard: vec4<u32>;
 };
 
 [[group(1), binding(30)]]
@@ -198,7 +198,7 @@ struct VertexOutputInvalid {
 
 fn Blend(a: vec3<f32>, b: vec4<f32>) -> vec3<f32> {
     // CustomBoolean11 toggles additive vs alpha blending.
-    if (uniforms.custom_boolean[11].x != 0.0) {
+    if (uniforms.custom_boolean[11].x == 1u) {
         return a.rgb + b.rgb * b.a;
     } else {
         return mix(a.rgb, b.rgb, b.a);
@@ -483,12 +483,12 @@ fn SpecularTerm(tangent: vec4<f32>, nDotH: f32, nDotL: f32, nDotV: f32, halfAngl
 {
     var directSpecular = vec3<f32>(4.0);
     directSpecular = directSpecular * SpecularBrdf(tangent, nDotH, nDotL, nDotV, halfAngle, normal, roughness, anisotropicRotation);
-    if (uniforms.has_boolean[3].x == 1u && uniforms.custom_boolean[3].x == 0.0) {
+    if (uniforms.has_boolean[3].x == 1u && uniforms.custom_boolean[3].x == 0u) {
         directSpecular = vec3<f32>(0.0);
     }
 
     var indirectSpecular = specularIbl;
-    if (uniforms.has_boolean[4].x == 1u && uniforms.custom_boolean[4].x == 0.0) {
+    if (uniforms.has_boolean[4].x == 1u && uniforms.custom_boolean[4].x == 0u) {
         directSpecular = vec3<f32>(0.0);
     }
 
@@ -581,7 +581,7 @@ fn GetF0FromSpecular(specular: f32) -> f32
 {
     // Specular gets remapped from [0.0,1.0] to [0.0,0.2].
     // The value is 0.16*0.2 = 0.032 if the PRM alpha is ignored.
-    if (uniforms.custom_boolean[1].x == 0.0) {
+    if (uniforms.custom_boolean[1].x == 0u) {
         return 0.16 * 0.2;
     }
 
@@ -993,8 +993,7 @@ fn fs_main(in: VertexOutput) -> [[location(0)]] vec4<f32> {
     }
 
     var outAlpha = max(albedoColor.a * emissionColor.a, uniforms.custom_vector[0].x);
-    if (outAlpha < 0.5) {
-        // TODO: This is disabled by some shaders.
+    if (uniforms.is_discard.x == 1u && outAlpha < 0.5) {
         discard;
     }
 
@@ -1039,15 +1038,31 @@ fn fs_main(in: VertexOutput) -> [[location(0)]] vec4<f32> {
     }
 
     if (uniforms.has_vector[8].x == 1u) {
+        // TODO: Does this affect alpha?
         outColor = outColor * uniforms.custom_vector[8].rgb;
     }
 
     if (uniforms.has_color_set1234.x == 1u) {
         outColor = outColor * colorSet1.rgb; 
+        outAlpha = outAlpha * colorSet1.a; 
     }
 
     if (uniforms.has_color_set1234.z == 1u) {
         outColor = outColor * colorSet3.rgb;
+        outAlpha = outAlpha * colorSet3.a; 
+    }
+
+    if (uniforms.has_float[19].x == 1u) {
+        outAlpha = GetAngleFade(nDotV, uniforms.custom_float[19].x, specularF0);
+    }
+
+    // Premultiplied alpha. 
+    // TODO: This is only for some materials.
+    outColor = outColor * outAlpha;
+
+    // Alpha override.
+    if (uniforms.has_boolean[2].x == 1u && uniforms.custom_boolean[2].x == 1u) {
+        outAlpha = 0.0;
     }
 
     return vec4<f32>(outColor, outAlpha);

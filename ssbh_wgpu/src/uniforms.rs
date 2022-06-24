@@ -44,11 +44,11 @@ pub fn create_uniforms(
                 }
             }
 
-            let mut custom_boolean = [[0.0; 4]; 20];
+            let mut custom_boolean = [[0; 4]; 20];
             let mut has_boolean = [[0; 4]; 20];
             for boolean in &material.booleans {
                 if let Some(index) = boolean_index(boolean) {
-                    custom_boolean[index][0] = if boolean.data { 1.0 } else { 0.0 };
+                    custom_boolean[index][0] = if boolean.data { 1 } else { 0 };
                     has_boolean[index][0] = 1;
                 }
             }
@@ -68,9 +68,9 @@ pub fn create_uniforms(
                 }
             };
 
-            let (has_color_set1234, has_color_set567) = if let Some(program) =
-                database.get(material.shader_label.get(..24).unwrap_or(""))
-            {
+            let program = database.get(material.shader_label.get(..24).unwrap_or(""));
+
+            let (has_color_set1234, has_color_set567) = if let Some(program) = program {
                 (
                     [
                         has_attribute(program, "colorSet1"),
@@ -89,6 +89,10 @@ pub fn create_uniforms(
                 ([0; 4], [0; 4])
             };
 
+            let is_discard = program
+                .map(|program| [if program.discard { 1 } else { 0 }; 4])
+                .unwrap_or_default();
+
             MaterialUniforms {
                 custom_vector,
                 custom_boolean,
@@ -99,13 +103,14 @@ pub fn create_uniforms(
                 has_vector,
                 has_color_set1234,
                 has_color_set567,
+                is_discard,
             }
         })
         .unwrap_or(
             // Missing values are always set to zero.
             MaterialUniforms {
                 custom_vector: [[0.0; 4]; 64],
-                custom_boolean: [[0.0; 4]; 20],
+                custom_boolean: [[0; 4]; 20],
                 custom_float: [[0.0; 4]; 20],
                 has_boolean: [[0; 4]; 20],
                 has_texture: [[0; 4]; 19],
@@ -113,6 +118,7 @@ pub fn create_uniforms(
                 has_vector: [[0; 4]; 64],
                 has_color_set1234: [0; 4],
                 has_color_set567: [0; 4],
+                is_discard: [0; 4],
             },
         )
 }
@@ -274,14 +280,15 @@ mod tests {
         assert_eq!(
             MaterialUniforms {
                 custom_vector: [[0.0; 4]; 64],
-                custom_boolean: [[0.0; 4]; 20],
+                custom_boolean: [[0; 4]; 20],
                 custom_float: [[0.0; 4]; 20],
                 has_boolean: [[0; 4]; 20],
                 has_float: [[0; 4]; 20],
                 has_texture: [[0; 4]; 19],
                 has_vector: [[0; 4]; 64],
                 has_color_set1234: [0; 4],
-                has_color_set567: [0; 4]
+                has_color_set567: [0; 4],
+                is_discard: [0; 4]
             },
             create_uniforms(None, &ShaderDatabase::new())
         );
@@ -292,14 +299,15 @@ mod tests {
         assert_eq!(
             MaterialUniforms {
                 custom_vector: [[0.0; 4]; 64],
-                custom_boolean: [[0.0; 4]; 20],
+                custom_boolean: [[0; 4]; 20],
                 custom_float: [[0.0; 4]; 20],
                 has_boolean: [[0; 4]; 20],
                 has_float: [[0; 4]; 20],
                 has_texture: [[0; 4]; 19],
                 has_vector: [[0; 4]; 64],
                 has_color_set1234: [0; 4],
-                has_color_set567: [0; 4]
+                has_color_set567: [0; 4],
+                is_discard: [0; 4]
             },
             create_uniforms(
                 Some(&MatlEntryData {
@@ -325,14 +333,15 @@ mod tests {
         assert_eq!(
             MaterialUniforms {
                 custom_vector: [[0.0; 4]; 64],
-                custom_boolean: [[0.0; 4]; 20],
+                custom_boolean: [[0; 4]; 20],
                 custom_float: [[0.0; 4]; 20],
                 has_boolean: [[0; 4]; 20],
                 has_float: [[0; 4]; 20],
                 has_texture: [[0; 4]; 19],
                 has_vector: [[0; 4]; 64],
                 has_color_set1234: [0; 4],
-                has_color_set567: [0; 4]
+                has_color_set567: [0; 4],
+                is_discard: [0; 4]
             },
             create_uniforms(
                 Some(&MatlEntryData {
@@ -376,7 +385,7 @@ mod tests {
     fn create_uniforms_valid_parameters() {
         let mut expected = MaterialUniforms {
             custom_vector: [[0.0; 4]; 64],
-            custom_boolean: [[0.0; 4]; 20],
+            custom_boolean: [[0; 4]; 20],
             custom_float: [[0.0; 4]; 20],
             has_boolean: [[0; 4]; 20],
             has_float: [[0; 4]; 20],
@@ -384,10 +393,11 @@ mod tests {
             has_vector: [[0; 4]; 64],
             has_color_set1234: [0; 4],
             has_color_set567: [0; 4],
+            is_discard: [0; 4],
         };
         expected.custom_vector[8] = [1.0; 4];
         expected.has_vector[8] = [1, 0, 0, 0];
-        expected.custom_boolean[5] = [1.0, 0.0, 0.0, 0.0];
+        expected.custom_boolean[5] = [1, 0, 0, 0];
         expected.has_boolean[5] = [1, 0, 0, 0];
         expected.custom_float[3] = [0.7, 0.0, 0.0, 0.0];
         expected.has_float[3] = [1, 0, 0, 0];
