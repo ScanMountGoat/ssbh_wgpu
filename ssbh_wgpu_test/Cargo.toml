@@ -10,3 +10,4 @@ nutexb = "0.6.0"
 ssbh_wgpu = { path = "../ssbh_wgpu" }
 log = "0.4.17"
 simple_logger = "2.1.0"
+globwalk = "0.8.0"
