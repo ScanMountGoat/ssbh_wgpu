@@ -1,7 +1,10 @@
-use log::info;
+use log::{error, info};
 use nutexb_wgpu::NutexbFile;
 use rayon::prelude::*;
-use std::path::{Path, PathBuf};
+use std::{
+    error::Error,
+    path::{Path, PathBuf},
+};
 
 mod pipeline;
 mod shader;
@@ -210,6 +213,7 @@ pub fn load_model_folders<P: AsRef<Path>>(root: P) -> Vec<ModelFolder> {
 fn read_files<T, E, F>(parent: &Path, extension: &str, read_t: F) -> Vec<(String, T)>
 where
     F: Fn(PathBuf) -> Result<T, E>,
+    E: std::fmt::Display,
 {
     // TODO: Avoid repetitive system calls here?
     // We should be able to just iterate the directory once.
@@ -220,7 +224,12 @@ where
                 .filter_map(|p| {
                     Some((
                         p.file_name()?.to_string_lossy().to_string(),
-                        read_t(p).ok()?,
+                        read_t(p.clone())
+                            .map_err(|e| {
+                                error!("Error reading {:?}: {}", p, e);
+                                e
+                            })
+                            .ok()?,
                     ))
                 })
                 .collect()
