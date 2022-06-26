@@ -425,7 +425,7 @@ impl State {
             &self.shader_database,
         );
 
-        let skel = self.models.get(0).and_then(|m| m.find_skel());
+        let skels: Vec<_> = self.models.iter().map(|m| m.find_skel()).collect();
         let (_, _, mvp) =
             calculate_camera_pos_mvp(self.size, self.translation_xyz, self.rotation_xyz);
 
@@ -435,7 +435,7 @@ impl State {
             &mut encoder,
             &output_view,
             &self.render_models,
-            skel,
+            &skels,
             self.size.width,
             self.size.height,
             mvp,

@@ -559,25 +559,22 @@ impl SsbhRenderer {
         encoder: &mut wgpu::CommandEncoder,
         output_view: &wgpu::TextureView,
         render_models: &[RenderModel],
-        skel: Option<&SkelData>,
+        skels: &[Option<&SkelData>],
         width: u32,
         height: u32,
         mvp: glam::Mat4,
         draw_bone_names: bool,
     ) -> Option<wgpu::CommandBuffer> {
-        self.skeleton_pass(encoder, render_models, output_view, skel);
+        self.skeleton_pass(encoder, render_models, output_view, skels);
 
         if draw_bone_names {
             let brush = self.brush.as_mut()?;
 
-            // TODO: Each render model should be associated with a skel.
-            // TODO: Store the skel information in the render model itself?
-            for model in render_models {
-                model.queue_bone_names(skel, brush, width, height, mvp);
+            for (model, skel) in render_models.iter().zip(skels) {
+                model.queue_bone_names(*skel, brush, width, height, mvp);
             }
 
-            // TODO: Make text rendering optional.
-            // TODO: Is there a way to do this without returning the command buffer?
+            // TODO: Make text rendering optional without returning the command buffer?
             Some(brush.draw(device, output_view, queue))
         } else {
             None
@@ -710,13 +707,19 @@ impl SsbhRenderer {
         });
 
         // TODO: Investigate sorting.
-        self.draw_render_models(render_models, &mut model_pass, shader_database,"opaque");
-        self.draw_render_models(render_models, &mut model_pass, shader_database,"far");
-        self.draw_render_models(render_models, &mut model_pass, shader_database,"sort");
-        self.draw_render_models(render_models, &mut model_pass, shader_database,"near");
+        self.draw_render_models(render_models, &mut model_pass, shader_database, "opaque");
+        self.draw_render_models(render_models, &mut model_pass, shader_database, "far");
+        self.draw_render_models(render_models, &mut model_pass, shader_database, "sort");
+        self.draw_render_models(render_models, &mut model_pass, shader_database, "near");
     }
 
-    fn draw_render_models<'a>(&'a self, render_models: &'a [RenderModel], model_pass: &mut wgpu::RenderPass<'a>, shader_database: &ShaderDatabase, pass: &str) {
+    fn draw_render_models<'a>(
+        &'a self,
+        render_models: &'a [RenderModel],
+        model_pass: &mut wgpu::RenderPass<'a>,
+        shader_database: &ShaderDatabase,
+        pass: &str,
+    ) {
         for model in render_models.iter().filter(|m| m.is_visible) {
             model.draw_render_meshes(
                 model_pass,
@@ -777,7 +780,7 @@ impl SsbhRenderer {
         encoder: &mut wgpu::CommandEncoder,
         render_models: &[RenderModel],
         view: &wgpu::TextureView,
-        skel: Option<&SkelData>,
+        skels: &[Option<&SkelData>],
     ) {
         // TODO: Force having a color attachment for each fragment shader output in wgsl_to_wgpu?
         let mut skeleton_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
@@ -800,10 +803,9 @@ impl SsbhRenderer {
             }),
         });
 
-        // TODO: Draw on skel per model.
-        for model in render_models {
+        for (model, skel) in render_models.iter().zip(skels) {
             model.draw_skeleton(
-                skel,
+                *skel,
                 &self.joint_buffers,
                 &mut skeleton_pass,
                 &self.skeleton_camera_bind_group,
