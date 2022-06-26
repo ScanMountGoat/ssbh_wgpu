@@ -259,7 +259,7 @@ fn GetAlbedoColor(uv1: vec2<f32>, uv2: vec2<f32>, uv3: vec2<f32>, R: vec3<f32>, 
     // TODO: Do additional layers affect alpha?
     if (uniforms.has_texture[0].x == 1u) {
         let albedoColor = textureSample(texture0, sampler0, uvLayer1);
-        outRgb = Blend(outRgb, albedoColor);
+        outRgb = albedoColor.rgb;
         outAlpha = albedoColor.a;
     }
 
