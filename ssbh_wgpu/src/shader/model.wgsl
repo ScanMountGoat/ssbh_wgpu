@@ -422,6 +422,7 @@ fn DiffuseTerm(
     // Multiplying be a constant and clamping affects the "smoothness".
     var nDotLSkin = nDotL * custom_vector30.y;
     nDotLSkin = clamp(nDotLSkin * 0.5 + 0.5, 0.0, 1.0);
+    // TODO: Why is there an extra * sssBlend term here?
     let skinShading = custom_vector11.rgb * sssBlend * nDotLSkin;
 
     // TODO: How many PI terms are there?
@@ -739,11 +740,30 @@ fn fs_debug(in: VertexOutput) -> [[location(0)]] vec4<f32> {
 
     let normal = normalize(in.normal.xyz);
     let tangent = normalize(in.tangent.xyz);
+    let bitangent = normalize(cross(normal, tangent)) * in.tangent.w * -1.0;
 
     let viewVector = normalize(camera.camera_pos.xyz - in.position.xyz);
 
     var reflectionVector = reflect(viewVector, normal);
     reflectionVector.y = reflectionVector.y * -1.0;
+
+    // TODO: Apply normal maps and convert to view space.
+    var fragmentNormal = normal;
+    if (uniforms.has_texture[4].x == 1u) {
+        let nor = textureSample(texture4, sampler4, map1);
+        fragmentNormal = GetBumpMapNormal(normal, tangent, bitangent, nor);
+    }
+
+    var prm = vec4<f32>(0.0, 0.0, 1.0, 0.0);
+    if (uniforms.has_texture[6].x == 1u) {
+        prm = textureSample(texture6, sampler6, map1);
+    }
+
+    // Move fake subsurface color into GetAlbedoColorFinal?
+    let sssBlend = prm.r * uniforms.custom_vector[30].x;
+    let albedoColor = GetAlbedoColor(map1, uvSet, uvSet1, reflectionVector, colorSet5);
+    var albedoColorFinal = GetAlbedoColorFinal(albedoColor);
+    albedoColorFinal = mix(albedoColorFinal, uniforms.custom_vector[11].rgb, sssBlend);
 
     // TODO: Some of these render modes should be gamma corrected.
     // TODO: Use more accurate gamma correction.
@@ -782,68 +802,85 @@ fn fs_debug(in: VertexOutput) -> [[location(0)]] vec4<f32> {
         case 10: {
             outColor = colorSet7;
         }
-        case 11: {      
+        case 11: {
             outColor = textureSample(texture0, sampler0, map1);
         }
-        case 12: {      
+        case 12: {
             outColor = textureSample(texture1, sampler1, uvSet);
         }
-        case 13: {      
+        case 13: {
             outColor = textureSample(texture2, sampler2, reflectionVector);
         }
-        case 14: {      
+        case 14: {
             outColor = textureSample(texture3, sampler3, bake1);
         }
-        case 15: {      
+        case 15: {
             outColor = textureSample(texture4, sampler4, map1);
         }
-        case 16: {      
+        case 16: {
             outColor = textureSample(texture5, sampler5, map1);
         }
-        case 17: {      
+        case 17: {
             outColor = textureSample(texture6, sampler6, map1);
         }
-        case 18: {      
+        case 18: {
             outColor = textureSample(texture7, sampler7, reflectionVector);
         }
-        case 19: {      
+        case 19: {
             outColor = textureSample(texture8, sampler8, reflectionVector);
         }
-        case 20: {      
+        case 20: {
             outColor = textureSample(texture9, sampler9, bake1);
         }
-        case 21: {      
+        case 21: {
             outColor = textureSample(texture10, sampler10, map1);
         }
-        case 22: {      
+        case 22: {
             outColor = textureSample(texture11, sampler11, uvSet);
         }
-        case 23: {      
+        case 23: {
             outColor = textureSample(texture12, sampler12, map1);
         }
-        case 24: {      
+        case 24: {
             outColor = textureSample(texture13, sampler13, map1);
         }
-        case 25: {      
+        case 25: {
             outColor = textureSample(texture14, sampler14, uvSet);
         }
-        // case 26: {      
+        // case 26: {
         //     outColor = textureSample(texture16, sampler16, map1);
         // }
-        case 27: {      
-            outColor = vec4<f32>(map1, 1.0, 1.0);
+        case 27: {
+            outColor = vec4<f32>(pow(map1, vec2<f32>(2.2)), 1.0, 1.0);
         }
-        case 28: {      
-            outColor = vec4<f32>(bake1, 1.0, 1.0);
+        case 28: {
+            outColor = vec4<f32>(pow(bake1, vec2<f32>(2.2)), 1.0, 1.0);
         }
-        case 29: {      
-            outColor = vec4<f32>(uvSet, 1.0, 1.0);
+        case 29: {
+            outColor = vec4<f32>(pow(uvSet, vec2<f32>(2.2)), 1.0, 1.0);
         }
-        case 30: {      
-            outColor = vec4<f32>(uvSet1, 1.0, 1.0);
+        case 30: {
+            outColor = vec4<f32>(pow(uvSet1, vec2<f32>(2.2)), 1.0, 1.0);
         }
-        case 31: {      
-            outColor = vec4<f32>(uvSet2, 1.0, 1.0);
+        case 31: {
+            outColor = vec4<f32>(pow(uvSet2, vec2<f32>(2.2)), 1.0, 1.0);
+        }
+        case 32: {
+            // Basic Shading.
+            let basic = 0.218 * max(dot(fragmentNormal, viewVector), 0.0);
+            outColor = vec4<f32>(vec3<f32>(basic), 1.0);
+        }
+        case 33: {
+            // Normals
+            outColor = vec4<f32>(pow(fragmentNormal.xyz * 0.5 + 0.5, vec3<f32>(2.2)), 1.0);
+        }
+        case 34: {
+            // Bitangents
+            outColor = vec4<f32>(pow(bitangent.xyz * 0.5 + 0.5, vec3<f32>(2.2)), 1.0);
+        }
+        case 35: {
+            // Albedo
+            outColor = vec4<f32>(albedoColorFinal.rgb, 1.0);
         }
         default: { 
             outColor = vec4<f32>(1.0);

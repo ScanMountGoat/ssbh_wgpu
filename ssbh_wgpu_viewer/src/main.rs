@@ -301,6 +301,10 @@ impl State {
                             VirtualKeyCode::C => self.render.debug_mode = DebugMode::UvSet,
                             VirtualKeyCode::V => self.render.debug_mode = DebugMode::UvSet1,
                             VirtualKeyCode::B => self.render.debug_mode = DebugMode::UvSet2,
+                            VirtualKeyCode::N => self.render.debug_mode = DebugMode::Basic,
+                            VirtualKeyCode::M => self.render.debug_mode = DebugMode::Normals,
+                            VirtualKeyCode::Comma => self.render.debug_mode = DebugMode::Bitangents,
+                            VirtualKeyCode::Period => self.render.debug_mode = DebugMode::Albedo,
                             // TODO: Add more steps?
                             VirtualKeyCode::Numpad0 => self.render.transition_factor = 0.0,
                             VirtualKeyCode::Numpad1 => self.render.transition_factor = 1.0 / 3.0,
@@ -362,7 +366,12 @@ impl State {
             model_view_matrix,
             mvp_matrix,
             camera_pos: camera_pos.to_array(),
-            screen_dimensions: [self.size.width as f32, self.size.height as f32, scale_factor as f32, 0.0]
+            screen_dimensions: [
+                self.size.width as f32,
+                self.size.height as f32,
+                scale_factor as f32,
+                0.0,
+            ],
         };
         self.renderer.update_camera(&self.queue, transforms);
     }

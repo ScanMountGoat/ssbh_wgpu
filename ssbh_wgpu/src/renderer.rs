@@ -37,9 +37,10 @@ const VARIANCE_SHADOW_WIDTH: u32 = 512;
 const VARIANCE_SHADOW_HEIGHT: u32 = 512;
 
 // TODO: Module level documention for how to use this?
+// TODO: Separate modes for selecting parameters by index (ex: Booleans[3])?
 #[derive(PartialEq, Eq, Copy, Clone, Display, EnumVariantNames, EnumString)]
 pub enum DebugMode {
-    /// The default shaded mode.
+    /// The default shaded mode supporting lighting and post processing.
     Shaded,
     /// The Position0 vertex attribute.
     Position0,
@@ -80,7 +81,14 @@ pub enum DebugMode {
     UvSet1,
     /// The uvSet2 vertex attribute.
     UvSet2,
-    // TODO: Separate modes for selecting parameters by index (ex: Booleans[3])?
+    /// Lambertian diffuse shading with normal mapping.
+    Basic,
+    /// Vertex normals with normal mapping.
+    Normals,
+    /// Calculated bitangent vectors for Smash Ultimate.
+    Bitangents,
+    /// The final albedo or base color after applying textures and materials.
+    Albedo,
 }
 
 /// The secondary material for material transitions when using [DebugMode::Shaded].

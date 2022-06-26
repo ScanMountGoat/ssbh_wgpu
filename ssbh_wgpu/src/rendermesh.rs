@@ -3,7 +3,7 @@ use crate::{
     bone_rendering::*,
     pipeline::{create_pipeline, PipelineKey},
     texture::{load_sampler, load_texture},
-    uniforms::{create_uniforms, create_uniforms_buffer},
+    uniforms::create_uniforms_buffer,
     vertex::{buffer0, buffer1, mesh_object_buffers, skin_weights, MeshObjectBufferData},
     PipelineData, ShaderDatabase,
 };
