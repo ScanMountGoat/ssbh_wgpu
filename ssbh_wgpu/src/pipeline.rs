@@ -244,7 +244,11 @@ fn blend_state(blend_state: &BlendStateData) -> wgpu::BlendState {
             dst_factor: blend_factor(blend_state.destination_color),
             operation: wgpu::BlendOperation::Add,
         },
-        alpha: wgpu::BlendComponent::REPLACE,
+        alpha: wgpu::BlendComponent {
+            src_factor: wgpu::BlendFactor::One,
+            dst_factor: wgpu::BlendFactor::One,
+            operation: wgpu::BlendOperation::Add,
+        },
     }
 }
 
