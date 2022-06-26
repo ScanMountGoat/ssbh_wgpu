@@ -320,7 +320,8 @@ impl SsbhRenderer {
             contents: bytemuck::cast_slice(&[crate::shader::model::CameraTransforms {
                 model_view_matrix: glam::Mat4::IDENTITY,
                 mvp_matrix: glam::Mat4::IDENTITY,
-                camera_pos: [0.0; 4],
+                camera_pos: [0.0, 0.0, -1.0, 1.0],
+                screen_dimensions: [1.0; 4],
             }]),
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });

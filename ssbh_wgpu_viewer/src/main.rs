@@ -186,7 +186,7 @@ impl State {
             self.config.height = new_size.height;
             self.surface.configure(&self.device, &self.config);
 
-            self.update_camera();
+            self.update_camera(scale_factor);
 
             // We also need to recreate the attachments if the size changes.
             self.renderer.resize(
@@ -355,17 +355,14 @@ impl State {
         (world_x, world_y)
     }
 
-    fn update(&mut self) {
-        self.update_camera();
-    }
-
-    fn update_camera(&mut self) {
+    fn update_camera(&mut self, scale_factor: f64) {
         let (camera_pos, model_view_matrix, mvp_matrix) =
             calculate_camera_pos_mvp(self.size, self.translation_xyz, self.rotation_xyz);
         let transforms = CameraTransforms {
             model_view_matrix,
             mvp_matrix,
             camera_pos: camera_pos.to_array(),
+            screen_dimensions: [self.size.width as f32, self.size.height as f32, scale_factor as f32, 0.0]
         };
         self.renderer.update_camera(&self.queue, transforms);
     }
@@ -541,13 +538,11 @@ fn main() {
                 }
 
                 if state.handle_input(event) {
-                    state.update_camera();
+                    state.update_camera(window.scale_factor());
                     state.update_render_settings();
                 }
             }
             Event::RedrawRequested(_) => {
-                // let start = std::time::Instant::now();
-                state.update();
                 match state.render() {
                     Ok(_) => {}
                     // Recreate the swap_chain if lost
@@ -559,7 +554,6 @@ fn main() {
                     // All other errors (Outdated, Timeout) should be resolved by the next frame
                     Err(e) => eprintln!("{:?}", e),
                 }
-                // eprintln!("{:?}", start.elapsed());
             }
             Event::MainEventsCleared => {
                 // RedrawRequested will only trigger once, unless we manually

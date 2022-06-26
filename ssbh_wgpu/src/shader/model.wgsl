@@ -2,6 +2,8 @@ struct CameraTransforms {
     model_view_matrix: mat4x4<f32>;
     mvp_matrix: mat4x4<f32>;
     camera_pos: vec4<f32>;
+    // width, height, scale, _
+    screen_dimensions: vec4<f32>;
 };
 
 struct LightTransforms {
@@ -705,16 +707,17 @@ fn vs_main_invalid(
 
 [[stage(fragment)]]
 fn fs_invalid_shader(in: VertexOutputInvalid) -> [[location(0)]] vec4<f32> {
-    // TODO: Multiply x by width and y by height.
-    // TODO: Account for scale factor.
-    // TODO: Use uniforms for this?
-    let checker = ScreenCheckerBoard(in.position.xy);
+    let position_clip = (in.position.xy / in.position.w) * 0.5 + 0.5;
+    // Account for screen dimensions and scale.
+    let checker = ScreenCheckerBoard(position_clip * camera.screen_dimensions.xy * camera.screen_dimensions.z);
     return vec4<f32>(checker, 0.0, 0.0, 1.0);
 }
 
 [[stage(fragment)]]
 fn fs_invalid_attributes(in: VertexOutputInvalid) -> [[location(0)]] vec4<f32> {
-    let checker = ScreenCheckerBoard(in.position.xy);
+    let position_clip = (in.position.xy / in.position.w) * 0.5 + 0.5;
+    // Account for screen dimensions and scale.
+    let checker = ScreenCheckerBoard(position_clip * camera.screen_dimensions.xy * camera.screen_dimensions.z);
     return vec4<f32>(checker, checker, 0.0, 1.0);
 }
 
@@ -742,6 +745,8 @@ fn fs_debug(in: VertexOutput) -> [[location(0)]] vec4<f32> {
     var reflectionVector = reflect(viewVector, normal);
     reflectionVector.y = reflectionVector.y * -1.0;
 
+    // TODO: Some of these render modes should be gamma corrected.
+    // TODO: Use more accurate gamma correction.
     var outColor = vec4<f32>(1.0);
     switch (render_settings.debug_mode.x) {
         case 1: {
