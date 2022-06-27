@@ -108,5 +108,7 @@ fn main() {
             &render_models,
             &shader_database,
         );
+
+        // TODO: Save the output texture.
     }
 }

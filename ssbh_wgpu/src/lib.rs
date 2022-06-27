@@ -1,6 +1,7 @@
 use log::{error, info};
 use nutexb_wgpu::NutexbFile;
 use rayon::prelude::*; // TODO: Use rayon to speed up load times?
+use ssbh_data::prelude::*;
 use std::{
     error::Error,
     path::{Path, PathBuf},
@@ -19,18 +20,13 @@ mod renderer;
 mod rendermesh;
 mod shader_database;
 
+pub use crate::pipeline::PipelineData;
 pub use renderer::SsbhRenderer;
+pub use renderer::{DebugMode, RenderSettings, TransitionMaterial, RGBA_COLOR_FORMAT};
 pub use rendermesh::{RenderMesh, RenderModel};
 pub use shader::model::CameraTransforms;
 pub use shader_database::{create_database, ShaderDatabase, ShaderProgram};
 pub use texture::{create_default_textures, load_default_cube};
-
-use ssbh_data::prelude::*;
-
-pub use crate::pipeline::PipelineData;
-use crate::rendermesh::RenderMeshSharedData;
-
-pub use renderer::{DebugMode, RenderSettings, TransitionMaterial, RGBA_COLOR_FORMAT};
 
 // TODO: Find a way to avoid using the format features for filterable f32 textures.
 /// Required WGPU features for using this library.
@@ -148,27 +144,15 @@ pub fn load_render_models(
     let render_models: Vec<_> = models
         .iter()
         .map(|model| {
-            // TODO: Should this use the file names in the modl itself?
-            let shared_data = RenderMeshSharedData {
+            RenderModel::from_folder(
+                device,
+                queue,
+                model,
                 pipeline_data,
                 default_textures,
                 stage_cube,
-                mesh: model.find_mesh(),
-                modl: model.find_modl(),
-                skel: model.find_skel(),
-                matl: model.find_matl(),
-                adj: model.find_adj(),
-                nutexbs: &model.nutexbs,
-                hlpb: model
-                    .hlpbs
-                    .iter()
-                    .find(|(f, _)| f == "model.nuhlpb")
-                    .and_then(|(_, m)| m.as_ref().ok()),
                 database,
-            };
-
-            // TODO: Avoid creating the render model if there is no mesh?
-            rendermesh::create_render_model(device, queue, &shared_data)
+            )
         })
         .collect();
 

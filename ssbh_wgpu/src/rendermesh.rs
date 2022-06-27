@@ -5,7 +5,7 @@ use crate::{
     texture::{load_sampler, load_texture},
     uniforms::create_uniforms_buffer,
     vertex::{buffer0, buffer1, mesh_object_buffers, skin_weights, MeshObjectBufferData},
-    PipelineData, ShaderDatabase, ModelFiles,
+    ModelFiles, ModelFolder, PipelineData, ShaderDatabase,
 };
 use glam::Vec4Swizzles;
 use log::{debug, error, info};
@@ -78,6 +78,41 @@ pub struct RenderMesh {
 impl RenderMesh {
     pub fn render_order(&self) -> isize {
         render_pass_index(self.shader_label.get(25..).unwrap_or("")) + self.sort_bias as isize
+    }
+}
+
+impl RenderModel {
+    pub fn from_folder(
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        model: &ModelFolder,
+        // TODO: Group these together?
+        pipeline_data: &PipelineData,
+        default_textures: &[(String, wgpu::Texture)],
+        stage_cube: &(wgpu::TextureView, wgpu::Sampler),
+        database: &ShaderDatabase,
+    ) -> Self {
+        // TODO: Should this use the file names in the modl itself?
+        // TODO: Avoid creating the render model if there is no mesh?
+        let shared_data = RenderMeshSharedData {
+            pipeline_data,
+            default_textures,
+            stage_cube,
+            mesh: model.find_mesh(),
+            modl: model.find_modl(),
+            skel: model.find_skel(),
+            matl: model.find_matl(),
+            adj: model.find_adj(),
+            nutexbs: &model.nutexbs,
+            hlpb: model
+                .hlpbs
+                .iter()
+                .find(|(f, _)| f == "model.nuhlpb")
+                .and_then(|(_, m)| m.as_ref().ok()),
+            database,
+        };
+
+        shared_data.to_render_model(device, queue)
     }
 }
 
@@ -399,7 +434,10 @@ impl RenderModel {
 
                 self.set_mesh_buffers(render_pass, mesh);
 
-                render_pass.draw_indexed(0..mesh.vertex_index_count as u32, 0, 0..1);
+                // Prevent potential validation error from zero count on Metal.
+                if mesh.vertex_index_count > 0 {
+                    render_pass.draw_indexed(0..mesh.vertex_index_count as u32, 0, 0..1);
+                }
             }
         }
     }
@@ -422,7 +460,10 @@ impl RenderModel {
 
                 self.set_mesh_buffers(render_pass, mesh);
 
-                render_pass.draw_indexed(0..mesh.vertex_index_count as u32, 0, 0..1);
+                // Prevent potential validation error from zero count on Metal.
+                if mesh.vertex_index_count > 0 {
+                    render_pass.draw_indexed(0..mesh.vertex_index_count as u32, 0, 0..1);
+                }
             }
         }
     }
@@ -511,169 +552,171 @@ impl RenderModel {
     }
 }
 
-// TODO: Come up with a more descriptive name for this.
-pub struct RenderMeshSharedData<'a> {
-    pub pipeline_data: &'a PipelineData,
-    pub default_textures: &'a [(String, wgpu::Texture)],
-    pub stage_cube: &'a (wgpu::TextureView, wgpu::Sampler),
-    pub mesh: Option<&'a MeshData>,
-    pub modl: Option<&'a ModlData>,
-    pub skel: Option<&'a SkelData>,
-    pub matl: Option<&'a MatlData>,
-    pub adj: Option<&'a AdjData>,
-    pub hlpb: Option<&'a HlpbData>,
-    pub nutexbs: &'a ModelFiles<NutexbFile>,
-    pub database: &'a ShaderDatabase,
+struct RenderMeshSharedData<'a> {
+    pipeline_data: &'a PipelineData,
+    default_textures: &'a [(String, wgpu::Texture)],
+    stage_cube: &'a (wgpu::TextureView, wgpu::Sampler),
+    mesh: Option<&'a MeshData>,
+    modl: Option<&'a ModlData>,
+    skel: Option<&'a SkelData>,
+    matl: Option<&'a MatlData>,
+    adj: Option<&'a AdjData>,
+    hlpb: Option<&'a HlpbData>,
+    nutexbs: &'a ModelFiles<NutexbFile>,
+    database: &'a ShaderDatabase,
 }
 
-pub fn create_render_model(
-    device: &wgpu::Device,
-    queue: &wgpu::Queue,
-    shared_data: &RenderMeshSharedData,
-) -> RenderModel {
-    let start = std::time::Instant::now();
+impl<'a> RenderMeshSharedData<'a> {
+    fn to_render_model(&self, device: &wgpu::Device, queue: &wgpu::Queue) -> RenderModel {
+        let start = std::time::Instant::now();
 
-    // Attempt to initialize transforms using the skel.
-    // This correctly positions mesh objects parented to a bone.
-    // Otherwise, don't apply any transformations.
-    // TODO: Is it worth matching the in game behavior for a missing skel?
-    // "Invisible" models might be more confusing for users to understand.
-    let animation_transforms = shared_data
-        .skel
-        .map(AnimationTransforms::from_skel)
-        .unwrap_or_else(AnimationTransforms::identity);
+        // Attempt to initialize transforms using the skel.
+        // This correctly positions mesh objects parented to a bone.
+        // Otherwise, don't apply any transformations.
+        // TODO: Is it worth matching the in game behavior for a missing skel?
+        // "Invisible" models might be more confusing for users to understand.
+        let animation_transforms = self
+            .skel
+            .map(AnimationTransforms::from_skel)
+            .unwrap_or_else(AnimationTransforms::identity);
 
-    // Share the transforms buffer to avoid redundant updates.
-    // TODO: Enforce bone count being at most 511?
-    let skinning_transforms_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-        label: Some("Bone Transforms Buffer"),
-        contents: bytemuck::cast_slice(&[animation_transforms.animated_world_transforms]),
-        // COPY_DST allows applying animations without allocating new buffers
-        usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-    });
+        // Share the transforms buffer to avoid redundant updates.
+        // TODO: Enforce bone count being at most 511?
+        let skinning_transforms_buffer =
+            device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("Bone Transforms Buffer"),
+                contents: bytemuck::cast_slice(&[animation_transforms.animated_world_transforms]),
+                // COPY_DST allows applying animations without allocating new buffers
+                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            });
 
-    let world_transforms_buffer =
-        create_world_transforms_buffer(device, &animation_transforms.world_transforms);
+        let world_transforms_buffer =
+            create_world_transforms_buffer(device, &animation_transforms.world_transforms);
 
-    // TODO: Clean this up.
-    let bone_colors_buffer = bone_colors_buffer(device, shared_data.skel, shared_data.hlpb);
+        // TODO: Clean this up.
+        let bone_colors_buffer = bone_colors_buffer(device, self.skel, self.hlpb);
 
-    // TODO: How to avoid applying scale to the bone geometry?
-    let bone_data_bind_group = crate::shader::skeleton::bind_groups::BindGroup1::from_bindings(
-        device,
-        crate::shader::skeleton::bind_groups::BindGroupLayout1 {
-            world_transforms: world_transforms_buffer.as_entire_buffer_binding(),
-            bone_colors: bone_colors_buffer.as_entire_buffer_binding(),
-        },
-    );
-
-    let joint_transforms = shared_data
-        .skel
-        .map(|skel| joint_transforms(skel, &animation_transforms))
-        .unwrap_or_else(|| vec![glam::Mat4::IDENTITY; 512]);
-
-    let joint_world_transforms_buffer =
-        device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Joint World Transforms Buffer"),
-            contents: bytemuck::cast_slice(&joint_transforms),
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-        });
-
-    let bone_colors_buffer_outer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-        label: Some("Bone Colors Buffer"),
-        contents: bytemuck::cast_slice(&vec![[0.0f32; 4]; crate::animation::MAX_BONE_COUNT]),
-        usage: wgpu::BufferUsages::UNIFORM,
-    });
-
-    let bone_data_outer_bind_group =
-        crate::shader::skeleton::bind_groups::BindGroup1::from_bindings(
+        // TODO: How to avoid applying scale to the bone geometry?
+        let bone_data_bind_group = crate::shader::skeleton::bind_groups::BindGroup1::from_bindings(
             device,
             crate::shader::skeleton::bind_groups::BindGroupLayout1 {
                 world_transforms: world_transforms_buffer.as_entire_buffer_binding(),
-                bone_colors: bone_colors_buffer_outer.as_entire_buffer_binding(),
+                bone_colors: bone_colors_buffer.as_entire_buffer_binding(),
             },
         );
 
-    let joint_data_bind_group = crate::shader::skeleton::bind_groups::BindGroup1::from_bindings(
-        device,
-        crate::shader::skeleton::bind_groups::BindGroupLayout1 {
-            world_transforms: joint_world_transforms_buffer.as_entire_buffer_binding(),
-            bone_colors: bone_colors_buffer.as_entire_buffer_binding(),
-        },
-    );
+        let joint_transforms = self
+            .skel
+            .map(|skel| joint_transforms(skel, &animation_transforms))
+            .unwrap_or_else(|| vec![glam::Mat4::IDENTITY; 512]);
 
-    let joint_data_outer_bind_group =
-        crate::shader::skeleton::bind_groups::BindGroup1::from_bindings(
-            device,
-            crate::shader::skeleton::bind_groups::BindGroupLayout1 {
-                world_transforms: joint_world_transforms_buffer.as_entire_buffer_binding(),
-                bone_colors: bone_colors_buffer_outer.as_entire_buffer_binding(),
-            },
-        );
+        let joint_world_transforms_buffer =
+            device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("Joint World Transforms Buffer"),
+                contents: bytemuck::cast_slice(&joint_transforms),
+                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            });
 
-    let mesh_buffers = MeshBuffers {
-        skinning_transforms: skinning_transforms_buffer,
-        world_transforms: world_transforms_buffer,
-    };
-
-    let RenderMeshData {
-        meshes,
-        material_data_by_label,
-        textures,
-        pipelines,
-        buffer_data,
-    } = create_render_meshes(device, queue, &mesh_buffers, shared_data);
-
-    let mut bone_bind_groups = Vec::new();
-    if let Some(skel) = shared_data.skel {
-        for (i, bone) in skel.bones.iter().enumerate() {
-            // TODO: Use instancing instead.
-            let per_bone = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("Mesh Object Info Buffer"),
-                contents: bytemuck::cast_slice(&[crate::shader::skeleton::PerBone {
-                    indices: [
-                        i as i32,
-                        bone.parent_index.map(|p| p as i32).unwrap_or(-1),
-                        -1,
-                        -1,
-                    ],
-                }]),
+        let bone_colors_buffer_outer =
+            device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("Bone Colors Buffer"),
+                contents: bytemuck::cast_slice(&vec![
+                    [0.0f32; 4];
+                    crate::animation::MAX_BONE_COUNT
+                ]),
                 usage: wgpu::BufferUsages::UNIFORM,
             });
 
-            let bind_group2 = crate::shader::skeleton::bind_groups::BindGroup2::from_bindings(
+        let bone_data_outer_bind_group =
+            crate::shader::skeleton::bind_groups::BindGroup1::from_bindings(
                 device,
-                crate::shader::skeleton::bind_groups::BindGroupLayout2 {
-                    per_bone: per_bone.as_entire_buffer_binding(),
+                crate::shader::skeleton::bind_groups::BindGroupLayout1 {
+                    world_transforms: world_transforms_buffer.as_entire_buffer_binding(),
+                    bone_colors: bone_colors_buffer_outer.as_entire_buffer_binding(),
                 },
             );
-            bone_bind_groups.push(bind_group2);
+
+        let joint_data_bind_group = crate::shader::skeleton::bind_groups::BindGroup1::from_bindings(
+            device,
+            crate::shader::skeleton::bind_groups::BindGroupLayout1 {
+                world_transforms: joint_world_transforms_buffer.as_entire_buffer_binding(),
+                bone_colors: bone_colors_buffer.as_entire_buffer_binding(),
+            },
+        );
+
+        let joint_data_outer_bind_group =
+            crate::shader::skeleton::bind_groups::BindGroup1::from_bindings(
+                device,
+                crate::shader::skeleton::bind_groups::BindGroupLayout1 {
+                    world_transforms: joint_world_transforms_buffer.as_entire_buffer_binding(),
+                    bone_colors: bone_colors_buffer_outer.as_entire_buffer_binding(),
+                },
+            );
+
+        let mesh_buffers = MeshBuffers {
+            skinning_transforms: skinning_transforms_buffer,
+            world_transforms: world_transforms_buffer,
+        };
+
+        let RenderMeshData {
+            meshes,
+            material_data_by_label,
+            textures,
+            pipelines,
+            buffer_data,
+        } = create_render_meshes(device, queue, &mesh_buffers, self);
+
+        let mut bone_bind_groups = Vec::new();
+        if let Some(skel) = self.skel {
+            for (i, bone) in skel.bones.iter().enumerate() {
+                // TODO: Use instancing instead.
+                let per_bone = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                    label: Some("Mesh Object Info Buffer"),
+                    contents: bytemuck::cast_slice(&[crate::shader::skeleton::PerBone {
+                        indices: [
+                            i as i32,
+                            bone.parent_index.map(|p| p as i32).unwrap_or(-1),
+                            -1,
+                            -1,
+                        ],
+                    }]),
+                    usage: wgpu::BufferUsages::UNIFORM,
+                });
+
+                let bind_group2 = crate::shader::skeleton::bind_groups::BindGroup2::from_bindings(
+                    device,
+                    crate::shader::skeleton::bind_groups::BindGroupLayout2 {
+                        per_bone: per_bone.as_entire_buffer_binding(),
+                    },
+                );
+                bone_bind_groups.push(bind_group2);
+            }
         }
-    }
 
-    info!(
-        "Create {:?} render meshe(s), {:?} material(s), {:?} pipeline(s): {:?}",
-        meshes.len(),
-        material_data_by_label.len(),
-        pipelines.len(),
-        start.elapsed()
-    );
+        info!(
+            "Create {:?} render meshe(s), {:?} material(s), {:?} pipeline(s): {:?}",
+            meshes.len(),
+            material_data_by_label.len(),
+            pipelines.len(),
+            start.elapsed()
+        );
 
-    RenderModel {
-        is_visible: true,
-        meshes,
-        mesh_buffers,
-        material_data_by_label,
-        textures,
-        pipelines,
-        joint_world_transforms_buffer,
-        bone_data_bind_group,
-        bone_data_outer_bind_group,
-        joint_data_bind_group,
-        joint_data_outer_bind_group,
-        bone_bind_groups,
-        buffer_data,
-        animation_transforms: Box::new(animation_transforms),
+        RenderModel {
+            is_visible: true,
+            meshes,
+            mesh_buffers,
+            material_data_by_label,
+            textures,
+            pipelines,
+            joint_world_transforms_buffer,
+            bone_data_bind_group,
+            bone_data_outer_bind_group,
+            joint_data_bind_group,
+            joint_data_outer_bind_group,
+            bone_bind_groups,
+            buffer_data,
+            animation_transforms: Box::new(animation_transforms),
+        }
     }
 }
 
