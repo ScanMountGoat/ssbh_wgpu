@@ -107,8 +107,23 @@ impl State {
                 label: Some("Render Encoder"),
             });
 
+        let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("Render Pass"),
+            color_attachments: &[wgpu::RenderPassColorAttachment {
+                view: &output_view,
+                resolve_target: None,
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+                    store: true,
+                },
+            }],
+            depth_stencil_attachment: None,
+        });
+
         self.renderer
-            .render(&mut encoder, &output_view, &self.rgba_texture_bind_group);
+            .render(&mut render_pass, &self.rgba_texture_bind_group);
+
+        drop(render_pass);
 
         self.queue.submit(iter::once(encoder.finish()));
 

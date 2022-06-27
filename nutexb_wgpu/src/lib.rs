@@ -112,14 +112,13 @@ impl TextureRenderer {
 
     // TODO: Add an option to not render the alpha.
     // TODO: Make the BindGroup type strongly typed using wgsl_to_wgpu?
-    pub fn render(
-        &self,
-        encoder: &mut wgpu::CommandEncoder,
-        output_view: &wgpu::TextureView,
-        texture: &wgpu::BindGroup,
+    pub fn render<'a>(
+        &'a self,
+        render_pass: &mut wgpu::RenderPass<'a>,
+        texture: &'a wgpu::BindGroup,
     ) {
         // Draw the RGBA texture to the screen.
-        draw_textured_triangle(encoder, output_view, &self.pipeline, texture);
+        draw_textured_triangle(render_pass, &self.pipeline, texture);
     }
 
     // Convert a texture to the RGBA format using a shader.
@@ -159,12 +158,22 @@ impl TextureRenderer {
             label: Some("Render Encoder"),
         });
 
-        draw_textured_triangle(
-            &mut encoder,
-            &rgba_texture_view,
-            &self.rgba_pipeline,
-            &texture_bind_group,
-        );
+        let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("Render Pass"),
+            color_attachments: &[wgpu::RenderPassColorAttachment {
+                view: &rgba_texture_view,
+                resolve_target: None,
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+                    store: true,
+                },
+            }],
+            depth_stencil_attachment: None,
+        });
+
+        draw_textured_triangle(&mut render_pass, &self.rgba_pipeline, &texture_bind_group);
+
+        drop(render_pass);
 
         // Ensure the texture write happens before returning the texture.
         // TODO: Reuse an existing queue to optimize converting many textures?
@@ -243,25 +252,11 @@ fn create_render_pipeline(
     })
 }
 
-fn draw_textured_triangle(
-    encoder: &mut wgpu::CommandEncoder,
-    view: &wgpu::TextureView,
-    pipeline: &wgpu::RenderPipeline,
-    texture_bind_group: &wgpu::BindGroup,
+fn draw_textured_triangle<'a>(
+    render_pass: &mut wgpu::RenderPass<'a>,
+    pipeline: &'a wgpu::RenderPipeline,
+    texture_bind_group: &'a wgpu::BindGroup,
 ) {
-    let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-        label: Some("Render Pass"),
-        color_attachments: &[wgpu::RenderPassColorAttachment {
-            view,
-            resolve_target: None,
-            ops: wgpu::Operations {
-                load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
-                store: true,
-            },
-        }],
-        depth_stencil_attachment: None,
-    });
-
     render_pass.set_pipeline(pipeline);
     render_pass.set_bind_group(0, texture_bind_group, &[]);
     render_pass.draw(0..3, 0..1);
