@@ -5,7 +5,7 @@ use crate::{
     texture::{load_sampler, load_texture},
     uniforms::create_uniforms_buffer,
     vertex::{buffer0, buffer1, mesh_object_buffers, skin_weights, MeshObjectBufferData},
-    PipelineData, ShaderDatabase,
+    PipelineData, ShaderDatabase, ModelFiles,
 };
 use glam::Vec4Swizzles;
 use log::{debug, error, info};
@@ -182,7 +182,6 @@ impl RenderModel {
         let start = std::time::Instant::now();
 
         // TODO: Restructure this to iterate the animations only once?
-        let anims = anims.into_iter();
         for anim in anims.clone() {
             // TODO: This won't work for multiple animations?
             animate_visibility(anim, frame, &mut self.meshes);
@@ -523,7 +522,7 @@ pub struct RenderMeshSharedData<'a> {
     pub matl: Option<&'a MatlData>,
     pub adj: Option<&'a AdjData>,
     pub hlpb: Option<&'a HlpbData>,
-    pub nutexbs: &'a [(String, NutexbFile)],
+    pub nutexbs: &'a ModelFiles<NutexbFile>,
     pub database: &'a ShaderDatabase,
 }
 
@@ -734,11 +733,12 @@ fn create_render_meshes(
     let textures: Vec<_> = shared_data
         .nutexbs
         .iter()
-        .map(|(name, nutexb)| {
-            (
+        .filter_map(|(name, nutexb)| {
+            // TODO: Log nutexb files that fail to load?
+            Some((
                 name.clone(),
-                nutexb_wgpu::create_texture(nutexb, device, queue),
-            )
+                nutexb_wgpu::create_texture(nutexb.as_ref().ok()?, device, queue),
+            ))
         })
         .collect();
 

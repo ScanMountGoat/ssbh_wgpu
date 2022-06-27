@@ -1,6 +1,6 @@
 use log::{error, info};
 use nutexb_wgpu::NutexbFile;
-use rayon::prelude::*;
+use rayon::prelude::*; // TODO: Use rayon to speed up load times?
 use std::{
     error::Error,
     path::{Path, PathBuf},
@@ -41,6 +41,8 @@ pub const REQUIRED_FEATURES: wgpu::Features = wgpu::Features::from_bits_truncate
         | wgpu::Features::TEXTURE_ADAPTER_SPECIFIC_FORMAT_FEATURES.bits(),
 );
 
+pub type ModelFiles<T> = Vec<(String, Result<T, Box<dyn Error>>)>;
+
 // Store the file data for a single folder.
 // This helps ensure files are loaded exactly once.
 // Applications can instantiate this struct directly instead of using the filesystem.
@@ -48,14 +50,14 @@ pub struct ModelFolder {
     pub folder_name: String,
     // TODO: Will a hashmap be faster for this many items?
     // TODO: Should these be Result<T, E> to display error info in applications?
-    pub meshes: Vec<(String, MeshData)>,
-    pub skels: Vec<(String, SkelData)>,
-    pub matls: Vec<(String, MatlData)>,
-    pub modls: Vec<(String, ModlData)>,
-    pub adjs: Vec<(String, AdjData)>,
-    pub anims: Vec<(String, AnimData)>,
-    pub hlpbs: Vec<(String, HlpbData)>,
-    pub nutexbs: Vec<(String, NutexbFile)>,
+    pub meshes: ModelFiles<MeshData>,
+    pub skels: ModelFiles<SkelData>,
+    pub matls: ModelFiles<MatlData>,
+    pub modls: ModelFiles<ModlData>,
+    pub adjs: ModelFiles<AdjData>,
+    pub anims: ModelFiles<AnimData>,
+    pub hlpbs: ModelFiles<HlpbData>,
+    pub nutexbs: ModelFiles<NutexbFile>,
 }
 
 impl ModelFolder {
@@ -78,55 +80,55 @@ impl ModelFolder {
         self.modls
             .iter()
             .find(|(f, _)| f == "model.numdlb")
-            .map(|(_, m)| m)
+            .and_then(|(_, m)| m.as_ref().ok())
     }
 
-    /// Searches for the `"model.numatb"` file  in [matls](#structfield.matls).
+    /// Searches for the `"model.numatb"` file in [matls](#structfield.matls).
     pub fn find_matl(&self) -> Option<&MatlData> {
         self.matls
             .iter()
             .find(|(f, _)| f == "model.numatb")
-            .map(|(_, m)| m)
+            .and_then(|(_, m)| m.as_ref().ok())
     }
 
-    /// Searches for the `"model.nusktb"` file  in [skels](#structfield.skels).
+    /// Searches for the `"model.nusktb"` file in [skels](#structfield.skels).
     pub fn find_skel(&self) -> Option<&SkelData> {
         self.skels
             .iter()
             .find(|(f, _)| f == "model.nusktb")
-            .map(|(_, m)| m)
+            .and_then(|(_, m)| m.as_ref().ok())
     }
 
-    /// Searches for the `"model.nuanmb"` file  in [anims](#structfield.anims).
+    /// Searches for the `"model.nuanmb"` file in [anims](#structfield.anims).
     pub fn find_anim(&self) -> Option<&AnimData> {
         self.anims
             .iter()
             .find(|(f, _)| f == "model.nuanmb")
-            .map(|(_, m)| m)
+            .and_then(|(_, m)| m.as_ref().ok())
     }
 
-    /// Searches for the `"model.nuhlpb"` file  in [hlpbs](#structfield.hlpbs).
+    /// Searches for the `"model.nuhlpb"` file in [hlpbs](#structfield.hlpbs).
     pub fn find_hlpb(&self) -> Option<&HlpbData> {
         self.hlpbs
             .iter()
             .find(|(f, _)| f == "model.nuhlpb")
-            .map(|(_, m)| m)
+            .and_then(|(_, m)| m.as_ref().ok())
     }
 
-    /// Searches for the `"model.numshb"` file  in [meshes](#structfield.meshes).
+    /// Searches for the `"model.numshb"` file in [meshes](#structfield.meshes).
     pub fn find_mesh(&self) -> Option<&MeshData> {
         self.meshes
             .iter()
             .find(|(f, _)| f == "model.numshb")
-            .map(|(_, m)| m)
+            .and_then(|(_, m)| m.as_ref().ok())
     }
 
-    /// Searches for the `"model.adjb"` file  in [adjs](#structfield.adjs).
+    /// Searches for the `"model.adjb"` file in [adjs](#structfield.adjs).
     pub fn find_adj(&self) -> Option<&AdjData> {
         self.adjs
             .iter()
             .find(|(f, _)| f == "model.adjb")
-            .map(|(_, m)| m)
+            .and_then(|(_, m)| m.as_ref().ok())
     }
 }
 
@@ -161,7 +163,7 @@ pub fn load_render_models(
                     .hlpbs
                     .iter()
                     .find(|(f, _)| f == "model.nuhlpb")
-                    .map(|(_, m)| m),
+                    .and_then(|(_, m)| m.as_ref().ok()),
                 database,
             };
 
@@ -193,7 +195,7 @@ pub fn load_model_folders<P: AsRef<Path>>(root: P) -> Vec<ModelFolder> {
         .filter_map(Result::ok);
     let start = std::time::Instant::now();
     let models: Vec<_> = model_paths
-        .par_bridge()
+        .into_iter()
         .filter_map(|p| {
             // TODO: Some folders don't have a numshb?
             // TODO: Can the mesh be optional?
@@ -210,10 +212,9 @@ pub fn load_model_folders<P: AsRef<Path>>(root: P) -> Vec<ModelFolder> {
     models
 }
 
-fn read_files<T, E, F>(parent: &Path, extension: &str, read_t: F) -> Vec<(String, T)>
+fn read_files<T, F>(parent: &Path, extension: &str, read_t: F) -> ModelFiles<T>
 where
-    F: Fn(PathBuf) -> Result<T, E>,
-    E: std::fmt::Display,
+    F: Fn(PathBuf) -> Result<T, Box<dyn Error>>,
 {
     // TODO: Avoid repetitive system calls here?
     // We should be able to just iterate the directory once.
@@ -224,12 +225,10 @@ where
                 .filter_map(|p| {
                     Some((
                         p.file_name()?.to_string_lossy().to_string(),
-                        read_t(p.clone())
-                            .map_err(|e| {
-                                error!("Error reading {:?}: {}", p, e);
-                                e
-                            })
-                            .ok()?,
+                        read_t(p.clone()).map_err(|e| {
+                            error!("Error reading {:?}: {}", p, e);
+                            e
+                        }),
                     ))
                 })
                 .collect()

@@ -515,6 +515,9 @@ fn main() {
 
     let mut state = futures::executor::block_on(State::new(&window, folder, &anim_paths));
 
+    // Initialize the camera buffer.
+    state.update_camera(window.scale_factor());
+
     event_loop.run(move |event, _, control_flow| {
         match event {
             Event::WindowEvent {
