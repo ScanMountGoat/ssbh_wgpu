@@ -18,7 +18,6 @@ use ssbh_data::{
 };
 use std::{collections::HashMap, error::Error, num::NonZeroU64};
 use wgpu::{util::DeviceExt, SamplerDescriptor, TextureViewDescriptor};
-
 use wgpu_text::{
     font::FontRef,
     section::{BuiltInLineBreaker, Layout, Section, Text, VerticalAlign},
@@ -37,6 +36,7 @@ pub struct RenderModel {
     mesh_buffers: MeshBuffers,
     material_data_by_label: HashMap<String, MaterialData>,
     pipelines: HashMap<PipelineKey, wgpu::RenderPipeline>,
+    // TODO: Add public get methods?
     textures: Vec<(String, wgpu::Texture)>, // (file name, texture)
 
     joint_world_transforms_buffer: wgpu::Buffer,
@@ -306,45 +306,27 @@ impl RenderModel {
         skeleton_pipeline: &'a wgpu::RenderPipeline,
         skeleton_outer_pipeline: &'a wgpu::RenderPipeline,
     ) {
-        render_pass.set_index_buffer(
-            joint_buffers.joint_index_buffer.slice(..),
-            wgpu::IndexFormat::Uint32,
+        self.draw_skel_inner(
+            render_pass,
+            skel,
+            skeleton_outer_pipeline,
+            &joint_buffers.joint_vertex_buffer_outer,
+            &joint_buffers.joint_index_buffer,
+            camera_bind_group,
+            &self.joint_data_outer_bind_group,
+            joint_index_count() as u32,
         );
 
-        render_pass.set_pipeline(skeleton_outer_pipeline);
-        render_pass.set_vertex_buffer(0, joint_buffers.joint_vertex_buffer_outer.slice(..));
-        for i in 0..skel.bones.len() {
-            // Check for the parent to only draw joints between connected bones.
-            if skel.bones[i].parent_index.is_some() {
-                crate::shader::skeleton::bind_groups::set_bind_groups(
-                    render_pass,
-                    crate::shader::skeleton::bind_groups::BindGroups::<'a> {
-                        bind_group0: camera_bind_group,
-                        bind_group1: &self.joint_data_outer_bind_group,
-                        bind_group2: &self.bone_bind_groups[i],
-                    },
-                );
-
-                render_pass.draw_indexed(0..joint_index_count() as u32, 0, 0..1);
-            }
-        }
-
-        render_pass.set_pipeline(skeleton_pipeline);
-        render_pass.set_vertex_buffer(0, joint_buffers.joint_vertex_buffer.slice(..));
-        for i in 0..skel.bones.len() {
-            if skel.bones[i].parent_index.is_some() {
-                crate::shader::skeleton::bind_groups::set_bind_groups(
-                    render_pass,
-                    crate::shader::skeleton::bind_groups::BindGroups::<'a> {
-                        bind_group0: camera_bind_group,
-                        bind_group1: &self.joint_data_bind_group,
-                        bind_group2: &self.bone_bind_groups[i],
-                    },
-                );
-
-                render_pass.draw_indexed(0..joint_index_count() as u32, 0, 0..1);
-            }
-        }
+        self.draw_skel_inner(
+            render_pass,
+            skel,
+            skeleton_pipeline,
+            &joint_buffers.joint_vertex_buffer,
+            &joint_buffers.joint_index_buffer,
+            camera_bind_group,
+            &self.joint_data_bind_group,
+            joint_index_count() as u32,
+        );
     }
 
     fn draw_bones<'a>(
@@ -356,38 +338,54 @@ impl RenderModel {
         skeleton_pipeline: &'a wgpu::RenderPipeline,
         skeleton_outer_pipeline: &'a wgpu::RenderPipeline,
     ) {
-        render_pass.set_pipeline(skeleton_outer_pipeline);
-        render_pass.set_index_buffer(
-            joint_buffers.bone_index_buffer.slice(..),
-            wgpu::IndexFormat::Uint32,
-        );
         // TODO: Instancing?
-        render_pass.set_vertex_buffer(0, joint_buffers.bone_vertex_buffer_outer.slice(..));
+        self.draw_skel_inner(
+            render_pass,
+            skel,
+            skeleton_outer_pipeline,
+            &joint_buffers.bone_vertex_buffer_outer,
+            &joint_buffers.bone_index_buffer,
+            camera_bind_group,
+            &self.bone_data_outer_bind_group,
+            bone_index_count() as u32,
+        );
+
+        self.draw_skel_inner(
+            render_pass,
+            skel,
+            skeleton_pipeline,
+            &joint_buffers.bone_vertex_buffer,
+            &joint_buffers.bone_index_buffer,
+            camera_bind_group,
+            &self.bone_data_bind_group,
+            bone_index_count() as u32,
+        );
+    }
+
+    fn draw_skel_inner<'a>(
+        &'a self,
+        render_pass: &mut wgpu::RenderPass<'a>,
+        skel: &SkelData,
+        pipeline: &'a wgpu::RenderPipeline,
+        vertex_buffer: &'a wgpu::Buffer,
+        index_buffer: &'a wgpu::Buffer,
+        camera_bind_group: &'a crate::shader::skeleton::bind_groups::BindGroup0,
+        bone_data_bind_group: &'a crate::shader::skeleton::bind_groups::BindGroup1,
+        count: u32,
+    ) {
+        render_pass.set_pipeline(pipeline);
+        render_pass.set_index_buffer(index_buffer.slice(..), wgpu::IndexFormat::Uint32);
+        render_pass.set_vertex_buffer(0, vertex_buffer.slice(..));
         for i in 0..skel.bones.len() {
             crate::shader::skeleton::bind_groups::set_bind_groups(
                 render_pass,
                 crate::shader::skeleton::bind_groups::BindGroups::<'a> {
                     bind_group0: camera_bind_group,
-                    bind_group1: &self.bone_data_outer_bind_group,
+                    bind_group1: bone_data_bind_group,
                     bind_group2: &self.bone_bind_groups[i],
                 },
             );
-
-            render_pass.draw_indexed(0..bone_index_count() as u32, 0, 0..1);
-        }
-        render_pass.set_pipeline(skeleton_pipeline);
-        render_pass.set_vertex_buffer(0, joint_buffers.bone_vertex_buffer.slice(..));
-        for i in 0..skel.bones.len() {
-            crate::shader::skeleton::bind_groups::set_bind_groups(
-                render_pass,
-                crate::shader::skeleton::bind_groups::BindGroups::<'a> {
-                    bind_group0: camera_bind_group,
-                    bind_group1: &self.bone_data_bind_group,
-                    bind_group2: &self.bone_bind_groups[i],
-                },
-            );
-
-            render_pass.draw_indexed(0..bone_index_count() as u32, 0, 0..1);
+            render_pass.draw_indexed(0..count, 0, 0..1);
         }
     }
 
