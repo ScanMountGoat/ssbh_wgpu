@@ -61,6 +61,8 @@ impl State {
 
         let renderer = TextureRenderer::new(&device, surface_format);
 
+        let settings = RenderSettings::default();
+
         // Use the full texture width and height.
         // Some use cases benefit from custom dimensions like texture thumbnails.
         let start = std::time::Instant::now();
@@ -70,15 +72,11 @@ impl State {
             &texture,
             nutexb.footer.width,
             nutexb.footer.height,
+            &settings,
         );
         println!("Render to RGBA: {:?}", start.elapsed());
 
-        let settings = RenderSettings {
-            render_rgba: [1.0; 4],
-            mipmap: [16.0; 4],
-            layer: [0.0; 4],
-        };
-        let rgba_texture_bind_group = renderer.create_bind_group(&device, &rgba_texture, settings);
+        let rgba_texture_bind_group = renderer.create_bind_group(&device, &rgba_texture, &settings);
 
         Self {
             surface,

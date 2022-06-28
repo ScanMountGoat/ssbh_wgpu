@@ -1,6 +1,6 @@
 use log::warn;
 pub use nutexb::NutexbFile;
-pub use shader::{bind_groups::BindGroup0, RenderSettings};
+pub use shader::bind_groups::BindGroup0;
 use shader::{
     bind_groups::{set_bind_groups, BindGroups},
     create_pipeline_layout, create_shader_module,
@@ -8,6 +8,32 @@ use shader::{
 use wgpu::util::DeviceExt;
 
 mod shader;
+
+pub struct RenderSettings {
+    pub render_rgba: [bool; 4],
+    pub mipmap: f32,
+    pub layer: f32,
+}
+
+impl Default for RenderSettings {
+    fn default() -> Self {
+        Self {
+            render_rgba: [true; 4],
+            mipmap: 0.0,
+            layer: 0.0,
+        }
+    }
+}
+
+impl From<&RenderSettings> for crate::shader::RenderSettings {
+    fn from(settings: &RenderSettings) -> Self {
+        Self {
+            render_rgba: settings.render_rgba.map(|b| if b { 1.0 } else { 0.0 }),
+            mipmap: [settings.mipmap; 4],
+            layer: [settings.layer; 4],
+        }
+    }
+}
 
 pub fn create_texture(
     nutexb: &NutexbFile,
@@ -93,7 +119,11 @@ impl TextureRenderer {
         }
     }
 
-    pub fn render<'a>(&'a self, render_pass: &mut wgpu::RenderPass<'a>, bind_group: &'a BindGroup0) {
+    pub fn render<'a>(
+        &'a self,
+        render_pass: &mut wgpu::RenderPass<'a>,
+        bind_group: &'a BindGroup0,
+    ) {
         // Draw the RGBA texture to the screen.
         draw_textured_triangle(render_pass, &self.pipeline, bind_group);
     }
@@ -107,13 +137,9 @@ impl TextureRenderer {
         texture: &wgpu::Texture,
         width: u32,
         height: u32,
+        settings: &RenderSettings,
     ) -> wgpu::Texture {
         // TODO: Is this more efficient using compute shaders?
-        let settings = RenderSettings {
-            render_rgba: [1.0; 4],
-            mipmap: [0.0; 4],
-            layer: [0.0; 4],
-        };
         let texture_bind_group = self.create_bind_group(device, texture, settings);
 
         let rgba_texture = device.create_texture(&wgpu::TextureDescriptor {
@@ -170,7 +196,7 @@ impl TextureRenderer {
         &self,
         device: &wgpu::Device,
         texture: &wgpu::Texture,
-        settings: RenderSettings,
+        settings: &RenderSettings,
     ) -> BindGroup0 {
         let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
 
@@ -178,15 +204,16 @@ impl TextureRenderer {
             address_mode_u: wgpu::AddressMode::ClampToEdge,
             address_mode_v: wgpu::AddressMode::ClampToEdge,
             address_mode_w: wgpu::AddressMode::ClampToEdge,
-            mag_filter: wgpu::FilterMode::Linear,
-            min_filter: wgpu::FilterMode::Linear,
+            mag_filter: wgpu::FilterMode::Nearest,
+            min_filter: wgpu::FilterMode::Nearest,
             mipmap_filter: wgpu::FilterMode::Linear,
             ..Default::default()
         });
 
+        let shader_settings = crate::shader::RenderSettings::from(settings);
         let settings_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Bone Transforms Buffer"),
-            contents: bytemuck::cast_slice(&[settings]),
+            contents: bytemuck::cast_slice(&[shader_settings]),
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
         shader::bind_groups::BindGroup0::from_bindings(
