@@ -571,15 +571,15 @@ impl SsbhRenderer {
         width: u32,
         height: u32,
         mvp: glam::Mat4,
-        draw_bone_names: bool,
+        bone_name_font_size: Option<f32>,
     ) -> Option<wgpu::CommandBuffer> {
         self.skeleton_pass(encoder, render_models, output_view, skels);
 
-        if draw_bone_names {
+        if let Some(font_size) = bone_name_font_size {
             let brush = self.brush.as_mut()?;
 
             for (model, skel) in render_models.iter().zip(skels) {
-                model.queue_bone_names(*skel, brush, width, height, mvp);
+                model.queue_bone_names(*skel, brush, width, height, mvp, font_size);
             }
 
             // TODO: Make text rendering optional without returning the command buffer?

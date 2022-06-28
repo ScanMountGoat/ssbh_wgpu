@@ -483,6 +483,7 @@ impl RenderModel {
         width: u32,
         height: u32,
         mvp: glam::Mat4,
+        font_size: f32,
     ) {
         if let Some(skel) = skel {
             for (i, bone) in skel.bones.iter().enumerate() {
@@ -505,7 +506,7 @@ impl RenderModel {
                     .add_text(
                         (Text::new(&bone.name))
                             // TODO: Use the window's scale factor?
-                            .with_scale(12.0)
+                            .with_scale(font_size)
                             .with_color([1.0, 1.0, 1.0, 1.0]),
                     )
                     .with_bounds((width as f32, height as f32))

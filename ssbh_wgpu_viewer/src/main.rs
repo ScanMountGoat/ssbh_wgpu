@@ -448,7 +448,7 @@ impl State {
             self.size.width,
             self.size.height,
             mvp,
-            true,
+            None,
         ) {
             self.queue.submit([encoder.finish(), text_commands]);
         } else {
