@@ -1,6 +1,13 @@
 use log::warn;
 pub use nutexb::NutexbFile;
+pub use shader::{bind_groups::BindGroup0, RenderSettings};
+use shader::{
+    bind_groups::{set_bind_groups, BindGroups},
+    create_pipeline_layout, create_shader_module,
+};
 use wgpu::util::DeviceExt;
+
+mod shader;
 
 pub fn create_texture(
     nutexb: &NutexbFile,
@@ -26,7 +33,7 @@ pub fn create_texture(
         &wgpu::TextureDescriptor {
             label: Some(&nutexb.footer.string.to_string()),
             size,
-            // TODO: SHould this be an error?
+            // TODO: Should this be an error?
             // TODO: How does in game handle this case?
             mip_level_count: std::cmp::min(nutexb.footer.mipmap_count, max_mips),
             sample_count: 1,
@@ -76,49 +83,19 @@ pub const RGBA_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8UnormSrgb
 pub struct TextureRenderer {
     pipeline: wgpu::RenderPipeline,
     rgba_pipeline: wgpu::RenderPipeline,
-    layout: wgpu::BindGroupLayout,
 }
 
 impl TextureRenderer {
     pub fn new(device: &wgpu::Device, surface_format: wgpu::TextureFormat) -> Self {
-        let layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            entries: &[
-                wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Texture {
-                        multisampled: false,
-                        view_dimension: wgpu::TextureViewDimension::D2,
-                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
-                    },
-                    count: None,
-                },
-                wgpu::BindGroupLayoutEntry {
-                    binding: 1,
-                    visibility: wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
-                    count: None,
-                },
-            ],
-            label: Some("texture_bind_group_layout"),
-        });
-
         Self {
-            pipeline: create_render_pipeline(device, &layout, surface_format),
-            rgba_pipeline: create_render_pipeline(device, &layout, RGBA_FORMAT),
-            layout,
+            pipeline: create_render_pipeline(device, surface_format),
+            rgba_pipeline: create_render_pipeline(device, RGBA_FORMAT),
         }
     }
 
-    // TODO: Add an option to not render the alpha.
-    // TODO: Make the BindGroup type strongly typed using wgsl_to_wgpu?
-    pub fn render<'a>(
-        &'a self,
-        render_pass: &mut wgpu::RenderPass<'a>,
-        texture: &'a wgpu::BindGroup,
-    ) {
+    pub fn render<'a>(&'a self, render_pass: &mut wgpu::RenderPass<'a>, bind_group: &'a BindGroup0) {
         // Draw the RGBA texture to the screen.
-        draw_textured_triangle(render_pass, &self.pipeline, texture);
+        draw_textured_triangle(render_pass, &self.pipeline, bind_group);
     }
 
     // Convert a texture to the RGBA format using a shader.
@@ -132,7 +109,12 @@ impl TextureRenderer {
         height: u32,
     ) -> wgpu::Texture {
         // TODO: Is this more efficient using compute shaders?
-        let texture_bind_group = self.create_texture_bind_group(device, texture);
+        let settings = RenderSettings {
+            render_rgba: [1.0; 4],
+            mipmap: [0.0; 4],
+            layer: [0.0; 4],
+        };
+        let texture_bind_group = self.create_bind_group(device, texture, settings);
 
         let rgba_texture = device.create_texture(&wgpu::TextureDescriptor {
             label: None,
@@ -183,11 +165,13 @@ impl TextureRenderer {
         rgba_texture
     }
 
-    pub fn create_texture_bind_group(
+    // TODO: Set the texture and settings separately?
+    pub fn create_bind_group(
         &self,
         device: &wgpu::Device,
         texture: &wgpu::Texture,
-    ) -> wgpu::BindGroup {
+        settings: RenderSettings,
+    ) -> BindGroup0 {
         let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
 
         let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
@@ -200,40 +184,31 @@ impl TextureRenderer {
             ..Default::default()
         });
 
-        device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("Texture Bind Group"),
-            layout: &self.layout,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: wgpu::BindingResource::TextureView(&view),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: wgpu::BindingResource::Sampler(&sampler),
-                },
-            ],
-        })
+        let settings_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Bone Transforms Buffer"),
+            contents: bytemuck::cast_slice(&[settings]),
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        });
+        shader::bind_groups::BindGroup0::from_bindings(
+            device,
+            shader::bind_groups::BindGroupLayout0 {
+                t_diffuse: &view,
+                s_diffuse: &sampler,
+                render_settings: settings_buffer.as_entire_buffer_binding(),
+            },
+        )
     }
 }
 
 fn create_render_pipeline(
     device: &wgpu::Device,
-    texture_bind_group_layout: &wgpu::BindGroupLayout,
     surface_format: wgpu::TextureFormat,
 ) -> wgpu::RenderPipeline {
-    let shader = device.create_shader_module(&wgpu::ShaderModuleDescriptor {
-        label: Some("Shader"),
-        source: wgpu::ShaderSource::Wgsl(include_str!("shader.wgsl").into()),
-    });
-    let render_pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-        label: Some("Render Pipeline Layout"),
-        bind_group_layouts: &[texture_bind_group_layout],
-        push_constant_ranges: &[],
-    });
+    let shader = create_shader_module(device);
+    let render_pipeline_layout = create_pipeline_layout(device);
 
     device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-        label: Some("Render Pipeline"),
+        label: Some("nutexb_wgpu Render Pipeline"),
         layout: Some(&render_pipeline_layout),
         vertex: wgpu::VertexState {
             module: &shader,
@@ -255,9 +230,14 @@ fn create_render_pipeline(
 fn draw_textured_triangle<'a>(
     render_pass: &mut wgpu::RenderPass<'a>,
     pipeline: &'a wgpu::RenderPipeline,
-    texture_bind_group: &'a wgpu::BindGroup,
+    texture_bind_group: &'a BindGroup0,
 ) {
     render_pass.set_pipeline(pipeline);
-    render_pass.set_bind_group(0, texture_bind_group, &[]);
+    set_bind_groups(
+        render_pass,
+        BindGroups {
+            bind_group0: texture_bind_group,
+        },
+    );
     render_pass.draw(0..3, 0..1);
 }

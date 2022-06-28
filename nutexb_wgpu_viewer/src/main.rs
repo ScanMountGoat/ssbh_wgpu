@@ -1,7 +1,7 @@
 use std::{iter, path::Path};
 
 use futures::executor::block_on;
-use nutexb_wgpu::{NutexbFile, TextureRenderer};
+use nutexb_wgpu::{BindGroup0, NutexbFile, RenderSettings, TextureRenderer};
 use winit::{
     event::*,
     event_loop::{ControlFlow, EventLoop},
@@ -15,7 +15,7 @@ struct State {
     size: winit::dpi::PhysicalSize<u32>,
     config: wgpu::SurfaceConfiguration,
     renderer: TextureRenderer,
-    rgba_texture_bind_group: wgpu::BindGroup,
+    rgba_texture_bind_group: BindGroup0,
 }
 
 impl State {
@@ -73,7 +73,12 @@ impl State {
         );
         println!("Render to RGBA: {:?}", start.elapsed());
 
-        let rgba_texture_bind_group = renderer.create_texture_bind_group(&device, &rgba_texture);
+        let settings = RenderSettings {
+            render_rgba: [1.0; 4],
+            mipmap: [16.0; 4],
+            layer: [0.0; 4],
+        };
+        let rgba_texture_bind_group = renderer.create_bind_group(&device, &rgba_texture, settings);
 
         Self {
             surface,

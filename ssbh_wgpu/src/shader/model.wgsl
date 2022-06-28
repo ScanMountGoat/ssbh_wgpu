@@ -887,7 +887,7 @@ fn fs_debug(in: VertexOutput) -> [[location(0)]] vec4<f32> {
         }
     }
 
-    //  Use grayscale for single channels.
+    // Use grayscale for single channels.
     let rgba = render_settings.render_rgba;
     if (rgba.r == 1.0 && rgba.g == 0.0 && rgba.b == 0.0) {
         return vec4<f32>(outColor.rrr, 1.0);
