@@ -114,6 +114,14 @@ impl RenderModel {
 
         shared_data.to_render_model(device, queue)
     }
+
+    /// Finds the texture with the given `file_name`.
+    pub fn get_texture(&self, file_name: &str) -> Option<&wgpu::Texture> {
+        self.textures
+            .iter()
+            .find(|(f, _)| f == file_name)
+            .map(|(_, t)| t)
+    }
 }
 
 struct MaterialData {
