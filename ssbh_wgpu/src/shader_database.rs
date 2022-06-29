@@ -67,6 +67,14 @@ mod tests {
     use super::*;
 
     #[test]
+    fn program_discard() {
+        let database = create_database();
+        assert!(!database.get("SFX_PBS_011000000800826b").unwrap().discard);
+        assert!(database.get("SFX_PBS_010000000804826b").unwrap().discard);
+        assert!(database.get("SFX_PBS_010000000804830d").unwrap().discard);
+    }
+
+    #[test]
     fn has_required_attributes_empty() {
         assert!(ShaderProgram {
             discard: false,
