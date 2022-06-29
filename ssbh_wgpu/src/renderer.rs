@@ -180,7 +180,7 @@ pub struct SsbhRenderer {
     // Store camera state for efficiently updating it later.
     // This avoids exposing shader implementations like bind groups.
     camera_buffer: wgpu::Buffer,
-    stage_uniforms_buffer: wgpu::Buffer,
+    _stage_uniforms_buffer: wgpu::Buffer,
     per_frame_bind_group: crate::shader::model::bind_groups::BindGroup0,
     skeleton_camera_bind_group: crate::shader::skeleton::bind_groups::BindGroup0,
 
@@ -447,7 +447,7 @@ impl SsbhRenderer {
             variance_shadow,
             variance_bind_group,
             clear_color,
-            stage_uniforms_buffer,
+            _stage_uniforms_buffer: stage_uniforms_buffer,
             bone_pipeline,
             bone_outer_pipeline,
             joint_pipeline,

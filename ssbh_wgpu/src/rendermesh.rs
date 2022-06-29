@@ -39,11 +39,11 @@ pub struct RenderModel {
     // TODO: Add public get methods?
     textures: Vec<(String, wgpu::Texture)>, // (file name, texture)
 
-    joint_world_transforms_buffer: wgpu::Buffer,
+    joint_world_transforms: wgpu::Buffer,
     bone_data_bind_group: crate::shader::skeleton::bind_groups::BindGroup1,
-    bone_data_outer_bind_group: crate::shader::skeleton::bind_groups::BindGroup1,
-    joint_data_bind_group: crate::shader::skeleton::bind_groups::BindGroup1,
-    joint_data_outer_bind_group: crate::shader::skeleton::bind_groups::BindGroup1,
+    bone_data_outer: crate::shader::skeleton::bind_groups::BindGroup1,
+    joint_data: crate::shader::skeleton::bind_groups::BindGroup1,
+    joint_data_outer: crate::shader::skeleton::bind_groups::BindGroup1,
 
     // TODO: Use instancing instead.
     bone_bind_groups: Vec<crate::shader::skeleton::bind_groups::BindGroup2>,
@@ -119,7 +119,7 @@ impl RenderModel {
 
 struct MaterialData {
     material_uniforms_bind_group: crate::shader::model::bind_groups::BindGroup1,
-    uniforms_buffer: wgpu::Buffer,
+    _uniforms_buffer: wgpu::Buffer,
 }
 
 struct MeshBuffers {
@@ -234,7 +234,7 @@ impl RenderModel {
 
             let joint_transforms = joint_transforms(skel, &self.animation_transforms);
             queue.write_buffer(
-                &self.joint_world_transforms_buffer,
+                &self.joint_world_transforms,
                 0,
                 bytemuck::cast_slice(&joint_transforms),
             );
@@ -291,7 +291,7 @@ impl RenderModel {
             &joint_buffers.joint_vertex_buffer_outer,
             &joint_buffers.joint_index_buffer,
             camera_bind_group,
-            &self.joint_data_outer_bind_group,
+            &self.joint_data_outer,
             joint_index_count() as u32,
         );
 
@@ -302,7 +302,7 @@ impl RenderModel {
             &joint_buffers.joint_vertex_buffer,
             &joint_buffers.joint_index_buffer,
             camera_bind_group,
-            &self.joint_data_bind_group,
+            &self.joint_data,
             joint_index_count() as u32,
         );
     }
@@ -324,7 +324,7 @@ impl RenderModel {
             &joint_buffers.bone_vertex_buffer_outer,
             &joint_buffers.bone_index_buffer,
             camera_bind_group,
-            &self.bone_data_outer_bind_group,
+            &self.bone_data_outer,
             bone_index_count() as u32,
         );
 
@@ -573,18 +573,18 @@ impl<'a> RenderMeshSharedData<'a> {
                 usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             });
 
-        let world_transforms_buffer =
+        let world_transforms =
             create_world_transforms_buffer(device, &animation_transforms.world_transforms);
 
         // TODO: Clean this up.
-        let bone_colors_buffer = bone_colors_buffer(device, self.skel, self.hlpb);
+        let bone_colors = bone_colors_buffer(device, self.skel, self.hlpb);
 
         // TODO: How to avoid applying scale to the bone geometry?
         let bone_data_bind_group = crate::shader::skeleton::bind_groups::BindGroup1::from_bindings(
             device,
             crate::shader::skeleton::bind_groups::BindGroupLayout1 {
-                world_transforms: world_transforms_buffer.as_entire_buffer_binding(),
-                bone_colors: bone_colors_buffer.as_entire_buffer_binding(),
+                world_transforms: world_transforms.as_entire_buffer_binding(),
+                bone_colors: bone_colors.as_entire_buffer_binding(),
             },
         );
 
@@ -593,52 +593,26 @@ impl<'a> RenderMeshSharedData<'a> {
             .map(|skel| joint_transforms(skel, &animation_transforms))
             .unwrap_or_else(|| vec![glam::Mat4::IDENTITY; 512]);
 
-        let joint_world_transforms_buffer =
-            device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("Joint World Transforms Buffer"),
-                contents: bytemuck::cast_slice(&joint_transforms),
-                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-            });
+        let joint_world_transforms = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Joint World Transforms Buffer"),
+            contents: bytemuck::cast_slice(&joint_transforms),
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        });
 
-        let bone_colors_buffer_outer =
-            device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("Bone Colors Buffer"),
-                contents: bytemuck::cast_slice(&vec![
-                    [0.0f32; 4];
-                    crate::animation::MAX_BONE_COUNT
-                ]),
-                usage: wgpu::BufferUsages::UNIFORM,
-            });
+        let bone_colors_outer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Bone Colors Buffer"),
+            contents: bytemuck::cast_slice(&vec![[0.0f32; 4]; crate::animation::MAX_BONE_COUNT]),
+            usage: wgpu::BufferUsages::UNIFORM,
+        });
 
-        let bone_data_outer_bind_group =
-            crate::shader::skeleton::bind_groups::BindGroup1::from_bindings(
-                device,
-                crate::shader::skeleton::bind_groups::BindGroupLayout1 {
-                    world_transforms: world_transforms_buffer.as_entire_buffer_binding(),
-                    bone_colors: bone_colors_buffer_outer.as_entire_buffer_binding(),
-                },
-            );
-
-        let joint_data_bind_group = crate::shader::skeleton::bind_groups::BindGroup1::from_bindings(
-            device,
-            crate::shader::skeleton::bind_groups::BindGroupLayout1 {
-                world_transforms: joint_world_transforms_buffer.as_entire_buffer_binding(),
-                bone_colors: bone_colors_buffer.as_entire_buffer_binding(),
-            },
-        );
-
-        let joint_data_outer_bind_group =
-            crate::shader::skeleton::bind_groups::BindGroup1::from_bindings(
-                device,
-                crate::shader::skeleton::bind_groups::BindGroupLayout1 {
-                    world_transforms: joint_world_transforms_buffer.as_entire_buffer_binding(),
-                    bone_colors: bone_colors_buffer_outer.as_entire_buffer_binding(),
-                },
-            );
+        let bone_data_outer = bone_bind_group1(device, &world_transforms, &bone_colors_outer);
+        let joint_data = bone_bind_group1(device, &joint_world_transforms, &bone_colors);
+        let joint_data_outer =
+            bone_bind_group1(device, &joint_world_transforms, &bone_colors_outer);
 
         let mesh_buffers = MeshBuffers {
             skinning_transforms: skinning_transforms_buffer,
-            world_transforms: world_transforms_buffer,
+            world_transforms,
         };
 
         let RenderMeshData {
@@ -691,16 +665,30 @@ impl<'a> RenderMeshSharedData<'a> {
             material_data_by_label,
             textures,
             pipelines,
-            joint_world_transforms_buffer,
+            joint_world_transforms,
             bone_data_bind_group,
-            bone_data_outer_bind_group,
-            joint_data_bind_group,
-            joint_data_outer_bind_group,
+            bone_data_outer,
+            joint_data,
+            joint_data_outer,
             bone_bind_groups,
             buffer_data,
             animation_transforms: Box::new(animation_transforms),
         }
     }
+}
+
+fn bone_bind_group1(
+    device: &wgpu::Device,
+    world_transforms: &wgpu::Buffer,
+    bone_colors: &wgpu::Buffer,
+) -> crate::shader::skeleton::bind_groups::BindGroup1 {
+    crate::shader::skeleton::bind_groups::BindGroup1::from_bindings(
+        device,
+        crate::shader::skeleton::bind_groups::BindGroupLayout1 {
+            world_transforms: world_transforms.as_entire_buffer_binding(),
+            bone_colors: bone_colors.as_entire_buffer_binding(),
+        },
+    )
 }
 
 fn create_material_data(
@@ -721,7 +709,7 @@ fn create_material_data(
 
     MaterialData {
         material_uniforms_bind_group,
-        uniforms_buffer,
+        _uniforms_buffer: uniforms_buffer,
     }
 }
 
@@ -881,9 +869,6 @@ fn append_mesh_object_buffer_data(
     mesh_object: &MeshObjectData,
     shared_data: &RenderMeshSharedData,
 ) -> Result<(), ssbh_data::mesh_data::error::Error> {
-    // Storage buffers require offset alignments of at least 256.
-    let align = |x, n| ((x + n - 1) / n) * n;
-
     let buffer0_offset = model_buffer0_data.len();
     let buffer1_offset = model_buffer1_data.len();
     let weights_offset = model_skin_weights_data.len();
@@ -893,32 +878,36 @@ fn append_mesh_object_buffer_data(
     let buffer1_vertices = buffer1(mesh_object)?;
     let skin_weights = skin_weights(mesh_object, shared_data.skel)?;
 
-    let buffer0_data = bytemuck::cast_slice::<_, u8>(&buffer0_vertices);
-    model_buffer0_data.extend_from_slice(buffer0_data);
-    model_buffer0_data.resize(align(model_buffer0_data.len(), 256), 0u8);
-
-    let buffer1_data = bytemuck::cast_slice::<_, u8>(&buffer1_vertices);
-    model_buffer1_data.extend_from_slice(buffer1_data);
-    model_buffer1_data.resize(align(model_buffer1_data.len(), 256), 0u8);
-
-    let skin_weights_data = bytemuck::cast_slice::<_, u8>(&skin_weights);
-    model_skin_weights_data.extend_from_slice(skin_weights_data);
-    model_skin_weights_data.resize(align(model_skin_weights_data.len(), 256), 0u8);
+    let buffer0_len = add_vertex_buffer_data(model_buffer0_data, &buffer0_vertices);
+    let buffer1_len = add_vertex_buffer_data(model_buffer1_data, &buffer1_vertices);
+    let skin_weights_len = add_vertex_buffer_data(model_skin_weights_data, &skin_weights);
 
     let index_data = bytemuck::cast_slice::<_, u8>(&mesh_object.vertex_indices);
     model_index_data.extend_from_slice(index_data);
 
     accesses.push(MeshBufferAccess {
         buffer0_start: buffer0_offset as u64,
-        buffer0_size: buffer0_data.len() as u64,
+        buffer0_size: buffer0_len as u64,
         buffer1_start: buffer1_offset as u64,
-        buffer1_size: buffer1_data.len() as u64,
+        buffer1_size: buffer1_len as u64,
         weights_start: weights_offset as u64,
-        weights_size: skin_weights_data.len() as u64,
+        weights_size: skin_weights_len as u64,
         indices_start: index_offset as u64,
         indices_size: index_data.len() as u64,
     });
     Ok(())
+}
+
+fn add_vertex_buffer_data<T: bytemuck::Pod>(model_data: &mut Vec<u8>, vertices: &[T]) -> usize {
+    let data = bytemuck::cast_slice::<_, u8>(vertices);
+    model_data.extend_from_slice(data);
+
+    // Enforce storage buffer alignment requirements between meshes.
+    let n = wgpu::Limits::default().min_storage_buffer_offset_alignment as usize;
+    let align = |x| ((x + n - 1) / n) * n;
+    model_data.resize(align(model_data.len()), 0u8);
+
+    data.len()
 }
 
 // TODO: Group these parameters?

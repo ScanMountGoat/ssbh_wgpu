@@ -1,11 +1,11 @@
 use log::{error, info};
 use nutexb_wgpu::NutexbFile;
-use rayon::prelude::*; // TODO: Use rayon to speed up load times?
 use ssbh_data::prelude::*;
 use std::{
     error::Error,
     path::{Path, PathBuf},
 };
+// TODO: Use rayon to speed up load times?
 
 mod pipeline;
 mod shader;
