@@ -80,39 +80,22 @@ fn main([[builtin(global_invocation_id)]] global_invocation_id: vec3<u32>) {
         tangent = (world_transforms.transforms[parent_index] * vec4<f32>(tangent, 0.0)).xyz;
     }
 
-    // TODO: Index vector4 in loop?
-    // TODO: Restrict to 511 bones like in game?
-    if (influence.bone_indices.x >= 0 && influence.bone_indices.x < 512) {
+    // Disabling skinning if the first influence is unused.
+    if (influence.bone_indices.x >= 0) {
         position = vec3<f32>(0.0);
         normal = vec3<f32>(0.0);
         tangent = vec3<f32>(0.0);
 
-        position = position + (transforms.transforms[influence.bone_indices.x] * vec4<f32>(vertex.position0.xyz, 1.0) * influence.weights.x).xyz;
-        normal = normal + (transforms.transforms_inv_transpose[influence.bone_indices.x] * vec4<f32>(vertex.normal0.xyz, 0.0) * influence.weights.x).xyz;
-        tangent = tangent + (transforms.transforms_inv_transpose[influence.bone_indices.x] * vec4<f32>(vertex.tangent0.xyz, 0.0) * influence.weights.x).xyz;
-    
-        if (influence.bone_indices.y >= 0 && influence.bone_indices.y < 512) {
-            position = position + (transforms.transforms[influence.bone_indices.y] * vec4<f32>(vertex.position0.xyz, 1.0) * influence.weights.y).xyz;
-            normal = normal + (transforms.transforms_inv_transpose[influence.bone_indices.y] * vec4<f32>(vertex.normal0.xyz, 0.0) * influence.weights.y).xyz;
-            tangent = tangent + (transforms.transforms_inv_transpose[influence.bone_indices.y] * vec4<f32>(vertex.tangent0.xyz, 0.0) * influence.weights.y).xyz;
-        }
-
-        if (influence.bone_indices.z >= 0 && influence.bone_indices.z < 512) {
-            position = position + (transforms.transforms[influence.bone_indices.z] * vec4<f32>(vertex.position0.xyz, 1.0) * influence.weights.z).xyz;
-            normal = normal + (transforms.transforms_inv_transpose[influence.bone_indices.z] * vec4<f32>(vertex.normal0.xyz, 0.0) * influence.weights.z).xyz;
-            tangent = tangent + (transforms.transforms_inv_transpose[influence.bone_indices.z] * vec4<f32>(vertex.tangent0.xyz, 0.0) * influence.weights.z).xyz;
-        }
-
-        if (influence.bone_indices.w >= 0 && influence.bone_indices.w < 512) {
-            position = position + (transforms.transforms[influence.bone_indices.w] * vec4<f32>(vertex.position0.xyz, 1.0) * influence.weights.w).xyz;
-            normal = normal + (transforms.transforms_inv_transpose[influence.bone_indices.w] * vec4<f32>(vertex.normal0.xyz, 0.0) * influence.weights.w).xyz;
-            tangent = tangent + (transforms.transforms_inv_transpose[influence.bone_indices.w] * vec4<f32>(vertex.tangent0.xyz, 0.0) * influence.weights.w).xyz;
+        for (var i = 0; i < 4; i = i + 1) {
+            // Only 511 influences are supported in game.
+            let bone_index = influence.bone_indices[i];
+            if (bone_index >= 0 && bone_index < 511) {
+                position = position + (transforms.transforms[bone_index] * vec4<f32>(vertex.position0.xyz, 1.0) * influence.weights[i]).xyz;
+                normal = normal + (transforms.transforms_inv_transpose[bone_index] * vec4<f32>(vertex.normal0.xyz, 0.0) * influence.weights[i]).xyz;
+                tangent = tangent + (transforms.transforms_inv_transpose[bone_index] * vec4<f32>(vertex.tangent0.xyz, 0.0) * influence.weights[i]).xyz;
+            }
         }
     }
-    
-    // TODO: sync to make sure writes happen?
-    // TODO: Recalculate normals and tangents for renormal?
-    // TODO: What format to use for adjb data?
 
     var out: VertexInput0;
     out.position0 = vec4<f32>(position, 1.0);
