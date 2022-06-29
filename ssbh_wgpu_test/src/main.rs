@@ -1,7 +1,8 @@
 use futures::executor::block_on;
 use ssbh_wgpu::{
     create_database, create_default_textures, load_default_cube, load_render_models, ModelFolder,
-    PipelineData, RenderModel, ShaderDatabase, SsbhRenderer, REQUIRED_FEATURES, RGBA_COLOR_FORMAT,
+    PipelineData, RenderModel, ShaderDatabase, SharedRenderData, SsbhRenderer, REQUIRED_FEATURES,
+    RGBA_COLOR_FORMAT,
 };
 use wgpu::{
     Backends, Device, DeviceDescriptor, Extent3d, Instance, Limits, PowerPreference, Queue,
@@ -54,11 +55,7 @@ fn main() {
 
     // TODO: Find a way to simplify initialization.
     let surface_format = RGBA_COLOR_FORMAT;
-    let default_textures = create_default_textures(&device, &queue);
-    let stage_cube = load_default_cube(&device, &queue);
-    let shader_database = create_database();
-    let pipeline_data = PipelineData::new(&device, surface_format);
-
+    let shared_data = SharedRenderData::new(&device, &queue, surface_format);
     let renderer = SsbhRenderer::new(&device, &queue, 512, 512, 1.0, [0.0; 3], &[]);
 
     let texture_desc = TextureDescriptor {
@@ -90,15 +87,7 @@ fn main() {
         let parent = p.path().parent()?;
         Some(ModelFolder::load_folder(parent))
     }) {
-        let render_models = load_render_models(
-            &device,
-            &queue,
-            &pipeline_data,
-            &[model],
-            &default_textures,
-            &stage_cube,
-            &shader_database,
-        );
+        let render_models = load_render_models(&device, &queue, &[model], &shared_data);
 
         render(
             &device,
@@ -106,7 +95,7 @@ fn main() {
             &renderer,
             &output_view,
             &render_models,
-            &shader_database,
+            &shared_data.database,
         );
 
         // TODO: Save the output texture.

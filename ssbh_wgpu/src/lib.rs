@@ -13,7 +13,9 @@ mod texture;
 mod uniforms;
 mod vertex;
 
+// TODO: Should this just be it's own project to help with testing?
 pub mod animation;
+
 mod bone_rendering;
 mod lighting;
 mod renderer;
@@ -36,6 +38,30 @@ pub const REQUIRED_FEATURES: wgpu::Features = wgpu::Features::from_bits_truncate
         | wgpu::Features::ADDRESS_MODE_CLAMP_TO_BORDER.bits()
         | wgpu::Features::TEXTURE_ADAPTER_SPECIFIC_FORMAT_FEATURES.bits(),
 );
+
+// TODO: Make these fields get only like fn database(&self)?
+// TODO: Better name?
+pub struct SharedRenderData {
+    pub pipeline_data: PipelineData,
+    pub default_textures: Vec<(String, wgpu::Texture)>,
+    pub stage_cube: (wgpu::TextureView, wgpu::Sampler), // TODO: This should be editable?
+    pub database: ShaderDatabase,
+}
+
+impl SharedRenderData {
+    pub fn new(
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        surface_format: wgpu::TextureFormat,
+    ) -> Self {
+        Self {
+            pipeline_data: PipelineData::new(device, surface_format),
+            default_textures: create_default_textures(device, queue),
+            stage_cube: load_default_cube(device, queue),
+            database: create_database(),
+        }
+    }
+}
 
 pub type ModelFiles<T> = Vec<(String, Result<T, Box<dyn Error>>)>;
 
@@ -131,29 +157,15 @@ impl ModelFolder {
 pub fn load_render_models(
     device: &wgpu::Device,
     queue: &wgpu::Queue,
-    pipeline_data: &PipelineData,
     models: &[ModelFolder],
-    // TODO: Group textures together?
-    default_textures: &[(String, wgpu::Texture)],
-    stage_cube: &(wgpu::TextureView, wgpu::Sampler),
-    database: &ShaderDatabase,
+    shared_data: &SharedRenderData,
 ) -> Vec<RenderModel> {
     let start = std::time::Instant::now();
 
     // TODO: Find a way to efficiently parallelize render mesh creation?
     let render_models: Vec<_> = models
         .iter()
-        .map(|model| {
-            RenderModel::from_folder(
-                device,
-                queue,
-                model,
-                pipeline_data,
-                default_textures,
-                stage_cube,
-                database,
-            )
-        })
+        .map(|model| RenderModel::from_folder(device, queue, model, shared_data))
         .collect();
 
     info!(

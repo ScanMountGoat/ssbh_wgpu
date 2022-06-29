@@ -1,15 +1,13 @@
 use std::path::Path;
 
-use ssbh_wgpu::create_default_textures;
-use ssbh_wgpu::load_default_cube;
 use ssbh_wgpu::CameraTransforms;
+use ssbh_wgpu::DebugMode;
 use ssbh_wgpu::ModelFolder;
-use ssbh_wgpu::PipelineData;
 use ssbh_wgpu::RenderModel;
 use ssbh_wgpu::RenderSettings;
+use ssbh_wgpu::SharedRenderData;
 use ssbh_wgpu::TransitionMaterial;
 use ssbh_wgpu::REQUIRED_FEATURES;
-use ssbh_wgpu::{create_database, DebugMode, ShaderDatabase};
 use ssbh_wgpu::{load_model_folders, load_render_models, SsbhRenderer};
 
 use ssbh_data::prelude::*;
@@ -53,7 +51,6 @@ struct State {
     render_models: Vec<RenderModel>,
 
     renderer: SsbhRenderer,
-    shader_database: ShaderDatabase,
 
     // TODO: Separate camera/window state struct?
     size: winit::dpi::PhysicalSize<u32>,
@@ -72,9 +69,7 @@ struct State {
     previous_frame_start: std::time::Instant,
 
     // TODO: Should this be part of the renderer?
-    default_textures: Vec<(String, wgpu::Texture)>,
-    stage_cube: (wgpu::TextureView, wgpu::Sampler),
-    pipeline_data: PipelineData,
+    shared_data: SharedRenderData,
 
     is_playing: bool,
 
@@ -124,24 +119,10 @@ impl State {
             .map(|anim_path| AnimData::from_file(anim_path).unwrap())
             .collect();
 
-        // TODO: Combine these into a single global textures struct?
-        let default_textures = create_default_textures(&device, &queue);
-        let stage_cube = load_default_cube(&device, &queue);
-
-        let shader_database = create_database();
-
-        let pipeline_data = PipelineData::new(&device, surface_format);
+        let shared_data = SharedRenderData::new(&device, &queue, surface_format);
 
         let models = load_model_folders(folder);
-        let render_models = load_render_models(
-            &device,
-            &queue,
-            &pipeline_data,
-            &models,
-            &default_textures,
-            &stage_cube,
-            &shader_database,
-        );
+        let render_models = load_render_models(&device, &queue, &models, &shared_data);
 
         let renderer = SsbhRenderer::new(
             &device,
@@ -170,11 +151,8 @@ impl State {
             animations,
             current_frame: 0.0,
             previous_frame_start: std::time::Instant::now(),
-            default_textures,
-            stage_cube,
-            pipeline_data,
+            shared_data,
             is_playing: false,
-            shader_database,
             render: RenderSettings::default(),
         }
     }
@@ -419,10 +397,7 @@ impl State {
                     self.models[i].find_matl(),
                     self.models[i].find_hlpb(),
                     self.current_frame,
-                    &self.pipeline_data,
-                    &self.default_textures,
-                    &self.stage_cube,
-                    &self.shader_database,
+                    &self.shared_data,
                 );
             }
         }
@@ -431,7 +406,7 @@ impl State {
             &mut encoder,
             &output_view,
             &self.render_models,
-            &self.shader_database,
+            &self.shared_data.database,
         );
 
         let skels: Vec<_> = self.models.iter().map(|m| m.find_skel()).collect();

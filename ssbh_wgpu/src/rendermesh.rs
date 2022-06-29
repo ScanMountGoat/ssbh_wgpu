@@ -5,7 +5,7 @@ use crate::{
     texture::{load_sampler, load_texture},
     uniforms::create_uniforms_buffer,
     vertex::{buffer0, buffer1, mesh_object_buffers, skin_weights, MeshObjectBufferData},
-    ModelFiles, ModelFolder, PipelineData, ShaderDatabase,
+    ModelFiles, ModelFolder, ShaderDatabase, SharedRenderData,
 };
 use glam::Vec4Swizzles;
 use log::{debug, error, info};
@@ -86,18 +86,11 @@ impl RenderModel {
         device: &wgpu::Device,
         queue: &wgpu::Queue,
         model: &ModelFolder,
-        // TODO: Group these together?
-        pipeline_data: &PipelineData,
-        default_textures: &[(String, wgpu::Texture)],
-        stage_cube: &(wgpu::TextureView, wgpu::Sampler),
-        database: &ShaderDatabase,
+        shared_render_data: &SharedRenderData,
     ) -> Self {
         // TODO: Should this use the file names in the modl itself?
         // TODO: Avoid creating the render model if there is no mesh?
         let shared_data = RenderMeshSharedData {
-            pipeline_data,
-            default_textures,
-            stage_cube,
             mesh: model.find_mesh(),
             modl: model.find_modl(),
             skel: model.find_skel(),
@@ -109,7 +102,7 @@ impl RenderModel {
                 .iter()
                 .find(|(f, _)| f == "model.nuhlpb")
                 .and_then(|(_, m)| m.as_ref().ok()),
-            database,
+            shared_data: shared_render_data,
         };
 
         shared_data.to_render_model(device, queue)
@@ -165,10 +158,7 @@ impl RenderModel {
         device: &wgpu::Device,
         _queue: &wgpu::Queue,
         materials: &[MatlEntryData],
-        pipeline_data: &PipelineData,
-        default_textures: &[(String, wgpu::Texture)],
-        stage_cube: &(wgpu::TextureView, wgpu::Sampler),
-        database: &ShaderDatabase,
+        shared_data: &SharedRenderData,
     ) {
         // TODO: Modify the buffer in place if possible to avoid allocations.
         self.material_data_by_label.clear();
@@ -186,19 +176,12 @@ impl RenderModel {
                     {
                         let pipeline_key = mesh.pipeline_key.with_material(Some(material));
                         self.pipelines.entry(pipeline_key).or_insert_with(|| {
-                            create_pipeline(device, pipeline_data, &pipeline_key)
+                            create_pipeline(device, &shared_data.pipeline_data, &pipeline_key)
                         });
 
                         mesh.pipeline_key = pipeline_key;
                     }
-                    create_material_data(
-                        device,
-                        Some(material),
-                        &self.textures,
-                        default_textures,
-                        stage_cube,
-                        database,
-                    )
+                    create_material_data(device, Some(material), &self.textures, shared_data)
                 });
         }
         // TODO: Efficiently remove unused entries if the counts have changed?
@@ -214,19 +197,14 @@ impl RenderModel {
         matl: Option<&MatlData>,
         hlpb: Option<&HlpbData>,
         frame: f32,
-        pipeline_data: &PipelineData,
-        default_textures: &[(String, wgpu::Texture)],
-        stage_cube: &(wgpu::TextureView, wgpu::Sampler),
-        database: &ShaderDatabase,
+        shared_data: &SharedRenderData,
     ) {
         // Update the buffers associated with each skel.
         // This avoids updating per mesh object and allocating new buffers.
-        // TODO: How to "reset" an animation?
         let start = std::time::Instant::now();
 
         // TODO: Restructure this to iterate the animations only once?
         for anim in anims.clone() {
-            // TODO: This won't work for multiple animations?
             animate_visibility(anim, frame, &mut self.meshes);
 
             if let Some(matl) = matl {
@@ -235,15 +213,7 @@ impl RenderModel {
                 let animated_materials = animate_materials(anim, frame, &matl.entries);
                 // TODO: Should this go in a separate module?
                 // Get updated uniform buffers for animated materials
-                self.update_materials(
-                    device,
-                    queue,
-                    &animated_materials,
-                    pipeline_data,
-                    default_textures,
-                    stage_cube,
-                    database,
-                );
+                self.update_materials(device, queue, &animated_materials, shared_data);
             }
         }
 
@@ -475,7 +445,6 @@ impl RenderModel {
     }
 
     // TODO: Move this to bone_rendering?
-    // TODO: Make a world_to_screen function?
     pub fn queue_bone_names(
         &self,
         skel: Option<&SkelData>,
@@ -492,14 +461,8 @@ impl RenderModel {
                     .world_transforms
                     .get(i)
                     .unwrap_or(&glam::Mat4::IDENTITY);
-                let position = (mvp * bone_world) * glam::Vec4::new(0.0, 0.0, 0.0, 1.0);
-                // Account for perspective correction.
-                let position_clip = position.xyz() / position.w;
-
-                // Convert from clip space [-1,1] to screen space [0,width] or [0,height].
-                // Flip y vertically to match wgpu conventions.
-                let position_x_screen = width as f32 * (position_clip.x * 0.5 + 0.5);
-                let position_y_screen = height as f32 * (1.0 - (position_clip.y * 0.5 + 0.5));
+                let (position_x_screen, position_y_screen) =
+                    bone_screen_position(bone_world, mvp, width, height);
 
                 // Add a small offset to the bone position to reduce overlaps.
                 let section = Section::default()
@@ -559,10 +522,25 @@ impl RenderModel {
     }
 }
 
+fn bone_screen_position(
+    bone_world: glam::Mat4,
+    mvp: glam::Mat4,
+    width: u32,
+    height: u32,
+) -> (f32, f32) {
+    let position = (mvp * bone_world) * glam::Vec4::new(0.0, 0.0, 0.0, 1.0);
+    // Account for perspective correction.
+    let position_clip = position.xyz() / position.w;
+    // Convert from clip space [-1,1] to screen space [0,width] or [0,height].
+    // Flip y vertically to match wgpu conventions.
+    let position_x_screen = width as f32 * (position_clip.x * 0.5 + 0.5);
+    let position_y_screen = height as f32 * (1.0 - (position_clip.y * 0.5 + 0.5));
+    (position_x_screen, position_y_screen)
+}
+
+// TODO: Come up with a better name.
 struct RenderMeshSharedData<'a> {
-    pipeline_data: &'a PipelineData,
-    default_textures: &'a [(String, wgpu::Texture)],
-    stage_cube: &'a (wgpu::TextureView, wgpu::Sampler),
+    shared_data: &'a SharedRenderData,
     mesh: Option<&'a MeshData>,
     modl: Option<&'a ModlData>,
     skel: Option<&'a SkelData>,
@@ -570,7 +548,6 @@ struct RenderMeshSharedData<'a> {
     adj: Option<&'a AdjData>,
     hlpb: Option<&'a HlpbData>,
     nutexbs: &'a ModelFiles<NutexbFile>,
-    database: &'a ShaderDatabase,
 }
 
 impl<'a> RenderMeshSharedData<'a> {
@@ -588,7 +565,6 @@ impl<'a> RenderMeshSharedData<'a> {
             .unwrap_or_else(AnimationTransforms::identity);
 
         // Share the transforms buffer to avoid redundant updates.
-        // TODO: Enforce bone count being at most 511?
         let skinning_transforms_buffer =
             device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: Some("Bone Transforms Buffer"),
@@ -731,17 +707,15 @@ fn create_material_data(
     device: &wgpu::Device,
     material: Option<&MatlEntryData>,
     textures: &[(String, wgpu::Texture)], // TODO: document that this uses file name?
-    default_textures: &[(String, wgpu::Texture)], // TODO: document that this is an absolute path?
-    stage_cube: &(wgpu::TextureView, wgpu::Sampler),
-    database: &ShaderDatabase,
+    shared_data: &SharedRenderData,
 ) -> MaterialData {
-    let uniforms_buffer = create_uniforms_buffer(material, device, database);
+    let uniforms_buffer = create_uniforms_buffer(material, device, &shared_data.database);
     let material_uniforms_bind_group = create_material_uniforms_bind_group(
         material,
         device,
         textures,
-        default_textures,
-        stage_cube,
+        &shared_data.default_textures,
+        &shared_data.stage_cube,
         &uniforms_buffer,
     );
 
@@ -810,9 +784,7 @@ fn create_render_meshes(
                         device,
                         Some(entry),
                         &textures,
-                        shared_data.default_textures,
-                        shared_data.stage_cube,
-                        shared_data.database,
+                        &shared_data.shared_data,
                     );
                     (entry.material_label.clone(), data)
                 })
@@ -991,9 +963,13 @@ fn create_render_mesh(
         material,
     );
 
-    pipelines
-        .entry(pipeline_key)
-        .or_insert_with(|| create_pipeline(device, shared_data.pipeline_data, &pipeline_key));
+    pipelines.entry(pipeline_key).or_insert_with(|| {
+        create_pipeline(
+            device,
+            &shared_data.shared_data.pipeline_data,
+            &pipeline_key,
+        )
+    });
 
     let vertex_count = mesh_object.vertex_count()?;
 
