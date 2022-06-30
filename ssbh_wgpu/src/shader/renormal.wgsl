@@ -25,9 +25,9 @@ struct AdjData {
 // A single shader would require synchronization to ensure all writes to position0 finish.
 [[stage(compute), workgroup_size(256)]]
 fn main([[builtin(global_invocation_id)]] global_invocation_id: vec3<u32>) {
-    let total = arrayLength(&vertices.vertices);
+    let vertexCount = arrayLength(&vertices.vertices);
     let index = global_invocation_id.x;
-    if (index >= total) {
+    if (index >= vertexCount) {
         return;
     }
 
@@ -39,18 +39,17 @@ fn main([[builtin(global_invocation_id)]] global_invocation_id: vec3<u32>) {
     let start = i32(index) * 18;
 
     // Loop over up to 9 adjacent faces.
+    let vertexCount = i32(vertexCount);
     for (var i = 0; i < 9; i = i + 1) {
         let v0 = i32(index);
         let v1 = adj_data.adjacency[start + i*2 + 0];
         let v2 = adj_data.adjacency[start + i*2 + 1];
 
-        // TODO: Bounds checking for array length?
-        if (v0 >= 0 && v1 >= 0 && v2 >= 0) {
+        if ((v0 >= 0 && v0 < vertexCount) && (v1 >= 0 && v1 < vertexCount) && (v2 >= 0 && v2 < vertexCount)) {
             let u = vertices.vertices[v1].position0 - vertices.vertices[v0].position0;
             let v = vertices.vertices[v2].position0 - vertices.vertices[v0].position0;
             renormal = renormal + cross(u.xyz, v.xyz);
         }
-
     }
 
     var out: VertexInput0;
