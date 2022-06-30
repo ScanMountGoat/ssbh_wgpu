@@ -746,11 +746,20 @@ fn create_render_meshes(
         .nutexbs
         .iter()
         .filter_map(|(name, nutexb)| {
-            // TODO: Log nutexb files that fail to load?
-            Some((
-                name.clone(),
-                nutexb_wgpu::create_texture(nutexb.as_ref().ok()?, device, queue),
-            ))
+            let nutexb = nutexb
+                .as_ref()
+                .map_err(|e| {
+                    error!("Failed to read nutexb file {}: {}", name, e);
+                    e
+                })
+                .ok()?;
+            let texture = nutexb_wgpu::create_texture(nutexb, device, queue)
+                .map_err(|e| {
+                    error!("Failed to create nutexb texture {}: {}", name, e);
+                    e
+                })
+                .ok()?;
+            Some((name.clone(), texture))
         })
         .collect();
 

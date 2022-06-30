@@ -5,6 +5,7 @@ use shader::{
     bind_groups::{set_bind_groups, BindGroups},
     create_pipeline_layout, create_shader_module,
 };
+use std::error::Error;
 use wgpu::util::DeviceExt;
 
 mod shader;
@@ -39,7 +40,7 @@ pub fn create_texture(
     nutexb: &NutexbFile,
     device: &wgpu::Device,
     queue: &wgpu::Queue,
-) -> wgpu::Texture {
+) -> Result<wgpu::Texture, Box<dyn Error>> {
     let size = wgpu::Extent3d {
         width: nutexb.footer.width,
         height: nutexb.footer.height,
@@ -54,7 +55,7 @@ pub fn create_texture(
         );
     }
 
-    device.create_texture_with_data(
+    Ok(device.create_texture_with_data(
         queue,
         &wgpu::TextureDescriptor {
             label: Some(&nutexb.footer.string.to_string()),
@@ -73,8 +74,8 @@ pub fn create_texture(
                 | wgpu::TextureUsages::COPY_DST
                 | wgpu::TextureUsages::TEXTURE_BINDING,
         },
-        &nutexb.deswizzled_data().unwrap(),
-    )
+        &nutexb.deswizzled_data()?,
+    ))
 }
 
 fn wgpu_format(format: nutexb::NutexbFormat) -> wgpu::TextureFormat {

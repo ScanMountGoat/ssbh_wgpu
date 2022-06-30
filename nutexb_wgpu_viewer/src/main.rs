@@ -57,7 +57,7 @@ impl State {
         let nutexb = NutexbFile::read_from_file(path).unwrap();
         println!("Load Nutexb: {:?}", start.elapsed());
 
-        let texture = nutexb_wgpu::create_texture(&nutexb, &device, &queue);
+        let texture = nutexb_wgpu::create_texture(&nutexb, &device, &queue).unwrap();
 
         let renderer = TextureRenderer::new(&device, surface_format);
 

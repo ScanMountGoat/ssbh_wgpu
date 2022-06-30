@@ -1,8 +1,7 @@
 use futures::executor::block_on;
 use ssbh_wgpu::{
-    create_database, create_default_textures, load_default_cube, load_render_models, ModelFolder,
-    PipelineData, RenderModel, ShaderDatabase, SharedRenderData, SsbhRenderer, REQUIRED_FEATURES,
-    RGBA_COLOR_FORMAT,
+    load_render_models, ModelFolder, RenderModel, ShaderDatabase, SharedRenderData, SsbhRenderer,
+    REQUIRED_FEATURES, RGBA_COLOR_FORMAT,
 };
 use wgpu::{
     Backends, Device, DeviceDescriptor, Extent3d, Instance, Limits, PowerPreference, Queue,
