@@ -68,6 +68,7 @@ pub type ModelFiles<T> = Vec<(String, Result<T, Box<dyn Error>>)>;
 // Store the file data for a single folder.
 // This helps ensure files are loaded exactly once.
 // Applications can instantiate this struct directly instead of using the filesystem.
+#[derive(Debug)]
 pub struct ModelFolder {
     pub folder_name: String,
     // TODO: Will a hashmap be faster for this many items?
@@ -80,6 +81,23 @@ pub struct ModelFolder {
     pub anims: ModelFiles<AnimData>,
     pub hlpbs: ModelFiles<HlpbData>,
     pub nutexbs: ModelFiles<NutexbFile>,
+}
+
+#[cfg(feature = "arbitrary")]
+impl<'a> arbitrary::Arbitrary<'a> for ModelFolder {
+    fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
+        Ok(Self {
+            folder_name: u.arbitrary()?,
+            meshes: vec![(u.arbitrary()?, Ok(u.arbitrary()?))],
+            skels: vec![(u.arbitrary()?, Ok(u.arbitrary()?))],
+            matls: vec![(u.arbitrary()?, Ok(u.arbitrary()?))],
+            modls: vec![(u.arbitrary()?, Ok(u.arbitrary()?))],
+            adjs: vec![(u.arbitrary()?, Ok(u.arbitrary()?))],
+            anims: vec![(u.arbitrary()?, Ok(u.arbitrary()?))],
+            hlpbs: vec![(u.arbitrary()?, Ok(u.arbitrary()?))],
+            nutexbs: vec![],
+        })
+    }
 }
 
 impl ModelFolder {

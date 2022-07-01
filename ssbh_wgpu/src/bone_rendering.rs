@@ -42,10 +42,12 @@ pub fn joint_transforms(skel: &SkelData, anim_transforms: &AnimationTransforms) 
             // TODO: Add an option to show the bone's actual rotation?
             // TODO: The bones wont be connected and should use a different model for rendering.
             let pos = anim_transforms.world_transforms[i].col(3).xyz();
-            let mut parent_pos = pos;
-            if let Some(parent_index) = bone.parent_index {
-                parent_pos = anim_transforms.world_transforms[parent_index].col(3).xyz();
-            }
+            let parent_pos = bone
+                .parent_index
+                .and_then(|parent_index| anim_transforms.world_transforms.get(parent_index))
+                .map(|transform| transform.col(3).xyz())
+                .unwrap_or(pos);
+
             let scale = pos.distance(parent_pos);
 
             // Assume an inverted pyramid with up as the Y-axis.
