@@ -9,4 +9,4 @@ ssbh_wgpu is a lightweight and portable Smash Ultimate model renderer built usin
 - ssbh_wgpu_viewer -- simple winit application for viewing models and animations
 
 ## Building
-With the Rust toolchain installed, run `cargo build --release`. Don't forget the `--release` since debug builds have very low framerates!
+With the Rust 1.60 or later toolchain installed, run `cargo build --release`. Don't forget the `--release` since debug builds have very low framerates!
