@@ -5,8 +5,8 @@ use shader::{
     bind_groups::{set_bind_groups, BindGroups},
     create_pipeline_layout, create_shader_module,
 };
-use std::error::Error;
-use wgpu::util::DeviceExt;
+use thiserror::Error;
+use wgpu::{util::DeviceExt, Limits};
 
 mod shader;
 
@@ -36,16 +36,59 @@ impl From<&RenderSettings> for crate::shader::RenderSettings {
     }
 }
 
+// TODO: Consistent capitalization for error messages.
+#[derive(Debug, Error)]
+pub enum CreateTextureError {
+    #[error("failed to swizzle nutexb data.")]
+    SwizzleError,
+
+    // TODO: Less confusing name?
+    #[error("one of the texture dimensions is zero.")]
+    ZeroDimension,
+
+    #[error("one of the texture dimensions exceeds device limits")]
+    TextureDimensionsExceedLimit,
+}
+
 pub fn create_texture(
     nutexb: &NutexbFile,
     device: &wgpu::Device,
     queue: &wgpu::Queue,
-) -> Result<wgpu::Texture, Box<dyn Error>> {
+) -> Result<wgpu::Texture, CreateTextureError> {
     let size = wgpu::Extent3d {
         width: nutexb.footer.width,
         height: nutexb.footer.height,
         depth_or_array_layers: std::cmp::max(nutexb.footer.layer_count, nutexb.footer.depth),
     };
+
+    // TODO: Show what dimension is zero?
+    if size.width == 0 || size.height == 0 || size.depth_or_array_layers == 0 {
+        return Err(CreateTextureError::ZeroDimension);
+    }
+
+    // TODO: Create a separate error type for this?
+    if nutexb.footer.mipmap_count == 0 || nutexb.footer.layer_count == 0 {
+        return Err(CreateTextureError::ZeroDimension);
+    }
+
+    let max_dimension = if nutexb.footer.depth > 1 {
+        Limits::default().max_texture_dimension_3d
+    } else {
+        Limits::default().max_texture_dimension_2d
+    };
+
+    // TODO: Show dimensions?
+    if size.width > max_dimension
+        || size.height > max_dimension
+        || size.depth_or_array_layers > max_dimension
+    {
+        return Err(CreateTextureError::TextureDimensionsExceedLimit);
+    }
+
+    // TODO: Create a separate error type for this?
+    if nutexb.footer.layer_count > Limits::default().max_texture_array_layers {
+        return Err(CreateTextureError::TextureDimensionsExceedLimit);
+    }
 
     let max_mips = size.max_mips();
     if nutexb.footer.mipmap_count > max_mips {
@@ -74,7 +117,10 @@ pub fn create_texture(
                 | wgpu::TextureUsages::COPY_DST
                 | wgpu::TextureUsages::TEXTURE_BINDING,
         },
-        &nutexb.deswizzled_data()?,
+        // TODO: Preserve error information?
+        &nutexb
+            .deswizzled_data()
+            .map_err(|_| CreateTextureError::SwizzleError)?,
     ))
 }
 
