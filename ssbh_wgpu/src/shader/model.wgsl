@@ -21,7 +21,10 @@ struct RenderSettings {
     render_rim_lighting: vec4<u32>;
     render_shadows: vec4<u32>;
     render_bloom: vec4<u32>;
+    render_vertex_color: vec4<u32>;
     render_rgba: vec4<f32>;
+    render_nor: vec4<u32>;
+    render_prm: vec4<u32>;
 };
 
 // TODO: Store light transform here as well?
@@ -266,7 +269,7 @@ fn GetAlbedoColor(uv1: vec2<f32>, uv2: vec2<f32>, uv3: vec2<f32>, R: vec3<f32>, 
     // TODO: Refactor blend to take RGB and w separately?
     if (uniforms.has_texture[1].x == 1u) {
         let albedoColor2 = textureSample(texture1, sampler1, uvLayer2);
-        if (uniforms.has_color_set567.x == 1u) {
+        if (uniforms.has_color_set567.x == 1u && render_settings.render_vertex_color.x == 1u) {
             // colorSet5.w is used to blend between the two col map layers.
             outRgb = Blend(outRgb, albedoColor2 * vec4<f32>(1.0, 1.0, 1.0, colorSet5.w));
         } else {
@@ -445,7 +448,7 @@ fn DiffuseTerm(
     var result = directLight * shadow + ambientTerm;
 
     // Baked stage lighting.
-    if (uniforms.has_color_set1234.y == 1u) {
+    if (uniforms.has_color_set1234.y == 1u && render_settings.render_vertex_color.x == 1u) {
        result = result * colorSet2.rgb;
     }
 
@@ -934,6 +937,19 @@ fn fs_main(in: VertexOutput, [[builtin(front_facing)]] is_front: bool) -> [[loca
     var nor = vec4<f32>(0.5, 0.5, 1.0, 1.0);
     if (uniforms.has_texture[4].x == 1u) {
         nor = textureSample(texture4, sampler4, map1);
+        // TODO: Simpler way to toggle channels?
+        if (render_settings.render_nor.r == 0u) {
+            nor.r = 0.5;
+        }
+        if (render_settings.render_nor.g == 0u) {
+            nor.g = 0.5;
+        }
+        if (render_settings.render_nor.b == 0u) {
+            nor.b = 0.0;
+        }
+        if (render_settings.render_nor.a == 0u) {
+            nor.a = 1.0;
+        }
     }
 
     // Check if the factor is non zero to prevent artifacts.
@@ -994,6 +1010,20 @@ fn fs_main(in: VertexOutput, [[builtin(front_facing)]] is_front: bool) -> [[loca
     var prm = vec4<f32>(0.0, 0.0, 1.0, 0.0);
     if (uniforms.has_texture[6].x == 1u) {
         prm = textureSample(texture6, sampler6, map1);
+        // TODO: Simpler way to toggle channels?
+        if (render_settings.render_prm.r == 0u) {
+            prm.r = 0.0;
+        }
+        if (render_settings.render_prm.g == 0u) {
+            prm.g = 1.0;
+        }
+        if (render_settings.render_prm.b == 0u) {
+            prm.b = 1.0;
+        }
+        if (render_settings.render_prm.a == 0u) {
+            // TODO: What default to use here?
+            prm.a = 0.0;
+        }
     }
 
     var metalness = mix(prm.r, transitionPrm.r, transitionFactor);
@@ -1097,12 +1127,12 @@ fn fs_main(in: VertexOutput, [[builtin(front_facing)]] is_front: bool) -> [[loca
         outColor = outColor * uniforms.custom_vector[8].rgb;
     }
 
-    if (uniforms.has_color_set1234.x == 1u) {
+    if (uniforms.has_color_set1234.x == 1u && render_settings.render_vertex_color.x == 1u) {
         outColor = outColor * colorSet1.rgb; 
         outAlpha = outAlpha * colorSet1.a; 
     }
 
-    if (uniforms.has_color_set1234.z == 1u) {
+    if (uniforms.has_color_set1234.z == 1u && render_settings.render_vertex_color.x == 1u) {
         outColor = outColor * colorSet3.rgb;
         outAlpha = outAlpha * colorSet3.a; 
     }

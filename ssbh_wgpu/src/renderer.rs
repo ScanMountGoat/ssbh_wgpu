@@ -119,7 +119,12 @@ pub struct RenderSettings {
     pub render_rim_lighting: bool,
     pub render_shadows: bool,
     pub render_bloom: bool,
+    pub render_vertex_color: bool,
     pub render_rgba: [bool; 4],
+    /// Replaces the RGBA channels of the nor map (Texture4) with a default when false.
+    pub render_nor: [bool; 4],
+    /// Replaces the RGBA channels of the prm map (Texture6) with a default when false.
+    pub render_prm: [bool; 4],
 }
 
 impl From<&RenderSettings> for crate::shader::model::RenderSettings {
@@ -134,7 +139,10 @@ impl From<&RenderSettings> for crate::shader::model::RenderSettings {
             render_rim_lighting: [if r.render_rim_lighting { 1 } else { 0 }; 4],
             render_shadows: [if r.render_shadows { 1 } else { 0 }; 4],
             render_bloom: [if r.render_bloom { 1 } else { 0 }; 4],
+            render_vertex_color: [if r.render_vertex_color { 1 } else { 0 }; 4],
             render_rgba: r.render_rgba.map(|b| if b { 1.0 } else { 0.0 }),
+            render_nor: r.render_nor.map(|b| if b { 1 } else { 0 }),
+            render_prm: r.render_prm.map(|b| if b { 1 } else { 0 }),
         }
     }
 }
@@ -151,7 +159,10 @@ impl Default for RenderSettings {
             render_rim_lighting: true,
             render_shadows: true,
             render_bloom: true,
+            render_vertex_color: true,
             render_rgba: [true; 4],
+            render_nor: [true; 4],
+            render_prm: [true; 4],
         }
     }
 }
