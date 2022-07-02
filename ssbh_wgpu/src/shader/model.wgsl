@@ -584,7 +584,7 @@ fn GetF0FromSpecular(specular: f32) -> f32
 {
     // Specular gets remapped from [0.0,1.0] to [0.0,0.2].
     // The value is 0.16*0.2 = 0.032 if the PRM alpha is ignored.
-    if (uniforms.custom_boolean[1].x == 0u) {
+    if (uniforms.has_boolean[1].x == 1u && uniforms.custom_boolean[1].x == 0u) {
         return 0.16 * 0.2;
     }
 
@@ -909,7 +909,7 @@ fn fs_debug(in: VertexOutput) -> [[location(0)]] vec4<f32> {
 }
 
 [[stage(fragment)]]
-fn fs_main(in: VertexOutput) -> [[location(0)]] vec4<f32> {
+fn fs_main(in: VertexOutput, [[builtin(front_facing)]] is_front: bool) -> [[location(0)]] vec4<f32> {
     let map1 = in.map1_uvset.xy;
     let uvSet = in.map1_uvset.zw;
     let uvSet1 = in.uv_set1_uv_set2.xy;
@@ -1009,6 +1009,11 @@ fn fs_main(in: VertexOutput) -> [[location(0)]] vec4<f32> {
     var fragmentNormal = normal;
     if (uniforms.has_texture[4].x == 1u) {
         fragmentNormal = GetBumpMapNormal(normal, tangent, bitangent, nor);
+    }
+
+    // TODO: Investigate lighting for double sided materials with culling disabled.
+    if (!is_front) {
+        fragmentNormal = fragmentNormal * -1.0;
     }
 
     // TODO: Is it just the metal material that uses the fragment normal?
