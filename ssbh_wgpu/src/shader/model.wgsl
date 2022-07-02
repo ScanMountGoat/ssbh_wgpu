@@ -652,7 +652,13 @@ fn vs_main(
         uvTransform3 = uniforms.custom_vector[32];
     }
 
-    let map1 = TransformUv(buffer1.map1_uvset.xy, uvTransform1);
+    var map1 = TransformUv(buffer1.map1_uvset.xy, uvTransform1);
+    // Sprite sheet params.
+    // Perform this in the fragment shader to avoid effecting debug modes.
+    if (uniforms.custom_boolean[9].x == 1u) {
+        map1 = map1 / uniforms.custom_vector[18].xy;
+    }
+
     let uvSet = TransformUv(buffer1.map1_uvset.zw, uvTransform2);
     let uvSet1 = TransformUv(buffer1.uv_set1_uv_set2.xy, uvTransform3);
     // TODO: Transform for uvSet2?
@@ -983,6 +989,8 @@ fn fs_main(in: VertexOutput, [[builtin(front_facing)]] is_front: bool) -> [[loca
     let customVector11Final = mix(uniforms.custom_vector[11], transitionCustomVector11, render_settings.transition_factor.x);
     let customVector30Final = mix(uniforms.custom_vector[30], transitionCustomVector30, render_settings.transition_factor.x);
 
+    // TODO: Some materials disable specular entirely?
+    // Is there a reliably way to check for this?
     var prm = vec4<f32>(0.0, 0.0, 1.0, 0.0);
     if (uniforms.has_texture[6].x == 1u) {
         prm = textureSample(texture6, sampler6, map1);
