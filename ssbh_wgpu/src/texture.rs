@@ -236,11 +236,11 @@ pub fn create_default_textures(
             [255, 255, 255, 255],
             "/common/shader/sfxpbs/default_color4",
         ),
-        // TODO: This is an 8x8 yellow checkerboard
+        // TODO: This is an 8x8 yellow checkerboard fof first mipmap only
         solid_color_texture_2d(
             device,
             queue,
-            [255, 255, 0, 255],
+            [239, 235, 148, 255],
             "/common/shader/sfxpbs/default_diffuse2",
         ),
         solid_color_texture_2d(
