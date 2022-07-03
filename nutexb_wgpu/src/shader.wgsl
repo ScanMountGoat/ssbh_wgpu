@@ -24,6 +24,7 @@ struct RenderSettings {
     layer: vec4<f32>;
 };
 
+// TODO: Separate wgsl files for cube, 2d, etc.
 [[group(0), binding(0)]]
 var t_diffuse: texture_2d<f32>;
 [[group(0), binding(1)]]

@@ -36,8 +36,7 @@ pub struct RenderModel {
     mesh_buffers: MeshBuffers,
     material_data_by_label: HashMap<String, MaterialData>,
     pipelines: HashMap<PipelineKey, wgpu::RenderPipeline>,
-    // TODO: Add public get methods?
-    textures: Vec<(String, wgpu::Texture)>, // (file name, texture)
+    textures: Vec<(String, wgpu::Texture, wgpu::TextureViewDimension)>,
 
     joint_world_transforms: wgpu::Buffer,
     bone_data_bind_group: crate::shader::skeleton::bind_groups::BindGroup1,
@@ -109,11 +108,14 @@ impl RenderModel {
     }
 
     /// Finds the texture with the given `file_name`.
-    pub fn get_texture(&self, file_name: &str) -> Option<&wgpu::Texture> {
+    pub fn get_texture(
+        &self,
+        file_name: &str,
+    ) -> Option<(&wgpu::Texture, &wgpu::TextureViewDimension)> {
         self.textures
             .iter()
-            .find(|(f, _)| f == file_name)
-            .map(|(_, t)| t)
+            .find(|(f, _, _)| f == file_name)
+            .map(|(_, t, d)| (t, d))
     }
 }
 
@@ -694,7 +696,7 @@ fn bone_bind_group1(
 fn create_material_data(
     device: &wgpu::Device,
     material: Option<&MatlEntryData>,
-    textures: &[(String, wgpu::Texture)], // TODO: document that this uses file name?
+    textures: &[(String, wgpu::Texture, wgpu::TextureViewDimension)],
     shared_data: &SharedRenderData,
 ) -> MaterialData {
     let uniforms_buffer = create_uniforms_buffer(material, device, &shared_data.database);
@@ -716,7 +718,7 @@ fn create_material_data(
 struct RenderMeshData {
     meshes: Vec<RenderMesh>,
     material_data_by_label: HashMap<String, MaterialData>,
-    textures: Vec<(String, wgpu::Texture)>,
+    textures: Vec<(String, wgpu::Texture, wgpu::TextureViewDimension)>,
     pipelines: HashMap<PipelineKey, wgpu::RenderPipeline>,
     buffer_data: MeshObjectBufferData,
 }
@@ -753,13 +755,13 @@ fn create_render_meshes(
                     e
                 })
                 .ok()?;
-            let texture = nutexb_wgpu::create_texture(nutexb, device, queue)
+            let (texture, dim) = nutexb_wgpu::create_texture(nutexb, device, queue)
                 .map_err(|e| {
                     error!("Failed to create nutexb texture {}: {}", name, e);
                     e
                 })
                 .ok()?;
-            Some((name.clone(), texture))
+            Some((name.clone(), texture, dim))
         })
         .collect();
 
@@ -1093,7 +1095,7 @@ fn create_render_mesh(
 fn create_material_uniforms_bind_group(
     material: Option<&ssbh_data::matl_data::MatlEntryData>,
     device: &wgpu::Device,
-    textures: &[(String, wgpu::Texture)],
+    textures: &[(String, wgpu::Texture, wgpu::TextureViewDimension)],
     default_textures: &[(String, wgpu::Texture)],
     stage_cube: &(wgpu::TextureView, wgpu::Sampler),
     uniforms_buffer: &wgpu::Buffer, // TODO: Just return this?

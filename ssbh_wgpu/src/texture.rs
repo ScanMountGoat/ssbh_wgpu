@@ -10,7 +10,7 @@ use wgpu::{util::DeviceExt, Device, Queue, Sampler, Texture, TextureView, Textur
 pub fn load_texture(
     material: &MatlEntryData,
     texture_id: ParamId,
-    textures: &[(String, Texture)],
+    textures: &[(String, wgpu::Texture, wgpu::TextureViewDimension)],
     default_textures: &[(String, Texture)],
 ) -> Option<TextureView> {
     // TODO: Add proper path and parameter handling.
@@ -39,13 +39,13 @@ pub fn load_texture(
             // TODO: Case sensitive?
             textures
                 .iter()
-                .find(|(p, _)| {
+                .find(|(p, _, _)| {
                     Path::new(&p)
                         .with_extension("")
                         .as_os_str()
                         .eq_ignore_ascii_case(material_path)
                 })
-                .map(|(_, t)| t)
+                .map(|(_, t, dim)| t)
                 .unwrap_or_else(|| {
                     // TODO: Is the default in game for missing textures always white (check cube maps)?
                     // TODO: Does changing the default white texture change the "missing" texture?
@@ -56,7 +56,7 @@ pub fn load_texture(
                         .unwrap()
                         .1
                 })
-                .create_view(&TextureViewDescriptor::default())
+                .create_view(&TextureViewDescriptor::default()) // TODO: handle cube maps?
         }
     };
 

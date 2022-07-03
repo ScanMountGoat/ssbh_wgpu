@@ -1,7 +1,7 @@
 use std::{iter, path::Path};
 
 use futures::executor::block_on;
-use nutexb_wgpu::{BindGroup0, NutexbFile, RenderSettings, TextureRenderer};
+use nutexb_wgpu::{NutexbFile, RenderSettings, TextureRenderer};
 use winit::{
     event::*,
     event_loop::{ControlFlow, EventLoop},
@@ -15,7 +15,6 @@ struct State {
     size: winit::dpi::PhysicalSize<u32>,
     config: wgpu::SurfaceConfiguration,
     renderer: TextureRenderer,
-    rgba_texture_bind_group: BindGroup0,
 }
 
 impl State {
@@ -30,6 +29,7 @@ impl State {
             })
             .await
             .unwrap();
+
         let (device, queue) = adapter
             .request_device(
                 &wgpu::DeviceDescriptor {
@@ -57,10 +57,10 @@ impl State {
         let nutexb = NutexbFile::read_from_file(path).unwrap();
         println!("Load Nutexb: {:?}", start.elapsed());
 
-        let texture = nutexb_wgpu::create_texture(&nutexb, &device, &queue).unwrap();
+        // TODO: Use the dim to handle rendering 3d and cube map textures.
+        let (texture, dim) = nutexb_wgpu::create_texture(&nutexb, &device, &queue).unwrap();
 
-        let renderer = TextureRenderer::new(&device, surface_format);
-
+        let mut renderer = TextureRenderer::new(&device, surface_format);
         let settings = RenderSettings::default();
 
         // Use the full texture width and height.
@@ -70,13 +70,14 @@ impl State {
             &device,
             &queue,
             &texture,
+            dim,
             nutexb.footer.width,
             nutexb.footer.height,
             &settings,
         );
         println!("Render to RGBA: {:?}", start.elapsed());
 
-        let rgba_texture_bind_group = renderer.create_bind_group(&device, &rgba_texture, &settings);
+        renderer.update(&device, &queue, &rgba_texture, &settings);
 
         Self {
             surface,
@@ -85,7 +86,6 @@ impl State {
             size,
             renderer,
             config,
-            rgba_texture_bind_group,
         }
     }
 
@@ -123,8 +123,7 @@ impl State {
             depth_stencil_attachment: None,
         });
 
-        self.renderer
-            .render(&mut render_pass, &self.rgba_texture_bind_group);
+        self.renderer.render(&mut render_pass);
 
         drop(render_pass);
 

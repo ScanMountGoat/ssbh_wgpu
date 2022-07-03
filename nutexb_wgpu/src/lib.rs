@@ -1,6 +1,6 @@
 use log::warn;
 pub use nutexb::NutexbFile;
-pub use shader::bind_groups::BindGroup0;
+use shader::bind_groups::BindGroup0;
 use shader::{
     bind_groups::{set_bind_groups, BindGroups},
     create_pipeline_layout, create_shader_module,
@@ -62,7 +62,7 @@ pub fn create_texture(
     nutexb: &NutexbFile,
     device: &wgpu::Device,
     queue: &wgpu::Queue,
-) -> Result<wgpu::Texture, CreateTextureError> {
+) -> Result<(wgpu::Texture, wgpu::TextureViewDimension), CreateTextureError> {
     let size = wgpu::Extent3d {
         width: nutexb.footer.width,
         height: nutexb.footer.height,
@@ -108,7 +108,7 @@ pub fn create_texture(
         );
     }
 
-    Ok(device.create_texture_with_data(
+    let texture = device.create_texture_with_data(
         queue,
         &wgpu::TextureDescriptor {
             label: Some(&nutexb.footer.string.to_string()),
@@ -131,7 +131,19 @@ pub fn create_texture(
         &nutexb
             .deswizzled_data()
             .map_err(|_| CreateTextureError::SwizzleError)?,
-    ))
+    );
+
+    // Return the dimensions since this isn't accessible from the texture itself.
+    // TODO: Are there other dimensions for nutexb?
+    let dim = if nutexb.footer.depth > 1 {
+        wgpu::TextureViewDimension::D3
+    } else if nutexb.footer.layer_count == 6 {
+        wgpu::TextureViewDimension::Cube
+    } else {
+        wgpu::TextureViewDimension::D2
+    };
+
+    Ok((texture, dim))
 }
 
 fn wgpu_format(format: nutexb::NutexbFormat) -> wgpu::TextureFormat {
@@ -166,44 +178,81 @@ pub const RGBA_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8UnormSrgb
 pub struct TextureRenderer {
     pipeline: wgpu::RenderPipeline,
     rgba_pipeline: wgpu::RenderPipeline,
+    settings_buffer: wgpu::Buffer,
+    sampler: wgpu::Sampler,
+    bindgroup: Option<BindGroup0>,
 }
 
 impl TextureRenderer {
     pub fn new(device: &wgpu::Device, surface_format: wgpu::TextureFormat) -> Self {
+        let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
+            address_mode_u: wgpu::AddressMode::ClampToEdge,
+            address_mode_v: wgpu::AddressMode::ClampToEdge,
+            address_mode_w: wgpu::AddressMode::ClampToEdge,
+            mag_filter: wgpu::FilterMode::Nearest,
+            min_filter: wgpu::FilterMode::Nearest,
+            mipmap_filter: wgpu::FilterMode::Linear,
+            ..Default::default()
+        });
+
+        let shader_settings = crate::shader::RenderSettings::from(&RenderSettings::default());
+        let settings_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("nutexb_wgpu Render Settings"),
+            contents: bytemuck::cast_slice(&[shader_settings]),
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        });
+
         Self {
             pipeline: create_render_pipeline(device, surface_format),
             rgba_pipeline: create_render_pipeline(device, RGBA_FORMAT),
+            settings_buffer,
+            sampler,
+            bindgroup: None,
         }
     }
 
-    pub fn render<'a>(
-        &'a self,
-        render_pass: &mut wgpu::RenderPass<'a>,
-        bind_group: &'a BindGroup0,
-    ) {
-        // Draw the RGBA texture to the screen.
-        draw_textured_triangle(render_pass, &self.pipeline, bind_group);
+    pub fn render<'a>(&'a self, render_pass: &mut wgpu::RenderPass<'a>) {
+        // Draw the texture to the screen.
+        // TODO: How to handle cube maps and 3d textures?
+        if let Some(bind_group) = &self.bindgroup {
+            draw_textured_triangle(render_pass, &self.pipeline, bind_group);
+        }
     }
 
-    // Convert a texture to the RGBA format using a shader.
-    // This allows compressed textures like BC7 to be used as thumbnails in some applications.
+    pub fn update(
+        &mut self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        texture: &wgpu::Texture,
+        settings: &RenderSettings,
+    ) {
+        // The renderer takes an existing render pass for easier integration.
+        // Store and update state in self to work around the lifetime requirements.
+        let bind_group = self.create_bind_group(device, queue, texture, settings);
+        self.bindgroup = Some(bind_group);
+    }
+
+    /// Convert a texture to the RGBA format using a shader.
+    /// This allows compressed textures like BC7 to be used as thumbnails in some applications.
     pub fn render_to_texture_rgba(
         &self,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
         texture: &wgpu::Texture,
-        width: u32,
-        height: u32,
+        dim: wgpu::TextureViewDimension,
+        render_width: u32,
+        render_height: u32,
         settings: &RenderSettings,
     ) -> wgpu::Texture {
         // TODO: Is this more efficient using compute shaders?
-        let texture_bind_group = self.create_bind_group(device, texture, settings);
+        let texture_bind_group = self.create_bind_group(device, queue, texture, settings);
 
+        // TODO: Support 3D.
         let rgba_texture = device.create_texture(&wgpu::TextureDescriptor {
             label: None,
             size: wgpu::Extent3d {
-                width,
-                height,
+                width: render_width,
+                height: render_height,
                 depth_or_array_layers: 1,
             },
             mip_level_count: 1,
@@ -249,36 +298,31 @@ impl TextureRenderer {
     }
 
     // TODO: Set the texture and settings separately?
-    pub fn create_bind_group(
+    // TODO: Take texture, dim, settings instead
+    // Select a pipeline based on the dim?
+    fn create_bind_group(
         &self,
         device: &wgpu::Device,
+        queue: &wgpu::Queue,
         texture: &wgpu::Texture,
         settings: &RenderSettings,
     ) -> BindGroup0 {
+        // TODO: How to switch bind groups based on the dimensions?
         let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
 
-        let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
-            address_mode_u: wgpu::AddressMode::ClampToEdge,
-            address_mode_v: wgpu::AddressMode::ClampToEdge,
-            address_mode_w: wgpu::AddressMode::ClampToEdge,
-            mag_filter: wgpu::FilterMode::Nearest,
-            min_filter: wgpu::FilterMode::Nearest,
-            mipmap_filter: wgpu::FilterMode::Linear,
-            ..Default::default()
-        });
-
         let shader_settings = crate::shader::RenderSettings::from(settings);
-        let settings_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Bone Transforms Buffer"),
-            contents: bytemuck::cast_slice(&[shader_settings]),
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-        });
+        queue.write_buffer(
+            &self.settings_buffer,
+            0,
+            bytemuck::cast_slice(&[shader_settings]),
+        );
+
         shader::bind_groups::BindGroup0::from_bindings(
             device,
             shader::bind_groups::BindGroupLayout0 {
                 t_diffuse: &view,
-                s_diffuse: &sampler,
-                render_settings: settings_buffer.as_entire_buffer_binding(),
+                s_diffuse: &self.sampler,
+                render_settings: self.settings_buffer.as_entire_buffer_binding(),
             },
         )
     }
