@@ -2,13 +2,13 @@ use crate::{
     animation::{animate_materials, animate_skel, animate_visibility, AnimationTransforms},
     bone_rendering::*,
     pipeline::{create_pipeline, PipelineKey},
-    texture::{load_sampler, load_texture},
+    texture::{load_default, load_sampler, load_texture, LoadTextureError},
     uniforms::create_uniforms_buffer,
     vertex::{buffer0, buffer1, mesh_object_buffers, skin_weights, MeshObjectBufferData},
     ModelFiles, ModelFolder, ShaderDatabase, SharedRenderData,
 };
 use glam::Vec4Swizzles;
-use log::{debug, error, info};
+use log::{debug, error, info, warn};
 use nutexb_wgpu::NutexbFile;
 use ssbh_data::{
     adj_data::AdjEntryData,
@@ -17,7 +17,7 @@ use ssbh_data::{
     prelude::*,
 };
 use std::{collections::HashMap, error::Error, num::NonZeroU64};
-use wgpu::{util::DeviceExt, SamplerDescriptor, TextureViewDescriptor};
+use wgpu::{util::DeviceExt, SamplerDescriptor};
 use wgpu_text::{
     font::FontRef,
     section::{BuiltInLineBreaker, Layout, Section, Text, VerticalAlign},
@@ -1096,22 +1096,46 @@ fn create_material_uniforms_bind_group(
     material: Option<&ssbh_data::matl_data::MatlEntryData>,
     device: &wgpu::Device,
     textures: &[(String, wgpu::Texture, wgpu::TextureViewDimension)],
-    default_textures: &[(String, wgpu::Texture)],
-    stage_cube: &(wgpu::TextureView, wgpu::Sampler),
+    default_textures: &[(String, wgpu::Texture, wgpu::TextureViewDimension)],
+    stage_cube: &(wgpu::Texture, wgpu::Sampler),
     uniforms_buffer: &wgpu::Buffer, // TODO: Just return this?
 ) -> crate::shader::model::bind_groups::BindGroup1 {
-    // TODO: Do all textures default to white if the path isn't correct?
-    // TODO: Default cube map?
+    // TODO: Do all 2D textures default to white if the path isn't correct?
     let default_white = &default_textures
         .iter()
         .find(|d| d.0 == "/common/shader/sfxpbs/default_white")
         .unwrap()
         .1;
 
-    let load_texture = |texture_id| {
+    let load_texture = |texture_id, dim| {
         material
-            .and_then(|material| load_texture(material, texture_id, textures, default_textures))
-            .unwrap_or_else(|| default_white.create_view(&TextureViewDescriptor::default()))
+            .and_then(|material| {
+                // TODO: Add proper path and parameter handling.
+                // TODO: Find a way to test texture path loading.
+                // This should also handle paths like "../texture.nutexb" and "/render/shader/bin/texture.nutexb".
+                material
+                    .textures
+                    .iter()
+                    .find(|t| t.param_id == texture_id)
+                    .map(|t| t.data.as_str())
+            })
+            .and_then(|material_path| {
+                // TODO: Pass in replace cube map here?
+                load_texture(material_path, textures, default_textures, dim).map_err(|e| {
+                    match e {
+                        LoadTextureError::PathNotFound => {
+                            // TODO: This doesn't work for cube maps?
+                            if material_path != "#replace_cubemap" {
+                                warn!("Missing texture {:?} assigned to {}. Applying default texture.", material_path, texture_id)
+                            }
+                        },
+                        LoadTextureError::DimensionMismatch { expected, actual } => {
+                            warn!("Texture {:?} assigned to {} has invalid dimensions. Expected {:?} but found {:?}.", material_path, texture_id, expected, actual)
+                        },
+                    }
+                }
+                ).ok()
+            }).unwrap_or_else(|| load_default(texture_id, stage_cube, default_white))
     };
 
     let load_sampler = |sampler_id| {
@@ -1127,35 +1151,35 @@ fn create_material_uniforms_bind_group(
     crate::shader::model::bind_groups::BindGroup1::from_bindings(
         device,
         crate::shader::model::bind_groups::BindGroupLayout1 {
-            texture0: &load_texture(ParamId::Texture0),
+            texture0: &load_texture(ParamId::Texture0, wgpu::TextureViewDimension::D2),
             sampler0: &load_sampler(ParamId::Sampler0),
-            texture1: &load_texture(ParamId::Texture1),
+            texture1: &load_texture(ParamId::Texture1, wgpu::TextureViewDimension::D2),
             sampler1: &load_sampler(ParamId::Sampler1),
-            texture2: &stage_cube.0,
+            texture2: &load_texture(ParamId::Texture2, wgpu::TextureViewDimension::Cube),
             sampler2: &load_sampler(ParamId::Sampler2),
-            texture3: &load_texture(ParamId::Texture3),
+            texture3: &load_texture(ParamId::Texture3, wgpu::TextureViewDimension::D2),
             sampler3: &load_sampler(ParamId::Sampler3),
-            texture4: &load_texture(ParamId::Texture4),
+            texture4: &load_texture(ParamId::Texture4, wgpu::TextureViewDimension::D2),
             sampler4: &load_sampler(ParamId::Sampler4),
-            texture5: &load_texture(ParamId::Texture5),
+            texture5: &load_texture(ParamId::Texture5, wgpu::TextureViewDimension::D2),
             sampler5: &load_sampler(ParamId::Sampler5),
-            texture6: &load_texture(ParamId::Texture6),
+            texture6: &load_texture(ParamId::Texture6, wgpu::TextureViewDimension::D2),
             sampler6: &load_sampler(ParamId::Sampler6),
-            texture7: &stage_cube.0,
+            texture7: &load_texture(ParamId::Texture7, wgpu::TextureViewDimension::Cube),
             sampler7: &load_sampler(ParamId::Sampler7),
-            texture8: &stage_cube.0,
+            texture8: &load_texture(ParamId::Texture8, wgpu::TextureViewDimension::Cube),
             sampler8: &load_sampler(ParamId::Sampler8),
-            texture9: &load_texture(ParamId::Texture9),
+            texture9: &load_texture(ParamId::Texture9, wgpu::TextureViewDimension::D2),
             sampler9: &load_sampler(ParamId::Sampler9),
-            texture10: &load_texture(ParamId::Texture10),
+            texture10: &load_texture(ParamId::Texture10, wgpu::TextureViewDimension::D2),
             sampler10: &load_sampler(ParamId::Sampler10),
-            texture11: &load_texture(ParamId::Texture11),
+            texture11: &load_texture(ParamId::Texture11, wgpu::TextureViewDimension::D2),
             sampler11: &load_sampler(ParamId::Sampler11),
-            texture12: &load_texture(ParamId::Texture12),
+            texture12: &load_texture(ParamId::Texture12, wgpu::TextureViewDimension::D2),
             sampler12: &load_sampler(ParamId::Sampler12),
-            texture13: &load_texture(ParamId::Texture13),
+            texture13: &load_texture(ParamId::Texture13, wgpu::TextureViewDimension::D2),
             sampler13: &load_sampler(ParamId::Sampler13),
-            texture14: &load_texture(ParamId::Texture14),
+            texture14: &load_texture(ParamId::Texture14, wgpu::TextureViewDimension::D2),
             sampler14: &load_sampler(ParamId::Sampler14),
             uniforms: uniforms_buffer.as_entire_buffer_binding(),
         },

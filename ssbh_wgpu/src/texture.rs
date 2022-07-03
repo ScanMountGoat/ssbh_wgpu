@@ -1,66 +1,52 @@
+use ssbh_data::matl_data::{MagFilter, MatlEntryData, MinFilter, ParamId, WrapMode};
 use std::{
     num::{NonZeroU32, NonZeroU8},
     path::Path,
 };
+use wgpu::{
+    util::DeviceExt, Device, Queue, Sampler, SamplerDescriptor, Texture, TextureAspect,
+    TextureDescriptor, TextureDimension, TextureFormat, TextureUsages, TextureView,
+    TextureViewDescriptor, TextureViewDimension,
+};
 
-use log::warn;
-use ssbh_data::matl_data::{MagFilter, MatlEntryData, MinFilter, ParamId, WrapMode};
-use wgpu::{util::DeviceExt, Device, Queue, Sampler, Texture, TextureView, TextureViewDescriptor};
+pub enum LoadTextureError {
+    PathNotFound,
+    DimensionMismatch {
+        expected: TextureViewDimension,
+        actual: TextureViewDimension,
+    },
+}
 
 pub fn load_texture(
-    material: &MatlEntryData,
-    texture_id: ParamId,
-    textures: &[(String, wgpu::Texture, wgpu::TextureViewDimension)],
-    default_textures: &[(String, Texture)],
-) -> Option<TextureView> {
-    // TODO: Add proper path and parameter handling.
-    // TODO: Handle missing paths.
-    // TODO: Find a way to test texture path loading.
-    // For example, "#replace_cubemap" needs special handling.
-    // This should also handle paths like "../texture.nutexb" and "/render/shader/bin/texture.nutexb".
-    let material_path = material
-        .textures
+    material_path: &str,
+    textures: &[(String, Texture, TextureViewDimension)],
+    default_textures: &[(String, Texture, TextureViewDimension)],
+    dimension: TextureViewDimension,
+) -> Result<TextureView, LoadTextureError> {
+    // TODO: Handle relative paths like "../texture_001"?
+    // This shouldn't require an actual file system for better portability.
+    let (_, t, d) = textures
         .iter()
-        .find(|t| t.param_id == texture_id)
-        .map(|t| t.data.as_str())?;
+        .chain(default_textures)
+        .find(|(p, _, _)| {
+            Path::new(&p)
+                .with_extension("")
+                .as_os_str()
+                .eq_ignore_ascii_case(material_path)
+        })
+        .ok_or(LoadTextureError::PathNotFound)?;
 
-    // TODO: Find a cleaner way to handle default textures.
-    // TODO: This check shouldn't be case sensitive?
-    let default = default_textures
-        .iter()
-        .find(|d| d.0.eq_ignore_ascii_case(material_path));
-
-    let view = match default {
-        Some((_, texture)) => texture.create_view(&TextureViewDescriptor::default()),
-        None => {
-            // TODO: Handle relative paths like "../texture_001"?
-            // This shouldn't require an actual file system for better portability.
-            // TODO: This function should return an error.
-            // TODO: Case sensitive?
-            textures
-                .iter()
-                .find(|(p, _, _)| {
-                    Path::new(&p)
-                        .with_extension("")
-                        .as_os_str()
-                        .eq_ignore_ascii_case(material_path)
-                })
-                .map(|(_, t, dim)| t)
-                .unwrap_or_else(|| {
-                    // TODO: Is the default in game for missing textures always white (check cube maps)?
-                    // TODO: Does changing the default white texture change the "missing" texture?
-                    warn!("Invalid path {:?} assigned to {} for material {:?}. Applying default texture.", material_path, texture_id, material.material_label);
-                    &default_textures
-                        .iter()
-                        .find(|d| d.0 == "/common/shader/sfxpbs/default_white")
-                        .unwrap()
-                        .1
-                })
-                .create_view(&TextureViewDescriptor::default()) // TODO: handle cube maps?
-        }
-    };
-
-    Some(view)
+    if *d == dimension {
+        Ok(t.create_view(&TextureViewDescriptor {
+            dimension: Some(*d),
+            ..Default::default()
+        }))
+    } else {
+        Err(LoadTextureError::DimensionMismatch {
+            expected: dimension,
+            actual: *d,
+        })
+    }
 }
 
 pub fn load_sampler(
@@ -73,7 +59,7 @@ pub fn load_sampler(
         .iter()
         .find(|t| t.param_id == sampler_id)?;
 
-    let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
+    let sampler = device.create_sampler(&SamplerDescriptor {
         label: Some(&sampler.param_id.to_string()),
         address_mode_u: address_mode(sampler.data.wraps),
         address_mode_v: address_mode(sampler.data.wrapt),
@@ -92,7 +78,25 @@ pub fn load_sampler(
     Some(sampler)
 }
 
-pub fn load_default_cube(device: &Device, queue: &Queue) -> (TextureView, Sampler) {
+pub fn load_default(
+    param_id: ParamId,
+    stage_cube: &(Texture, Sampler),
+    default_white: &Texture,
+) -> TextureView {
+    match param_id {
+        ParamId::Texture2 | ParamId::Texture7 | ParamId::Texture8 => {
+            // TODO: Diffuse cube maps seem to load a different stage cube map?
+            // TODO: Investigate irradiance cube maps.
+            stage_cube.0.create_view(&TextureViewDescriptor {
+                dimension: Some(TextureViewDimension::Cube),
+                ..Default::default()
+            })
+        }
+        _ => default_white.create_view(&TextureViewDescriptor::default()),
+    }
+}
+
+pub fn load_default_spec_cube(device: &Device, queue: &Queue) -> (Texture, Sampler) {
     let size = wgpu::Extent3d {
         width: 64,
         height: 64,
@@ -101,37 +105,29 @@ pub fn load_default_cube(device: &Device, queue: &Queue) -> (TextureView, Sample
 
     let texture = device.create_texture_with_data(
         queue,
-        &wgpu::TextureDescriptor {
+        &TextureDescriptor {
             label: Some("Default Stage Specular Cube"),
             size,
             mip_level_count: 7,
             sample_count: 1,
-            dimension: wgpu::TextureDimension::D2,
-            format: wgpu::TextureFormat::Bc6hRgbUfloat,
-            usage: wgpu::TextureUsages::COPY_DST | wgpu::TextureUsages::TEXTURE_BINDING,
+            dimension: TextureDimension::D2,
+            format: TextureFormat::Bc6hRgbUfloat,
+            usage: TextureUsages::COPY_DST | TextureUsages::TEXTURE_BINDING,
         },
         include_bytes!("stage_cube_surface.bin"),
     );
 
-    let view = texture.create_view(&TextureViewDescriptor {
-        dimension: Some(wgpu::TextureViewDimension::Cube),
-        ..Default::default()
-    });
-
-    let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
+    let sampler = device.create_sampler(&SamplerDescriptor {
         mag_filter: wgpu::FilterMode::Linear,
         min_filter: wgpu::FilterMode::Linear,
         mipmap_filter: wgpu::FilterMode::Linear,
         ..Default::default()
     });
 
-    (view, sampler)
+    (texture, sampler)
 }
 
-pub fn load_default_lut(
-    device: &Device,
-    queue: &wgpu::Queue,
-) -> (wgpu::TextureView, wgpu::Sampler) {
+pub fn load_default_lut(device: &Device, queue: &wgpu::Queue) -> (TextureView, Sampler) {
     let default_lut = create_default_lut();
 
     let size = wgpu::Extent3d {
@@ -142,23 +138,23 @@ pub fn load_default_lut(
 
     let texture = device.create_texture_with_data(
         queue,
-        &wgpu::TextureDescriptor {
+        &TextureDescriptor {
             label: Some("Default Color Grading Lut"),
             size,
             mip_level_count: 1,
             sample_count: 1,
-            dimension: wgpu::TextureDimension::D3,
-            format: wgpu::TextureFormat::Rgba8Unorm,
-            usage: wgpu::TextureUsages::COPY_DST | wgpu::TextureUsages::TEXTURE_BINDING,
+            dimension: TextureDimension::D3,
+            format: TextureFormat::Rgba8Unorm,
+            usage: TextureUsages::COPY_DST | TextureUsages::TEXTURE_BINDING,
         },
         &default_lut,
     );
 
-    let view = texture.create_view(&wgpu::TextureViewDescriptor {
-        dimension: Some(wgpu::TextureViewDimension::D3),
+    let view = texture.create_view(&TextureViewDescriptor {
+        dimension: Some(TextureViewDimension::D3),
         ..Default::default()
     });
-    let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
+    let sampler = device.create_sampler(&SamplerDescriptor {
         address_mode_u: wgpu::AddressMode::ClampToEdge,
         address_mode_v: wgpu::AddressMode::ClampToEdge,
         address_mode_w: wgpu::AddressMode::ClampToEdge,
@@ -207,7 +203,7 @@ fn address_mode(wrap_mode: WrapMode) -> wgpu::AddressMode {
 pub fn create_default_textures(
     device: &Device,
     queue: &wgpu::Queue,
-) -> Vec<(String, wgpu::Texture)> {
+) -> Vec<(String, Texture, TextureViewDimension)> {
     // TODO: Return a dictionary?
     vec![
         solid_color_texture_2d(
@@ -327,30 +323,28 @@ pub fn solid_color_texture_2d(
     queue: &wgpu::Queue,
     color: [u8; 4],
     label: &str,
-) -> (String, wgpu::Texture) {
+) -> (String, Texture, TextureViewDimension) {
     // TODO: It may be faster to cache these.
     let texture_size = wgpu::Extent3d {
         width: 4,
         height: 4,
         depth_or_array_layers: 1,
     };
-    let texture = device.create_texture(&wgpu::TextureDescriptor {
+    let texture = device.create_texture(&TextureDescriptor {
         label: Some(label),
         size: texture_size,
         mip_level_count: 1,
         sample_count: 1,
-        dimension: wgpu::TextureDimension::D2,
-        format: wgpu::TextureFormat::Rgba8Unorm,
-        usage: wgpu::TextureUsages::COPY_SRC
-            | wgpu::TextureUsages::COPY_DST
-            | wgpu::TextureUsages::TEXTURE_BINDING,
+        dimension: TextureDimension::D2,
+        format: TextureFormat::Rgba8Unorm,
+        usage: TextureUsages::COPY_SRC | TextureUsages::COPY_DST | TextureUsages::TEXTURE_BINDING,
     });
     queue.write_texture(
         wgpu::ImageCopyTexture {
             texture: &texture,
             mip_level: 0,
             origin: wgpu::Origin3d::ZERO,
-            aspect: wgpu::TextureAspect::All,
+            aspect: TextureAspect::All,
         },
         bytemuck::cast_slice(&[color; 4 * 4]),
         wgpu::ImageDataLayout {
@@ -361,7 +355,7 @@ pub fn solid_color_texture_2d(
         texture_size,
     );
 
-    (label.to_string(), texture)
+    (label.to_string(), texture, TextureViewDimension::D2)
 }
 
 fn create_default_lut() -> Vec<u8> {

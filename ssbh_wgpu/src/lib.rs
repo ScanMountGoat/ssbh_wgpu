@@ -28,7 +28,7 @@ pub use renderer::{DebugMode, RenderSettings, TransitionMaterial, RGBA_COLOR_FOR
 pub use rendermesh::{RenderMesh, RenderModel};
 pub use shader::model::CameraTransforms;
 pub use shader_database::{create_database, ShaderDatabase, ShaderProgram};
-pub use texture::{create_default_textures, load_default_cube};
+pub use texture::{create_default_textures, load_default_spec_cube};
 
 // TODO: Find a way to avoid using the format features for filterable f32 textures.
 /// Required WGPU features for using this library.
@@ -43,8 +43,8 @@ pub const REQUIRED_FEATURES: wgpu::Features = wgpu::Features::from_bits_truncate
 // TODO: Better name?
 pub struct SharedRenderData {
     pub pipeline_data: PipelineData,
-    pub default_textures: Vec<(String, wgpu::Texture)>,
-    pub stage_cube: (wgpu::TextureView, wgpu::Sampler), // TODO: This should be editable?
+    pub default_textures: Vec<(String, wgpu::Texture, wgpu::TextureViewDimension)>,
+    pub stage_cube: (wgpu::Texture, wgpu::Sampler), // TODO: This should be editable?
     pub database: ShaderDatabase,
 }
 
@@ -57,7 +57,7 @@ impl SharedRenderData {
         Self {
             pipeline_data: PipelineData::new(device, surface_format),
             default_textures: create_default_textures(device, queue),
-            stage_cube: load_default_cube(device, queue),
+            stage_cube: load_default_spec_cube(device, queue),
             database: create_database(),
         }
     }
