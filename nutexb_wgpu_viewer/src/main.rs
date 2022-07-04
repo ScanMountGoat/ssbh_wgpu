@@ -15,10 +15,12 @@ struct State {
     size: winit::dpi::PhysicalSize<u32>,
     config: wgpu::SurfaceConfiguration,
     renderer: TextureRenderer,
+    layer: u32,
+    mipmap: f32,
 }
 
 impl State {
-    async fn new<P: AsRef<Path>>(window: &Window, path: P) -> Self {
+    async fn new<P: AsRef<Path>>(window: &Window, path: P, layer: u32, mipmap: f32) -> Self {
         let instance = wgpu::Instance::new(wgpu::Backends::all());
         let surface = unsafe { instance.create_surface(window) };
         let adapter = instance
@@ -43,7 +45,7 @@ impl State {
             .unwrap();
 
         let size = window.inner_size();
-        let surface_format = surface.get_preferred_format(&adapter).unwrap();
+        let surface_format = wgpu::TextureFormat::Rgba8Unorm;
         let config = wgpu::SurfaceConfiguration {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
             format: surface_format,
@@ -61,16 +63,27 @@ impl State {
         let (texture, dim) = nutexb_wgpu::create_texture(&nutexb, &device, &queue).unwrap();
 
         let mut renderer = TextureRenderer::new(&device, &queue, surface_format);
-        let settings = RenderSettings::default();
+        let settings = RenderSettings {
+            render_rgba: [true; 4],
+            mipmap,
+            layer,
+        };
 
         // Use the full texture width and height.
         // Some use cases benefit from custom dimensions like texture thumbnails.
+        // This is just for documenting how to use the API.
+        // In a real application, the renderer could render the texture directly.
         let start = std::time::Instant::now();
         let rgba_texture = renderer.render_to_texture_2d_rgba(
             &device,
             &queue,
             &texture,
             dim,
+            (
+                nutexb.footer.width,
+                nutexb.footer.height,
+                nutexb.footer.depth,
+            ),
             nutexb.footer.width,
             nutexb.footer.height,
             &settings,
@@ -83,6 +96,7 @@ impl State {
             &queue,
             &rgba_texture,
             wgpu::TextureViewDimension::D2,
+            (nutexb.footer.width, nutexb.footer.height, 1),
             &settings,
         );
 
@@ -93,6 +107,8 @@ impl State {
             size,
             renderer,
             config,
+            layer,
+            mipmap,
         }
     }
 
@@ -147,13 +163,16 @@ fn main() {
     let args: Vec<_> = std::env::args().collect();
     let image_path = std::path::Path::new(&args[1]);
 
+    let layer: u32 = args.get(2).and_then(|a| a.parse().ok()).unwrap_or(0);
+    let mipmap: f32 = args.get(3).and_then(|a| a.parse().ok()).unwrap_or(0.0);
+
     let event_loop = EventLoop::new();
     let window = WindowBuilder::new()
         .with_title(image_path.file_name().unwrap().to_string_lossy())
         .build(&event_loop)
         .unwrap();
 
-    let mut state = block_on(State::new(&window, &image_path));
+    let mut state = block_on(State::new(&window, &image_path, layer, mipmap));
     event_loop.run(move |event, _, control_flow| match event {
         Event::WindowEvent {
             ref event,

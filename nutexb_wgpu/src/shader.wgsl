@@ -21,8 +21,9 @@ fn vs_main([[builtin(vertex_index)]] in_vertex_index: u32) -> VertexOutput {
 struct RenderSettings {
     render_rgba: vec4<f32>;
     mipmap: vec4<f32>;
-    layer: vec4<f32>;
+    layer: vec4<u32>;
     texture_slot: vec4<u32>;
+    texture_size: vec4<f32>;
 };
 
 [[group(0), binding(0)]]
@@ -47,12 +48,46 @@ fn fs_main(in: VertexOutput) -> [[location(0)]] vec4<f32> {
         }
         case 1: {
             // Cube
-            // TODO: Transform the coordinates to select a single face.
-            outColor = textureSampleLevel(t_color_cube, s_color, vec3<f32>(in.tex_coords, 1.0), render_settings.mipmap.x);
+            // Match the orientation of an array of 2D textures when selecting faces.
+            // This matches the behavior of many texture viewers.
+            var coords = vec3<f32>(0.0);
+            switch (render_settings.layer.x) {
+                case 0: {
+                    // X+
+                    coords = normalize(vec3<f32>(1.0, (1.0 - in.tex_coords.yx) * 2.0 - 1.0));
+                }
+                case 1: {
+                    // X-
+                    coords = normalize(vec3<f32>(-1.0, (1.0 - in.tex_coords.y) * 2.0 - 1.0, in.tex_coords.x * 2.0 - 1.0));
+                }
+                case 2: {
+                    // Y+
+                    coords = normalize(vec3<f32>(in.tex_coords.x * 2.0 - 1.0, 1.0, in.tex_coords.y * 2.0 - 1.0));
+                }
+                case 3: {
+                    // Y-
+                    coords = normalize(vec3<f32>(in.tex_coords.x * 2.0 - 1.0, -1.0, (1.0 - in.tex_coords.y) * 2.0 - 1.0));
+                }
+                case 4: {
+                    // Z+
+                    coords = normalize(vec3<f32>(in.tex_coords.x * 2.0 - 1.0, (1.0 - in.tex_coords.y) * 2.0 - 1.0, 1.0));
+                }
+                case 5: {
+                    // Z-
+                    coords = normalize(vec3<f32>((1.0 - in.tex_coords.x) * 2.0 - 1.0, (1.0 - in.tex_coords.y) * 2.0 - 1.0, -1.0));
+                }
+                default: {
+                    // Use X+ by default.
+                    coords = normalize(vec3<f32>(1.0, (1.0 - in.tex_coords.yx) * 2.0 - 1.0));
+                }
+            }
+             
+            outColor = textureSampleLevel(t_color_cube, s_color, coords, render_settings.mipmap.x);
         }
         case 2: {
             // 3D
-            outColor = textureSampleLevel(t_color_3d, s_color, vec3<f32>(in.tex_coords, render_settings.layer.x), render_settings.mipmap.x);
+            let coords = vec3<f32>(in.tex_coords, f32(render_settings.layer.x) / render_settings.texture_size.z);
+            outColor = textureSampleLevel(t_color_3d, s_color, coords, render_settings.mipmap.x);
         }
         default: {
             outColor = vec4<f32>(0.0);

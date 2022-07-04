@@ -16,8 +16,9 @@ pub struct VertexOutput {
 pub struct RenderSettings {
     pub render_rgba: [f32; 4],
     pub mipmap: [f32; 4],
-    pub layer: [f32; 4],
+    pub layer: [u32; 4],
     pub texture_slot: [u32; 4],
+    pub texture_size: [f32; 4],
 }
 pub mod bind_groups {
     pub struct BindGroup0(wgpu::BindGroup);

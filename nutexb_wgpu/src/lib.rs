@@ -14,10 +14,16 @@ use wgpu::{
 
 mod shader;
 
+/// Settings to control rendering of the texture.
 pub struct RenderSettings {
+    /// Channel toggles for `[red, green, blue, alpha]`.
     pub render_rgba: [bool; 4],
+    /// The mip level to render starting from `0.0`.
     pub mipmap: f32,
-    pub layer: f32,
+    /// The depth or array layer to render.
+    /// Cube maps have six layers.
+    /// Depth textures should take values up to the texture's depth in pixels.
+    pub layer: u32,
 }
 
 impl Default for RenderSettings {
@@ -25,7 +31,7 @@ impl Default for RenderSettings {
         Self {
             render_rgba: [true; 4],
             mipmap: 0.0,
-            layer: 0.0,
+            layer: 0,
         }
     }
 }
@@ -33,6 +39,7 @@ impl Default for RenderSettings {
 fn shader_settings(
     settings: &RenderSettings,
     dim: TextureViewDimension,
+    size: (u32, u32, u32),
 ) -> crate::shader::RenderSettings {
     crate::shader::RenderSettings {
         render_rgba: settings.render_rgba.map(|b| if b { 1.0 } else { 0.0 }),
@@ -44,6 +51,7 @@ fn shader_settings(
             TextureViewDimension::D3 => 2,
             _ => 0,
         }; 4],
+        texture_size: [size.0 as f32, size.1 as f32, size.2 as f32, 0.0],
     }
 }
 
@@ -215,7 +223,11 @@ impl TextureRenderer {
             ..Default::default()
         });
 
-        let shader_settings = shader_settings(&RenderSettings::default(), TextureViewDimension::D2);
+        let shader_settings = shader_settings(
+            &RenderSettings::default(),
+            TextureViewDimension::D2,
+            (1, 1, 1),
+        );
         let settings_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("nutexb_wgpu Render Settings"),
             contents: bytemuck::cast_slice(&[shader_settings]),
@@ -253,30 +265,47 @@ impl TextureRenderer {
         device: &wgpu::Device,
         queue: &wgpu::Queue,
         texture: &wgpu::Texture,
-        dimension: wgpu::TextureViewDimension,
+        texture_dimension: wgpu::TextureViewDimension,
+        texture_size: (u32, u32, u32),
         settings: &RenderSettings,
     ) {
         // The renderer takes an existing render pass for easier integration.
         // Store and update state in self to work around the lifetime requirements.
-        let bind_group = self.create_bind_group(device, queue, texture, dimension, settings);
+        let bind_group = self.create_bind_group(
+            device,
+            queue,
+            texture,
+            texture_dimension,
+            texture_size,
+            settings,
+        );
         self.bindgroup = Some(bind_group);
     }
 
-    /// Convert a texture to the RGBA format using a shader.
+    /// Render a texture to a 2D RGBA texture.
+    ///
     /// This allows compressed textures like BC7 to be used as thumbnails in some applications.
+    /// Cube maps and 3D textures will only render a single 2D face or slice based on the render settings.
     pub fn render_to_texture_2d_rgba(
         &self,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
         texture: &wgpu::Texture,
-        dimension: wgpu::TextureViewDimension,
+        texture_dimension: wgpu::TextureViewDimension,
+        texture_size: (u32, u32, u32),
         render_width: u32,
         render_height: u32,
         settings: &RenderSettings,
     ) -> wgpu::Texture {
         // TODO: Is this more efficient using compute shaders?
-        let texture_bind_group =
-            self.create_bind_group(device, queue, texture, dimension, settings);
+        let texture_bind_group = self.create_bind_group(
+            device,
+            queue,
+            texture,
+            texture_dimension,
+            texture_size,
+            settings,
+        );
 
         // TODO: Support 3D.
         let rgba_texture = device.create_texture(&wgpu::TextureDescriptor {
@@ -337,6 +366,7 @@ impl TextureRenderer {
         queue: &wgpu::Queue,
         texture: &wgpu::Texture,
         dimension: wgpu::TextureViewDimension,
+        size: (u32, u32, u32),
         settings: &RenderSettings,
     ) -> BindGroup0 {
         // TODO: How to switch bind groups based on the dimensions?
@@ -345,7 +375,7 @@ impl TextureRenderer {
             ..Default::default()
         });
 
-        let shader_settings = shader_settings(settings, dimension);
+        let shader_settings = shader_settings(settings, dimension, size);
         queue.write_buffer(
             &self.settings_buffer,
             0,
