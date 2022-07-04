@@ -236,13 +236,7 @@ pub fn create_default_textures(
             [255, 255, 255, 255],
             "/common/shader/sfxpbs/default_color4",
         ),
-        // TODO: This is an 8x8 yellow checkerboard
-        solid_color_texture_2d(
-            device,
-            queue,
-            [255, 255, 0, 255],
-            "/common/shader/sfxpbs/default_diffuse2",
-        ),
+        default_diffuse2(device, queue),
         solid_color_texture_2d(
             device,
             queue,
@@ -324,7 +318,6 @@ pub fn solid_color_texture_2d(
     color: [u8; 4],
     label: &str,
 ) -> (String, Texture, TextureViewDimension) {
-    // TODO: It may be faster to cache these.
     let texture_size = wgpu::Extent3d {
         width: 4,
         height: 4,
@@ -356,6 +349,49 @@ pub fn solid_color_texture_2d(
     );
 
     (label.to_string(), texture, TextureViewDimension::D2)
+}
+
+pub fn default_diffuse2(
+    device: &Device,
+    queue: &wgpu::Queue,
+) -> (String, Texture, TextureViewDimension) {
+    let texture_size = wgpu::Extent3d {
+        width: 8,
+        height: 8,
+        depth_or_array_layers: 1,
+    };
+    let texture = device.create_texture(&TextureDescriptor {
+        label: Some("/common/shader/sfxpbs/default_diffuse2"),
+        size: texture_size,
+        mip_level_count: 4,
+        sample_count: 1,
+        dimension: TextureDimension::D2,
+        format: TextureFormat::Bc3RgbaUnorm,
+        usage: TextureUsages::COPY_SRC | TextureUsages::COPY_DST | TextureUsages::TEXTURE_BINDING,
+    });
+
+    // This default texture isn't a solid color, so load the actual surface from a file.
+    queue.write_texture(
+        wgpu::ImageCopyTexture {
+            texture: &texture,
+            mip_level: 0,
+            origin: wgpu::Origin3d::ZERO,
+            aspect: TextureAspect::All,
+        },
+        include_bytes!("default_diffuse2_surface.bin"),
+        wgpu::ImageDataLayout {
+            offset: 0,
+            bytes_per_row: NonZeroU32::new(8 * 4),
+            rows_per_image: None,
+        },
+        texture_size,
+    );
+
+    (
+        "/common/shader/sfxpbs/default_diffuse2".to_string(),
+        texture,
+        TextureViewDimension::D2,
+    )
 }
 
 fn create_default_lut() -> Vec<u8> {
