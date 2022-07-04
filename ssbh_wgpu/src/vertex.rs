@@ -204,9 +204,8 @@ pub fn skin_weights(
                                 }
                             } else {
                                 warn!(
-                                    "Vertex {} for mesh {} has more than 4 weights. Additional weights will be ignored.", 
-                                    w.vertex_index,
-                                    mesh.name
+                                    "Invalid vertex weight index {} for mesh {}.",
+                                    w.vertex_index, mesh.name
                                 );
                             }
                         }
