@@ -7,6 +7,10 @@ use shader::{
 };
 use thiserror::Error;
 use wgpu::{util::DeviceExt, Limits};
+use wgpu::{
+    Extent3d, TextureDescriptor, TextureDimension, TextureFormat, TextureUsages,
+    TextureViewDimension,
+};
 
 mod shader;
 
@@ -26,13 +30,20 @@ impl Default for RenderSettings {
     }
 }
 
-impl From<&RenderSettings> for crate::shader::RenderSettings {
-    fn from(settings: &RenderSettings) -> Self {
-        Self {
-            render_rgba: settings.render_rgba.map(|b| if b { 1.0 } else { 0.0 }),
-            mipmap: [settings.mipmap; 4],
-            layer: [settings.layer; 4],
-        }
+fn shader_settings(
+    settings: &RenderSettings,
+    dim: TextureViewDimension,
+) -> crate::shader::RenderSettings {
+    crate::shader::RenderSettings {
+        render_rgba: settings.render_rgba.map(|b| if b { 1.0 } else { 0.0 }),
+        mipmap: [settings.mipmap; 4],
+        layer: [settings.layer; 4],
+        texture_slot: [match dim {
+            TextureViewDimension::D2 => 0,
+            TextureViewDimension::Cube => 1,
+            TextureViewDimension::D3 => 2,
+            _ => 0,
+        }; 4],
     }
 }
 
@@ -181,10 +192,19 @@ pub struct TextureRenderer {
     settings_buffer: wgpu::Buffer,
     sampler: wgpu::Sampler,
     bindgroup: Option<BindGroup0>,
+    // Workaround for sharing the same pipeline.
+    // Unused textures still need a resource bound.
+    default_2d: wgpu::TextureView,
+    default_3d: wgpu::TextureView,
+    default_cube: wgpu::TextureView,
 }
 
 impl TextureRenderer {
-    pub fn new(device: &wgpu::Device, surface_format: wgpu::TextureFormat) -> Self {
+    pub fn new(
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        surface_format: wgpu::TextureFormat,
+    ) -> Self {
         let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
             address_mode_u: wgpu::AddressMode::ClampToEdge,
             address_mode_v: wgpu::AddressMode::ClampToEdge,
@@ -195,12 +215,16 @@ impl TextureRenderer {
             ..Default::default()
         });
 
-        let shader_settings = crate::shader::RenderSettings::from(&RenderSettings::default());
+        let shader_settings = shader_settings(&RenderSettings::default(), TextureViewDimension::D2);
         let settings_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("nutexb_wgpu Render Settings"),
             contents: bytemuck::cast_slice(&[shader_settings]),
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
+
+        let default_2d = default_texture_2d(device, queue);
+        let default_3d = default_texture_3d(device, queue);
+        let default_cube = default_texture_cube(device, queue);
 
         Self {
             pipeline: create_render_pipeline(device, surface_format),
@@ -208,6 +232,9 @@ impl TextureRenderer {
             settings_buffer,
             sampler,
             bindgroup: None,
+            default_2d,
+            default_3d,
+            default_cube,
         }
     }
 
@@ -219,33 +246,37 @@ impl TextureRenderer {
         }
     }
 
+    /// Sets the next texture to render from `texture` and `dimension`.
+    /// Sets the render settings from `settings`.
     pub fn update(
         &mut self,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
         texture: &wgpu::Texture,
+        dimension: wgpu::TextureViewDimension,
         settings: &RenderSettings,
     ) {
         // The renderer takes an existing render pass for easier integration.
         // Store and update state in self to work around the lifetime requirements.
-        let bind_group = self.create_bind_group(device, queue, texture, settings);
+        let bind_group = self.create_bind_group(device, queue, texture, dimension, settings);
         self.bindgroup = Some(bind_group);
     }
 
     /// Convert a texture to the RGBA format using a shader.
     /// This allows compressed textures like BC7 to be used as thumbnails in some applications.
-    pub fn render_to_texture_rgba(
+    pub fn render_to_texture_2d_rgba(
         &self,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
         texture: &wgpu::Texture,
-        dim: wgpu::TextureViewDimension,
+        dimension: wgpu::TextureViewDimension,
         render_width: u32,
         render_height: u32,
         settings: &RenderSettings,
     ) -> wgpu::Texture {
         // TODO: Is this more efficient using compute shaders?
-        let texture_bind_group = self.create_bind_group(device, queue, texture, settings);
+        let texture_bind_group =
+            self.create_bind_group(device, queue, texture, dimension, settings);
 
         // TODO: Support 3D.
         let rgba_texture = device.create_texture(&wgpu::TextureDescriptor {
@@ -305,23 +336,39 @@ impl TextureRenderer {
         device: &wgpu::Device,
         queue: &wgpu::Queue,
         texture: &wgpu::Texture,
+        dimension: wgpu::TextureViewDimension,
         settings: &RenderSettings,
     ) -> BindGroup0 {
         // TODO: How to switch bind groups based on the dimensions?
-        let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+        let view = texture.create_view(&wgpu::TextureViewDescriptor {
+            dimension: Some(dimension),
+            ..Default::default()
+        });
 
-        let shader_settings = crate::shader::RenderSettings::from(settings);
+        let shader_settings = shader_settings(settings, dimension);
         queue.write_buffer(
             &self.settings_buffer,
             0,
             bytemuck::cast_slice(&[shader_settings]),
         );
 
+        // Workaround for using the same pipeline.
+        // Bind all resources and just choose one at render time.
+        // TODO: Add dim to render settings.
+        let (t_color_2d, t_color_cube, t_color_3d) = match dimension {
+            TextureViewDimension::D2 => (&view, &self.default_cube, &self.default_3d),
+            TextureViewDimension::Cube => (&self.default_2d, &view, &self.default_3d),
+            TextureViewDimension::D3 => (&self.default_2d, &self.default_cube, &view),
+            _ => (&self.default_2d, &self.default_cube, &self.default_3d),
+        };
+
         shader::bind_groups::BindGroup0::from_bindings(
             device,
             shader::bind_groups::BindGroupLayout0 {
-                t_diffuse: &view,
-                s_diffuse: &self.sampler,
+                t_color_2d,
+                t_color_cube,
+                t_color_3d,
+                s_color: &self.sampler,
                 render_settings: self.settings_buffer.as_entire_buffer_binding(),
             },
         )
@@ -368,4 +415,82 @@ fn draw_textured_triangle<'a>(
         },
     );
     render_pass.draw(0..3, 0..1);
+}
+
+fn default_texture_2d(device: &wgpu::Device, queue: &wgpu::Queue) -> wgpu::TextureView {
+    let size = Extent3d {
+        width: 1,
+        height: 1,
+        depth_or_array_layers: 1,
+    };
+    device
+        .create_texture_with_data(
+            queue,
+            &TextureDescriptor {
+                label: Some("nutexb_wgpu Default 2D"),
+                size,
+                mip_level_count: 1,
+                sample_count: 1,
+                dimension: TextureDimension::D2,
+                format: TextureFormat::Rgba8Unorm,
+                usage: TextureUsages::COPY_DST | TextureUsages::TEXTURE_BINDING,
+            },
+            &[0; 4],
+        )
+        .create_view(&wgpu::TextureViewDescriptor {
+            dimension: Some(wgpu::TextureViewDimension::D2),
+            ..Default::default()
+        })
+}
+
+fn default_texture_3d(device: &wgpu::Device, queue: &wgpu::Queue) -> wgpu::TextureView {
+    let size = Extent3d {
+        width: 1,
+        height: 1,
+        depth_or_array_layers: 1,
+    };
+    device
+        .create_texture_with_data(
+            queue,
+            &TextureDescriptor {
+                label: Some("nutexb_wgpu Default 3D"),
+                size,
+                mip_level_count: 1,
+                sample_count: 1,
+                dimension: TextureDimension::D3,
+                format: TextureFormat::Rgba8Unorm,
+                usage: TextureUsages::COPY_DST | TextureUsages::TEXTURE_BINDING,
+            },
+            &[0; 4],
+        )
+        .create_view(&wgpu::TextureViewDescriptor {
+            dimension: Some(wgpu::TextureViewDimension::D3),
+            ..Default::default()
+        })
+}
+
+fn default_texture_cube(device: &wgpu::Device, queue: &wgpu::Queue) -> wgpu::TextureView {
+    let size = Extent3d {
+        width: 1,
+        height: 1,
+        depth_or_array_layers: 6,
+    };
+    device
+        .create_texture_with_data(
+            queue,
+            &TextureDescriptor {
+                label: Some("nutexb_wgpu Default Cube"),
+                size,
+                mip_level_count: 1,
+                sample_count: 1,
+                dimension: TextureDimension::D2,
+                format: TextureFormat::Rgba8Unorm,
+                usage: TextureUsages::COPY_DST | TextureUsages::TEXTURE_BINDING,
+            },
+            &[0; 4 * 6],
+        )
+        .create_view(&wgpu::TextureViewDescriptor {
+            dimension: Some(wgpu::TextureViewDimension::Cube),
+            ..Default::default()
+        })
 }

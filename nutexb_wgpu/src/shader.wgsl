@@ -22,21 +22,43 @@ struct RenderSettings {
     render_rgba: vec4<f32>;
     mipmap: vec4<f32>;
     layer: vec4<f32>;
+    texture_slot: vec4<u32>;
 };
 
-// TODO: Separate wgsl files for cube, 2d, etc.
 [[group(0), binding(0)]]
-var t_diffuse: texture_2d<f32>;
+var t_color_2d: texture_2d<f32>;
 [[group(0), binding(1)]]
-var s_diffuse: sampler;
+var t_color_cube: texture_cube<f32>;
 [[group(0), binding(2)]]
+var t_color_3d: texture_3d<f32>;
+
+[[group(0), binding(3)]]
+var s_color: sampler;
+[[group(0), binding(4)]]
 var<uniform> render_settings: RenderSettings;
 
 [[stage(fragment)]]
 fn fs_main(in: VertexOutput) -> [[location(0)]] vec4<f32> {
-    // TODO: Sample array layers for cube maps in a separate entry point.
-    let outColor = textureSampleLevel(t_diffuse, s_diffuse, in.tex_coords, render_settings.mipmap.x);
-
+    var outColor = vec4<f32>(0.0);
+    switch (render_settings.texture_slot.x) {
+        case 0: {
+            // 2D
+            outColor = textureSampleLevel(t_color_2d, s_color, in.tex_coords, render_settings.mipmap.x);
+        }
+        case 1: {
+            // Cube
+            // TODO: Transform the coordinates to select a single face.
+            outColor = textureSampleLevel(t_color_cube, s_color, vec3<f32>(in.tex_coords, 1.0), render_settings.mipmap.x);
+        }
+        case 2: {
+            // 3D
+            outColor = textureSampleLevel(t_color_3d, s_color, vec3<f32>(in.tex_coords, render_settings.layer.x), render_settings.mipmap.x);
+        }
+        default: {
+            outColor = vec4<f32>(0.0);
+        }
+    }
+    
     // Use grayscale for single channels.
     let rgba = render_settings.render_rgba;
     if (rgba.r == 1.0 && rgba.g == 0.0 && rgba.b == 0.0) {

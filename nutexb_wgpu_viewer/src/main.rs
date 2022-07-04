@@ -60,13 +60,13 @@ impl State {
         // TODO: Use the dim to handle rendering 3d and cube map textures.
         let (texture, dim) = nutexb_wgpu::create_texture(&nutexb, &device, &queue).unwrap();
 
-        let mut renderer = TextureRenderer::new(&device, surface_format);
+        let mut renderer = TextureRenderer::new(&device, &queue, surface_format);
         let settings = RenderSettings::default();
 
         // Use the full texture width and height.
         // Some use cases benefit from custom dimensions like texture thumbnails.
         let start = std::time::Instant::now();
-        let rgba_texture = renderer.render_to_texture_rgba(
+        let rgba_texture = renderer.render_to_texture_2d_rgba(
             &device,
             &queue,
             &texture,
@@ -77,7 +77,14 @@ impl State {
         );
         println!("Render to RGBA: {:?}", start.elapsed());
 
-        renderer.update(&device, &queue, &rgba_texture, &settings);
+        // The RGBA texture is always 2D.
+        renderer.update(
+            &device,
+            &queue,
+            &rgba_texture,
+            wgpu::TextureViewDimension::D2,
+            &settings,
+        );
 
         Self {
             surface,
