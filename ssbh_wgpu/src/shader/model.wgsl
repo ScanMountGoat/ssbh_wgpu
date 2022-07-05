@@ -151,6 +151,8 @@ struct MaterialUniforms {
     has_color_set1234: vec4<u32>;
     has_color_set567: vec4<u32>;
     is_discard: vec4<u32>;
+    // Workaround for some shaders not containing specular code.
+    enable_specular: vec4<u32>;
 };
 
 [[group(1), binding(30)]]
@@ -1107,7 +1109,7 @@ fn fs_main(in: VertexOutput, [[builtin(front_facing)]] is_front: bool) -> [[loca
         outColor = outColor + (diffusePass * kDiffuse) / 3.14159;
     }
 
-    if (render_settings.render_specular.x == 1u) {
+    if (render_settings.render_specular.x == 1u && uniforms.enable_specular.x == 1u) {
         outColor = outColor + specularPass * kSpecular * ao;
     }
 

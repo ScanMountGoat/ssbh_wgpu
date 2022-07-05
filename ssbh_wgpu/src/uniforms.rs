@@ -85,6 +85,25 @@ pub fn create_uniforms(
                 .map(|program| [if program.discard { 1 } else { 0 }; 4])
                 .unwrap_or_default();
 
+            // TODO: Research a more accurate heuristic for disabling specular.
+            // Shaders with just emission or just diffuse textures seem to have no specular code.
+            let mut just_emi = true;
+            for i in 0..19 {
+                if i != 5 && i != 14 {
+                    just_emi &= has_texture[i][0] == 0;
+                }
+            }
+
+            let mut just_diffuse = true;
+            for i in 0..19 {
+                if i != 10 && i != 11 && i != 12 {
+                    just_diffuse &= has_texture[i][0] == 0;
+                }
+            }
+
+            let enable_specular = !just_emi && !just_diffuse;
+            let enable_specular = [if enable_specular { 1 } else { 0 }; 4];
+
             MaterialUniforms {
                 custom_vector,
                 custom_boolean,
@@ -96,6 +115,7 @@ pub fn create_uniforms(
                 has_color_set1234,
                 has_color_set567,
                 is_discard,
+                enable_specular,
             }
         })
         .unwrap_or(
@@ -111,6 +131,7 @@ pub fn create_uniforms(
                 has_color_set1234: [0; 4],
                 has_color_set567: [0; 4],
                 is_discard: [0; 4],
+                enable_specular: [1; 4],
             },
         )
 }
