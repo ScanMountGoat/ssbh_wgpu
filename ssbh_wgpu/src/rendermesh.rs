@@ -623,34 +623,9 @@ impl<'a> RenderMeshSharedData<'a> {
             textures,
             pipelines,
             buffer_data,
-        } = create_render_meshes(device, queue, &mesh_buffers, self);
+        } = create_render_mesh_data(device, queue, &mesh_buffers, self);
 
-        let mut bone_bind_groups = Vec::new();
-        if let Some(skel) = self.skel {
-            for (i, bone) in skel.bones.iter().enumerate() {
-                // TODO: Use instancing instead.
-                let per_bone = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                    label: Some("Mesh Object Info Buffer"),
-                    contents: bytemuck::cast_slice(&[crate::shader::skeleton::PerBone {
-                        indices: [
-                            i as i32,
-                            bone.parent_index.map(|p| p as i32).unwrap_or(-1),
-                            -1,
-                            -1,
-                        ],
-                    }]),
-                    usage: wgpu::BufferUsages::UNIFORM,
-                });
-
-                let bind_group2 = crate::shader::skeleton::bind_groups::BindGroup2::from_bindings(
-                    device,
-                    crate::shader::skeleton::bind_groups::BindGroupLayout2 {
-                        per_bone: per_bone.as_entire_buffer_binding(),
-                    },
-                );
-                bone_bind_groups.push(bind_group2);
-            }
-        }
+        let bone_bind_groups = self.bone_bind_groups(device);
 
         info!(
             "Create {:?} render meshe(s), {:?} material(s), {:?} pipeline(s): {:?}",
@@ -676,6 +651,45 @@ impl<'a> RenderMeshSharedData<'a> {
             buffer_data,
             animation_transforms: Box::new(animation_transforms),
         }
+    }
+
+    fn bone_bind_groups(
+        &self,
+        device: &wgpu::Device,
+    ) -> Vec<crate::shader::skeleton::bind_groups::BindGroup2> {
+        self.skel
+            .map(|skel| {
+                skel.bones
+                    .iter()
+                    .enumerate()
+                    .map(|(i, bone)| {
+                        // TODO: Use instancing instead.
+                        let per_bone =
+                            device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                                label: Some("Mesh Object Info Buffer"),
+                                contents: bytemuck::cast_slice(&[
+                                    crate::shader::skeleton::PerBone {
+                                        indices: [
+                                            i as i32,
+                                            bone.parent_index.map(|p| p as i32).unwrap_or(-1),
+                                            -1,
+                                            -1,
+                                        ],
+                                    },
+                                ]),
+                                usage: wgpu::BufferUsages::UNIFORM,
+                            });
+
+                        crate::shader::skeleton::bind_groups::BindGroup2::from_bindings(
+                            device,
+                            crate::shader::skeleton::bind_groups::BindGroupLayout2 {
+                                per_bone: per_bone.as_entire_buffer_binding(),
+                            },
+                        )
+                    })
+                    .collect()
+            })
+            .unwrap_or_default()
     }
 }
 
@@ -734,7 +748,7 @@ struct MeshBufferAccess {
     indices_size: u64,
 }
 
-fn create_render_meshes(
+fn create_render_mesh_data(
     device: &wgpu::Device,
     queue: &wgpu::Queue,
     mesh_buffers: &MeshBuffers,
@@ -744,52 +758,10 @@ fn create_render_meshes(
 
     // Initialize textures exactly once for performance.
     // Unused textures are rare, so we won't lazy load them.
-    let textures: Vec<_> = shared_data
-        .nutexbs
-        .iter()
-        .filter_map(|(name, nutexb)| {
-            let nutexb = nutexb
-                .as_ref()
-                .map_err(|e| {
-                    error!("Failed to read nutexb file {}: {}", name, e);
-                    e
-                })
-                .ok()?;
-            let (texture, dim) = nutexb_wgpu::create_texture(nutexb, device, queue)
-                .map_err(|e| {
-                    error!("Failed to create nutexb texture {}: {}", name, e);
-                    e
-                })
-                .ok()?;
-            Some((name.clone(), texture, dim))
-        })
-        .collect();
+    let textures = create_textures(shared_data, device, queue);
 
-    // Mesh objects control the depth state of the pipeline.
-    // In practice, each (shader,mesh) pair may need a unique pipeline.
-    // Cache materials separately since materials may share a pipeline.
-    // TODO: How to test these optimizations?
-    let mut pipelines = HashMap::new();
-
-    // Similarly, materials can be shared between mesh objects.
-    // TODO: Split into PerMaterial, PerObject, etc in the shaders?
-    let material_data_by_label: HashMap<_, _> = shared_data
-        .matl
-        .map(|matl| {
-            matl.entries
-                .iter()
-                .map(|entry| {
-                    let data = create_material_data(
-                        device,
-                        Some(entry),
-                        &textures,
-                        &shared_data.shared_data,
-                    );
-                    (entry.material_label.clone(), data)
-                })
-                .collect()
-        })
-        .unwrap_or_default();
+    // Materials can be shared between mesh objects.
+    let material_data_by_label = create_materials(shared_data, device, &textures);
 
     // TODO: Find a way to have fewer function parameters?
     let mut model_buffer0_data = Vec::new();
@@ -826,41 +798,21 @@ fn create_render_meshes(
         &model_index_data,
     );
 
-    let meshes = shared_data
-        .mesh
-        .map(|mesh| {
-            mesh.objects
-                .iter() // TODO: par_iter?
-                .zip(accesses.into_iter())
-                .enumerate()
-                .filter_map(|(i, (mesh_object, access))| {
-                    // Some mesh objects have associated triangle adjacency.
-                    let adj_entry = shared_data
-                        .adj
-                        .and_then(|adj| adj.entries.iter().find(|e| e.mesh_object_index == i));
+    // Mesh objects control the depth state of the pipeline.
+    // In practice, each (shader,mesh) pair may need a unique pipeline.
+    // Cache materials separately since materials may share a pipeline.
+    // TODO: How to test these optimizations?
+    let mut pipelines = HashMap::new();
 
-                    create_render_mesh(
-                        device,
-                        mesh_object,
-                        adj_entry,
-                        &mut pipelines,
-                        mesh_buffers,
-                        access,
-                        shared_data,
-                        &buffer_data,
-                    )
-                    .map_err(|e| {
-                        error!(
-                            "Error creating render mesh for mesh {}: {}",
-                            mesh_object.name, e
-                        );
-                        e
-                    })
-                    .ok()
-                })
-                .collect()
-        })
-        .unwrap_or_default();
+    let meshes = create_render_meshes(
+        shared_data,
+        accesses,
+        device,
+        &mut pipelines,
+        mesh_buffers,
+        &buffer_data,
+    )
+    .unwrap_or_default();
 
     RenderMeshData {
         meshes,
@@ -869,6 +821,103 @@ fn create_render_meshes(
         pipelines,
         buffer_data,
     }
+}
+
+fn create_render_meshes(
+    shared_data: &RenderMeshSharedData,
+    accesses: Vec<MeshBufferAccess>,
+    device: &wgpu::Device,
+    pipelines: &mut HashMap<PipelineKey, wgpu::RenderPipeline>,
+    mesh_buffers: &MeshBuffers,
+    buffer_data: &MeshObjectBufferData,
+) -> Option<Vec<RenderMesh>> {
+    Some(
+        shared_data
+            .mesh?
+            .objects
+            .iter() // TODO: par_iter?
+            .zip(accesses.into_iter())
+            .enumerate()
+            .filter_map(|(i, (mesh_object, access))| {
+                // Some mesh objects have associated triangle adjacency.
+                let adj_entry = shared_data
+                    .adj
+                    .and_then(|adj| adj.entries.iter().find(|e| e.mesh_object_index == i));
+
+                create_render_mesh(
+                    device,
+                    mesh_object,
+                    adj_entry,
+                    pipelines,
+                    mesh_buffers,
+                    access,
+                    shared_data,
+                    &buffer_data,
+                )
+                .map_err(|e| {
+                    error!(
+                        "Error creating render mesh for mesh {}: {}",
+                        mesh_object.name, e
+                    );
+                    e
+                })
+                .ok()
+            })
+            .collect(),
+    )
+}
+
+fn create_textures(
+    shared_data: &RenderMeshSharedData,
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+) -> Vec<(String, wgpu::Texture, wgpu::TextureViewDimension)> {
+    let textures: Vec<_> = shared_data
+        .nutexbs
+        .iter()
+        .filter_map(|(name, nutexb)| {
+            let nutexb = nutexb
+                .as_ref()
+                .map_err(|e| {
+                    error!("Failed to read nutexb file {}: {}", name, e);
+                    e
+                })
+                .ok()?;
+            let (texture, dim) = nutexb_wgpu::create_texture(nutexb, device, queue)
+                .map_err(|e| {
+                    error!("Failed to create nutexb texture {}: {}", name, e);
+                    e
+                })
+                .ok()?;
+            Some((name.clone(), texture, dim))
+        })
+        .collect();
+    textures
+}
+
+fn create_materials(
+    shared_data: &RenderMeshSharedData,
+    device: &wgpu::Device,
+    textures: &[(String, wgpu::Texture, wgpu::TextureViewDimension)],
+) -> HashMap<String, MaterialData> {
+    // TODO: Split into PerMaterial, PerObject, etc in the shaders?
+    shared_data
+        .matl
+        .map(|matl| {
+            matl.entries
+                .iter()
+                .map(|entry| {
+                    let data = create_material_data(
+                        device,
+                        Some(entry),
+                        &textures,
+                        &shared_data.shared_data,
+                    );
+                    (entry.material_label.clone(), data)
+                })
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
 fn append_mesh_object_buffer_data(

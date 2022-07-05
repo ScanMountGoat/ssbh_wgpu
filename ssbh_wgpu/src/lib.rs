@@ -31,6 +31,8 @@ pub use shader::model::CameraTransforms;
 pub use shader_database::{create_database, ShaderDatabase, ShaderProgram};
 pub use texture::{create_default_textures, load_default_spec_cube};
 
+// TODO: Create buffers from bytemuck supported types.
+
 // TODO: Find a way to avoid using the format features for filterable f32 textures.
 /// Required WGPU features for using this library.
 /// This library currently only supports WGPU on native desktop platforms.
@@ -103,16 +105,21 @@ impl<'a> arbitrary::Arbitrary<'a> for ModelFolder {
 
 impl ModelFolder {
     pub fn load_folder<P: AsRef<Path>>(folder: P) -> Self {
+        let folder_name = folder.as_ref().to_string_lossy().to_string();
+        let files: Vec<_> = std::fs::read_dir(folder)
+            .map(|dir| dir.filter_map(|p| p.ok().map(|p| p.path())).collect())
+            .unwrap_or_default();
+
         Self {
-            folder_name: folder.as_ref().to_string_lossy().to_string(),
-            meshes: read_files(folder.as_ref(), "numshb", MeshData::from_file),
-            skels: read_files(folder.as_ref(), "nusktb", SkelData::from_file),
-            matls: read_files(folder.as_ref(), "numatb", MatlData::from_file),
-            modls: read_files(folder.as_ref(), "numdlb", ModlData::from_file),
-            anims: read_files(folder.as_ref(), "nuanmb", AnimData::from_file),
-            adjs: read_files(folder.as_ref(), "adjb", AdjData::from_file),
-            hlpbs: read_files(folder.as_ref(), "nuhlpb", HlpbData::from_file),
-            nutexbs: read_files(folder.as_ref(), "nutexb", NutexbFile::read_from_file),
+            folder_name,
+            meshes: read_files(&files, "numshb", MeshData::from_file),
+            skels: read_files(&files, "nusktb", SkelData::from_file),
+            matls: read_files(&files, "numatb", MatlData::from_file),
+            modls: read_files(&files, "numdlb", ModlData::from_file),
+            anims: read_files(&files, "nuanmb", AnimData::from_file),
+            adjs: read_files(&files, "adjb", AdjData::from_file),
+            hlpbs: read_files(&files, "nuhlpb", HlpbData::from_file),
+            nutexbs: read_files(&files, "nutexb", NutexbFile::read_from_file),
         }
     }
 
@@ -225,28 +232,23 @@ pub fn load_model_folders<P: AsRef<Path>>(root: P) -> Vec<ModelFolder> {
     models
 }
 
-fn read_files<T, F>(parent: &Path, extension: &str, read_t: F) -> ModelFiles<T>
+fn read_files<T, F>(files: &[PathBuf], extension: &str, read_t: F) -> ModelFiles<T>
 where
     F: Fn(PathBuf) -> Result<T, Box<dyn Error>>,
 {
-    // TODO: Avoid repetitive system calls here?
-    // We should be able to just iterate the directory once.
-    std::fs::read_dir(parent)
-        .map(|dir| {
-            dir.filter_map(|p| p.ok().map(|p| p.path()))
-                .filter(|p| p.extension().and_then(|p| p.to_str()) == Some(extension))
-                .filter_map(|p| {
-                    Some((
-                        p.file_name()?.to_string_lossy().to_string(),
-                        read_t(p.clone()).map_err(|e| {
-                            error!("Error reading {:?}: {}", p, e);
-                            e
-                        }),
-                    ))
-                })
-                .collect()
+    files
+        .iter()
+        .filter(|p| p.extension().and_then(|p| p.to_str()) == Some(extension))
+        .filter_map(|p| {
+            Some((
+                p.file_name()?.to_string_lossy().to_string(),
+                read_t(p.clone()).map_err(|e| {
+                    error!("Error reading {:?}: {}", p, e);
+                    e
+                }),
+            ))
         })
-        .unwrap_or_default()
+        .collect()
 }
 
 #[cfg(test)]
