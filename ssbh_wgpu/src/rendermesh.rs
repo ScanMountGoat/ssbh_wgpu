@@ -3,6 +3,7 @@ use crate::{
     bone_rendering::*,
     pipeline::{create_pipeline, PipelineKey},
     texture::{load_default, load_sampler, load_texture, LoadTextureError},
+    uniform_buffer, uniform_buffer_readonly,
     uniforms::create_uniforms_buffer,
     vertex::{buffer0, buffer1, mesh_object_buffers, skin_weights, MeshObjectBufferData},
     ModelFiles, ModelFolder, ShaderDatabase, SharedRenderData,
@@ -567,16 +568,17 @@ impl<'a> RenderMeshSharedData<'a> {
             .unwrap_or_else(AnimationTransforms::identity);
 
         // Share the transforms buffer to avoid redundant updates.
-        let skinning_transforms_buffer =
-            device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("Bone Transforms Buffer"),
-                contents: bytemuck::cast_slice(&[animation_transforms.animated_world_transforms]),
-                // COPY_DST allows applying animations without allocating new buffers
-                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-            });
+        let skinning_transforms_buffer = uniform_buffer(
+            device,
+            "Bone Transforms Buffer",
+            &[animation_transforms.animated_world_transforms],
+        );
 
-        let world_transforms =
-            create_world_transforms_buffer(device, &animation_transforms.world_transforms);
+        let world_transforms = uniform_buffer(
+            device,
+            "World Transforms Buffer",
+            &animation_transforms.world_transforms,
+        );
 
         // TODO: Clean this up.
         let bone_colors = bone_colors_buffer(device, self.skel, self.hlpb);
@@ -595,17 +597,14 @@ impl<'a> RenderMeshSharedData<'a> {
             .map(|skel| joint_transforms(skel, &animation_transforms))
             .unwrap_or_else(|| vec![glam::Mat4::IDENTITY; 512]);
 
-        let joint_world_transforms = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Joint World Transforms Buffer"),
-            contents: bytemuck::cast_slice(&joint_transforms),
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-        });
+        let joint_world_transforms =
+            uniform_buffer(device, "Joint World Transforms Buffer", &joint_transforms);
 
-        let bone_colors_outer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Bone Colors Buffer"),
-            contents: bytemuck::cast_slice(&vec![[0.0f32; 4]; crate::animation::MAX_BONE_COUNT]),
-            usage: wgpu::BufferUsages::UNIFORM,
-        });
+        let bone_colors_outer = uniform_buffer_readonly(
+            device,
+            "Bone Colors Buffer",
+            &vec![[0.0f32; 4]; crate::animation::MAX_BONE_COUNT],
+        );
 
         let bone_data_outer = bone_bind_group1(device, &world_transforms, &bone_colors_outer);
         let joint_data = bone_bind_group1(device, &joint_world_transforms, &bone_colors);
@@ -664,21 +663,13 @@ impl<'a> RenderMeshSharedData<'a> {
                     .enumerate()
                     .map(|(i, bone)| {
                         // TODO: Use instancing instead.
-                        let per_bone =
-                            device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                                label: Some("Mesh Object Info Buffer"),
-                                contents: bytemuck::cast_slice(&[
-                                    crate::shader::skeleton::PerBone {
-                                        indices: [
-                                            i as i32,
-                                            bone.parent_index.map(|p| p as i32).unwrap_or(-1),
-                                            -1,
-                                            -1,
-                                        ],
-                                    },
-                                ]),
-                                usage: wgpu::BufferUsages::UNIFORM,
-                            });
+                        let per_bone = uniform_buffer_readonly(
+                            device,
+                            "Mesh Object Info Buffer",
+                            &[crate::shader::skeleton::PerBone {
+                                indices: [i as i32, parent_index(bone.parent_index), -1, -1],
+                            }],
+                        );
 
                         crate::shader::skeleton::bind_groups::BindGroup2::from_bindings(
                             device,
@@ -1082,13 +1073,13 @@ fn create_render_mesh(
         );
 
     let parent_index = find_parent_index(mesh_object, shared_data.skel);
-    let mesh_object_info_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-        label: Some("Mesh Object Info Buffer"),
-        contents: bytemuck::cast_slice(&[crate::shader::skinning::MeshObjectInfo {
+    let mesh_object_info_buffer = uniform_buffer_readonly(
+        device,
+        "Mesh Object Info Buffer",
+        &[crate::shader::skinning::MeshObjectInfo {
             parent_index: [parent_index, -1, -1, -1],
-        }]),
-        usage: wgpu::BufferUsages::UNIFORM,
-    });
+        }],
+    );
 
     let mesh_object_info_bind_group =
         crate::shader::skinning::bind_groups::BindGroup2::from_bindings(
@@ -1237,29 +1228,19 @@ fn create_material_uniforms_bind_group(
 
 // TODO: Where to put this?
 // TODO: Module for skinning buffers?
-fn create_world_transforms_buffer(
-    device: &wgpu::Device,
-    animated_world_transforms: &[glam::Mat4; 512],
-) -> wgpu::Buffer {
-    device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-        label: Some("World Transforms Buffer"),
-        contents: bytemuck::cast_slice(animated_world_transforms),
-        usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-    })
+fn parent_index(index: Option<usize>) -> i32 {
+    index.map(|i| i as i32).unwrap_or(-1)
 }
 
-fn find_parent_index(mesh_object: &MeshObjectData, skel: Option<&SkelData>) -> i32 {
+fn find_parent_index(mesh: &MeshObjectData, skel: Option<&SkelData>) -> i32 {
     // Only include a parent if there are no bone influences.
     // TODO: What happens if there are influences and a parent bone?
-    if mesh_object.bone_influences.is_empty() {
-        skel.as_ref()
-            .and_then(|skel| {
-                skel.bones
-                    .iter()
-                    .position(|b| b.name == mesh_object.parent_bone_name)
-            })
-            .map(|i| i as i32)
-            .unwrap_or(-1)
+    if mesh.bone_influences.is_empty() {
+        parent_index(skel.as_ref().and_then(|skel| {
+            skel.bones
+                .iter()
+                .position(|b| b.name == mesh.parent_bone_name)
+        }))
     } else {
         -1
     }

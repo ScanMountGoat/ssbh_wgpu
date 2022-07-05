@@ -1,7 +1,5 @@
+use crate::{shader::model::MaterialUniforms, uniform_buffer, ShaderDatabase, ShaderProgram};
 use ssbh_data::matl_data::*;
-use wgpu::util::DeviceExt;
-
-use crate::{shader::model::MaterialUniforms, ShaderDatabase, ShaderProgram};
 
 pub fn create_uniforms_buffer(
     material: Option<&MatlEntryData>,
@@ -9,13 +7,7 @@ pub fn create_uniforms_buffer(
     database: &ShaderDatabase,
 ) -> wgpu::Buffer {
     let uniforms = create_uniforms(material, database);
-
-    device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-        label: Some("Material Uniforms Buffer"),
-        contents: bytemuck::cast_slice(&[uniforms]),
-        // COPY_DST allows applying animations without allocating new buffers
-        usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-    })
+    uniform_buffer(device, "Material Uniforms Buffer", &[uniforms])
 }
 
 // TODO: Test attributes, non required attributes, missing required attributes, etc.

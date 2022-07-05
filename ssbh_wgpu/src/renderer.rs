@@ -6,12 +6,12 @@ use crate::{
         create_invalid_shader_pipeline,
     },
     texture::load_default_lut,
-    CameraTransforms, RenderModel, ShaderDatabase,
+    uniform_buffer, CameraTransforms, RenderModel, ShaderDatabase,
 };
 use glyph_brush::DefaultSectionHasher;
 use ssbh_data::skel_data::SkelData;
 use strum::{Display, EnumString, EnumVariantNames};
-use wgpu::{util::DeviceExt, ComputePassDescriptor, ComputePipelineDescriptor};
+use wgpu::{ComputePassDescriptor, ComputePipelineDescriptor};
 use wgpu_text::{font::FontRef, BrushBuilder, TextBrush};
 
 // Rgba16Float is widely supported.
@@ -334,16 +334,16 @@ impl SsbhRenderer {
         );
 
         // Assume the user will update the camera, so these values don't matter.
-        let camera_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Camera Buffer"),
-            contents: bytemuck::cast_slice(&[crate::shader::model::CameraTransforms {
+        let camera_buffer = uniform_buffer(
+            device,
+            "Camera Buffer",
+            &[crate::shader::model::CameraTransforms {
                 model_view_matrix: glam::Mat4::IDENTITY,
                 mvp_matrix: glam::Mat4::IDENTITY,
                 camera_pos: [0.0, 0.0, -1.0, 1.0],
                 screen_dimensions: [1.0; 4],
-            }]),
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-        });
+            }],
+        );
 
         // TODO: Don't always assume that the camera bind groups are identical.
         let skeleton_camera_bind_group =
@@ -359,13 +359,11 @@ impl SsbhRenderer {
             glam::Vec3::new(25.0, 25.0, 50.0),
         );
 
-        let light_transform_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Light Transform Buffer"),
-            contents: bytemuck::cast_slice(&[crate::shader::model::LightTransforms {
-                light_transform,
-            }]),
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-        });
+        let light_transform_buffer = uniform_buffer(
+            device,
+            "Light Transform Buffer",
+            &[crate::shader::model::LightTransforms { light_transform }],
+        );
 
         // Depth from the perspective of the light.
         // TODO: Multiple lights require multiple depth maps?
@@ -379,21 +377,19 @@ impl SsbhRenderer {
         );
 
         let render_settings = RenderSettings::default();
-        let render_settings_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Render Settings Buffer"),
-            contents: bytemuck::cast_slice(&[crate::shader::model::RenderSettings::from(
-                &render_settings,
-            )]),
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-        });
+        let render_settings_buffer = uniform_buffer(
+            device,
+            "Render Settings Buffer",
+            &[crate::shader::model::RenderSettings::from(&render_settings)],
+        );
 
         // The light nuanmb should be public with conversions for quaternions, vectors, etc being private.
         // stage light nuanmb -> uniform struct -> buffer
-        let stage_uniforms_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Stage Uniforms Buffer"),
-            contents: bytemuck::cast_slice(&[crate::shader::model::StageUniforms::training()]),
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-        });
+        let stage_uniforms_buffer = uniform_buffer(
+            device,
+            "Stage Uniforms Buffer",
+            &[crate::shader::model::StageUniforms::training()],
+        );
 
         let per_frame_bind_group = crate::shader::model::bind_groups::BindGroup0::from_bindings(
             device,

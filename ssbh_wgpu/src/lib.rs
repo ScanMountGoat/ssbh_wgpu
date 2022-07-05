@@ -1,3 +1,4 @@
+use bytemuck::Pod;
 use log::{error, info};
 use nutexb_wgpu::NutexbFile;
 use ssbh_data::prelude::*;
@@ -6,6 +7,7 @@ use std::{
     path::{Path, PathBuf},
 };
 use walkdir::WalkDir;
+use wgpu::util::DeviceExt;
 // TODO: Use rayon to speed up load times?
 
 mod pipeline;
@@ -30,8 +32,6 @@ pub use rendermesh::{RenderMesh, RenderModel};
 pub use shader::model::CameraTransforms;
 pub use shader_database::{create_database, ShaderDatabase, ShaderProgram};
 pub use texture::{create_default_textures, load_default_spec_cube};
-
-// TODO: Create buffers from bytemuck supported types.
 
 // TODO: Find a way to avoid using the format features for filterable f32 textures.
 /// Required WGPU features for using this library.
@@ -89,6 +89,7 @@ pub struct ModelFolder {
 #[cfg(feature = "arbitrary")]
 impl<'a> arbitrary::Arbitrary<'a> for ModelFolder {
     fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
+        // TODO: Createy arbitrary nutexbs.
         Ok(Self {
             folder_name: u.arbitrary()?,
             meshes: vec![(u.arbitrary()?, Ok(u.arbitrary()?))],
@@ -285,3 +286,23 @@ pub(crate) use assert_matrix_relative_eq;
 
 #[cfg(test)]
 pub(crate) use assert_vector_relative_eq;
+
+pub fn uniform_buffer_readonly<T: Pod>(
+    device: &wgpu::Device,
+    label: &str,
+    data: &[T],
+) -> wgpu::Buffer {
+    device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        label: Some(label),
+        contents: bytemuck::cast_slice(data),
+        usage: wgpu::BufferUsages::UNIFORM,
+    })
+}
+
+pub fn uniform_buffer<T: Pod>(device: &wgpu::Device, label: &str, data: &[T]) -> wgpu::Buffer {
+    device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        label: Some(label),
+        contents: bytemuck::cast_slice(data),
+        usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+    })
+}
