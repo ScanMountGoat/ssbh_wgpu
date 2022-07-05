@@ -843,7 +843,7 @@ fn create_render_meshes(
                     mesh_buffers,
                     access,
                     shared_data,
-                    &buffer_data,
+                    buffer_data,
                 )
                 .map_err(|e| {
                     error!(
@@ -901,8 +901,8 @@ fn create_materials(
                     let data = create_material_data(
                         device,
                         Some(entry),
-                        &textures,
-                        &shared_data.shared_data,
+                        textures,
+                        shared_data.shared_data,
                     );
                     (entry.material_label.clone(), data)
                 })

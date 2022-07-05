@@ -348,7 +348,7 @@ fn apply_transforms<'a>(
                     // TODO: Multiple transform tracks per bone?
                     if let Some(track) = node.tracks.first() {
                         if let TrackValues::Transform(values) = &track.values {
-                            *bone = create_animated_bone(frame, &bone.bone, track, values);
+                            *bone = create_animated_bone(frame, bone.bone, track, values);
                         }
                     }
                 }
