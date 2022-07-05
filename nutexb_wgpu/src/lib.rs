@@ -190,7 +190,7 @@ fn wgpu_format(format: nutexb::NutexbFormat) -> wgpu::TextureFormat {
     }
 }
 
-/// The output format of [TextureRenderer::render_to_texture_rgba].
+/// The output format of [TextureRenderer::render_to_texture_2d_rgba].
 // TODO: Does it matter if this is srgb or unorm?
 pub const RGBA_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8UnormSrgb;
 

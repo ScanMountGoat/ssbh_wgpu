@@ -5,6 +5,7 @@ use std::{
     error::Error,
     path::{Path, PathBuf},
 };
+use walkdir::WalkDir;
 // TODO: Use rayon to speed up load times?
 
 mod pipeline;
@@ -195,34 +196,32 @@ pub fn load_render_models(
     render_models
 }
 
-/// Recursively load folders containing model files starting from `root`.
+/// Recursively load folders from `root` with a max recursion depth of 4.
+///
+/// The recursion depth starts at 0 from `root`,
+/// `"/fighter/mario"` will load model folders like "/fighter/mario/model/body/c00".
+/// "/fighter" will exceed the maximum recursion depth and not load any model folders.
+/// For applications using very deeply nested folders, call [ModelFolder::load_folder] directly.
 pub fn load_model_folders<P: AsRef<Path>>(root: P) -> Vec<ModelFolder> {
-    // TODO: This could be made more robust.
-    // TODO: Determine the minimum files required for a renderable model?
-    // TODO: Also check for numdlb?
-    // TODO: Specify a max depth?
-    // TODO: Find all folders containing any of the supported files?
-    let model_paths = globwalk::GlobWalkerBuilder::from_patterns(root, &["*.{numshb}"])
-        .build()
-        .unwrap()
-        .into_iter()
-        .filter_map(Result::ok);
     let start = std::time::Instant::now();
-    let models: Vec<_> = model_paths
+
+    // The ARC paths only need a max depth of 4 for model files.
+    // Examples include mario/model/body/c00 or mario_galaxy/normal/model/stc_ring_set.
+    // Opening the entire fighter folder has a depth of 5 and will likely crash.
+    let models: Vec<_> = WalkDir::new(root)
+        .max_depth(4)
         .into_iter()
-        .filter_map(|p| {
-            // TODO: Some folders don't have a numshb?
-            // TODO: Can the mesh be optional?
-            // TODO: Find a way to test what happens if files are missing.
-            let parent = p.path().parent()?;
-            Some(ModelFolder::load_folder(parent))
-        })
+        .filter_map(|e| e.ok())
+        .filter(|e| e.file_type().is_dir())
+        .map(|e| ModelFolder::load_folder(e.path()))
         .collect();
+
     info!(
         "Load {:?} ModelFolder(s): {:?}",
         models.len(),
         start.elapsed()
     );
+
     models
 }
 
