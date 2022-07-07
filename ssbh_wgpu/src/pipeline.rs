@@ -81,11 +81,11 @@ pub fn create_pipeline(
         fragment: Some(wgpu::FragmentState {
             module: &pipeline_data.shader,
             entry_point: "fs_main",
-            targets: &[wgpu::ColorTargetState {
+            targets: &[Some(wgpu::ColorTargetState {
                 format: pipeline_data.surface_format,
                 blend: pipeline_key.blend,
                 write_mask: wgpu::ColorWrites::ALL,
-            }],
+            })],
         }),
         // TODO: RasterizerState settings.
         primitive: wgpu::PrimitiveState {
@@ -200,7 +200,7 @@ pub fn create_model_pipeline_from_entry(
         fragment: Some(wgpu::FragmentState {
             module: &shader,
             entry_point,
-            targets: &[surface_format.into()],
+            targets: &[Some(surface_format.into())],
         }),
         primitive: wgpu::PrimitiveState::default(),
         depth_stencil: Some(wgpu::DepthStencilState {

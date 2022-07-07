@@ -1,10 +1,10 @@
 struct VertexOutput {
-    [[builtin(position)]] position: vec4<f32>;
-    [[location(0)]] uvs: vec2<f32>;
+    @builtin(position) position: vec4<f32>,
+    @location(0) uvs: vec2<f32>,
 };
 
-[[stage(vertex)]]
-fn vs_main([[builtin(vertex_index)]] in_vertex_index: u32) -> VertexOutput {
+@vertex
+fn vs_main(@builtin(vertex_index) in_vertex_index: u32) -> VertexOutput {
     // A fullscreen triangle using index calculations.
     var out: VertexOutput;
     let x = f32((i32(in_vertex_index) << 1u) & 2);
@@ -14,9 +14,9 @@ fn vs_main([[builtin(vertex_index)]] in_vertex_index: u32) -> VertexOutput {
     return out;
 }
 
-[[group(0), binding(0)]]
+@group(0) @binding(0)
 var color_texture: texture_2d<f32>;
-[[group(0), binding(1)]]
+@group(0) @binding(1)
 var color_sampler: sampler;
 
 fn Blur(uvs: vec2<f32>) -> vec3<f32> {
@@ -41,14 +41,14 @@ fn Blur(uvs: vec2<f32>) -> vec3<f32> {
     return result / 16.0;
 }
 
-[[stage(fragment)]]
-fn fs_blur(in: VertexOutput) -> [[location(0)]] vec4<f32> {
+@fragment
+fn fs_blur(in: VertexOutput) -> @location(0) vec4<f32> {
     let color = textureSample(color_texture, color_sampler, in.uvs);
     return vec4<f32>(Blur(in.uvs), color.a);
 }
 
-[[stage(fragment)]]
-fn fs_threshold(in: VertexOutput) -> [[location(0)]] vec4<f32> {
+@fragment
+fn fs_threshold(in: VertexOutput) -> @location(0) vec4<f32> {
     // Ported bloom code from fighter shaders.
     // Uniform values are hardcoded for now.
     // TODO: Where do these uniform buffer values come from?
@@ -60,7 +60,7 @@ fn fs_threshold(in: VertexOutput) -> [[location(0)]] vec4<f32> {
     return vec4<f32>(color.rgb * scale * scale2 * 6.0, color.a);
 }
 
-[[stage(fragment)]]
-fn fs_upscale(in: VertexOutput) -> [[location(0)]] vec4<f32> {
+@fragment
+fn fs_upscale(in: VertexOutput) -> @location(0) vec4<f32> {
     return textureSample(color_texture, color_sampler, in.uvs);
 }

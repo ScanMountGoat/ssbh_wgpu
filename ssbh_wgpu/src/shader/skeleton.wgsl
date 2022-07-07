@@ -1,50 +1,50 @@
 struct VertexInput {
-    [[location(0)]] position: vec3<f32>;
-    [[location(1)]] normal: vec3<f32>;
+    @location(0) position: vec3<f32>,
+    @location(1) normal: vec3<f32>,
 };
 
 struct VertexOutput {
-    [[builtin(position)]] clip_position: vec4<f32>;
-    [[location(0)]] position: vec3<f32>;
-    [[location(1)]] normal: vec3<f32>;
+    @builtin(position) clip_position: vec4<f32>,
+    @location(0) position: vec3<f32>,
+    @location(1) normal: vec3<f32>,
 };
 
 struct CameraTransforms {
-    model_view_matrix: mat4x4<f32>;
-    mvp_matrix: mat4x4<f32>;
-    camera_pos: vec4<f32>;
+    model_view_matrix: mat4x4<f32>,
+    mvp_matrix: mat4x4<f32>,
+    camera_pos: vec4<f32>,
 };
 
 struct WorldTransforms {
-    transforms: array<mat4x4<f32>, 512>;
+    transforms: array<mat4x4<f32>, 512>
 };
 
 struct BoneColors {
     // The world transform of each bone.
     // This is used for parenting objects to bones.
-    colors: array<vec4<f32>, 512>;
+    colors: array<vec4<f32>, 512>
 };
 
 struct PerBone {
     // index, parent_index, _, _
-    indices: vec4<i32>;
+    indices: vec4<i32>
 };
 
 // TODO: Bind groups should be ordered by how frequently they change for performance.
-[[group(0), binding(0)]]
+@group(0) @binding(0)
 var<uniform> camera: CameraTransforms;
 
-[[group(1), binding(0)]]
+@group(1) @binding(0)
 var<uniform> world_transforms: WorldTransforms;
 
-[[group(1), binding(1)]]
+@group(1) @binding(1)
 var<uniform> bone_colors: BoneColors;
 
 // TODO: Just use instancing?
-[[group(2), binding(0)]]
+@group(2) @binding(0)
 var<uniform> per_bone: PerBone;
 
-[[stage(vertex)]]
+@vertex
 fn vs_bone(
     in: VertexInput,
 ) -> VertexOutput {
@@ -64,7 +64,7 @@ fn vs_bone(
     return out;
 }
 
-[[stage(vertex)]]
+@vertex
 fn vs_joint(
     in: VertexInput,
 ) -> VertexOutput {
@@ -85,8 +85,8 @@ fn vs_joint(
     return out;
 }
 
-[[stage(fragment)]]
-fn fs_main(in: VertexOutput) -> [[location(0)]] vec4<f32> {
+@fragment
+fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let viewVector = normalize(camera.camera_pos.xyz - in.position.xyz);
     let shading = mix(0.5, 1.0, dot(viewVector, normalize(in.normal)));
     var color = vec3<f32>(0.0);

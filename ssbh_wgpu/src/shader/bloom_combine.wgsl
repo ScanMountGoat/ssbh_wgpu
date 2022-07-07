@@ -1,10 +1,10 @@
 struct VertexOutput {
-    [[builtin(position)]] position: vec4<f32>;
-    [[location(0)]] uvs: vec2<f32>;
+    @builtin(position) position: vec4<f32>,
+    @location(0) uvs: vec2<f32>,
 };
 
-[[stage(vertex)]]
-fn vs_main([[builtin(vertex_index)]] in_vertex_index: u32) -> VertexOutput {
+@vertex
+fn vs_main(@builtin(vertex_index) in_vertex_index: u32) -> VertexOutput {
     // A fullscreen triangle using index calculations.
     var out: VertexOutput;
     let x = f32((i32(in_vertex_index) << 1u) & 2);
@@ -14,19 +14,19 @@ fn vs_main([[builtin(vertex_index)]] in_vertex_index: u32) -> VertexOutput {
     return out;
 }
 
-[[group(0), binding(0)]]
+@group(0) @binding(0)
 var bloom0_texture: texture_2d<f32>;
-[[group(0), binding(1)]]
+@group(0) @binding(1)
 var bloom1_texture: texture_2d<f32>;
-[[group(0), binding(2)]]
+@group(0) @binding(2)
 var bloom2_texture: texture_2d<f32>;
-[[group(0), binding(3)]]
+@group(0) @binding(3)
 var bloom3_texture: texture_2d<f32>;
-[[group(0), binding(4)]]
+@group(0) @binding(4)
 var bloom_sampler: sampler;
 
-[[stage(fragment)]]
-fn fs_main(in: VertexOutput) -> [[location(0)]] vec4<f32> {
+@fragment
+fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let bloom0 = textureSample(bloom0_texture, bloom_sampler, in.uvs);
     let bloom1 = textureSample(bloom1_texture, bloom_sampler, in.uvs);
     let bloom2 = textureSample(bloom2_texture, bloom_sampler, in.uvs);

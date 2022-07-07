@@ -1,30 +1,31 @@
 // This should be identical to the Buffer0 struct in model.wgsl.
 struct VertexInput0 {
-    position0: vec4<f32>;
-    normal0: vec4<f32>;
-    tangent0: vec4<f32>;
+    position0: vec4<f32>,
+    normal0: vec4<f32>,
+    tangent0: vec4<f32>,
 };
 
 struct VertexWeight {
-    bone_indices: vec4<i32>;
-    weights: vec4<f32>;
+    bone_indices: vec4<i32>,
+    weights: vec4<f32>,
 };
 
 struct Vertices {
-    vertices: array<VertexInput0>;
+    vertices: array<VertexInput0>
 };
 
 struct AdjData {
-    adjacency: array<i32>;
+    adjacency: array<i32>
 };
 
-[[group(0), binding(0)]] var<storage, read_write> vertices : Vertices;
-[[group(0), binding(1)]] var<storage, read> adj_data : AdjData;
+@group(0) @binding(0) var<storage, read_write> vertices: Vertices;
+@group(0) @binding(1) var<storage, read> adj_data: AdjData;
 
 // TODO: Can this be done in the skinning compute pass?
 // A single shader would require synchronization to ensure all writes to position0 finish.
-[[stage(compute), workgroup_size(256)]]
-fn main([[builtin(global_invocation_id)]] global_invocation_id: vec3<u32>) {
+@compute
+@workgroup_size(256)
+fn main(@builtin(global_invocation_id) global_invocation_id: vec3<u32>) {
     let vertexCount = arrayLength(&vertices.vertices);
     let index = global_invocation_id.x;
     if (index >= vertexCount) {

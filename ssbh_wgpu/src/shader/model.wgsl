@@ -1,138 +1,138 @@
 struct CameraTransforms {
-    model_view_matrix: mat4x4<f32>;
-    mvp_matrix: mat4x4<f32>;
-    camera_pos: vec4<f32>;
+    model_view_matrix: mat4x4<f32>,
+    mvp_matrix: mat4x4<f32>,
+    camera_pos: vec4<f32>,
     // width, height, scale, _
-    screen_dimensions: vec4<f32>;
+    screen_dimensions: vec4<f32>,
 };
 
 struct LightTransforms {
-    light_transform: mat4x4<f32>;
+    light_transform: mat4x4<f32>
 };
 
 // TODO: How to handle alignment?
 struct RenderSettings {
-    debug_mode: vec4<u32>;
-    transition_material: vec4<u32>;
-    transition_factor: vec4<f32>;
-    render_diffuse: vec4<u32>;
-    render_specular: vec4<u32>;
-    render_emission: vec4<u32>;
-    render_rim_lighting: vec4<u32>;
-    render_shadows: vec4<u32>;
-    render_bloom: vec4<u32>;
-    render_vertex_color: vec4<u32>;
-    render_rgba: vec4<f32>;
-    render_nor: vec4<u32>;
-    render_prm: vec4<u32>;
+    debug_mode: vec4<u32>,
+    transition_material: vec4<u32>,
+    transition_factor: vec4<f32>,
+    render_diffuse: vec4<u32>,
+    render_specular: vec4<u32>,
+    render_emission: vec4<u32>,
+    render_rim_lighting: vec4<u32>,
+    render_shadows: vec4<u32>,
+    render_bloom: vec4<u32>,
+    render_vertex_color: vec4<u32>,
+    render_rgba: vec4<f32>,
+    render_nor: vec4<u32>,
+    render_prm: vec4<u32>,
 };
 
 // TODO: Store light transform here as well?
 // TODO: How to store lights?
 struct StageUniforms {
-    chr_light_dir: vec4<f32>;
-    custom_boolean: array<vec4<f32>, 20>;
-    custom_vector: array<vec4<f32>, 64>;
-    custom_float: array<vec4<f32>, 20>;
+    chr_light_dir: vec4<f32>,
+    custom_boolean: array<vec4<f32>, 20>,
+    custom_vector: array<vec4<f32>, 64>,
+    custom_float: array<vec4<f32>, 20>,
 };
 
 // TODO: Bind groups should be ordered by how frequently they change for performance.
 // group0 = PerFrame
 // group1 = PerMaterial
 // ... 
-[[group(0), binding(0)]]
+@group(0) @binding(0)
 var<uniform> camera: CameraTransforms;
 
-[[group(0), binding(1)]]
+@group(0) @binding(1)
 var texture_shadow: texture_2d<f32>;
-[[group(0), binding(2)]]
+@group(0) @binding(2)
 var sampler_shadow: sampler;
 // TODO: Specify that this is just the main character light?
 // TODO: Does Smash Ultimate support shadow casting from multiple lights?
-[[group(0), binding(3)]]
+@group(0) @binding(3)
 var<uniform> light: LightTransforms;
 
-[[group(0), binding(4)]]
+@group(0) @binding(4)
 var<uniform> render_settings: RenderSettings;
 
-[[group(0), binding(5)]]
+@group(0) @binding(5)
 var<uniform> stage_uniforms: StageUniforms;
 
 // TODO: Is there a better way of organizing this?
 // TODO: How many textures can we have?
-[[group(1), binding(0)]]
+@group(1) @binding(0)
 var texture0: texture_2d<f32>;
-[[group(1), binding(1)]]
+@group(1) @binding(1)
 var sampler0: sampler;
 
-[[group(1), binding(2)]]
+@group(1) @binding(2)
 var texture1: texture_2d<f32>;
-[[group(1), binding(3)]]
+@group(1) @binding(3)
 var sampler1: sampler;
 
-[[group(1), binding(4)]]
+@group(1) @binding(4)
 var texture2: texture_cube<f32>;
-[[group(1), binding(5)]]
+@group(1) @binding(5)
 var sampler2: sampler;
 
-[[group(1), binding(6)]]
+@group(1) @binding(6)
 var texture3: texture_2d<f32>;
-[[group(1), binding(7)]]
+@group(1) @binding(7)
 var sampler3: sampler;
 
-[[group(1), binding(8)]]
+@group(1) @binding(8)
 var texture4: texture_2d<f32>;
-[[group(1), binding(9)]]
+@group(1) @binding(9)
 var sampler4: sampler;
 
-[[group(1), binding(10)]]
+@group(1) @binding(10)
 var texture5: texture_2d<f32>;
-[[group(1), binding(11)]]
+@group(1) @binding(11)
 var sampler5: sampler;
 
-[[group(1), binding(12)]]
+@group(1) @binding(12)
 var texture6: texture_2d<f32>;
-[[group(1), binding(13)]]
+@group(1) @binding(13)
 var sampler6: sampler;
 
-[[group(1), binding(14)]]
+@group(1) @binding(14)
 var texture7: texture_cube<f32>;
-[[group(1), binding(15)]]
+@group(1) @binding(15)
 var sampler7: sampler;
 
-[[group(1), binding(16)]]
+@group(1) @binding(16)
 var texture8: texture_cube<f32>;
-[[group(1), binding(17)]]
+@group(1) @binding(17)
 var sampler8: sampler;
 
-[[group(1), binding(18)]]
+@group(1) @binding(18)
 var texture9: texture_2d<f32>;
-[[group(1), binding(19)]]
+@group(1) @binding(19)
 var sampler9: sampler;
 
-[[group(1), binding(20)]]
+@group(1) @binding(20)
 var texture10: texture_2d<f32>;
-[[group(1), binding(21)]]
+@group(1) @binding(21)
 var sampler10: sampler;
 
-[[group(1), binding(22)]]
+@group(1) @binding(22)
 var texture11: texture_2d<f32>;
-[[group(1), binding(23)]]
+@group(1) @binding(23)
 var sampler11: sampler;
 
-[[group(1), binding(24)]]
+@group(1) @binding(24)
 var texture12: texture_2d<f32>;
-[[group(1), binding(25)]]
+@group(1) @binding(25)
 var sampler12: sampler;
 
-[[group(1), binding(26)]]
+@group(1) @binding(26)
 var texture13: texture_2d<f32>;
-[[group(1), binding(27)]]
+@group(1) @binding(27)
 var sampler13: sampler;
 
-[[group(1), binding(28)]]
+@group(1) @binding(28)
 var texture14: texture_2d<f32>;
-[[group(1), binding(29)]]
+@group(1) @binding(29)
 var sampler14: sampler;
 
 // Align everything to 16 bytes to avoid alignment issues.
@@ -140,67 +140,67 @@ var sampler14: sampler;
 // TODO: Investigate std140/std430
 // TODO: Does wgsl/wgpu require a specific layout/alignment?
 struct MaterialUniforms {
-    custom_vector: array<vec4<f32>, 64>;
+    custom_vector: array<vec4<f32>, 64>,
     // TODO: Place the has_ values in an unused vector component?
-    custom_boolean: array<vec4<u32>, 20>;
-    custom_float: array<vec4<f32>, 20>;
-    has_boolean: array<vec4<u32>, 20>;
-    has_float: array<vec4<u32>, 20>;
-    has_texture: array<vec4<u32>, 19>;
-    has_vector: array<vec4<u32>, 64>;
-    has_color_set1234: vec4<u32>;
-    has_color_set567: vec4<u32>;
-    is_discard: vec4<u32>;
+    custom_boolean: array<vec4<u32>, 20>,
+    custom_float: array<vec4<f32>, 20>,
+    has_boolean: array<vec4<u32>, 20>,
+    has_float: array<vec4<u32>, 20>,
+    has_texture: array<vec4<u32>, 19>,
+    has_vector: array<vec4<u32>, 64>,
+    has_color_set1234: vec4<u32>,
+    has_color_set567: vec4<u32>,
+    is_discard: vec4<u32>,
     // Workaround for some shaders not containing specular code.
-    enable_specular: vec4<u32>;
+    enable_specular: vec4<u32>,
 };
 
-[[group(1), binding(30)]]
+@group(1) @binding(30)
 var<uniform> uniforms: MaterialUniforms;
 
 struct VertexInput0 {
-    [[location(0)]] position0: vec4<f32>;
-    [[location(1)]] normal0: vec4<f32>;
-    [[location(2)]] tangent0: vec4<f32>;
+    @location(0) position0: vec4<f32>,
+    @location(1) normal0: vec4<f32>,
+    @location(2) tangent0: vec4<f32>,
 };
 
 // We can safely assume 16 available locations.
 // Pack attributes to avoid going over the attribute limit.
 struct VertexInput1 {
-    [[location(3)]] map1_uvset: vec4<f32>;
-    [[location(4)]] uv_set1_uv_set2: vec4<f32>;
-    [[location(5)]] bake1: vec4<f32>;
-    [[location(6)]] color_set1: vec4<f32>;
-    [[location(7)]] color_set2_combined: vec4<f32>;
-    [[location(8)]] color_set3: vec4<f32>;
-    [[location(9)]] color_set4: vec4<f32>;
-    [[location(10)]] color_set5: vec4<f32>;
-    [[location(11)]] color_set6: vec4<f32>;
-    [[location(12)]] color_set7: vec4<f32>;
+    @location(3) map1_uvset: vec4<f32>,
+    @location(4) uv_set1_uv_set2: vec4<f32>,
+    @location(5) bake1: vec4<f32>,
+    @location(6) color_set1: vec4<f32>,
+    @location(7) color_set2_combined: vec4<f32>,
+    @location(8) color_set3: vec4<f32>,
+    @location(9) color_set4: vec4<f32>,
+    @location(10) color_set5: vec4<f32>,
+    @location(11) color_set6: vec4<f32>,
+    @location(12) color_set7: vec4<f32>,
 };
 
 // TODO: This will need to be reworked at some point.
 struct VertexOutput {
-    [[builtin(position)]] clip_position: vec4<f32>;
-    [[location(0)]] position: vec3<f32>;
-    [[location(1)]] normal: vec3<f32>;
-    [[location(2)]] tangent: vec4<f32>;
-    [[location(3)]] map1_uvset: vec4<f32>;
-    [[location(4)]] uv_set1_uv_set2: vec4<f32>;
-    [[location(5)]] bake1: vec2<f32>;
-    [[location(6)]] color_set1: vec4<f32>;
-    [[location(7)]] color_set2_combined: vec4<f32>;
-    [[location(8)]] color_set3: vec4<f32>;
-    [[location(9)]] color_set4: vec4<f32>;
-    [[location(10)]] color_set5: vec4<f32>;
-    [[location(11)]] color_set6: vec4<f32>;
-    [[location(12)]] color_set7: vec4<f32>;
-    [[location(13)]] light_position: vec4<f32>;
+    @builtin(position) clip_position: vec4<f32>,
+    @location(0) position: vec3<f32>,
+    @location(1) normal: vec3<f32>,
+    @location(2) tangent: vec4<f32>,
+    @location(3) map1_uvset: vec4<f32>,
+    @location(4) uv_set1_uv_set2: vec4<f32>,
+    @location(5) bake1: vec2<f32>,
+    @location(6) color_set1: vec4<f32>,
+    @location(7) color_set2_combined: vec4<f32>,
+    @location(8) color_set3: vec4<f32>,
+    @location(9) color_set4: vec4<f32>,
+    @location(10) color_set5: vec4<f32>,
+    @location(11) color_set6: vec4<f32>,
+    @location(12) color_set7: vec4<f32>,
+    @location(13) light_position: vec4<f32>,
 };
 
 struct VertexOutputInvalid {
-    [[builtin(position)]] clip_position: vec4<f32>;
-    [[location(0)]] position: vec4<f32>;
+    @builtin(position) clip_position: vec4<f32>,
+    @location(0) position: vec4<f32>,
 };
 
 fn Blend(a: vec3<f32>, b: vec4<f32>) -> vec3<f32> {
@@ -331,7 +331,7 @@ fn GetBumpMapNormal(normal: vec3<f32>, tangent: vec3<f32>, bitangent: vec3<f32>,
     // Remap the normal map to the correct range.
     let x = 2.0 * norColor.x - 1.0;
     let y = 2.0 * norColor.y - 1.0;
-    
+
     // Calculate z based on the fact that x*x + y*y + z*z = 1.
     // Calculate z based on the fact that x*x + y*y + z*z = 1.
     // Clamp to prevent z being 0.0.
@@ -620,7 +620,7 @@ fn GetShadow(light_position: vec4<f32>) -> f32
     return shadow;
 }
 
-[[stage(vertex)]]
+@vertex
 fn vs_main(
     buffer0: VertexInput0,
     buffer1: VertexInput1
@@ -684,11 +684,11 @@ fn vs_main(
     return out;
 }
 
-[[stage(vertex)]]
+@vertex
 fn vs_depth(
     buffer0: VertexInput0,
     buffer1: VertexInput1
-) -> [[builtin(position)]] vec4<f32> {
+) -> @builtin(position) vec4<f32> {
     return light.light_transform * vec4<f32>(buffer0.position0.xyz, 1.0);
 }
 
@@ -705,7 +705,7 @@ fn ScreenCheckerBoard(screenPosition: vec2<f32>) -> f32
     }
 }
 
-[[stage(vertex)]]
+@vertex
 fn vs_main_invalid(
     buffer0: VertexInput0,
     buffer1: VertexInput1
@@ -717,24 +717,24 @@ fn vs_main_invalid(
     return out;
 }
 
-[[stage(fragment)]]
-fn fs_invalid_shader(in: VertexOutputInvalid) -> [[location(0)]] vec4<f32> {
+@fragment
+fn fs_invalid_shader(in: VertexOutputInvalid) -> @location(0) vec4<f32> {
     let position_clip = (in.position.xy / in.position.w) * 0.5 + 0.5;
     // Account for screen dimensions and scale.
     let checker = ScreenCheckerBoard(position_clip * camera.screen_dimensions.xy * camera.screen_dimensions.z);
     return vec4<f32>(checker, 0.0, 0.0, 1.0);
 }
 
-[[stage(fragment)]]
-fn fs_invalid_attributes(in: VertexOutputInvalid) -> [[location(0)]] vec4<f32> {
+@fragment
+fn fs_invalid_attributes(in: VertexOutputInvalid) -> @location(0) vec4<f32> {
     let position_clip = (in.position.xy / in.position.w) * 0.5 + 0.5;
     // Account for screen dimensions and scale.
     let checker = ScreenCheckerBoard(position_clip * camera.screen_dimensions.xy * camera.screen_dimensions.z);
     return vec4<f32>(checker, checker, 0.0, 1.0);
 }
 
-[[stage(fragment)]]
-fn fs_debug(in: VertexOutput) -> [[location(0)]] vec4<f32> {
+@fragment
+fn fs_debug(in: VertexOutput) -> @location(0) vec4<f32> {
     let map1 = in.map1_uvset.xy;
     let uvSet = in.map1_uvset.zw;
     let uvSet1 = in.uv_set1_uv_set2.xy;
@@ -780,116 +780,116 @@ fn fs_debug(in: VertexOutput) -> [[location(0)]] vec4<f32> {
     // TODO: Use more accurate gamma correction.
     var outColor = vec4<f32>(1.0);
     switch (render_settings.debug_mode.x) {
-        case 1: {
+        case 1u: {
             let color = normalize(in.position.xyz) * 0.5 + 0.5;
             outColor = vec4<f32>(pow(color, vec3<f32>(2.2)), 1.0);
         }
-        case 2: {
+        case 2u: {
             let color = normalize(in.normal.xyz) * 0.5 + 0.5;
             outColor = vec4<f32>(pow(color, vec3<f32>(2.2)), 1.0);
         }
-        case 3: {
+        case 3u: {
             let color = normalize(in.tangent.xyz) * 0.5 + 0.5;
             outColor = vec4<f32>(pow(color, vec3<f32>(2.2)), 1.0);
         }
-        case 4: {
+        case 4u: {
             outColor = colorSet1;
         }
-        case 5: {
+        case 5u: {
             outColor = colorSet2;
         }
-        case 6: {
+        case 6u: {
             outColor = colorSet3;
         }
-        case 7: {
+        case 7u: {
             outColor = colorSet4;
         }
-        case 8: {
+        case 8u: {
             outColor = colorSet5;
         }
-        case 9: {
+        case 9u: {
             outColor = colorSet6;
         }
-        case 10: {
+        case 10u: {
             outColor = colorSet7;
         }
-        case 11: {
+        case 11u: {
             outColor = textureSample(texture0, sampler0, map1);
         }
-        case 12: {
+        case 12u: {
             outColor = textureSample(texture1, sampler1, uvSet);
         }
-        case 13: {
+        case 13u: {
             outColor = textureSample(texture2, sampler2, reflectionVector);
         }
-        case 14: {
+        case 14u: {
             outColor = textureSample(texture3, sampler3, bake1);
         }
-        case 15: {
+        case 15u: {
             outColor = textureSample(texture4, sampler4, map1);
         }
-        case 16: {
+        case 16u: {
             outColor = textureSample(texture5, sampler5, map1);
         }
-        case 17: {
+        case 17u: {
             outColor = textureSample(texture6, sampler6, map1);
         }
-        case 18: {
+        case 18u: {
             outColor = textureSample(texture7, sampler7, reflectionVector);
         }
-        case 19: {
+        case 19u: {
             outColor = textureSample(texture8, sampler8, reflectionVector);
         }
-        case 20: {
+        case 20u: {
             outColor = textureSample(texture9, sampler9, bake1);
         }
-        case 21: {
+        case 21u: {
             outColor = textureSample(texture10, sampler10, map1);
         }
-        case 22: {
+        case 22u: {
             outColor = textureSample(texture11, sampler11, uvSet);
         }
-        case 23: {
+        case 23u: {
             outColor = textureSample(texture12, sampler12, map1);
         }
-        case 24: {
+        case 24u: {
             outColor = textureSample(texture13, sampler13, map1);
         }
-        case 25: {
+        case 25u: {
             outColor = textureSample(texture14, sampler14, uvSet);
         }
-        // case 26: {
+        // case 26u: {
         //     outColor = textureSample(texture16, sampler16, map1);
         // }
-        case 27: {
+        case 27u: {
             outColor = vec4<f32>(pow(map1, vec2<f32>(2.2)), 1.0, 1.0);
         }
-        case 28: {
+        case 28u: {
             outColor = vec4<f32>(pow(bake1, vec2<f32>(2.2)), 1.0, 1.0);
         }
-        case 29: {
+        case 29u: {
             outColor = vec4<f32>(pow(uvSet, vec2<f32>(2.2)), 1.0, 1.0);
         }
-        case 30: {
+        case 30u: {
             outColor = vec4<f32>(pow(uvSet1, vec2<f32>(2.2)), 1.0, 1.0);
         }
-        case 31: {
+        case 31u: {
             outColor = vec4<f32>(pow(uvSet2, vec2<f32>(2.2)), 1.0, 1.0);
         }
-        case 32: {
+        case 32u: {
             // Basic Shading.
             let basic = 0.218 * max(dot(fragmentNormal, viewVector), 0.0);
             outColor = vec4<f32>(vec3<f32>(basic), 1.0);
         }
-        case 33: {
+        case 33u: {
             // Normals
             outColor = vec4<f32>(pow(fragmentNormal.xyz * 0.5 + 0.5, vec3<f32>(2.2)), 1.0);
         }
-        case 34: {
+        case 34u: {
             // Bitangents
             outColor = vec4<f32>(pow(bitangent.xyz * 0.5 + 0.5, vec3<f32>(2.2)), 1.0);
         }
-        case 35: {
+        case 35u: {
             // Albedo
             outColor = vec4<f32>(albedoColorFinal.rgb, 1.0);
         }
@@ -919,8 +919,8 @@ fn fs_debug(in: VertexOutput) -> [[location(0)]] vec4<f32> {
     return vec4<f32>(outColor.rgb * rgba.rgb, 1.0);
 }
 
-[[stage(fragment)]]
-fn fs_main(in: VertexOutput, [[builtin(front_facing)]] is_front: bool) -> [[location(0)]] vec4<f32> {
+@fragment
+fn fs_main(in: VertexOutput, @builtin(front_facing) is_front: bool) -> @location(0) vec4<f32> {
     let map1 = in.map1_uvset.xy;
     let uvSet = in.map1_uvset.zw;
     let uvSet1 = in.uv_set1_uv_set2.xy;
@@ -968,7 +968,7 @@ fn fs_main(in: VertexOutput, [[builtin(front_facing)]] is_front: bool) -> [[loca
     var transitionCustomVector30 = vec4<f32>(0.0);
 
     switch (render_settings.transition_material.x) {
-        case 0: {      
+        case 0u: {      
             // Inkling's Ink.
             // TODO: Include other colors from /fighter/common/param/effect.prc?
             transitionAlbedo = vec3<f32>(0.758027, 0.115859, 0.04);
@@ -977,14 +977,14 @@ fn fs_main(in: VertexOutput, [[builtin(front_facing)]] is_front: bool) -> [[loca
             transitionCustomVector11 = vec4<f32>(0.0);
             transitionCustomVector30 = vec4<f32>(0.0);
         }
-        case 1: {      
+        case 1u: {      
             // Metal Box.
             transitionAlbedo = vec3<f32>(0.257, 0.257, 0.257);
             transitionPrm = vec4<f32>(1.0, 0.3, 1.0, 0.0);
             transitionCustomVector11 = vec4<f32>(0.0);
             transitionCustomVector30 = vec4<f32>(0.0);
         }
-        case 2: {      
+        case 2u: {      
             // Gold (Xerneas Pokemon).
             // (0.257, 0.257, 0.257) + (0.125, 0.047, -0.234) in the shader.
             transitionAlbedo = vec3<f32>(0.382, 0.304, 0.023);
@@ -992,7 +992,7 @@ fn fs_main(in: VertexOutput, [[builtin(front_facing)]] is_front: bool) -> [[loca
             transitionCustomVector11 = vec4<f32>(0.0);
             transitionCustomVector30 = vec4<f32>(0.0);
         }
-        case 3: {      
+        case 3u: {      
             // Ditto Pokemon.
             transitionAlbedo = vec3<f32>(0.1694, 0.0924, 0.2002);
             transitionPrm = vec4<f32>(1.0, 0.75, 1.0, 0.032); // TODO: Roughness?

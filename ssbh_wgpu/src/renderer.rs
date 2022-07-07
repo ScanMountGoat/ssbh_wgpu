@@ -254,7 +254,7 @@ impl SsbhRenderer {
                 fragment: Some(wgpu::FragmentState {
                     module: &shader,
                     entry_point: "fs_main",
-                    targets: &[crate::RGBA_COLOR_FORMAT.into()],
+                    targets: &[Some(crate::RGBA_COLOR_FORMAT.into())],
                 }),
                 primitive: wgpu::PrimitiveState::default(),
                 depth_stencil: None,
@@ -631,14 +631,14 @@ impl SsbhRenderer {
             // TODO: Find a more efficient way to toggle bloom rendering.
             encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("Bloom Threshold Pass"),
-                color_attachments: &[wgpu::RenderPassColorAttachment {
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view: &self.pass_info.bloom_threshold.view,
                     resolve_target: None,
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
                         store: true,
                     },
-                }],
+                })],
                 depth_stencil_attachment: None,
             });
         }
@@ -647,14 +647,14 @@ impl SsbhRenderer {
     fn variance_shadow_pass(&self, encoder: &mut wgpu::CommandEncoder) {
         let mut variance_shadow_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("Variance Shadow Pass"),
-            color_attachments: &[wgpu::RenderPassColorAttachment {
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                 view: &self.variance_shadow.view,
                 resolve_target: None,
                 ops: wgpu::Operations {
                     load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
                     store: true,
                 },
-            }],
+            })],
             depth_stencil_attachment: None,
         });
         variance_shadow_pass.set_pipeline(&self.variance_shadow_pipeline);
@@ -703,14 +703,14 @@ impl SsbhRenderer {
         // The in game format isn't 8-bit yet.
         let mut model_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("Model Pass"),
-            color_attachments: &[wgpu::RenderPassColorAttachment {
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                 view: &self.pass_info.color.view,
                 resolve_target: None,
                 ops: wgpu::Operations {
                     load: wgpu::LoadOp::Clear(self.clear_color()),
                     store: true,
                 },
-            }],
+            })],
             depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
                 view: &self.pass_info.depth.view,
                 depth_ops: Some(wgpu::Operations {
@@ -755,14 +755,14 @@ impl SsbhRenderer {
     ) {
         let mut debug_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("Model Debug Pass"),
-            color_attachments: &[wgpu::RenderPassColorAttachment {
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                 view: output_view,
                 resolve_target: None,
                 ops: wgpu::Operations {
                     load: wgpu::LoadOp::Clear(self.clear_color()),
                     store: true,
                 },
-            }],
+            })],
             depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
                 view: &self.pass_info.depth.view,
                 depth_ops: Some(wgpu::Operations {
@@ -800,14 +800,14 @@ impl SsbhRenderer {
         // TODO: Force having a color attachment for each fragment shader output in wgsl_to_wgpu?
         let mut skeleton_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("Skeleton Pass"),
-            color_attachments: &[wgpu::RenderPassColorAttachment {
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                 view,
                 resolve_target: None,
                 ops: wgpu::Operations {
                     load: wgpu::LoadOp::Load,
                     store: true,
                 },
-            }],
+            })],
             depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
                 view: &self.pass_info.depth.view,
                 depth_ops: Some(wgpu::Operations {
@@ -909,7 +909,7 @@ fn skeleton_pipeline(
         fragment: Some(wgpu::FragmentState {
             module: &shader,
             entry_point: fragment_entry,
-            targets: &[crate::RGBA_COLOR_FORMAT.into()],
+            targets: &[Some(crate::RGBA_COLOR_FORMAT.into())],
         }),
         primitive: wgpu::PrimitiveState {
             cull_mode: Some(cull_face),
@@ -946,7 +946,7 @@ fn create_screen_pipeline(
         fragment: Some(wgpu::FragmentState {
             module,
             entry_point: fs_main,
-            targets: &[target.into()],
+            targets: &[Some(target.into())],
         }),
         primitive: wgpu::PrimitiveState::default(),
         depth_stencil: None,
@@ -980,14 +980,14 @@ fn create_color_pass<'a>(
 ) -> wgpu::RenderPass<'a> {
     encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
         label,
-        color_attachments: &[wgpu::RenderPassColorAttachment {
+        color_attachments: &[Some(wgpu::RenderPassColorAttachment {
             view,
             resolve_target: None,
             ops: wgpu::Operations {
                 load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
                 store: true,
             },
-        }],
+        })],
         depth_stencil_attachment: None,
     })
 }

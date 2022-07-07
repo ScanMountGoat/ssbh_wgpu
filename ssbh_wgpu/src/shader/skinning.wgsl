@@ -1,21 +1,21 @@
 // This should be identical to the Buffer0 struct in model.wgsl.
 struct VertexInput0 {
-    position0: vec4<f32>;
-    normal0: vec4<f32>;
-    tangent0: vec4<f32>;
+    position0: vec4<f32>,
+    normal0: vec4<f32>,
+    tangent0: vec4<f32>,
 };
 
 struct VertexWeight {
-    bone_indices: vec4<i32>;
-    weights: vec4<f32>;
+    bone_indices: vec4<i32>,
+    weights: vec4<f32>,
 };
 
 struct Vertices {
-    vertices: array<VertexInput0>;
+    vertices: array<VertexInput0>
 };
 
 struct VertexWeights {
-    vertices: array<VertexWeight>;
+    vertices: array<VertexWeight>
 };
 
 // The in game buffer is vec4[4096] with the first vec4 containing a u32 bone count.
@@ -25,34 +25,35 @@ struct VertexWeights {
 // This gives a more generous alignment without exceeding 65536 bytes.
 struct AnimatedWorldTransforms {
     // bone_world.inv() * animated_bone_world
-    transforms: array<mat4x4<f32>, 512>;
+    transforms: array<mat4x4<f32>, 512>,
     // Inverse transpose of above to use for normals and tangents.
-    transforms_inv_transpose: array<mat4x4<f32>, 512>;
+    transforms_inv_transpose: array<mat4x4<f32>, 512>,
 };
 
 struct WorldTransforms {
     // The world transform of each bone.
     // This is used for parenting objects to bones.
-    transforms: array<mat4x4<f32>, 512>;
+    transforms: array<mat4x4<f32>, 512>
 };
 
 struct MeshObjectInfo {
     // TODO: Alignment?
     // Just use X for now.
-    parent_index: vec4<i32>;
+    parent_index: vec4<i32>
 };
 
-[[group(0), binding(0)]] var<storage, read> src : Vertices;
-[[group(0), binding(1)]] var<storage, read> vertex_weights : VertexWeights;
-[[group(0), binding(2)]] var<storage, read_write> dst : Vertices;
+@group(0) @binding(0) var<storage, read> src : Vertices;
+@group(0) @binding(1) var<storage, read> vertex_weights : VertexWeights;
+@group(0) @binding(2) var<storage, read_write> dst : Vertices;
 
-[[group(1), binding(0)]] var<uniform> transforms: AnimatedWorldTransforms;
-[[group(1), binding(1)]] var<uniform> world_transforms: WorldTransforms;
+@group(1) @binding(0) var<uniform> transforms: AnimatedWorldTransforms;
+@group(1) @binding(1) var<uniform> world_transforms: WorldTransforms;
 
-[[group(2), binding(0)]] var<uniform> mesh_object_info: MeshObjectInfo;
+@group(2) @binding(0) var<uniform> mesh_object_info: MeshObjectInfo;
 
-[[stage(compute), workgroup_size(256)]]
-fn main([[builtin(global_invocation_id)]] global_invocation_id: vec3<u32>) {
+@compute
+@workgroup_size(256)
+fn main(@builtin(global_invocation_id) global_invocation_id: vec3<u32>) {
     let total = arrayLength(&src.vertices);
     let index = global_invocation_id.x;
     if (index >= total) {

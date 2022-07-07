@@ -119,7 +119,13 @@ pub fn create_texture(
         return Err(CreateTextureError::LayerCountExceedsLimit);
     }
 
-    let max_mips = size.max_mips();
+    let dimension = if nutexb.footer.depth > 1 {
+        wgpu::TextureDimension::D3
+    } else {
+        wgpu::TextureDimension::D2
+    };
+
+    let max_mips = size.max_mips(dimension);
     if nutexb.footer.mipmap_count > max_mips {
         warn!(
             "Mipmap count {} exceeds the maximum of {} for Nutexb {:?}.",
@@ -136,11 +142,7 @@ pub fn create_texture(
             // TODO: How does in game handle this case?
             mip_level_count: std::cmp::min(nutexb.footer.mipmap_count, max_mips),
             sample_count: 1,
-            dimension: if nutexb.footer.depth > 1 {
-                wgpu::TextureDimension::D3
-            } else {
-                wgpu::TextureDimension::D2
-            },
+            dimension,
             format: wgpu_format(nutexb.footer.image_format),
             usage: wgpu::TextureUsages::COPY_SRC
                 | wgpu::TextureUsages::COPY_DST
@@ -334,14 +336,14 @@ impl TextureRenderer {
 
         let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("Render Pass"),
-            color_attachments: &[wgpu::RenderPassColorAttachment {
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                 view: &rgba_texture_view,
                 resolve_target: None,
                 ops: wgpu::Operations {
                     load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
                     store: true,
                 },
-            }],
+            })],
             depth_stencil_attachment: None,
         });
 
@@ -423,7 +425,7 @@ fn create_render_pipeline(
         fragment: Some(wgpu::FragmentState {
             module: &shader,
             entry_point: "fs_main",
-            targets: &[surface_format.into()],
+            targets: &[Some(surface_format.into())],
         }),
         primitive: wgpu::PrimitiveState::default(),
         depth_stencil: None,
