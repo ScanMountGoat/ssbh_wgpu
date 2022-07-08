@@ -9,7 +9,7 @@ use crate::{
     uniform_buffer, CameraTransforms, RenderModel, ShaderDatabase,
 };
 use glyph_brush::DefaultSectionHasher;
-use ssbh_data::skel_data::SkelData;
+use ssbh_data::{anim_data::AnimData, skel_data::SkelData};
 use strum::{Display, EnumString, EnumVariantNames};
 use wgpu::{ComputePassDescriptor, ComputePipelineDescriptor};
 use wgpu_text::{font::FontRef, BrushBuilder, TextBrush};
@@ -191,7 +191,7 @@ pub struct SsbhRenderer {
     // Store camera state for efficiently updating it later.
     // This avoids exposing shader implementations like bind groups.
     camera_buffer: wgpu::Buffer,
-    _stage_uniforms_buffer: wgpu::Buffer,
+    stage_uniforms_buffer: wgpu::Buffer,
     per_frame_bind_group: crate::shader::model::bind_groups::BindGroup0,
     skeleton_camera_bind_group: crate::shader::skeleton::bind_groups::BindGroup0,
 
@@ -454,7 +454,7 @@ impl SsbhRenderer {
             variance_shadow,
             variance_bind_group,
             clear_color,
-            _stage_uniforms_buffer: stage_uniforms_buffer,
+            stage_uniforms_buffer,
             bone_pipeline,
             bone_outer_pipeline,
             joint_pipeline,
@@ -511,6 +511,17 @@ impl SsbhRenderer {
             &self.render_settings_buffer,
             0,
             bytemuck::cast_slice(&[crate::shader::model::RenderSettings::from(render_settings)]),
+        );
+    }
+
+    /// Updates the stage lighting data.
+    /// This method is lightweight, so it can be called each frame if necessary.
+    pub fn update_stage_uniforms(&mut self, queue: &wgpu::Queue, data: &AnimData) {
+        // TODO: How to animate using the current frame?
+        queue.write_buffer(
+            &self.stage_uniforms_buffer,
+            0,
+            bytemuck::cast_slice(&[crate::shader::model::StageUniforms::from(data)]),
         );
     }
 

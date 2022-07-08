@@ -21,7 +21,7 @@ pub fn create_uniforms(
             let mut custom_vector = [[0.0; 4]; 64];
             let mut has_vector = [[0; 4]; 64];
             for vector in &material.vectors {
-                if let Some(index) = vector_index(vector) {
+                if let Some(index) = vector_index(vector.param_id) {
                     custom_vector[index] = vector.data.to_array();
                     has_vector[index][0] = 1;
                 }
@@ -30,7 +30,7 @@ pub fn create_uniforms(
             let mut custom_float = [[0.0; 4]; 20];
             let mut has_float = [[0; 4]; 20];
             for float in &material.floats {
-                if let Some(index) = float_index(float) {
+                if let Some(index) = float_index(float.param_id) {
                     custom_float[index][0] = float.data;
                     has_float[index][0] = 1;
                 }
@@ -39,7 +39,7 @@ pub fn create_uniforms(
             let mut custom_boolean = [[0; 4]; 20];
             let mut has_boolean = [[0; 4]; 20];
             for boolean in &material.booleans {
-                if let Some(index) = boolean_index(boolean) {
+                if let Some(index) = boolean_index(boolean.param_id) {
                     custom_boolean[index][0] = if boolean.data { 1 } else { 0 };
                     has_boolean[index][0] = 1;
                 }
@@ -47,7 +47,7 @@ pub fn create_uniforms(
 
             let mut has_texture = [[0; 4]; 19];
             for texture in &material.textures {
-                if let Some(index) = texture_index(texture) {
+                if let Some(index) = texture_index(texture.param_id) {
                     has_texture[index][0] = 1;
                 }
             }
@@ -101,6 +101,7 @@ pub fn create_uniforms(
                 }
             }
 
+            // TODO: Add test cases for this.
             let enable_specular = !just_emi && !just_diffuse;
             let enable_specular = [if enable_specular { 1 } else { 0 }; 4];
 
@@ -136,8 +137,9 @@ pub fn create_uniforms(
         )
 }
 
-fn vector_index(vector: &Vector4Param) -> Option<usize> {
-    match vector.param_id {
+// TODO: Make this an extension trait?
+pub fn vector_index(param: ParamId) -> Option<usize> {
+    match param {
         ParamId::CustomVector0 => Some(0),
         ParamId::CustomVector1 => Some(1),
         ParamId::CustomVector2 => Some(2),
@@ -206,8 +208,8 @@ fn vector_index(vector: &Vector4Param) -> Option<usize> {
     }
 }
 
-fn float_index(float: &FloatParam) -> Option<usize> {
-    match float.param_id {
+pub fn float_index(param: ParamId) -> Option<usize> {
+    match param {
         ParamId::CustomFloat0 => Some(0),
         ParamId::CustomFloat1 => Some(1),
         ParamId::CustomFloat2 => Some(2),
@@ -232,8 +234,8 @@ fn float_index(float: &FloatParam) -> Option<usize> {
     }
 }
 
-fn texture_index(texture: &TextureParam) -> Option<usize> {
-    match texture.param_id {
+pub fn texture_index(param: ParamId) -> Option<usize> {
+    match param {
         ParamId::Texture0 => Some(0),
         ParamId::Texture1 => Some(1),
         ParamId::Texture2 => Some(2),
@@ -258,8 +260,8 @@ fn texture_index(texture: &TextureParam) -> Option<usize> {
     }
 }
 
-fn boolean_index(boolean: &BooleanParam) -> Option<usize> {
-    match boolean.param_id {
+pub fn boolean_index(param: ParamId) -> Option<usize> {
+    match param {
         ParamId::CustomBoolean0 => Some(0),
         ParamId::CustomBoolean1 => Some(1),
         ParamId::CustomBoolean2 => Some(2),
@@ -301,7 +303,8 @@ mod tests {
                 has_vector: [[0; 4]; 64],
                 has_color_set1234: [0; 4],
                 has_color_set567: [0; 4],
-                is_discard: [0; 4]
+                is_discard: [0; 4],
+                enable_specular: [1; 4]
             },
             create_uniforms(None, &ShaderDatabase::new())
         );
@@ -320,7 +323,8 @@ mod tests {
                 has_vector: [[0; 4]; 64],
                 has_color_set1234: [0; 4],
                 has_color_set567: [0; 4],
-                is_discard: [0; 4]
+                is_discard: [0; 4],
+                enable_specular: [0; 4]
             },
             create_uniforms(
                 Some(&MatlEntryData {
@@ -354,7 +358,8 @@ mod tests {
                 has_vector: [[0; 4]; 64],
                 has_color_set1234: [0; 4],
                 has_color_set567: [0; 4],
-                is_discard: [0; 4]
+                is_discard: [0; 4],
+                enable_specular: [0; 4]
             },
             create_uniforms(
                 Some(&MatlEntryData {
@@ -407,6 +412,7 @@ mod tests {
             has_color_set1234: [0; 4],
             has_color_set567: [0; 4],
             is_discard: [0; 4],
+            enable_specular: [1; 4],
         };
         expected.custom_vector[8] = [1.0; 4];
         expected.has_vector[8] = [1, 0, 0, 0];

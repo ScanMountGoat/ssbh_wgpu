@@ -27,13 +27,25 @@ struct RenderSettings {
     render_prm: vec4<u32>,
 };
 
+// TODO: What should the default values be?
 // TODO: Store light transform here as well?
-// TODO: How to store lights?
-struct StageUniforms {
-    chr_light_dir: vec4<f32>,
-    custom_boolean: array<vec4<f32>, 20>,
+// Stage lighting is stored in nuanmb files like light00.nuanmb
+struct Light {
+    // Store combined CustomVector0 and CustomFloat0
+    color: vec4<f32>,
+    // Convert quaternions to direction vectors.
+    direction: vec4<f32>,
+}
+
+struct SceneAttributesForShaderFx {
+    custom_boolean: array<vec4<u32>, 20>,
     custom_vector: array<vec4<f32>, 64>,
     custom_float: array<vec4<f32>, 20>,
+};
+
+struct StageUniforms {
+    light_chr: Light,
+    scene_attributes: SceneAttributesForShaderFx
 };
 
 // TODO: Bind groups should be ordered by how frequently they change for performance.
@@ -434,7 +446,7 @@ fn DiffuseTerm(
     // TODO: Skin shading looks correct without the PI term?
     directShading = mix(directShading / 3.14159, skinShading, sssBlend);
 
-    var directLight = stage_uniforms.custom_vector[0].rgb * stage_uniforms.custom_float[0].x * directShading;
+    var directLight = stage_uniforms.light_chr.color.rgb * directShading;
     var ambientTerm = (ambientLight * ao);
 
     if (uniforms.has_texture[9].x == 1u) {
@@ -539,7 +551,7 @@ fn GetSpecularWeight(f0: f32, diffusePass: vec3<f32>, metalness: f32, nDotV: f32
 // TODO: Does this depend on the light direction and intensity?
 fn GetRimBlend(baseColor: vec3<f32>, diffusePass: vec3<f32>, nDotV: f32, nDotL: f32, occlusion: f32, vertexAmbient: vec3<f32>) -> vec3<f32>
 {
-    var rimColor = uniforms.custom_vector[14].rgb * stage_uniforms.custom_vector[8].rgb;
+    var rimColor = uniforms.custom_vector[14].rgb * stage_uniforms.scene_attributes.custom_vector[8].rgb;
 
     // TODO: How is the overall intensity controlled?
     // Hardcoded shader constant.
@@ -555,7 +567,7 @@ fn GetRimBlend(baseColor: vec3<f32>, diffusePass: vec3<f32>, nDotV: f32, nDotL: 
     rimColor = rimColor * clamp(mix(vec3<f32>(1.0), diffusePass, uniforms.custom_float[8].x), vec3<f32>(0.0), vec3<f32>(1.0));
 
     let fresnel = pow(1.0 - nDotV, 5.0);
-    var rimBlend = fresnel * stage_uniforms.custom_vector[8].w * uniforms.custom_vector[14].w * 0.6;
+    var rimBlend = fresnel * stage_uniforms.scene_attributes.custom_vector[8].w * uniforms.custom_vector[14].w * 0.6;
     rimBlend = rimBlend * occlusion;
 
     // TODO: Rim lighting is directional?
@@ -1060,7 +1072,7 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) is_front: bool) -> @location
     var reflectionVector = reflect(viewVector, fragmentNormal);
     reflectionVector.y = reflectionVector.y * -1.0;
 
-    let chrLightDir = stage_uniforms.chr_light_dir.xyz;
+    let chrLightDir = stage_uniforms.light_chr.direction.xyz;
 
     let halfAngle = normalize(chrLightDir + viewVector);
     let nDotV = max(dot(fragmentNormal, viewVector), 0.0);
