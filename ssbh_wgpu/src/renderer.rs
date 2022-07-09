@@ -1,6 +1,6 @@
 use crate::{
     bone_rendering::JointBuffers,
-    lighting::calculate_light_transform,
+    lighting::{anim_to_lights, calculate_light_transform},
     pipeline::{
         create_debug_pipeline, create_depth_pipeline, create_invalid_attributes_pipeline,
         create_invalid_shader_pipeline, create_outline_pipeline, create_uv_pipeline,
@@ -195,6 +195,7 @@ pub struct SsbhRenderer {
     // This avoids exposing shader implementations like bind groups.
     camera_buffer: wgpu::Buffer,
     stage_uniforms_buffer: wgpu::Buffer,
+    light_transform_buffer: wgpu::Buffer,
     per_frame_bind_group: crate::shader::model::bind_groups::BindGroup0,
     skeleton_camera_bind_group: crate::shader::skeleton::bind_groups::BindGroup0,
 
@@ -358,7 +359,7 @@ impl SsbhRenderer {
             );
 
         let light_transform = calculate_light_transform(
-            glam::Quat::from_xyzw(-0.495286, -0.0751228, 0.0431234, -0.864401),
+            glam::Quat::from_xyzw(-0.495286, -0.0751228, 0.0431234, 0.864401),
             glam::Vec3::new(25.0, 25.0, 50.0),
         );
 
@@ -460,6 +461,7 @@ impl SsbhRenderer {
             variance_bind_group,
             clear_color,
             stage_uniforms_buffer,
+            light_transform_buffer,
             bone_pipeline,
             bone_outer_pipeline,
             joint_pipeline,
@@ -525,10 +527,18 @@ impl SsbhRenderer {
     /// This method is lightweight, so it can be called each frame if necessary.
     pub fn update_stage_uniforms(&mut self, queue: &wgpu::Queue, data: &AnimData) {
         // TODO: How to animate using the current frame?
+        let (stage_uniforms, light_transform) = anim_to_lights(data);
+
         queue.write_buffer(
             &self.stage_uniforms_buffer,
             0,
-            bytemuck::cast_slice(&[crate::shader::model::StageUniforms::from(data)]),
+            bytemuck::cast_slice(&[stage_uniforms]),
+        );
+
+        queue.write_buffer(
+            &self.light_transform_buffer,
+            0,
+            bytemuck::cast_slice(&[crate::shader::model::LightTransforms { light_transform }]),
         );
     }
 

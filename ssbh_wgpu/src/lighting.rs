@@ -12,15 +12,17 @@ use crate::{
 };
 
 pub fn calculate_light_transform(rotation: Quat, scale: Vec3) -> Mat4 {
-    // TODO: This should be editable when changing stages.
     // TODO: Why do we negate w?
-    // TODO: Read this value from the transform for LightStg0 from light00_set.nuanmb.
     // TODO: Do translation and scale matter?
-
     // TODO: What controls the "scale" of the lighting region?
     let perspective_matrix =
         Mat4::orthographic_rh(-scale.x, scale.x, -scale.y, scale.y, -scale.z, scale.z);
-    let model_view = Mat4::from_quat(rotation);
+    let model_view = Mat4::from_quat(Quat::from_xyzw(
+        rotation.x,
+        rotation.y,
+        rotation.z,
+        -rotation.w,
+    ));
 
     perspective_matrix * model_view
 }
@@ -72,31 +74,38 @@ impl Default for SceneAttributesForShaderFx {
     }
 }
 
-impl From<&AnimData> for StageUniforms {
-    fn from(data: &AnimData) -> Self {
-        let transform_group = data
-            .groups
+// TODO: Test cases.
+pub fn anim_to_lights(data: &AnimData) -> (StageUniforms, glam::Mat4) {
+    let transform_group = data
+        .groups
+        .iter()
+        .find(|g| g.group_type == GroupType::Transform);
+
+    // TODO: use LightStg0 for the shadow direction?
+    let light_chr = transform_group.and_then(|g| g.nodes.iter().find(|n| n.name == "LightChr"));
+    let (light_chr, light_chr_rotation) = light_chr.map(light_node).unwrap_or_default();
+
+    // TODO: Take the current frame for animation?
+    let scene_attributes = transform_group.and_then(|g| {
+        g.nodes
             .iter()
-            .find(|g| g.group_type == GroupType::Transform);
+            .find(|n| n.name == "sceneAttributesForShaderFX")
+    });
+    let scene_attributes = scene_attributes
+        .map(|node| scene_attributes_node(node))
+        .unwrap_or_default();
 
-        let light_chr = transform_group.and_then(|g| g.nodes.iter().find(|n| n.name == "LightChr"));
-        let light_chr = light_chr.map(light_node).unwrap_or_default();
+    // TODO: What to use for the scale?
+    let light_transform =
+        calculate_light_transform(light_chr_rotation, glam::Vec3::new(25.0, 25.0, 25.0));
 
-        // TODO: Take the current frame for animation?
-        let scene_attributes = transform_group.and_then(|g| {
-            g.nodes
-                .iter()
-                .find(|n| n.name == "sceneAttributesForShaderFX")
-        });
-        let scene_attributes = scene_attributes
-            .map(|node| scene_attributes_node(node))
-            .unwrap_or_default();
-
-        Self {
+    (
+        StageUniforms {
             light_chr,
             scene_attributes,
-        }
-    }
+        },
+        light_transform,
+    )
 }
 
 fn scene_attributes_node(node: &NodeData) -> SceneAttributesForShaderFx {
@@ -131,7 +140,7 @@ fn scene_attributes_node(node: &NodeData) -> SceneAttributesForShaderFx {
     attributes
 }
 
-fn light_node(node: &NodeData) -> Light {
+fn light_node(node: &NodeData) -> (Light, glam::Quat) {
     // TODO: Avoid unwrap.
     // TODO: Default to intensity of 1.0 instead?
     let float0 = node
@@ -166,25 +175,30 @@ fn light_node(node: &NodeData) -> Light {
         .map(|t| Quat::from_array(t.rotation.to_array()))
         .unwrap_or(Quat::IDENTITY);
 
-    Light {
-        color: [
-            vector0.x * float0,
-            vector0.y * float0,
-            vector0.z * float0,
-            vector0.w * float0,
-        ],
-        direction: light_direction(rotation).to_array(),
-    }
+    // TODO: Return an intermediate type instead?
+    (
+        Light {
+            color: [
+                vector0.x * float0,
+                vector0.y * float0,
+                vector0.z * float0,
+                vector0.w * float0,
+            ],
+            direction: light_direction(rotation).to_array(),
+        },
+        rotation,
+    )
 }
 
 #[cfg(test)]
 mod tests {
-    use approx::assert_relative_eq;
-
     use super::*;
 
     use crate::assert_matrix_relative_eq;
+    use approx::assert_relative_eq;
 
+    // Test cases based on matching the variance shadow map from in game.
+    // The LightStg0 rotation changes the fighter shadow direction.
     #[test]
     fn rotation_zero() {
         assert_matrix_relative_eq!(
@@ -208,8 +222,8 @@ mod tests {
         assert_matrix_relative_eq!(
             [
                 [1.0, 0.0, 0.0, 0.0],
-                [0.0, 0.0, -1.0, 0.0],
-                [0.0, -0.5, 0.0, 0.5],
+                [0.0, 0.0, 1.0, 0.0],
+                [0.0, 0.5, 0.0, 0.5],
                 [0.0, 0.0, 0.0, 1.0],
             ],
             calculate_light_transform(
@@ -225,9 +239,9 @@ mod tests {
     fn rotation_y_90_degrees() {
         assert_matrix_relative_eq!(
             [
-                [0.0, 0.0, 1.0, 0.0],
+                [0.0, 0.0, -1.0, 0.0],
                 [0.0, 1.0, 0.0, 0.0],
-                [0.5, 0.0, 0.0, 0.5],
+                [-0.5, 0.0, 0.0, 0.5],
                 [0.0, 0.0, 0.0, 1.0],
             ],
             calculate_light_transform(
@@ -243,8 +257,8 @@ mod tests {
     fn rotation_z_90_degrees() {
         assert_matrix_relative_eq!(
             [
-                [0.0, -1.0, 0.0, 0.0],
-                [1.0, 0.0, 0.0, 0.0],
+                [0.0, 1.0, 0.0, 0.0],
+                [-1.0, 0.0, 0.0, 0.0],
                 [0.0, 0.0, -0.5, 0.5],
                 [0.0, 0.0, 0.0, 1.0],
             ],
@@ -257,6 +271,8 @@ mod tests {
         )
     }
 
+    // Test cases based on the direction vector from in game uniform buffers.
+    // TODO: Add additional test cases from more stages.
     #[test]
     fn light_direction_light_chr_training() {
         let dir = light_direction(Quat::from_xyzw(-0.453154, -0.365998, -0.211309, 0.784886));
