@@ -746,6 +746,12 @@ fn fs_invalid_attributes(in: VertexOutputInvalid) -> @location(0) vec4<f32> {
 }
 
 @fragment
+fn fs_outline(in: VertexOutput) -> @location(0) vec4<f32> {
+    // TODO: Customize this color?
+    return vec4<f32>(1.0);
+}
+
+@fragment
 fn fs_debug(in: VertexOutput) -> @location(0) vec4<f32> {
     let map1 = in.map1_uvset.xy;
     let uvSet = in.map1_uvset.zw;

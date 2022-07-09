@@ -3,7 +3,7 @@ use crate::{
     lighting::calculate_light_transform,
     pipeline::{
         create_debug_pipeline, create_depth_pipeline, create_invalid_attributes_pipeline,
-        create_invalid_shader_pipeline,
+        create_invalid_shader_pipeline, create_outline_pipeline,
     },
     texture::load_default_lut,
     uniform_buffer, CameraTransforms, RenderModel, ShaderDatabase,
@@ -181,6 +181,8 @@ pub struct SsbhRenderer {
     invalid_shader_pipeline: wgpu::RenderPipeline,
     invalid_attributes_pipeline: wgpu::RenderPipeline,
     debug_pipeline: wgpu::RenderPipeline,
+    outline_pipeline: wgpu::RenderPipeline,
+
     bone_pipeline: wgpu::RenderPipeline,
     bone_outer_pipeline: wgpu::RenderPipeline,
     joint_pipeline: wgpu::RenderPipeline,
@@ -418,6 +420,7 @@ impl SsbhRenderer {
         let invalid_attributes_pipeline =
             create_invalid_attributes_pipeline(device, RGBA_COLOR_FORMAT);
         let debug_pipeline = create_debug_pipeline(device, RGBA_COLOR_FORMAT);
+        let outline_pipeline = create_outline_pipeline(device, RGBA_COLOR_FORMAT);
 
         // TODO: Does this need to match the initial config?
         let config = wgpu::SurfaceConfiguration {
@@ -462,6 +465,7 @@ impl SsbhRenderer {
             invalid_shader_pipeline,
             invalid_attributes_pipeline,
             debug_pipeline,
+            outline_pipeline,
             render_settings,
             render_settings_buffer,
             brush,
@@ -753,6 +757,7 @@ impl SsbhRenderer {
                 shader_database,
                 &self.invalid_shader_pipeline,
                 &self.invalid_attributes_pipeline,
+                &self.outline_pipeline,
                 pass,
             );
         }

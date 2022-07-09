@@ -59,6 +59,7 @@ pub struct RenderModel {
 pub struct RenderMesh {
     pub name: String,
     pub is_visible: bool,
+    pub is_selected: bool,
     material_label: String,
     shader_label: String,
     sub_index: u64,
@@ -377,6 +378,7 @@ impl RenderModel {
         shader_database: &ShaderDatabase,
         invalid_shader_pipeline: &'a wgpu::RenderPipeline,
         invalid_attributes_pipeline: &'a wgpu::RenderPipeline,
+        outline_pipeline: &'a wgpu::RenderPipeline,
         pass: &str,
     ) {
         // TODO: How to store all data in RenderModel but still draw sorted meshes?
@@ -417,6 +419,26 @@ impl RenderModel {
                 if mesh.vertex_index_count > 0 {
                     render_pass.draw_indexed(0..mesh.vertex_index_count as u32, 0, 0..1);
                 }
+
+                // TODO: Add proper outline rendering.
+                if mesh.is_selected {
+                    render_pass.set_pipeline(outline_pipeline);
+
+                    crate::shader::model::bind_groups::set_bind_groups(
+                        render_pass,
+                        crate::shader::model::bind_groups::BindGroups::<'a> {
+                            bind_group0: per_frame_bind_group,
+                            bind_group1: &material_data.material_uniforms_bind_group,
+                        },
+                    );
+
+                    self.set_mesh_buffers(render_pass, mesh);
+
+                    // Prevent potential validation error from zero count on Metal.
+                    if mesh.vertex_index_count > 0 {
+                        render_pass.draw_indexed(0..mesh.vertex_index_count as u32, 0, 0..1);
+                    }
+                }
             }
         }
     }
@@ -428,6 +450,8 @@ impl RenderModel {
     ) {
         // Assume the pipeline is already set.
         for mesh in self.meshes.iter().filter(|m| m.is_visible) {
+            // TODO: Use a default if there is no material.
+            // Models should always show up in debug mode.
             if let Some(material_data) = self.material_data_by_label.get(&mesh.material_label) {
                 crate::shader::model::bind_groups::set_bind_groups(
                     render_pass,
@@ -1118,6 +1142,7 @@ fn create_render_mesh(
         material_label: material_label.clone(),
         shader_label,
         is_visible: true,
+        is_selected: false,
         sort_bias: mesh_object.sort_bias,
         skinning_bind_group,
         skinning_transforms_bind_group,

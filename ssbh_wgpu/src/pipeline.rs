@@ -183,6 +183,13 @@ pub fn create_debug_pipeline(
     create_model_pipeline_from_entry(device, surface_format, "vs_main", "fs_debug", "Model Debug")
 }
 
+pub fn create_outline_pipeline(
+    device: &wgpu::Device,
+    surface_format: wgpu::TextureFormat,
+) -> wgpu::RenderPipeline {
+    create_model_pipeline_from_entry(device, surface_format, "vs_main", "fs_outline", "Model Outline")
+}
+
 pub fn create_model_pipeline_from_entry(
     device: &wgpu::Device,
     surface_format: wgpu::TextureFormat,
