@@ -704,6 +704,17 @@ fn vs_depth(
     return light.light_transform * vec4<f32>(buffer0.position0.xyz, 1.0);
 }
 
+@vertex
+fn vs_uv(
+    buffer0: VertexInput0,
+    buffer1: VertexInput1
+) -> @builtin(position) vec4<f32> {
+    // TODO: Add an option to select the UV map.
+    // TODO: Simplify the vec() calls.
+    let uv = vec2<f32>(buffer1.map1_uvset.x, 1.0 - buffer1.map1_uvset.y);
+    return vec4<f32>(uv, 0.0, 1.0);
+}
+
 fn ScreenCheckerBoard(screenPosition: vec2<f32>) -> f32
 {
     // Port of in game shader code for screen checkerboard.
@@ -747,6 +758,12 @@ fn fs_invalid_attributes(in: VertexOutputInvalid) -> @location(0) vec4<f32> {
 
 @fragment
 fn fs_outline(in: VertexOutput) -> @location(0) vec4<f32> {
+    // TODO: Customize this color?
+    return vec4<f32>(1.0);
+}
+
+@fragment
+fn fs_uv() -> @location(0) vec4<f32> {
     // TODO: Customize this color?
     return vec4<f32>(1.0);
 }

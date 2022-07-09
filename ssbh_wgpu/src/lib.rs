@@ -39,7 +39,8 @@ pub use texture::{create_default_textures, load_default_spec_cube};
 pub const REQUIRED_FEATURES: wgpu::Features = wgpu::Features::from_bits_truncate(
     wgpu::Features::TEXTURE_COMPRESSION_BC.bits()
         | wgpu::Features::ADDRESS_MODE_CLAMP_TO_BORDER.bits()
-        | wgpu::Features::TEXTURE_ADAPTER_SPECIFIC_FORMAT_FEATURES.bits(),
+        | wgpu::Features::TEXTURE_ADAPTER_SPECIFIC_FORMAT_FEATURES.bits()
+        | wgpu::Features::POLYGON_MODE_LINE.bits(),
 );
 
 // TODO: Make these fields get only like fn database(&self)?

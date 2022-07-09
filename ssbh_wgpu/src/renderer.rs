@@ -3,7 +3,7 @@ use crate::{
     lighting::calculate_light_transform,
     pipeline::{
         create_debug_pipeline, create_depth_pipeline, create_invalid_attributes_pipeline,
-        create_invalid_shader_pipeline, create_outline_pipeline,
+        create_invalid_shader_pipeline, create_outline_pipeline, create_uv_pipeline,
     },
     texture::load_default_lut,
     uniform_buffer, CameraTransforms, RenderModel, ShaderDatabase,
@@ -182,6 +182,7 @@ pub struct SsbhRenderer {
     invalid_attributes_pipeline: wgpu::RenderPipeline,
     debug_pipeline: wgpu::RenderPipeline,
     outline_pipeline: wgpu::RenderPipeline,
+    uv_pipeline: wgpu::RenderPipeline,
 
     bone_pipeline: wgpu::RenderPipeline,
     bone_outer_pipeline: wgpu::RenderPipeline,
@@ -421,6 +422,7 @@ impl SsbhRenderer {
             create_invalid_attributes_pipeline(device, RGBA_COLOR_FORMAT);
         let debug_pipeline = create_debug_pipeline(device, RGBA_COLOR_FORMAT);
         let outline_pipeline = create_outline_pipeline(device, RGBA_COLOR_FORMAT);
+        let uv_pipeline = create_uv_pipeline(device, RGBA_COLOR_FORMAT);
 
         // TODO: Does this need to match the initial config?
         let config = wgpu::SurfaceConfiguration {
@@ -466,6 +468,7 @@ impl SsbhRenderer {
             invalid_attributes_pipeline,
             debug_pipeline,
             outline_pipeline,
+            uv_pipeline,
             render_settings,
             render_settings_buffer,
             brush,
@@ -579,6 +582,21 @@ impl SsbhRenderer {
 
             // Combine the model and bloom contributions and apply color grading.
             self.post_processing_pass(encoder, output_view);
+        }
+    }
+
+    /// Renders UVs for all of the meshes with `is_selected` set to `true`.
+    pub fn render_model_uvs<'a>(
+        &'a self,
+        render_pass: &mut wgpu::RenderPass<'a>,
+        render_models: &'a [RenderModel],
+    ) {
+        // Take a render pass instead of an encoder to make this easier to integrate.
+        render_pass.set_pipeline(&self.uv_pipeline);
+
+        // TODO: Just take an iterator over render meshes instead?
+        for model in render_models {
+            model.draw_render_meshes_uv(render_pass, &self.per_frame_bind_group);
         }
     }
 

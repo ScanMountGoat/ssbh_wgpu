@@ -471,6 +471,33 @@ impl RenderModel {
         }
     }
 
+    pub fn draw_render_meshes_uv<'a>(
+        &'a self,
+        render_pass: &mut wgpu::RenderPass<'a>,
+        per_frame_bind_group: &'a crate::shader::model::bind_groups::BindGroup0,
+    ) {
+        // Assume the pipeline is already set.
+        for mesh in self.meshes.iter().filter(|m| m.is_selected) {
+            // TODO: This should just use a default.
+            if let Some(material_data) = self.material_data_by_label.get(&mesh.material_label) {
+                crate::shader::model::bind_groups::set_bind_groups(
+                    render_pass,
+                    crate::shader::model::bind_groups::BindGroups::<'a> {
+                        bind_group0: per_frame_bind_group,
+                        bind_group1: &material_data.material_uniforms_bind_group,
+                    },
+                );
+
+                self.set_mesh_buffers(render_pass, mesh);
+
+                // Prevent potential validation error from zero count on Metal.
+                if mesh.vertex_index_count > 0 {
+                    render_pass.draw_indexed(0..mesh.vertex_index_count as u32, 0, 0..1);
+                }
+            }
+        }
+    }
+
     // TODO: Move this to bone_rendering?
     pub fn queue_bone_names(
         &self,

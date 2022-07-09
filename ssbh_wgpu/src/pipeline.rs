@@ -187,7 +187,13 @@ pub fn create_outline_pipeline(
     device: &wgpu::Device,
     surface_format: wgpu::TextureFormat,
 ) -> wgpu::RenderPipeline {
-    create_model_pipeline_from_entry(device, surface_format, "vs_main", "fs_outline", "Model Outline")
+    create_model_pipeline_from_entry(
+        device,
+        surface_format,
+        "vs_main",
+        "fs_outline",
+        "Model Outline",
+    )
 }
 
 pub fn create_model_pipeline_from_entry(
@@ -210,6 +216,39 @@ pub fn create_model_pipeline_from_entry(
             targets: &[Some(surface_format.into())],
         }),
         primitive: wgpu::PrimitiveState::default(),
+        depth_stencil: Some(wgpu::DepthStencilState {
+            format: crate::renderer::DEPTH_FORMAT,
+            depth_write_enabled: true,
+            depth_compare: wgpu::CompareFunction::LessEqual,
+            stencil: wgpu::StencilState::default(),
+            bias: wgpu::DepthBiasState::default(),
+        }),
+        multisample: wgpu::MultisampleState::default(),
+        multiview: None,
+    })
+}
+
+pub fn create_uv_pipeline(
+    device: &wgpu::Device,
+    surface_format: wgpu::TextureFormat,
+) -> wgpu::RenderPipeline {
+    let shader = crate::shader::model::create_shader_module(device);
+    let render_pipeline_layout = crate::shader::model::create_pipeline_layout(device);
+
+    device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+        label: Some("Model UV"),
+        layout: Some(&render_pipeline_layout),
+        vertex: vertex_state(&shader, "vs_uv"),
+        fragment: Some(wgpu::FragmentState {
+            module: &shader,
+            entry_point: "fs_uv",
+            targets: &[Some(surface_format.into())],
+        }),
+        primitive: wgpu::PrimitiveState {
+            // Use wireframe rendering to show UV edges.
+            polygon_mode: wgpu::PolygonMode::Line,
+            ..Default::default()
+        },
         depth_stencil: Some(wgpu::DepthStencilState {
             format: crate::renderer::DEPTH_FORMAT,
             depth_write_enabled: true,
