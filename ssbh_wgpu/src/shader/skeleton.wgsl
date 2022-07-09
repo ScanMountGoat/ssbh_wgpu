@@ -51,15 +51,15 @@ fn vs_bone(
     let bone_index = per_bone.indices.x;
     var out: VertexOutput;
     if (bone_index >= 0 && bone_index < 512) {
-        let bone_pos = world_transforms.transforms[per_bone.indices.x] * vec4<f32>(0.0, 0.0, 0.0, 1.0);
+        let bone_pos = world_transforms.transforms[per_bone.indices.x] * vec4(0.0, 0.0, 0.0, 1.0);
 
         // Keep a constant size in pixels on screen.
         let scale_factor = distance(bone_pos.xyz, camera.camera_pos.xyz) * 0.0025;
-        let position = vec4<f32>(in.position.xyz * scale_factor, 1.0);
+        let position = vec4(in.position.xyz * scale_factor, 1.0);
 
         out.clip_position = camera.mvp_matrix * world_transforms.transforms[per_bone.indices.x] * position;
         out.position = in.position;
-        out.normal = (world_transforms.transforms[per_bone.indices.x] * vec4<f32>(in.normal, 0.0)).xyz;
+        out.normal = (world_transforms.transforms[per_bone.indices.x] * vec4(in.normal, 0.0)).xyz;
     }
     return out;
 }
@@ -71,16 +71,16 @@ fn vs_joint(
     let bone_index = per_bone.indices.x;
     var out: VertexOutput;
     if (bone_index >= 0 && bone_index < 512) {
-        let bone_pos = world_transforms.transforms[bone_index] * vec4<f32>(0.0, 0.0, 0.0, 1.0);
+        let bone_pos = world_transforms.transforms[bone_index] * vec4(0.0, 0.0, 0.0, 1.0);
 
         // Keep a constant size in pixels on screen.
         // Only scale the ends of the joint without affecting the height.
         let scale_factor = distance(bone_pos.xyz, camera.camera_pos.xyz) * 0.005;
-        let position = vec4<f32>(in.position.xyz * vec3<f32>(scale_factor, 1.0, scale_factor), 1.0);
+        let position = vec4(in.position.xyz * vec3(scale_factor, 1.0, scale_factor), 1.0);
 
         out.clip_position = camera.mvp_matrix * world_transforms.transforms[bone_index] * position;
         out.position = in.position;
-        out.normal = (world_transforms.transforms[bone_index] * vec4<f32>(in.normal, 0.0)).xyz;
+        out.normal = (world_transforms.transforms[bone_index] * vec4(in.normal, 0.0)).xyz;
     }
     return out;
 }
@@ -89,10 +89,10 @@ fn vs_joint(
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let viewVector = normalize(camera.camera_pos.xyz - in.position.xyz);
     let shading = mix(0.5, 1.0, dot(viewVector, normalize(in.normal)));
-    var color = vec3<f32>(0.0);
+    var color = vec3(0.0);
     let bone_index = per_bone.indices.x;
     if (bone_index >= 0 && bone_index < 512) {
         color = bone_colors.colors[bone_index].xyz * shading;
     }
-    return vec4<f32>(pow(color, vec3<f32>(2.2)), 1.0);
+    return vec4(pow(color, vec3(2.2)), 1.0);
 }

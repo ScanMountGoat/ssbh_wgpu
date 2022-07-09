@@ -36,7 +36,7 @@ fn main(@builtin(global_invocation_id) global_invocation_id: vec3<u32>) {
 
     // Average normals over adjacent faces to calculate smooth normals.
     // This reduces shading artifacts in animations with heavy deformations.
-    var renormal = vec3<f32>(0.0);
+    var renormal = vec3(0.0);
     let start = i32(index) * 18;
 
     // Loop over up to 9 adjacent faces.
@@ -55,7 +55,7 @@ fn main(@builtin(global_invocation_id) global_invocation_id: vec3<u32>) {
 
     var out: VertexInput0;
     out.position0 = in.position0;
-    out.normal0 = vec4<f32>(normalize(renormal), 0.0);
+    out.normal0 = vec4(normalize(renormal), 0.0);
     // TODO: Do we need to recompute tangents?
     out.tangent0 = in.tangent0;
     vertices.vertices[index] = out;

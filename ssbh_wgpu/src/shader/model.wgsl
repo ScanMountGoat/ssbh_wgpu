@@ -226,7 +226,7 @@ fn Blend(a: vec3<f32>, b: vec4<f32>) -> vec3<f32> {
 
 fn TransformUv(uv: vec2<f32>, transform: vec4<f32>) -> vec2<f32>
 {
-    let translate = vec2<f32>(-1.0 * transform.z, transform.w);
+    let translate = vec2(-1.0 * transform.z, transform.w);
 
     // TODO: Does this affect all layers?
     // if (CustomBoolean5 == 1 || CustomBoolean6 == 1)
@@ -250,7 +250,7 @@ fn TransformUv(uv: vec2<f32>, transform: vec4<f32>) -> vec2<f32>
 // TODO: Ignore textures not used by the shader?
 // This could probably be loaded from Rust as has_attribute & requires_attribute.
 fn GetEmissionColor(uv1: vec2<f32>, uv2: vec2<f32>) -> vec4<f32> {
-    var emissionColor = vec4<f32>(0.0, 0.0, 0.0, 1.0);
+    var emissionColor = vec4(0.0, 0.0, 0.0, 1.0);
     
     if (uniforms.has_texture[5].x == 1u) {
         emissionColor = textureSample(texture5, sampler5, uv1);
@@ -258,7 +258,7 @@ fn GetEmissionColor(uv1: vec2<f32>, uv2: vec2<f32>) -> vec4<f32> {
 
     if (uniforms.has_texture[14].x == 1u) {
         let emission2Color = textureSample(texture14, sampler14, uv2);
-        return vec4<f32>(Blend(emissionColor.rgb, emission2Color), emissionColor.a);
+        return vec4(Blend(emissionColor.rgb, emission2Color), emissionColor.a);
     }
 
     return emissionColor;
@@ -270,7 +270,7 @@ fn GetAlbedoColor(uv1: vec2<f32>, uv2: vec2<f32>, uv3: vec2<f32>, R: vec3<f32>, 
     let uvLayer2 = uv2;
     let uvLayer3 = uv3;
 
-    var outRgb = vec3<f32>(0.0);
+    var outRgb = vec3(0.0);
     var outAlpha = 1.0;
 
     // TODO: Do additional layers affect alpha?
@@ -285,7 +285,7 @@ fn GetAlbedoColor(uv1: vec2<f32>, uv2: vec2<f32>, uv3: vec2<f32>, R: vec3<f32>, 
         let albedoColor2 = textureSample(texture1, sampler1, uvLayer2);
         if (uniforms.has_color_set567.x == 1u && render_settings.render_vertex_color.x == 1u) {
             // colorSet5.w is used to blend between the two col map layers.
-            outRgb = Blend(outRgb, albedoColor2 * vec4<f32>(1.0, 1.0, 1.0, colorSet5.w));
+            outRgb = Blend(outRgb, albedoColor2 * vec4(1.0, 1.0, 1.0, colorSet5.w));
         } else {
             outRgb = Blend(outRgb, albedoColor2);
         }
@@ -307,7 +307,7 @@ fn GetAlbedoColor(uv1: vec2<f32>, uv2: vec2<f32>, uv3: vec2<f32>, R: vec3<f32>, 
         outRgb = outRgb + textureSample(texture12, sampler12, uvLayer3).rgb;
     }
 
-    return vec4<f32>(outRgb, outAlpha);
+    return vec4(outRgb, outAlpha);
 }
 
 fn GetAlbedoColorFinal(albedoColor: vec4<f32>) -> vec3<f32>
@@ -350,7 +350,7 @@ fn GetBumpMapNormal(normal: vec3<f32>, tangent: vec3<f32>, bitangent: vec3<f32>,
     // Clamp to prevent z being 0.0.
     let z = sqrt(max(1.0 - (x * x) + (y * y), 0.001));
     
-    let normalMapNormal = vec3<f32>(x, y, z);
+    let normalMapNormal = vec3(x, y, z);
     
     let tbnMatrix = mat3x3<f32>(tangent, bitangent, normal);
     
@@ -501,15 +501,15 @@ fn SpecularTerm(tangent: vec4<f32>, nDotH: f32, nDotL: f32, nDotV: f32, halfAngl
     specularIbl: vec3<f32>, metalness: f32, anisotropicRotation: f32,
     shadow: f32) -> vec3<f32>
 {
-    var directSpecular = vec3<f32>(4.0);
+    var directSpecular = vec3(4.0);
     directSpecular = directSpecular * SpecularBrdf(tangent, nDotH, nDotL, nDotV, halfAngle, normal, roughness, anisotropicRotation);
     if (uniforms.has_boolean[3].x == 1u && uniforms.custom_boolean[3].x == 0u) {
-        directSpecular = vec3<f32>(0.0);
+        directSpecular = vec3(0.0);
     }
 
     var indirectSpecular = specularIbl;
     if (uniforms.has_boolean[4].x == 1u && uniforms.custom_boolean[4].x == 0u) {
-        directSpecular = vec3<f32>(0.0);
+        directSpecular = vec3(0.0);
     }
 
     // TODO: Why is the indirect specular off by a factor of 0.5?
@@ -535,14 +535,14 @@ fn GetF0FromIor(ior: f32) -> f32
 
 fn Luminance(rgb: vec3<f32>) -> f32
 {
-    let W = vec3<f32>(0.2125, 0.7154, 0.0721);
+    let W = vec3(0.2125, 0.7154, 0.0721);
     return dot(rgb, W);
 }
 
 fn GetSpecularWeight(f0: f32, diffusePass: vec3<f32>, metalness: f32, nDotV: f32, roughness: f32) -> vec3<f32>
 {
     // Metals use albedo instead of the specular color/tint.
-    let specularReflectionF0 = vec3<f32>(f0);
+    let specularReflectionF0 = vec3(f0);
     let f0Final = mix(specularReflectionF0, diffusePass, metalness);
     return FresnelSchlick(nDotV, f0Final);
 }
@@ -564,7 +564,7 @@ fn GetRimBlend(baseColor: vec3<f32>, diffusePass: vec3<f32>, nDotV: f32, nDotL: 
 
     // TODO: Black edges for large blend values?
     // Edge tint.
-    rimColor = rimColor * clamp(mix(vec3<f32>(1.0), diffusePass, uniforms.custom_float[8].x), vec3<f32>(0.0), vec3<f32>(1.0));
+    rimColor = rimColor * clamp(mix(vec3(1.0), diffusePass, uniforms.custom_float[8].x), vec3(0.0), vec3(1.0));
 
     let fresnel = pow(1.0 - nDotV, 5.0);
     var rimBlend = fresnel * stage_uniforms.scene_attributes.custom_vector[8].w * uniforms.custom_vector[14].w * 0.6;
@@ -593,7 +593,7 @@ fn GetAngleFade(nDotV: f32, ior: f32, specularf0: f32) -> f32
     // CustomFloat19 defines the IOR for a separate fresnel based fade.
     // The specular f0 value is used to set the minimum opacity.
     let f0AngleFade = GetF0FromIor(ior + 1.0);
-    let facingRatio = FresnelSchlick(nDotV, vec3<f32>(f0AngleFade)).x;
+    let facingRatio = FresnelSchlick(nDotV, vec3(f0AngleFade)).x;
     return max(facingRatio, specularf0);
 }
 
@@ -612,10 +612,10 @@ fn GetF0FromSpecular(specular: f32) -> f32
 fn GetShadow(light_position: vec4<f32>) -> f32
 {
     // compensate for the Y-flip difference between the NDC and texture coordinates
-    let flipCorrection = vec2<f32>(0.5, -0.5);
+    let flipCorrection = vec2(0.5, -0.5);
     // compute texture coordinates for shadow lookup
     let projCorrection = 1.0 / light_position.w;
-    let light_local = light_position.xy * flipCorrection * projCorrection + vec2<f32>(0.5, 0.5);
+    let light_local = light_position.xy * flipCorrection * projCorrection + vec2(0.5, 0.5);
 
     // TODO: This assumes depth is in the range 0.0 to 1.0 in the texture.
     let currentDepth = light_position.z * projCorrection;
@@ -639,7 +639,7 @@ fn vs_main(
 ) -> VertexOutput {
     var out: VertexOutput;
     out.position = buffer0.position0.xyz;
-    out.clip_position = camera.mvp_matrix * vec4<f32>(buffer0.position0.xyz, 1.0);
+    out.clip_position = camera.mvp_matrix * vec4(buffer0.position0.xyz, 1.0);
     out.normal = buffer0.normal0.xyz;
     out.tangent = buffer0.tangent0;
     
@@ -654,17 +654,17 @@ fn vs_main(
     let colorSet7 = buffer1.color_set7;
 
     // TODO: Also apply transforms to the debug shader?
-    var uvTransform1 = vec4<f32>(1.0, 1.0, 0.0, 0.0);
+    var uvTransform1 = vec4(1.0, 1.0, 0.0, 0.0);
     if (uniforms.has_vector[6].x == 1u) {
         uvTransform1 = uniforms.custom_vector[6];
     }
 
-    var uvTransform2 = vec4<f32>(1.0, 1.0, 0.0, 0.0);
+    var uvTransform2 = vec4(1.0, 1.0, 0.0, 0.0);
     if (uniforms.has_vector[31].x == 1u) {
         uvTransform2 = uniforms.custom_vector[31];
     }
 
-    var uvTransform3 = vec4<f32>(1.0, 1.0, 0.0, 0.0);
+    var uvTransform3 = vec4(1.0, 1.0, 0.0, 0.0);
     if (uniforms.has_vector[32].x == 1u) {
         uvTransform3 = uniforms.custom_vector[32];
     }
@@ -681,8 +681,8 @@ fn vs_main(
     // TODO: Transform for uvSet2?
     let uvSet2 = TransformUv(buffer1.uv_set1_uv_set2.xy, uvTransform3);
 
-    out.map1_uvset = vec4<f32>(map1, uvSet);
-    out.uv_set1_uv_set2 = vec4<f32>(uvSet1, uvSet2);
+    out.map1_uvset = vec4(map1, uvSet);
+    out.uv_set1_uv_set2 = vec4(uvSet1, uvSet2);
     out.bake1 = buffer1.bake1.xy;
     out.color_set1 = colorSet1;
     out.color_set2_combined = colorSet2; // TODO: colorSet2 is added together?
@@ -692,7 +692,7 @@ fn vs_main(
     out.color_set6 = colorSet6;
     out.color_set7 = colorSet7;
 
-    out.light_position = light.light_transform * vec4<f32>(buffer0.position0.xyz, 1.0);
+    out.light_position = light.light_transform * vec4(buffer0.position0.xyz, 1.0);
     return out;
 }
 
@@ -701,7 +701,7 @@ fn vs_depth(
     buffer0: VertexInput0,
     buffer1: VertexInput1
 ) -> @builtin(position) vec4<f32> {
-    return light.light_transform * vec4<f32>(buffer0.position0.xyz, 1.0);
+    return light.light_transform * vec4(buffer0.position0.xyz, 1.0);
 }
 
 @vertex
@@ -710,9 +710,8 @@ fn vs_uv(
     buffer1: VertexInput1
 ) -> @builtin(position) vec4<f32> {
     // TODO: Add an option to select the UV map.
-    // TODO: Simplify the vec() calls.
-    let uv = vec2<f32>(buffer1.map1_uvset.x, 1.0 - buffer1.map1_uvset.y);
-    return vec4<f32>(uv, 0.0, 1.0);
+    let uv = vec2(buffer1.map1_uvset.x, 1.0 - buffer1.map1_uvset.y);
+    return vec4(uv, 0.0, 1.0);
 }
 
 fn ScreenCheckerBoard(screenPosition: vec2<f32>) -> f32
@@ -734,7 +733,7 @@ fn vs_main_invalid(
     buffer1: VertexInput1
 ) -> VertexOutputInvalid {
     var out: VertexOutputInvalid;
-    out.clip_position = camera.mvp_matrix * vec4<f32>(buffer0.position0.xyz, 1.0);
+    out.clip_position = camera.mvp_matrix * vec4(buffer0.position0.xyz, 1.0);
     out.position = out.clip_position;
 
     return out;
@@ -745,7 +744,7 @@ fn fs_invalid_shader(in: VertexOutputInvalid) -> @location(0) vec4<f32> {
     let position_clip = (in.position.xy / in.position.w) * 0.5 + 0.5;
     // Account for screen dimensions and scale.
     let checker = ScreenCheckerBoard(position_clip * camera.screen_dimensions.xy * camera.screen_dimensions.z);
-    return vec4<f32>(checker, 0.0, 0.0, 1.0);
+    return vec4(checker, 0.0, 0.0, 1.0);
 }
 
 @fragment
@@ -753,19 +752,19 @@ fn fs_invalid_attributes(in: VertexOutputInvalid) -> @location(0) vec4<f32> {
     let position_clip = (in.position.xy / in.position.w) * 0.5 + 0.5;
     // Account for screen dimensions and scale.
     let checker = ScreenCheckerBoard(position_clip * camera.screen_dimensions.xy * camera.screen_dimensions.z);
-    return vec4<f32>(checker, checker, 0.0, 1.0);
+    return vec4(checker, checker, 0.0, 1.0);
 }
 
 @fragment
 fn fs_outline(in: VertexOutput) -> @location(0) vec4<f32> {
     // TODO: Customize this color?
-    return vec4<f32>(1.0);
+    return vec4(1.0);
 }
 
 @fragment
 fn fs_uv() -> @location(0) vec4<f32> {
     // TODO: Customize this color?
-    return vec4<f32>(1.0);
+    return vec4(1.0);
 }
 
 @fragment
@@ -800,7 +799,7 @@ fn fs_debug(in: VertexOutput) -> @location(0) vec4<f32> {
         fragmentNormal = GetBumpMapNormal(normal, tangent, bitangent, nor);
     }
 
-    var prm = vec4<f32>(0.0, 0.0, 1.0, 0.0);
+    var prm = vec4(0.0, 0.0, 1.0, 0.0);
     if (uniforms.has_texture[6].x == 1u) {
         prm = textureSample(texture6, sampler6, map1);
     }
@@ -813,19 +812,19 @@ fn fs_debug(in: VertexOutput) -> @location(0) vec4<f32> {
 
     // TODO: Some of these render modes should be gamma corrected.
     // TODO: Use more accurate gamma correction.
-    var outColor = vec4<f32>(1.0);
+    var outColor = vec4(1.0);
     switch (render_settings.debug_mode.x) {
         case 1u: {
             let color = normalize(in.position.xyz) * 0.5 + 0.5;
-            outColor = vec4<f32>(pow(color, vec3<f32>(2.2)), 1.0);
+            outColor = vec4(pow(color, vec3(2.2)), 1.0);
         }
         case 2u: {
             let color = normalize(in.normal.xyz) * 0.5 + 0.5;
-            outColor = vec4<f32>(pow(color, vec3<f32>(2.2)), 1.0);
+            outColor = vec4(pow(color, vec3(2.2)), 1.0);
         }
         case 3u: {
             let color = normalize(in.tangent.xyz) * 0.5 + 0.5;
-            outColor = vec4<f32>(pow(color, vec3<f32>(2.2)), 1.0);
+            outColor = vec4(pow(color, vec3(2.2)), 1.0);
         }
         case 4u: {
             outColor = colorSet1;
@@ -897,61 +896,61 @@ fn fs_debug(in: VertexOutput) -> @location(0) vec4<f32> {
         //     outColor = textureSample(texture16, sampler16, map1);
         // }
         case 27u: {
-            outColor = vec4<f32>(pow(map1, vec2<f32>(2.2)), 1.0, 1.0);
+            outColor = vec4(pow(map1, vec2(2.2)), 1.0, 1.0);
         }
         case 28u: {
-            outColor = vec4<f32>(pow(bake1, vec2<f32>(2.2)), 1.0, 1.0);
+            outColor = vec4(pow(bake1, vec2(2.2)), 1.0, 1.0);
         }
         case 29u: {
-            outColor = vec4<f32>(pow(uvSet, vec2<f32>(2.2)), 1.0, 1.0);
+            outColor = vec4(pow(uvSet, vec2(2.2)), 1.0, 1.0);
         }
         case 30u: {
-            outColor = vec4<f32>(pow(uvSet1, vec2<f32>(2.2)), 1.0, 1.0);
+            outColor = vec4(pow(uvSet1, vec2(2.2)), 1.0, 1.0);
         }
         case 31u: {
-            outColor = vec4<f32>(pow(uvSet2, vec2<f32>(2.2)), 1.0, 1.0);
+            outColor = vec4(pow(uvSet2, vec2(2.2)), 1.0, 1.0);
         }
         case 32u: {
             // Basic Shading.
             let basic = 0.218 * max(dot(fragmentNormal, viewVector), 0.0);
-            outColor = vec4<f32>(vec3<f32>(basic), 1.0);
+            outColor = vec4(vec3(basic), 1.0);
         }
         case 33u: {
             // Normals
-            outColor = vec4<f32>(pow(fragmentNormal.xyz * 0.5 + 0.5, vec3<f32>(2.2)), 1.0);
+            outColor = vec4(pow(fragmentNormal.xyz * 0.5 + 0.5, vec3(2.2)), 1.0);
         }
         case 34u: {
             // Bitangents
-            outColor = vec4<f32>(pow(bitangent.xyz * 0.5 + 0.5, vec3<f32>(2.2)), 1.0);
+            outColor = vec4(pow(bitangent.xyz * 0.5 + 0.5, vec3(2.2)), 1.0);
         }
         case 35u: {
             // Albedo
-            outColor = vec4<f32>(albedoColorFinal.rgb, 1.0);
+            outColor = vec4(albedoColorFinal.rgb, 1.0);
         }
         default: { 
-            outColor = vec4<f32>(1.0);
+            outColor = vec4(1.0);
         }
     }
 
     // Use grayscale for single channels.
     let rgba = render_settings.render_rgba;
     if (rgba.r == 1.0 && rgba.g == 0.0 && rgba.b == 0.0) {
-        return vec4<f32>(outColor.rrr, 1.0);
+        return vec4(outColor.rrr, 1.0);
     }
 
     if (rgba.r == 0.0 && rgba.g == 1.0 && rgba.b == 0.0) {
-        return vec4<f32>(outColor.ggg, 1.0);
+        return vec4(outColor.ggg, 1.0);
     }
 
     if (rgba.r == 0.0 && rgba.g == 0.0 && rgba.b == 1.0) {
-        return vec4<f32>(outColor.bbb, 1.0);
+        return vec4(outColor.bbb, 1.0);
     }
 
     if (rgba.a == 1.0 && rgba.r == 0.0 && rgba.g == 0.0 && rgba.b == 0.0) {
-        return vec4<f32>(outColor.aaa, 1.0);
+        return vec4(outColor.aaa, 1.0);
     }
 
-    return vec4<f32>(outColor.rgb * rgba.rgb, 1.0);
+    return vec4(outColor.rgb * rgba.rgb, 1.0);
 }
 
 @fragment
@@ -971,7 +970,7 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) is_front: bool) -> @location
     let colorSet7 = in.color_set7;
 
     // TODO: Mario's eyes don't render properly for the metal/gold materials.
-    var nor = vec4<f32>(0.5, 0.5, 1.0, 1.0);
+    var nor = vec4(0.5, 0.5, 1.0, 1.0);
     if (uniforms.has_texture[4].x == 1u) {
         nor = textureSample(texture4, sampler4, map1);
         // TODO: Simpler way to toggle channels?
@@ -997,42 +996,42 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) is_front: bool) -> @location
 
     // TODO: Finish researching these values from in game.
     // TODO: Apply the metal/metamon materials.
-    var transitionAlbedo = vec3<f32>(0.0);
-    var transitionPrm = vec4<f32>(0.0);
-    var transitionCustomVector11 = vec4<f32>(0.0);
-    var transitionCustomVector30 = vec4<f32>(0.0);
+    var transitionAlbedo = vec3(0.0);
+    var transitionPrm = vec4(0.0);
+    var transitionCustomVector11 = vec4(0.0);
+    var transitionCustomVector30 = vec4(0.0);
 
     switch (render_settings.transition_material.x) {
         case 0u: {      
             // Inkling's Ink.
             // TODO: Include other colors from /fighter/common/param/effect.prc?
-            transitionAlbedo = vec3<f32>(0.758027, 0.115859, 0.04);
+            transitionAlbedo = vec3(0.758027, 0.115859, 0.04);
             // TODO: Ink PRM?
-            transitionPrm = vec4<f32>(0.0, 0.2, 1.0, 0.16);
-            transitionCustomVector11 = vec4<f32>(0.0);
-            transitionCustomVector30 = vec4<f32>(0.0);
+            transitionPrm = vec4(0.0, 0.2, 1.0, 0.16);
+            transitionCustomVector11 = vec4(0.0);
+            transitionCustomVector30 = vec4(0.0);
         }
         case 1u: {      
             // Metal Box.
-            transitionAlbedo = vec3<f32>(0.257, 0.257, 0.257);
-            transitionPrm = vec4<f32>(1.0, 0.3, 1.0, 0.0);
-            transitionCustomVector11 = vec4<f32>(0.0);
-            transitionCustomVector30 = vec4<f32>(0.0);
+            transitionAlbedo = vec3(0.257, 0.257, 0.257);
+            transitionPrm = vec4(1.0, 0.3, 1.0, 0.0);
+            transitionCustomVector11 = vec4(0.0);
+            transitionCustomVector30 = vec4(0.0);
         }
         case 2u: {      
             // Gold (Xerneas Pokemon).
             // (0.257, 0.257, 0.257) + (0.125, 0.047, -0.234) in the shader.
-            transitionAlbedo = vec3<f32>(0.382, 0.304, 0.023);
-            transitionPrm = vec4<f32>(1.0, 0.3, 1.0, 0.0);
-            transitionCustomVector11 = vec4<f32>(0.0);
-            transitionCustomVector30 = vec4<f32>(0.0);
+            transitionAlbedo = vec3(0.382, 0.304, 0.023);
+            transitionPrm = vec4(1.0, 0.3, 1.0, 0.0);
+            transitionCustomVector11 = vec4(0.0);
+            transitionCustomVector30 = vec4(0.0);
         }
         case 3u: {      
             // Ditto Pokemon.
-            transitionAlbedo = vec3<f32>(0.1694, 0.0924, 0.2002);
-            transitionPrm = vec4<f32>(1.0, 0.75, 1.0, 0.032); // TODO: Roughness?
-            transitionCustomVector11 = vec4<f32>(0.0); // TODO: What is this?
-            transitionCustomVector30 = vec4<f32>(0.5, 4.0, 0.0, 0.0);
+            transitionAlbedo = vec3(0.1694, 0.0924, 0.2002);
+            transitionPrm = vec4(1.0, 0.75, 1.0, 0.032); // TODO: Roughness?
+            transitionCustomVector11 = vec4(0.0); // TODO: What is this?
+            transitionCustomVector30 = vec4(0.5, 4.0, 0.0, 0.0);
         }
         default: { 
             
@@ -1044,7 +1043,7 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) is_front: bool) -> @location
 
     // TODO: Some materials disable specular entirely?
     // Is there a reliably way to check for this?
-    var prm = vec4<f32>(0.0, 0.0, 1.0, 0.0);
+    var prm = vec4(0.0, 0.0, 1.0, 0.0);
     if (uniforms.has_texture[6].x == 1u) {
         prm = textureSample(texture6, sampler6, map1);
         // TODO: Simpler way to toggle channels?
@@ -1125,21 +1124,21 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) is_front: bool) -> @location
     let specularIbl = textureSampleLevel(texture7, sampler7, reflectionVector, specularLod).rgb;
 
     // TODO: Vertex shader
-    let shAmbientR = dot(vec4<f32>(normalize(normal), 1.0), vec4<f32>(0.14186, 0.04903, -0.082, 1.11054));
-    let shAmbientG = dot(vec4<f32>(normalize(normal), 1.0), vec4<f32>(0.14717, 0.03699, -0.08283, 1.11036));
-    let shAmbientB = dot(vec4<f32>(normalize(normal), 1.0), vec4<f32>(0.1419, 0.04334, -0.08283, 1.11018));
-    let shColor = vec3<f32>(shAmbientR, shAmbientG, shAmbientB);
+    let shAmbientR = dot(vec4(normalize(normal), 1.0), vec4(0.14186, 0.04903, -0.082, 1.11054));
+    let shAmbientG = dot(vec4(normalize(normal), 1.0), vec4(0.14717, 0.03699, -0.08283, 1.11036));
+    let shAmbientB = dot(vec4(normalize(normal), 1.0), vec4(0.1419, 0.04334, -0.08283, 1.11018));
+    let shColor = vec3(shAmbientR, shAmbientG, shAmbientB);
 
-    let diffusePass = DiffuseTerm(bake1, albedoColorFinal.rgb, nDotL, shColor, vec3<f32>(ao), sssBlend, shadow, customVector11Final, customVector30Final, colorSet2);
+    let diffusePass = DiffuseTerm(bake1, albedoColorFinal.rgb, nDotL, shColor, vec3(ao), sssBlend, shadow, customVector11Final, customVector30Final, colorSet2);
 
     let specularPass = SpecularTerm(in.tangent, nDotH, max(nDotL, 0.0), nDotV, halfAngle, fragmentNormal, roughness, specularIbl, metalness, prm.a, shadow);
 
     let kSpecular = GetSpecularWeight(specularF0, albedoColorFinal.rgb, metalness, nDotV, roughness);
 
-    var kDiffuse = max((vec3<f32>(1.0) - kSpecular) * (1.0 - metalness), vec3<f32>(0.0));
-    kDiffuse = max(vec3<f32>(1.0 - metalness), vec3<f32>(0.0));
+    var kDiffuse = max((vec3(1.0) - kSpecular) * (1.0 - metalness), vec3(0.0));
+    kDiffuse = max(vec3(1.0 - metalness), vec3(0.0));
 
-    var outColor = vec3<f32>(0.0, 0.0, 0.0);
+    var outColor = vec3(0.0, 0.0, 0.0);
     if (render_settings.render_diffuse.x == 1u) {
         outColor = outColor + (diffusePass * kDiffuse) / 3.14159;
     }
@@ -1187,5 +1186,5 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) is_front: bool) -> @location
         outAlpha = 0.0;
     }
 
-    return vec4<f32>(outColor, outAlpha);
+    return vec4(outColor, outAlpha);
 }

@@ -9,8 +9,8 @@ fn vs_main(@builtin(vertex_index) in_vertex_index: u32) -> VertexOutput {
     var out: VertexOutput;
     let x = f32((i32(in_vertex_index) << 1u) & 2);
     let y = f32(i32(in_vertex_index & 2u));
-    out.position = vec4<f32>(x * 2.0 - 1.0, y * 2.0 - 1.0, 0.0, 1.0);
-    out.uvs = vec2<f32>(x, 1.0 - y);
+    out.position = vec4(x * 2.0 - 1.0, y * 2.0 - 1.0, 0.0, 1.0);
+    out.uvs = vec2(x, 1.0 - y);
     return out;
 }
 
@@ -31,7 +31,7 @@ var bloom_sampler: sampler;
 
 fn GetPostProcessingResult(colorLinear: vec3<f32>) -> vec3<f32>
 {
-    let srgb = pow(colorLinear, vec3<f32>(0.4545449912548065));
+    let srgb = pow(colorLinear, vec3(0.4545449912548065));
     var result = srgb * 0.9375 + 0.03125;
 
     // Color Grading.
@@ -40,7 +40,7 @@ fn GetPostProcessingResult(colorLinear: vec3<f32>) -> vec3<f32>
     // Post Processing.
     result = (result - srgb) * 0.99961 + srgb;
     result = result * 1.3703;
-    result = pow(result, vec3<f32>(2.2));
+    result = pow(result, vec3(2.2));
     return result;
 }
 
@@ -55,7 +55,7 @@ fn GetSrgb(colorLinear: f32) -> f32
 }
 
 fn GetSrgbVec3(colorLinear: vec3<f32>) -> vec3<f32> {
-    return vec3<f32>(GetSrgb(colorLinear.x), GetSrgb(colorLinear.y), GetSrgb(colorLinear.z));
+    return vec3(GetSrgb(colorLinear.x), GetSrgb(colorLinear.y), GetSrgb(colorLinear.z));
 }
 
 @fragment
@@ -70,5 +70,5 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     output = mix(output, GetPostProcessingResult(output.rgb), color.a);
 
     // Assume an sRGB frame buffer and don't gamma correct here.
-    return vec4<f32>(output, 1.0);
+    return vec4(output, 1.0);
 }

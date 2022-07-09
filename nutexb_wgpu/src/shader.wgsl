@@ -13,8 +13,8 @@ fn vs_main(@builtin(vertex_index) in_vertex_index: u32) -> VertexOutput {
     var out: VertexOutput;
     let x = f32((i32(in_vertex_index) << 1u) & 2);
     let y = f32(i32(in_vertex_index & 2u));
-    out.clip_position = vec4<f32>(x * 2.0 - 1.0, y * 2.0 - 1.0, 0.0, 1.0);
-    out.tex_coords = vec2<f32>(x, 1.0 - y);
+    out.clip_position = vec4(x * 2.0 - 1.0, y * 2.0 - 1.0, 0.0, 1.0);
+    out.tex_coords = vec2(x, 1.0 - y);
     return out;
 }
 
@@ -40,7 +40,7 @@ var<uniform> render_settings: RenderSettings;
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
-    var outColor = vec4<f32>(0.0);
+    var outColor = vec4(0.0);
     switch (render_settings.texture_slot.x) {
         case 0u: {
             // 2D
@@ -50,35 +50,35 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             // Cube
             // Match the orientation of an array of 2D textures when selecting faces.
             // This matches the behavior of many texture viewers.
-            var coords = vec3<f32>(0.0);
+            var coords = vec3(0.0);
             switch (render_settings.layer.x) {
                 case 0u: {
                     // X+
-                    coords = normalize(vec3<f32>(1.0, (1.0 - in.tex_coords.yx) * 2.0 - 1.0));
+                    coords = normalize(vec3(1.0, (1.0 - in.tex_coords.yx) * 2.0 - 1.0));
                 }
                 case 1u: {
                     // X-
-                    coords = normalize(vec3<f32>(-1.0, (1.0 - in.tex_coords.y) * 2.0 - 1.0, in.tex_coords.x * 2.0 - 1.0));
+                    coords = normalize(vec3(-1.0, (1.0 - in.tex_coords.y) * 2.0 - 1.0, in.tex_coords.x * 2.0 - 1.0));
                 }
                 case 2u: {
                     // Y+
-                    coords = normalize(vec3<f32>(in.tex_coords.x * 2.0 - 1.0, 1.0, in.tex_coords.y * 2.0 - 1.0));
+                    coords = normalize(vec3(in.tex_coords.x * 2.0 - 1.0, 1.0, in.tex_coords.y * 2.0 - 1.0));
                 }
                 case 3u: {
                     // Y-
-                    coords = normalize(vec3<f32>(in.tex_coords.x * 2.0 - 1.0, -1.0, (1.0 - in.tex_coords.y) * 2.0 - 1.0));
+                    coords = normalize(vec3(in.tex_coords.x * 2.0 - 1.0, -1.0, (1.0 - in.tex_coords.y) * 2.0 - 1.0));
                 }
                 case 4u: {
                     // Z+
-                    coords = normalize(vec3<f32>(in.tex_coords.x * 2.0 - 1.0, (1.0 - in.tex_coords.y) * 2.0 - 1.0, 1.0));
+                    coords = normalize(vec3(in.tex_coords.x * 2.0 - 1.0, (1.0 - in.tex_coords.y) * 2.0 - 1.0, 1.0));
                 }
                 case 5u: {
                     // Z-
-                    coords = normalize(vec3<f32>((1.0 - in.tex_coords.x) * 2.0 - 1.0, (1.0 - in.tex_coords.y) * 2.0 - 1.0, -1.0));
+                    coords = normalize(vec3((1.0 - in.tex_coords.x) * 2.0 - 1.0, (1.0 - in.tex_coords.y) * 2.0 - 1.0, -1.0));
                 }
                 default: {
                     // Use X+ by default.
-                    coords = normalize(vec3<f32>(1.0, (1.0 - in.tex_coords.yx) * 2.0 - 1.0));
+                    coords = normalize(vec3(1.0, (1.0 - in.tex_coords.yx) * 2.0 - 1.0));
                 }
             }
              
@@ -86,31 +86,31 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         }
         case 2u: {
             // 3D
-            let coords = vec3<f32>(in.tex_coords, f32(render_settings.layer.x) / render_settings.texture_size.z);
+            let coords = vec3(in.tex_coords, f32(render_settings.layer.x) / render_settings.texture_size.z);
             outColor = textureSampleLevel(t_color_3d, s_color, coords, render_settings.mipmap.x);
         }
         default: {
-            outColor = vec4<f32>(0.0);
+            outColor = vec4(0.0);
         }
     }
     
     // Use grayscale for single channels.
     let rgba = render_settings.render_rgba;
     if (rgba.r == 1.0 && rgba.g == 0.0 && rgba.b == 0.0) {
-        return vec4<f32>(outColor.rrr, 1.0);
+        return vec4(outColor.rrr, 1.0);
     }
 
     if (rgba.r == 0.0 && rgba.g == 1.0 && rgba.b == 0.0) {
-        return vec4<f32>(outColor.ggg, 1.0);
+        return vec4(outColor.ggg, 1.0);
     }
 
     if (rgba.r == 0.0 && rgba.g == 0.0 && rgba.b == 1.0) {
-        return vec4<f32>(outColor.bbb, 1.0);
+        return vec4(outColor.bbb, 1.0);
     }
 
     if (rgba.a == 1.0 && rgba.r == 0.0 && rgba.g == 0.0 && rgba.b == 0.0) {
-        return vec4<f32>(outColor.aaa, 1.0);
+        return vec4(outColor.aaa, 1.0);
     }
 
-    return vec4<f32>(outColor.rgb * rgba.rgb, 1.0);
+    return vec4(outColor.rgb * rgba.rgb, 1.0);
 }

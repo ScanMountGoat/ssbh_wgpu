@@ -9,8 +9,8 @@ fn vs_main(@builtin(vertex_index) in_vertex_index: u32) -> VertexOutput {
     var out: VertexOutput;
     let x = f32((i32(in_vertex_index) << 1u) & 2);
     let y = f32(i32(in_vertex_index & 2u));
-    out.position = vec4<f32>(x * 2.0 - 1.0, y * 2.0 - 1.0, 0.0, 1.0);
-    out.uvs = vec2<f32>(x, 1.0 - y);
+    out.position = vec4(x * 2.0 - 1.0, y * 2.0 - 1.0, 0.0, 1.0);
+    out.uvs = vec2(x, 1.0 - y);
     return out;
 }
 
@@ -34,8 +34,8 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 
     let weights = array<f32, 4>(0.32, 0.10, 0.20, 0.25);
     let bloom_total = bloom0.rgb * weights[0] + bloom1.rgb * weights[1] + bloom2.rgb * weights[2] + bloom3.rgb * weights[3];
-    let clamped_bloom = clamp(bloom_total, vec3<f32>(0.0), vec3<f32>(1.0));
-    let bloom_contribution = pow(clamped_bloom, vec3<f32>(2.2));
+    let clamped_bloom = clamp(bloom_total, vec3(0.0), vec3(1.0));
+    let bloom_contribution = pow(clamped_bloom, vec3(2.2));
 
-    return vec4<f32>(bloom_contribution, 1.0);
+    return vec4(bloom_contribution, 1.0);
 }

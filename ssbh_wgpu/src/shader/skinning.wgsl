@@ -76,31 +76,31 @@ fn main(@builtin(global_invocation_id) global_invocation_id: vec3<u32>) {
     // The application of vertex weights "resets" the vectors.
     let parent_index = mesh_object_info.parent_index.x;
     if (parent_index >= 0 && parent_index < 512) {
-        position = (world_transforms.transforms[parent_index] * vec4<f32>(position, 1.0)).xyz;
-        normal = (world_transforms.transforms[parent_index] * vec4<f32>(normal, 0.0)).xyz;
-        tangent = (world_transforms.transforms[parent_index] * vec4<f32>(tangent, 0.0)).xyz;
+        position = (world_transforms.transforms[parent_index] * vec4(position, 1.0)).xyz;
+        normal = (world_transforms.transforms[parent_index] * vec4(normal, 0.0)).xyz;
+        tangent = (world_transforms.transforms[parent_index] * vec4(tangent, 0.0)).xyz;
     }
 
     // Disabling skinning if the first influence is unused.
     if (influence.bone_indices.x >= 0) {
-        position = vec3<f32>(0.0);
-        normal = vec3<f32>(0.0);
-        tangent = vec3<f32>(0.0);
+        position = vec3(0.0);
+        normal = vec3(0.0);
+        tangent = vec3(0.0);
 
         for (var i = 0; i < 4; i = i + 1) {
             // Only 511 influences are supported in game.
             let bone_index = influence.bone_indices[i];
             if (bone_index >= 0 && bone_index < 511) {
-                position = position + (transforms.transforms[bone_index] * vec4<f32>(vertex.position0.xyz, 1.0) * influence.weights[i]).xyz;
-                normal = normal + (transforms.transforms_inv_transpose[bone_index] * vec4<f32>(vertex.normal0.xyz, 0.0) * influence.weights[i]).xyz;
-                tangent = tangent + (transforms.transforms_inv_transpose[bone_index] * vec4<f32>(vertex.tangent0.xyz, 0.0) * influence.weights[i]).xyz;
+                position = position + (transforms.transforms[bone_index] * vec4(vertex.position0.xyz, 1.0) * influence.weights[i]).xyz;
+                normal = normal + (transforms.transforms_inv_transpose[bone_index] * vec4(vertex.normal0.xyz, 0.0) * influence.weights[i]).xyz;
+                tangent = tangent + (transforms.transforms_inv_transpose[bone_index] * vec4(vertex.tangent0.xyz, 0.0) * influence.weights[i]).xyz;
             }
         }
     }
 
     var out: VertexInput0;
-    out.position0 = vec4<f32>(position, 1.0);
-    out.normal0 = vec4<f32>(normalize(normal), 0.0);
-    out.tangent0 = vec4<f32>(normalize(tangent), vertex.tangent0.w);
+    out.position0 = vec4(position, 1.0);
+    out.normal0 = vec4(normalize(normal), 0.0);
+    out.tangent0 = vec4(normalize(tangent), vertex.tangent0.w);
     dst.vertices[index] = out;
 }
