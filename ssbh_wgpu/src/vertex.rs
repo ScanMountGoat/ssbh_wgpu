@@ -204,8 +204,8 @@ pub fn skin_weights(
                                 }
                             } else {
                                 warn!(
-                                    "Invalid vertex weight index {} for mesh {}.",
-                                    w.vertex_index, mesh.name
+                                    "Vertex weight assigns to vertex {}, which is out of range for mesh {} with {} vertices.",
+                                    w.vertex_index, mesh.name, vertex_count
                                 );
                             }
                         }
