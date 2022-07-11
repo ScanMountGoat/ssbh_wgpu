@@ -7,22 +7,6 @@ pub struct VertexInput0 {
     pub normal0: [f32; 4],
     pub tangent0: [f32; 4],
 }
-#[repr(C)]
-#[derive(Debug, Copy, Clone, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
-pub struct VertexWeight {
-    pub bone_indices: [i32; 4],
-    pub weights: [f32; 4],
-}
-#[repr(C)]
-#[derive(Debug, Copy, Clone, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
-pub struct Vertices {
-    pub vertices: [VertexInput0; 0],
-}
-#[repr(C)]
-#[derive(Debug, Copy, Clone, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
-pub struct AdjData {
-    pub adjacency: [i32; 0],
-}
 pub mod bind_groups {
     pub struct BindGroup0(wgpu::BindGroup);
     pub struct BindGroupLayout0<'a> {

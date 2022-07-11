@@ -10,14 +10,6 @@ struct VertexWeight {
     weights: vec4<f32>,
 };
 
-struct Vertices {
-    vertices: array<VertexInput0>
-};
-
-struct VertexWeights {
-    vertices: array<VertexWeight>
-};
-
 // The in game buffer is vec4[4096] with the first vec4 containing a u32 bone count.
 // This allows at most 511 bones with 2 matrices per bone.
 // TODO: What two matrices are stored per bone?
@@ -42,9 +34,9 @@ struct MeshObjectInfo {
     parent_index: vec4<i32>
 };
 
-@group(0) @binding(0) var<storage, read> src : Vertices;
-@group(0) @binding(1) var<storage, read> vertex_weights : VertexWeights;
-@group(0) @binding(2) var<storage, read_write> dst : Vertices;
+@group(0) @binding(0) var<storage, read> src : array<VertexInput0>;
+@group(0) @binding(1) var<storage, read> vertex_weights : array<VertexWeight>;
+@group(0) @binding(2) var<storage, read_write> dst : array<VertexInput0>;
 
 @group(1) @binding(0) var<uniform> transforms: AnimatedWorldTransforms;
 @group(1) @binding(1) var<uniform> world_transforms: WorldTransforms;
@@ -54,14 +46,14 @@ struct MeshObjectInfo {
 @compute
 @workgroup_size(256)
 fn main(@builtin(global_invocation_id) global_invocation_id: vec3<u32>) {
-    let total = arrayLength(&src.vertices);
+    let total = arrayLength(&src);
     let index = global_invocation_id.x;
     if (index >= total) {
         return;
     }
 
-    var vertex = src.vertices[index];
-    let influence = vertex_weights.vertices[index];
+    var vertex = src[index];
+    let influence = vertex_weights[index];
     
     // Some mesh objects are parented to a bone and don't use skinning.
     // This transform is currently applied in the vertex shader.
@@ -102,5 +94,5 @@ fn main(@builtin(global_invocation_id) global_invocation_id: vec3<u32>) {
     out.position0 = vec4(position, 1.0);
     out.normal0 = vec4(normalize(normal), 0.0);
     out.tangent0 = vec4(normalize(tangent), vertex.tangent0.w);
-    dst.vertices[index] = out;
+    dst[index] = out;
 }
