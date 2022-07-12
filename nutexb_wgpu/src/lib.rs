@@ -75,6 +75,20 @@ pub enum CreateTextureError {
 
     #[error("the texture layer count exceeds device limits")]
     LayerCountExceedsLimit,
+
+    #[error(
+        "the texture width {} is not a multiple of the block width {}",
+        width,
+        block_width
+    )]
+    UnalignedWidth { width: u32, block_width: u32 },
+
+    #[error(
+        "the texture height {} is not a multiple of the block height {}",
+        height,
+        block_height
+    )]
+    UnalignedHeight { height: u32, block_height: u32 },
 }
 
 pub fn create_texture(
@@ -119,6 +133,21 @@ pub fn create_texture(
         return Err(CreateTextureError::LayerCountExceedsLimit);
     }
 
+    let format = wgpu_format(nutexb.footer.image_format);
+    let (block_width, block_height) = format.describe().block_dimensions;
+    if size.width % block_width as u32 != 0 {
+        return Err(CreateTextureError::UnalignedWidth {
+            width: size.width,
+            block_width: block_width as u32,
+        });
+    }
+    if size.height % block_height as u32 != 0 {
+        return Err(CreateTextureError::UnalignedHeight {
+            height: size.height,
+            block_height: block_height as u32,
+        });
+    }
+
     let dimension = if nutexb.footer.depth > 1 {
         wgpu::TextureDimension::D3
     } else {
@@ -133,6 +162,11 @@ pub fn create_texture(
         );
     }
 
+    // TODO: Preserve error information?
+    let data = nutexb
+        .deswizzled_data()
+        .map_err(|_| CreateTextureError::SwizzleError)?;
+
     let texture = device.create_texture_with_data(
         queue,
         &wgpu::TextureDescriptor {
@@ -143,15 +177,12 @@ pub fn create_texture(
             mip_level_count: std::cmp::min(nutexb.footer.mipmap_count, max_mips),
             sample_count: 1,
             dimension,
-            format: wgpu_format(nutexb.footer.image_format),
+            format,
             usage: wgpu::TextureUsages::COPY_SRC
                 | wgpu::TextureUsages::COPY_DST
                 | wgpu::TextureUsages::TEXTURE_BINDING,
         },
-        // TODO: Preserve error information?
-        &nutexb
-            .deswizzled_data()
-            .map_err(|_| CreateTextureError::SwizzleError)?,
+        &data,
     );
 
     // Return the dimensions since this isn't accessible from the texture itself.
