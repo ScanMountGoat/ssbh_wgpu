@@ -839,7 +839,7 @@ impl SsbhRenderer {
                 view: &self.pass_info.selected_silhouettes.view,
                 resolve_target: None,
                 ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(self.clear_color()),
+                    load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
                     store: true,
                 },
             })],

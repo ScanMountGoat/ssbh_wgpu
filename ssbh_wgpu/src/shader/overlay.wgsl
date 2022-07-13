@@ -27,7 +27,6 @@ var outline_sampler: sampler;
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let color = textureSample(color_texture, color_sampler, in.uvs);
-    // TODO: Why isn't the outline alpha set properly?
     let outline = textureSample(outline_texture, outline_sampler, in.uvs).r;
     // TODO: Set outline color?
     let outlineColor = vec3(0.0, 1.0, 1.0);
