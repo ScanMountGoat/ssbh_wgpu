@@ -21,9 +21,16 @@ var color_sampler: sampler;
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
-    // TODO: Improve outline quality.
     // TODO: Handle color?
-    let samples = textureGather(0, color_texture, color_sampler, in.uvs);
-    let expanded = samples.x + samples.y + samples.z + samples.w;
-    return vec4(expanded);
+    let dim = textureDimensions(color_texture);
+    let texel = vec2<i32>(in.uvs * vec2<f32>(dim));
+
+    // Expand the silhouette by 1 pixel.
+    let center = textureLoad(color_texture, texel, 0);
+    let left = textureLoad(color_texture, texel + vec2(-1, 0), 0);
+    let right = textureLoad(color_texture, texel + vec2(1, 0), 0);
+    let top = textureLoad(color_texture, texel + vec2(0, 1), 0);
+    let bottom = textureLoad(color_texture, texel + vec2(0, -1), 0);
+
+    return center + left + right + top + bottom;
 }
