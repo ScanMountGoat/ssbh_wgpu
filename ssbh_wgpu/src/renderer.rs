@@ -183,6 +183,7 @@ pub struct SsbhRenderer {
     debug_pipeline: wgpu::RenderPipeline,
     outline_pipeline: wgpu::RenderPipeline,
     uv_pipeline: wgpu::RenderPipeline,
+    overlay_pipeline: wgpu::RenderPipeline,
 
     bone_pipeline: wgpu::RenderPipeline,
     bone_outer_pipeline: wgpu::RenderPipeline,
@@ -265,6 +266,27 @@ impl SsbhRenderer {
                 multisample: wgpu::MultisampleState::default(),
                 multiview: None,
             });
+
+        let shader = crate::shader::overlay::create_shader_module(device);
+        let layout = crate::shader::overlay::create_pipeline_layout(device);
+        let overlay_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("Overlay Pipeline"),
+            layout: Some(&layout),
+            vertex: wgpu::VertexState {
+                module: &shader,
+                entry_point: "vs_main",
+                buffers: &[],
+            },
+            fragment: Some(wgpu::FragmentState {
+                module: &shader,
+                entry_point: "fs_main",
+                targets: &[Some(crate::RGBA_COLOR_FORMAT.into())],
+            }),
+            primitive: wgpu::PrimitiveState::default(),
+            depth_stencil: None,
+            multisample: wgpu::MultisampleState::default(),
+            multiview: None,
+        });
 
         // Shared shaders for bloom passes.
         // TODO: Should this be all screen texture shaders?
@@ -475,6 +497,7 @@ impl SsbhRenderer {
             render_settings_buffer,
             brush,
             joint_buffers,
+            overlay_pipeline,
         }
     }
 
@@ -564,7 +587,7 @@ impl SsbhRenderer {
 
         if self.render_settings.debug_mode != DebugMode::Shaded {
             // Draw the models directly to the output.
-            self.model_debug_pass(encoder, render_models, output_view);
+            self.model_debug_pass(encoder, render_models, &self.pass_info.color_final.view);
         } else {
             // Depth only pass for shadow maps.
             self.shadow_pass(encoder, render_models);
@@ -591,8 +614,15 @@ impl SsbhRenderer {
             // TODO: How does this impact the depth buffer?
 
             // Combine the model and bloom contributions and apply color grading.
-            self.post_processing_pass(encoder, output_view);
+            self.post_processing_pass(encoder, &self.pass_info.color_final.view);
         }
+
+        // TODO: Add additional passes to create outlines?
+        // 1. draw selected meshes to silhouette texture and stencil texture
+        // 2. expand silhouettes to create outlines using stencil texture
+        // 3. composite the outlines onto the result of the debug or shaded passes
+
+        self.overlay_pass(encoder, output_view);
     }
 
     /// Renders UVs for all of the meshes with `is_selected` set to `true`.
@@ -876,6 +906,18 @@ impl SsbhRenderer {
         }
     }
 
+    fn overlay_pass(&self, encoder: &mut wgpu::CommandEncoder, output_view: &wgpu::TextureView) {
+        let mut overlay_pass = create_color_pass(encoder, output_view, Some("Overlay Pass"));
+        overlay_pass.set_pipeline(&self.overlay_pipeline);
+        crate::shader::overlay::bind_groups::set_bind_groups(
+            &mut overlay_pass,
+            crate::shader::overlay::bind_groups::BindGroups {
+                bind_group0: &self.pass_info.overlay_bind_group,
+            },
+        );
+        overlay_pass.draw(0..3, 0..1);
+    }
+
     fn post_processing_pass(
         &self,
         encoder: &mut wgpu::CommandEncoder,
@@ -891,7 +933,6 @@ impl SsbhRenderer {
             },
         );
         post_processing_pass.draw(0..3, 0..1);
-        drop(post_processing_pass);
     }
 
     fn bloom_combine_pass(&self, encoder: &mut wgpu::CommandEncoder) {
@@ -1039,7 +1080,15 @@ fn create_color_pass<'a>(
 struct PassInfo {
     depth: TextureSamplerView,
     color: TextureSamplerView,
+
+    // Final color before applying overlays
+    color_final: TextureSamplerView,
+
     bloom_threshold: TextureSamplerView,
+
+    selected_stencil: TextureSamplerView,
+    selected_silhouettes: TextureSamplerView,
+    selected_outlines: TextureSamplerView,
 
     bloom_threshold_bind_group: crate::shader::bloom::bind_groups::BindGroup0,
 
@@ -1055,6 +1104,7 @@ struct PassInfo {
     bloom_upscale_bind_group: crate::shader::bloom::bind_groups::BindGroup0,
 
     post_process_bind_group: crate::shader::post_process::bind_groups::BindGroup0,
+    overlay_bind_group: crate::shader::overlay::bind_groups::BindGroup0,
 }
 
 impl PassInfo {
@@ -1068,6 +1118,7 @@ impl PassInfo {
         let depth = create_depth(device, width, height);
 
         let color = create_texture_sampler(device, width, height, crate::RGBA_COLOR_FORMAT);
+        let color_final = create_texture_sampler(device, width, height, crate::RGBA_COLOR_FORMAT);
 
         // Bloom uses successively smaller render targets to increase the blur.
         // Account for monitor scaling to avoid a smaller perceived radius on high DPI screens.
@@ -1107,9 +1158,20 @@ impl PassInfo {
 
         let post_process_bind_group =
             create_post_process_bind_group(device, &color, &bloom_upscaled, color_lut);
+
+        let selected_stencil = create_depth_stencil(device, width, height);
+        let selected_silhouettes =
+            create_texture_sampler(device, width, height, crate::RGBA_COLOR_FORMAT);
+        let selected_outlines =
+            create_texture_sampler(device, width, height, crate::RGBA_COLOR_FORMAT);
+
+        let overlay_bind_group =
+            create_overlay_bind_group(device, &color_final, &selected_outlines);
+
         Self {
             depth,
             color,
+            color_final,
             bloom_threshold,
             bloom_threshold_bind_group,
             bloom_blur_colors,
@@ -1118,6 +1180,10 @@ impl PassInfo {
             bloom_upscaled,
             bloom_upscale_bind_group,
             post_process_bind_group,
+            selected_stencil,
+            selected_silhouettes,
+            selected_outlines,
+            overlay_bind_group,
         }
     }
 }
@@ -1140,6 +1206,37 @@ fn create_depth(device: &wgpu::Device, width: u32, height: u32) -> TextureSample
         sample_count: 1,
         dimension: wgpu::TextureDimension::D2,
         format: DEPTH_FORMAT,
+        usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
+    };
+    let texture = device.create_texture(&desc);
+
+    let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+    let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
+        address_mode_u: wgpu::AddressMode::ClampToEdge,
+        address_mode_v: wgpu::AddressMode::ClampToEdge,
+        mag_filter: wgpu::FilterMode::Linear,
+        min_filter: wgpu::FilterMode::Linear,
+        mipmap_filter: wgpu::FilterMode::Nearest,
+        compare: None,
+        ..Default::default()
+    });
+
+    TextureSamplerView { view, sampler }
+}
+
+fn create_depth_stencil(device: &wgpu::Device, width: u32, height: u32) -> TextureSamplerView {
+    let size = wgpu::Extent3d {
+        width,
+        height,
+        depth_or_array_layers: 1,
+    };
+    let desc = wgpu::TextureDescriptor {
+        label: Some("depth texture"),
+        size,
+        mip_level_count: 1,
+        sample_count: 1,
+        dimension: wgpu::TextureDimension::D2,
+        format: wgpu::TextureFormat::Depth24PlusStencil8,
         usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
     };
     let texture = device.create_texture(&desc);
@@ -1289,6 +1386,22 @@ fn create_post_process_bind_group(
             color_lut_sampler: &color_lut.sampler,
             bloom_texture: &bloom_input.view,
             bloom_sampler: &bloom_input.sampler,
+        },
+    )
+}
+
+fn create_overlay_bind_group(
+    device: &wgpu::Device,
+    color_final: &TextureSamplerView,
+    outline_texture: &TextureSamplerView,
+) -> crate::shader::overlay::bind_groups::BindGroup0 {
+    crate::shader::overlay::bind_groups::BindGroup0::from_bindings(
+        device,
+        crate::shader::overlay::bind_groups::BindGroupLayout0 {
+            color_texture: &color_final.view,
+            color_sampler: &color_final.sampler,
+            outline_texture: &outline_texture.view,
+            outline_sampler: &outline_texture.sampler,
         },
     )
 }

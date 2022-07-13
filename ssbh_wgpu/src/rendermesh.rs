@@ -420,7 +420,7 @@ impl RenderModel {
                     render_pass.draw_indexed(0..mesh.vertex_index_count as u32, 0, 0..1);
                 }
 
-                // TODO: Add proper outline rendering.
+                // TODO: Perform this in a separate pass.
                 if mesh.is_selected {
                     render_pass.set_pipeline(outline_pipeline);
 
