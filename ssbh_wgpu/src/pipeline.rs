@@ -183,15 +183,16 @@ pub fn create_debug_pipeline(
     create_model_pipeline_from_entry(device, surface_format, "vs_main", "fs_debug", "Model Debug")
 }
 
-pub fn create_outline_pipeline(
+pub fn create_silhouette_pipeline(
     device: &wgpu::Device,
     surface_format: wgpu::TextureFormat,
 ) -> wgpu::RenderPipeline {
     let shader = crate::shader::model::create_shader_module(device);
     let render_pipeline_layout = crate::shader::model::create_pipeline_layout(device);
 
+    // TODO: Double check these stencil settings.
     device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-        label: Some("Model Outline"),
+        label: Some("Model Silhouette"),
         layout: Some(&render_pipeline_layout),
         vertex: vertex_state(&shader, "vs_main"),
         fragment: Some(wgpu::FragmentState {
@@ -201,14 +202,25 @@ pub fn create_outline_pipeline(
         }),
         primitive: wgpu::PrimitiveState::default(),
         depth_stencil: Some(wgpu::DepthStencilState {
-            format: crate::renderer::DEPTH_FORMAT,
+            format: crate::renderer::DEPTH_STENCIL_FORMAT,
             depth_write_enabled: true,
             depth_compare: wgpu::CompareFunction::LessEqual,
+            // Write a mask for selected meshes to be used later.
             stencil: wgpu::StencilState {
-                front: wgpu::StencilFaceState::IGNORE,
-                back: wgpu::StencilFaceState::IGNORE,
+                front: wgpu::StencilFaceState {
+                    compare: wgpu::CompareFunction::Always,
+                    fail_op: wgpu::StencilOperation::Zero,
+                    depth_fail_op: wgpu::StencilOperation::Keep,
+                    pass_op: wgpu::StencilOperation::Zero,
+                },
+                back: wgpu::StencilFaceState {
+                    compare: wgpu::CompareFunction::Always,
+                    fail_op: wgpu::StencilOperation::Zero,
+                    depth_fail_op: wgpu::StencilOperation::Keep,
+                    pass_op: wgpu::StencilOperation::Zero,
+                },
                 read_mask: 0xff,
-                write_mask: 0x00,
+                write_mask: 0xff,
             },
             bias: wgpu::DepthBiasState::default(),
         }),

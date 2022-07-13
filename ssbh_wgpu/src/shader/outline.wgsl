@@ -19,18 +19,11 @@ var color_texture: texture_2d<f32>;
 @group(0) @binding(1)
 var color_sampler: sampler;
 
-@group(0) @binding(2)
-var outline_texture: texture_2d<f32>;
-@group(0) @binding(3)
-var outline_sampler: sampler;
-
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
-    let color = textureSample(color_texture, color_sampler, in.uvs);
-    // TODO: Why isn't the outline alpha set properly?
-    let outline = textureSample(outline_texture, outline_sampler, in.uvs).r;
-    // TODO: Set outline color?
-    let outlineColor = vec3(0.0, 1.0, 1.0);
-    let output = vec4(mix(color.rgb, outlineColor, outline), color.a);
-    return output;
+    // TODO: Improve outline quality.
+    // TODO: Handle color?
+    let samples = textureGather(0, color_texture, color_sampler, in.uvs);
+    let expanded = samples.x + samples.y + samples.z + samples.w;
+    return vec4(expanded);
 }

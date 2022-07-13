@@ -3,6 +3,7 @@
 pub mod bloom;
 pub mod bloom_combine;
 pub mod model;
+pub mod outline;
 pub mod overlay;
 pub mod post_process;
 pub mod renormal;

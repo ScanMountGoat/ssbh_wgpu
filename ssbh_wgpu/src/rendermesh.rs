@@ -378,7 +378,6 @@ impl RenderModel {
         shader_database: &ShaderDatabase,
         invalid_shader_pipeline: &'a wgpu::RenderPipeline,
         invalid_attributes_pipeline: &'a wgpu::RenderPipeline,
-        outline_pipeline: &'a wgpu::RenderPipeline,
         pass: &str,
     ) {
         // TODO: How to store all data in RenderModel but still draw sorted meshes?
@@ -419,26 +418,6 @@ impl RenderModel {
                 if mesh.vertex_index_count > 0 {
                     render_pass.draw_indexed(0..mesh.vertex_index_count as u32, 0, 0..1);
                 }
-
-                // TODO: Perform this in a separate pass.
-                if mesh.is_selected {
-                    render_pass.set_pipeline(outline_pipeline);
-
-                    crate::shader::model::bind_groups::set_bind_groups(
-                        render_pass,
-                        crate::shader::model::bind_groups::BindGroups::<'a> {
-                            bind_group0: per_frame_bind_group,
-                            bind_group1: &material_data.material_uniforms_bind_group,
-                        },
-                    );
-
-                    self.set_mesh_buffers(render_pass, mesh);
-
-                    // Prevent potential validation error from zero count on Metal.
-                    if mesh.vertex_index_count > 0 {
-                        render_pass.draw_indexed(0..mesh.vertex_index_count as u32, 0, 0..1);
-                    }
-                }
             }
         }
     }
@@ -452,6 +431,34 @@ impl RenderModel {
         for mesh in self.meshes.iter().filter(|m| m.is_visible) {
             // TODO: Use a default if there is no material.
             // Models should always show up in debug mode.
+            if let Some(material_data) = self.material_data_by_label.get(&mesh.material_label) {
+                crate::shader::model::bind_groups::set_bind_groups(
+                    render_pass,
+                    crate::shader::model::bind_groups::BindGroups::<'a> {
+                        bind_group0: per_frame_bind_group,
+                        bind_group1: &material_data.material_uniforms_bind_group,
+                    },
+                );
+
+                self.set_mesh_buffers(render_pass, mesh);
+
+                // Prevent potential validation error from zero count on Metal.
+                if mesh.vertex_index_count > 0 {
+                    render_pass.draw_indexed(0..mesh.vertex_index_count as u32, 0, 0..1);
+                }
+            }
+        }
+    }
+
+    pub fn draw_render_meshes_silhouettes<'a>(
+        &'a self,
+        render_pass: &mut wgpu::RenderPass<'a>,
+        per_frame_bind_group: &'a crate::shader::model::bind_groups::BindGroup0,
+    ) {
+        // Assume the pipeline is already set.
+        // TODO: Show meshes that aren't visible?
+        for mesh in self.meshes.iter().filter(|m| m.is_selected) {
+            // TODO: Create defaults for the uniform buffer.
             if let Some(material_data) = self.material_data_by_label.get(&mesh.material_label) {
                 crate::shader::model::bind_groups::set_bind_groups(
                     render_pass,

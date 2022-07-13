@@ -3,7 +3,7 @@ use crate::{
     lighting::{anim_to_lights, calculate_light_transform},
     pipeline::{
         create_debug_pipeline, create_depth_pipeline, create_invalid_attributes_pipeline,
-        create_invalid_shader_pipeline, create_outline_pipeline, create_uv_pipeline,
+        create_invalid_shader_pipeline, create_silhouette_pipeline, create_uv_pipeline,
     },
     texture::load_default_lut,
     uniform_buffer, CameraTransforms, RenderModel, ShaderDatabase,
@@ -24,6 +24,7 @@ const BLOOM_COLOR_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba16Float
 pub const RGBA_COLOR_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Bgra8UnormSrgb;
 
 pub const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
+pub const DEPTH_STENCIL_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth24PlusStencil8;
 
 // TODO: The in game format is R16G16_UNORM
 // TODO: Find a way to get this working without filtering samplers?
@@ -181,6 +182,7 @@ pub struct SsbhRenderer {
     invalid_shader_pipeline: wgpu::RenderPipeline,
     invalid_attributes_pipeline: wgpu::RenderPipeline,
     debug_pipeline: wgpu::RenderPipeline,
+    silhouette_pipeline: wgpu::RenderPipeline,
     outline_pipeline: wgpu::RenderPipeline,
     uv_pipeline: wgpu::RenderPipeline,
     overlay_pipeline: wgpu::RenderPipeline,
@@ -444,6 +446,7 @@ impl SsbhRenderer {
         let invalid_attributes_pipeline =
             create_invalid_attributes_pipeline(device, RGBA_COLOR_FORMAT);
         let debug_pipeline = create_debug_pipeline(device, RGBA_COLOR_FORMAT);
+        let silhouette_pipeline = create_silhouette_pipeline(device, RGBA_COLOR_FORMAT);
         let outline_pipeline = create_outline_pipeline(device, RGBA_COLOR_FORMAT);
         let uv_pipeline = create_uv_pipeline(device, RGBA_COLOR_FORMAT);
 
@@ -491,6 +494,7 @@ impl SsbhRenderer {
             invalid_shader_pipeline,
             invalid_attributes_pipeline,
             debug_pipeline,
+            silhouette_pipeline,
             outline_pipeline,
             uv_pipeline,
             render_settings,
@@ -585,6 +589,7 @@ impl SsbhRenderer {
         self.skinning_pass(encoder, render_models);
         self.renormal_pass(encoder, render_models);
 
+        // TODO: Don't make color_final a parameter since we already take self.
         if self.render_settings.debug_mode != DebugMode::Shaded {
             // Draw the models directly to the output.
             self.model_debug_pass(encoder, render_models, &self.pass_info.color_final.view);
@@ -618,10 +623,13 @@ impl SsbhRenderer {
         }
 
         // TODO: Add additional passes to create outlines?
-        // 1. draw selected meshes to silhouette texture and stencil texture
-        // 2. expand silhouettes to create outlines using stencil texture
-        // 3. composite the outlines onto the result of the debug or shaded passes
+        // Draw selected meshes to silhouette texture and stencil texture.
+        self.model_silhouette_pass(encoder, render_models);
 
+        // Expand silhouettes to create outlines using stencil texture
+        self.outline_pass(encoder);
+
+        // Composite the outlines onto the result of the debug or shaded passes.
         self.overlay_pass(encoder, output_view);
     }
 
@@ -815,9 +823,43 @@ impl SsbhRenderer {
                 shader_database,
                 &self.invalid_shader_pipeline,
                 &self.invalid_attributes_pipeline,
-                &self.outline_pipeline,
                 pass,
             );
+        }
+    }
+
+    fn model_silhouette_pass(
+        &self,
+        encoder: &mut wgpu::CommandEncoder,
+        render_models: &[RenderModel],
+    ) {
+        let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("Model Silhouette Pass"),
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view: &self.pass_info.selected_silhouettes.view,
+                resolve_target: None,
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(self.clear_color()),
+                    store: true,
+                },
+            })],
+            depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                view: &self.pass_info.selected_stencil.view,
+                depth_ops: Some(wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(1.0),
+                    store: true,
+                }),
+                stencil_ops: Some(wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(0xff),
+                    store: true,
+                }),
+            }),
+        });
+
+        pass.set_pipeline(&self.silhouette_pipeline);
+
+        for model in render_models {
+            model.draw_render_meshes_silhouettes(&mut pass, &self.per_frame_bind_group);
         }
     }
 
@@ -904,6 +946,38 @@ impl SsbhRenderer {
                 &self.joint_outer_pipeline,
             );
         }
+    }
+
+    fn outline_pass(&self, encoder: &mut wgpu::CommandEncoder) {
+        let mut outline_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("Outline Pass"),
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view: &self.pass_info.selected_outlines.view,
+                resolve_target: None,
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+                    store: true,
+                },
+            })],
+            depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                view: &self.pass_info.selected_stencil.view,
+                depth_ops: None,
+                stencil_ops: Some(wgpu::Operations {
+                    load: wgpu::LoadOp::Load,
+                    store: false,
+                }),
+            }),
+        });
+        outline_pass.set_pipeline(&self.outline_pipeline);
+        crate::shader::outline::bind_groups::set_bind_groups(
+            &mut outline_pass,
+            crate::shader::outline::bind_groups::BindGroups {
+                bind_group0: &self.pass_info.outline_bind_group,
+            },
+        );
+        // Mask out the inner black regions to keep the outline.
+        outline_pass.set_stencil_reference(0xff);
+        outline_pass.draw(0..3, 0..1);
     }
 
     fn overlay_pass(&self, encoder: &mut wgpu::CommandEncoder, output_view: &wgpu::TextureView) {
@@ -1105,6 +1179,7 @@ struct PassInfo {
 
     post_process_bind_group: crate::shader::post_process::bind_groups::BindGroup0,
     overlay_bind_group: crate::shader::overlay::bind_groups::BindGroup0,
+    outline_bind_group: crate::shader::outline::bind_groups::BindGroup0,
 }
 
 impl PassInfo {
@@ -1160,10 +1235,13 @@ impl PassInfo {
             create_post_process_bind_group(device, &color, &bloom_upscaled, color_lut);
 
         let selected_stencil = create_depth_stencil(device, width, height);
+        // TODO: Downsample these textures based on scaling for thicker outlines?
         let selected_silhouettes =
             create_texture_sampler(device, width, height, crate::RGBA_COLOR_FORMAT);
         let selected_outlines =
             create_texture_sampler(device, width, height, crate::RGBA_COLOR_FORMAT);
+
+        let outline_bind_group = create_outline_bind_group(device, &selected_silhouettes);
 
         let overlay_bind_group =
             create_overlay_bind_group(device, &color_final, &selected_outlines);
@@ -1184,6 +1262,7 @@ impl PassInfo {
             selected_silhouettes,
             selected_outlines,
             overlay_bind_group,
+            outline_bind_group,
         }
     }
 }
@@ -1231,12 +1310,12 @@ fn create_depth_stencil(device: &wgpu::Device, width: u32, height: u32) -> Textu
         depth_or_array_layers: 1,
     };
     let desc = wgpu::TextureDescriptor {
-        label: Some("depth texture"),
+        label: Some("Depth Stencil Texture"),
         size,
         mip_level_count: 1,
         sample_count: 1,
         dimension: wgpu::TextureDimension::D2,
-        format: wgpu::TextureFormat::Depth24PlusStencil8,
+        format: DEPTH_STENCIL_FORMAT,
         usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
     };
     let texture = device.create_texture(&desc);
@@ -1404,4 +1483,66 @@ fn create_overlay_bind_group(
             outline_sampler: &outline_texture.sampler,
         },
     )
+}
+
+fn create_outline_bind_group(
+    device: &wgpu::Device,
+    color_final: &TextureSamplerView,
+) -> crate::shader::outline::bind_groups::BindGroup0 {
+    crate::shader::outline::bind_groups::BindGroup0::from_bindings(
+        device,
+        crate::shader::outline::bind_groups::BindGroupLayout0 {
+            color_texture: &color_final.view,
+            color_sampler: &color_final.sampler,
+        },
+    )
+}
+
+fn create_outline_pipeline(
+    device: &wgpu::Device,
+    surface_format: wgpu::TextureFormat,
+) -> wgpu::RenderPipeline {
+    let shader = crate::shader::outline::create_shader_module(device);
+    let render_pipeline_layout = crate::shader::outline::create_pipeline_layout(device);
+
+    device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+        label: Some("Outline"),
+        layout: Some(&render_pipeline_layout),
+        vertex: wgpu::VertexState {
+            module: &shader,
+            entry_point: "vs_main",
+            buffers: &[],
+        },
+        fragment: Some(wgpu::FragmentState {
+            module: &shader,
+            entry_point: "fs_main",
+            targets: &[Some(surface_format.into())],
+        }),
+        primitive: wgpu::PrimitiveState::default(),
+        depth_stencil: Some(wgpu::DepthStencilState {
+            format: DEPTH_STENCIL_FORMAT,
+            depth_write_enabled: false,
+            depth_compare: wgpu::CompareFunction::Always,
+            // Use the mask from earlier only keep the blurred outline.
+            stencil: wgpu::StencilState {
+                front: wgpu::StencilFaceState {
+                    compare: wgpu::CompareFunction::Equal,
+                    fail_op: wgpu::StencilOperation::Keep,
+                    depth_fail_op: wgpu::StencilOperation::Keep,
+                    pass_op: wgpu::StencilOperation::Keep,
+                },
+                back: wgpu::StencilFaceState {
+                    compare: wgpu::CompareFunction::Equal,
+                    fail_op: wgpu::StencilOperation::Keep,
+                    depth_fail_op: wgpu::StencilOperation::Keep,
+                    pass_op: wgpu::StencilOperation::Keep,
+                },
+                read_mask: 0xff,
+                write_mask: 0xff,
+            },
+            bias: wgpu::DepthBiasState::default(),
+        }),
+        multisample: wgpu::MultisampleState::default(),
+        multiview: None,
+    })
 }
