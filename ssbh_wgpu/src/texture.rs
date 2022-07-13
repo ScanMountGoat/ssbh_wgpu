@@ -360,31 +360,20 @@ pub fn default_diffuse2(
         height: 8,
         depth_or_array_layers: 1,
     };
-    let texture = device.create_texture(&TextureDescriptor {
-        label: Some("/common/shader/sfxpbs/default_diffuse2"),
-        size: texture_size,
-        mip_level_count: 4,
-        sample_count: 1,
-        dimension: TextureDimension::D2,
-        format: TextureFormat::Bc3RgbaUnorm,
-        usage: TextureUsages::COPY_SRC | TextureUsages::COPY_DST | TextureUsages::TEXTURE_BINDING,
-    });
 
     // This default texture isn't a solid color, so load the actual surface from a file.
-    queue.write_texture(
-        wgpu::ImageCopyTexture {
-            texture: &texture,
-            mip_level: 0,
-            origin: wgpu::Origin3d::ZERO,
-            aspect: TextureAspect::All,
+    let texture = device.create_texture_with_data(
+        queue,
+        &wgpu::TextureDescriptor {
+            label: Some("/common/shader/sfxpbs/default_diffuse2"),
+            size: texture_size,
+            mip_level_count: 4,
+            sample_count: 1,
+            dimension: TextureDimension::D2,
+            format: TextureFormat::Bc3RgbaUnorm,
+            usage: TextureUsages::COPY_DST | TextureUsages::TEXTURE_BINDING,
         },
         include_bytes!("default_diffuse2_surface.bin"),
-        wgpu::ImageDataLayout {
-            offset: 0,
-            bytes_per_row: NonZeroU32::new(8 * 4),
-            rows_per_image: None,
-        },
-        texture_size,
     );
 
     (
