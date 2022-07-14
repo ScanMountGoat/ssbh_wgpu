@@ -92,7 +92,7 @@ pub fn anim_to_lights(data: &AnimData) -> (StageUniforms, glam::Mat4) {
             .find(|n| n.name == "sceneAttributesForShaderFX")
     });
     let scene_attributes = scene_attributes
-        .map(|node| scene_attributes_node(node))
+        .map(scene_attributes_node)
         .unwrap_or_default();
 
     // TODO: What to use for the scale?

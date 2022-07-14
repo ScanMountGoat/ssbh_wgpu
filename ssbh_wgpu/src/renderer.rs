@@ -569,6 +569,11 @@ impl SsbhRenderer {
         );
     }
 
+    /// Sets the viewport background color.
+    pub fn set_clear_color(&mut self, color: [f64; 3]) {
+        self.clear_color = color;
+    }
+
     /// Renders the `render_meshes` to `output_view` using the standard rendering passes for Smash Ultimate.
     /// The `output_view` should have the format [crate::RGBA_COLOR_FORMAT].
     pub fn render_ssbh_passes(
