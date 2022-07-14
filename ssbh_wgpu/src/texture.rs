@@ -1,3 +1,4 @@
+use image::EncodableLayout;
 use ssbh_data::matl_data::{MagFilter, MatlEntryData, MinFilter, ParamId, WrapMode};
 use std::{
     num::{NonZeroU32, NonZeroU8},
@@ -383,6 +384,36 @@ pub fn default_diffuse2(
     )
 }
 
+pub fn uv_pattern(device: &Device, queue: &wgpu::Queue) -> Texture {
+    let texture_size = wgpu::Extent3d {
+        width: 1024,
+        height: 1024,
+        depth_or_array_layers: 1,
+    };
+
+    let data = image::load_from_memory_with_format(
+        include_bytes!("uv_pattern.png"),
+        image::ImageFormat::Png,
+    )
+    .unwrap();
+
+    let texture = device.create_texture_with_data(
+        queue,
+        &wgpu::TextureDescriptor {
+            label: Some("UV Pattern"),
+            size: texture_size,
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: TextureDimension::D2,
+            format: TextureFormat::Rgba8UnormSrgb,
+            usage: TextureUsages::COPY_DST | TextureUsages::TEXTURE_BINDING,
+        },
+        data.to_rgba8().as_bytes(),
+    );
+
+    texture
+}
+
 fn create_default_lut() -> Vec<u8> {
     // Create a 16x16x16 RGB LUT used as the default stage LUT.
     // This applies a subtle contrast/saturation adjustment.
@@ -411,6 +442,4 @@ fn create_default_lut() -> Vec<u8> {
 #[cfg(test)]
 mod tests {
     // TODO: Add tests cases for handling of paths and special paths like "#replace_cubemap".
-    #[test]
-    fn replace_cubemap() {}
 }

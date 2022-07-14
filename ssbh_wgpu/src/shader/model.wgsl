@@ -13,6 +13,7 @@ struct LightTransforms {
 // TODO: How to handle alignment?
 struct RenderSettings {
     debug_mode: vec4<u32>,
+    render_uv_pattern: vec4<u32>,
     transition_material: vec4<u32>,
     transition_factor: vec4<f32>,
     render_diffuse: vec4<u32>,
@@ -69,6 +70,11 @@ var<uniform> render_settings: RenderSettings;
 
 @group(0) @binding(5)
 var<uniform> stage_uniforms: StageUniforms;
+
+@group(0) @binding(6)
+var uv_pattern: texture_2d<f32>;
+@group(0) @binding(7)
+var uv_pattern_sampler: sampler;
 
 // TODO: Is there a better way of organizing this?
 // TODO: How many textures can we have?
@@ -896,19 +902,38 @@ fn fs_debug(in: VertexOutput) -> @location(0) vec4<f32> {
         //     outColor = textureSample(texture16, sampler16, map1);
         // }
         case 27u: {
-            outColor = vec4(pow(map1, vec2(2.2)), 1.0, 1.0);
+            if (render_settings.render_uv_pattern.x == 1u) {
+                outColor = textureSample(uv_pattern, uv_pattern_sampler, map1);
+            } else {
+                outColor = vec4(pow(map1, vec2(2.2)), 1.0, 1.0);
+            }
         }
         case 28u: {
-            outColor = vec4(pow(bake1, vec2(2.2)), 1.0, 1.0);
+            if (render_settings.render_uv_pattern.x == 1u) {
+                outColor = textureSample(uv_pattern, uv_pattern_sampler, bake1);
+            } else {
+                outColor = vec4(pow(bake1, vec2(2.2)), 1.0, 1.0);
+            }
         }
         case 29u: {
-            outColor = vec4(pow(uvSet, vec2(2.2)), 1.0, 1.0);
+            if (render_settings.render_uv_pattern.x == 1u) {
+                outColor = textureSample(uv_pattern, uv_pattern_sampler, uvSet);
+            } else {
+                outColor = vec4(pow(uvSet, vec2(2.2)), 1.0, 1.0);
+            }
         }
         case 30u: {
-            outColor = vec4(pow(uvSet1, vec2(2.2)), 1.0, 1.0);
-        }
+            if (render_settings.render_uv_pattern.x == 1u) {
+                outColor = textureSample(uv_pattern, uv_pattern_sampler, uvSet1);
+            } else {
+                outColor = vec4(pow(uvSet1, vec2(2.2)), 1.0, 1.0);
+            }        }
         case 31u: {
-            outColor = vec4(pow(uvSet2, vec2(2.2)), 1.0, 1.0);
+            if (render_settings.render_uv_pattern.x == 1u) {
+                outColor = textureSample(uv_pattern, uv_pattern_sampler, uvSet2);
+            } else {
+                outColor = vec4(pow(uvSet2, vec2(2.2)), 1.0, 1.0);
+            }
         }
         case 32u: {
             // Basic Shading.

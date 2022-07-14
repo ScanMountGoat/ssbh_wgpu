@@ -5,7 +5,7 @@ use crate::{
         create_debug_pipeline, create_depth_pipeline, create_invalid_attributes_pipeline,
         create_invalid_shader_pipeline, create_silhouette_pipeline, create_uv_pipeline,
     },
-    texture::load_default_lut,
+    texture::{load_default_lut, uv_pattern},
     uniform_buffer, CameraTransforms, RenderModel, ShaderDatabase,
 };
 use glyph_brush::DefaultSectionHasher;
@@ -126,6 +126,8 @@ pub struct RenderSettings {
     pub render_nor: [bool; 4],
     /// Replaces the RGBA channels of the prm map (Texture6) with a default when false.
     pub render_prm: [bool; 4],
+    /// Use a UV test pattern for UV debug modes when `true`. Otherwise, display UVs as RGB colors.
+    pub use_uv_pattern: bool,
 }
 
 impl From<&RenderSettings> for crate::shader::model::RenderSettings {
@@ -144,6 +146,7 @@ impl From<&RenderSettings> for crate::shader::model::RenderSettings {
             render_rgba: r.render_rgba.map(|b| if b { 1.0 } else { 0.0 }),
             render_nor: r.render_nor.map(|b| if b { 1 } else { 0 }),
             render_prm: r.render_prm.map(|b| if b { 1 } else { 0 }),
+            render_uv_pattern: [if r.use_uv_pattern { 1 } else { 0 }; 4],
         }
     }
 }
@@ -164,6 +167,7 @@ impl Default for RenderSettings {
             render_rgba: [true; 4],
             render_nor: [true; 4],
             render_prm: [true; 4],
+            use_uv_pattern: true,
         }
     }
 }
@@ -419,6 +423,16 @@ impl SsbhRenderer {
             &[crate::shader::model::StageUniforms::training()],
         );
 
+        let uv_pattern = uv_pattern(device, queue);
+        let uv_sampler = device.create_sampler(&wgpu::SamplerDescriptor {
+            address_mode_u: wgpu::AddressMode::Repeat,
+            address_mode_v: wgpu::AddressMode::Repeat,
+            address_mode_w: wgpu::AddressMode::Repeat,
+            mag_filter: wgpu::FilterMode::Linear,
+            min_filter: wgpu::FilterMode::Linear,
+            ..Default::default()
+        });
+
         let per_frame_bind_group = crate::shader::model::bind_groups::BindGroup0::from_bindings(
             device,
             crate::shader::model::bind_groups::BindGroupLayout0 {
@@ -428,6 +442,8 @@ impl SsbhRenderer {
                 light: light_transform_buffer.as_entire_buffer_binding(),
                 render_settings: render_settings_buffer.as_entire_buffer_binding(),
                 stage_uniforms: stage_uniforms_buffer.as_entire_buffer_binding(),
+                uv_pattern: &uv_pattern.create_view(&wgpu::TextureViewDescriptor::default()),
+                uv_pattern_sampler: &uv_sampler,
             },
         );
 

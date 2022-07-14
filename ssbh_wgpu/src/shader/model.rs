@@ -17,6 +17,7 @@ pub struct LightTransforms {
 #[derive(Debug, Copy, Clone, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct RenderSettings {
     pub debug_mode: [u32; 4],
+    pub render_uv_pattern: [u32; 4],
     pub transition_material: [u32; 4],
     pub transition_factor: [f32; 4],
     pub render_diffuse: [u32; 4],
@@ -119,6 +120,8 @@ pub mod bind_groups {
         pub light: wgpu::BufferBinding<'a>,
         pub render_settings: wgpu::BufferBinding<'a>,
         pub stage_uniforms: wgpu::BufferBinding<'a>,
+        pub uv_pattern: &'a wgpu::TextureView,
+        pub uv_pattern_sampler: &'a wgpu::Sampler,
     }
     const LAYOUT_DESCRIPTOR0: wgpu::BindGroupLayoutDescriptor = wgpu::BindGroupLayoutDescriptor {
         label: None,
@@ -181,6 +184,24 @@ pub mod bind_groups {
                 },
                 count: None,
             },
+            wgpu::BindGroupLayoutEntry {
+                binding: 6,
+                visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                ty: wgpu::BindingType::Texture {
+                    multisampled: false,
+                    view_dimension: wgpu::TextureViewDimension::D2,
+                    sample_type: wgpu::TextureSampleType::Float {
+                        filterable: true,
+                    },
+                },
+                count: None,
+            },
+            wgpu::BindGroupLayoutEntry {
+                binding: 7,
+                visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                count: None,
+            },
         ],
     };
     impl BindGroup0 {
@@ -224,6 +245,18 @@ pub mod bind_groups {
                                 binding: 5,
                                 resource: wgpu::BindingResource::Buffer(
                                     bindings.stage_uniforms,
+                                ),
+                            },
+                            wgpu::BindGroupEntry {
+                                binding: 6,
+                                resource: wgpu::BindingResource::TextureView(
+                                    bindings.uv_pattern,
+                                ),
+                            },
+                            wgpu::BindGroupEntry {
+                                binding: 7,
+                                resource: wgpu::BindingResource::Sampler(
+                                    bindings.uv_pattern_sampler,
                                 ),
                             },
                         ],
