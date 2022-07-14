@@ -34,6 +34,7 @@ use wgpu_text::{
 pub struct RenderModel {
     pub meshes: Vec<RenderMesh>,
     pub is_visible: bool,
+    pub is_selected: bool,
     mesh_buffers: MeshBuffers,
     material_data_by_label: HashMap<String, MaterialData>,
     pipelines: HashMap<PipelineKey, wgpu::RenderPipeline>,
@@ -457,7 +458,11 @@ impl RenderModel {
     ) {
         // Assume the pipeline is already set.
         // TODO: Show meshes that aren't visible?
-        for mesh in self.meshes.iter().filter(|m| m.is_selected) {
+        for mesh in self
+            .meshes
+            .iter()
+            .filter(|m| m.is_selected || self.is_selected)
+        {
             // TODO: Create defaults for the uniform buffer.
             if let Some(material_data) = self.material_data_by_label.get(&mesh.material_label) {
                 crate::shader::model::bind_groups::set_bind_groups(
@@ -694,6 +699,7 @@ impl<'a> RenderMeshSharedData<'a> {
 
         RenderModel {
             is_visible: true,
+            is_selected: false,
             meshes,
             mesh_buffers,
             material_data_by_label,
