@@ -57,7 +57,8 @@ fn fs_threshold(in: VertexOutput) -> @location(0) vec4<f32> {
     let scale = 1.0 / componentMax;
     let scale2 = max(0.925 * -0.5 + componentMax, 0.0);
 
-    return vec4(color.rgb * scale * scale2 * 6.0, color.a);
+    // Multiply by alpha to avoid adding bloom to the background.
+    return vec4(color.rgb * scale * scale2 * 6.0 * color.a, color.a);
 }
 
 @fragment
