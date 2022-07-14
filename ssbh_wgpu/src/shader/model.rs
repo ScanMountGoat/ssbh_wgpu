@@ -116,12 +116,11 @@ pub mod bind_groups {
     pub struct BindGroupLayout0<'a> {
         pub camera: wgpu::BufferBinding<'a>,
         pub texture_shadow: &'a wgpu::TextureView,
-        pub sampler_shadow: &'a wgpu::Sampler,
+        pub default_sampler: &'a wgpu::Sampler,
         pub light: wgpu::BufferBinding<'a>,
         pub render_settings: wgpu::BufferBinding<'a>,
         pub stage_uniforms: wgpu::BufferBinding<'a>,
         pub uv_pattern: &'a wgpu::TextureView,
-        pub uv_pattern_sampler: &'a wgpu::Sampler,
     }
     const LAYOUT_DESCRIPTOR0: wgpu::BindGroupLayoutDescriptor = wgpu::BindGroupLayoutDescriptor {
         label: None,
@@ -196,12 +195,6 @@ pub mod bind_groups {
                 },
                 count: None,
             },
-            wgpu::BindGroupLayoutEntry {
-                binding: 7,
-                visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
-                ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
-                count: None,
-            },
         ],
     };
     impl BindGroup0 {
@@ -228,7 +221,7 @@ pub mod bind_groups {
                             wgpu::BindGroupEntry {
                                 binding: 2,
                                 resource: wgpu::BindingResource::Sampler(
-                                    bindings.sampler_shadow,
+                                    bindings.default_sampler,
                                 ),
                             },
                             wgpu::BindGroupEntry {
@@ -251,12 +244,6 @@ pub mod bind_groups {
                                 binding: 6,
                                 resource: wgpu::BindingResource::TextureView(
                                     bindings.uv_pattern,
-                                ),
-                            },
-                            wgpu::BindGroupEntry {
-                                binding: 7,
-                                resource: wgpu::BindingResource::Sampler(
-                                    bindings.uv_pattern_sampler,
                                 ),
                             },
                         ],

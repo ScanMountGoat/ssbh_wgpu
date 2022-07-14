@@ -59,7 +59,7 @@ var<uniform> camera: CameraTransforms;
 @group(0) @binding(1)
 var texture_shadow: texture_2d<f32>;
 @group(0) @binding(2)
-var sampler_shadow: sampler;
+var default_sampler: sampler;
 // TODO: Specify that this is just the main character light?
 // TODO: Does Smash Ultimate support shadow casting from multiple lights?
 @group(0) @binding(3)
@@ -73,8 +73,6 @@ var<uniform> stage_uniforms: StageUniforms;
 
 @group(0) @binding(6)
 var uv_pattern: texture_2d<f32>;
-@group(0) @binding(7)
-var uv_pattern_sampler: sampler;
 
 // TODO: Is there a better way of organizing this?
 // TODO: How many textures can we have?
@@ -622,13 +620,15 @@ fn GetShadow(light_position: vec4<f32>) -> f32
     // compute texture coordinates for shadow lookup
     let projCorrection = 1.0 / light_position.w;
     let light_local = light_position.xy * flipCorrection * projCorrection + vec2(0.5, 0.5);
+    // Clamp the UVs since the sampler is shared with a repeat sampler.
+    let light_local = clamp(light_local, vec2(0.0), vec2(1.0));
 
     // TODO: This assumes depth is in the range 0.0 to 1.0 in the texture.
     let currentDepth = light_position.z * projCorrection;
 
     // Translated variance shadow mapping from in game.
-    let m1 = textureSample(texture_shadow, sampler_shadow, light_local).r;
-    let m2 = textureSample(texture_shadow, sampler_shadow, light_local).g;
+    let m1 = textureSample(texture_shadow, default_sampler, light_local).r;
+    let m2 = textureSample(texture_shadow, default_sampler, light_local).g;
     let sigma2 = clamp(m2 - m1*m1 + 0.0001, 0.0, 1.0);
     let tDif = max(currentDepth - m1, 0.0);
     // Approximate Pr(x >= t) using one of Chebychev's inqequalities.
@@ -903,36 +903,38 @@ fn fs_debug(in: VertexOutput) -> @location(0) vec4<f32> {
         // }
         case 27u: {
             if (render_settings.render_uv_pattern.x == 1u) {
-                outColor = textureSample(uv_pattern, uv_pattern_sampler, map1);
+                outColor = textureSample(uv_pattern, default_sampler, map1);
             } else {
-                outColor = vec4(pow(map1, vec2(2.2)), 1.0, 1.0);
+                // Use fract to remap values to 0.0 to 1.0 similar to a repeat wrap mode.
+                outColor = vec4(pow(fract(map1), vec2(2.2)), 1.0, 1.0);
             }
         }
         case 28u: {
             if (render_settings.render_uv_pattern.x == 1u) {
-                outColor = textureSample(uv_pattern, uv_pattern_sampler, bake1);
+                outColor = textureSample(uv_pattern, default_sampler, bake1);
             } else {
-                outColor = vec4(pow(bake1, vec2(2.2)), 1.0, 1.0);
+                outColor = vec4(pow(fract(bake1), vec2(2.2)), 1.0, 1.0);
             }
         }
         case 29u: {
             if (render_settings.render_uv_pattern.x == 1u) {
-                outColor = textureSample(uv_pattern, uv_pattern_sampler, uvSet);
+                outColor = textureSample(uv_pattern, default_sampler, uvSet);
             } else {
-                outColor = vec4(pow(uvSet, vec2(2.2)), 1.0, 1.0);
+                outColor = vec4(pow(fract(uvSet), vec2(2.2)), 1.0, 1.0);
             }
         }
         case 30u: {
             if (render_settings.render_uv_pattern.x == 1u) {
-                outColor = textureSample(uv_pattern, uv_pattern_sampler, uvSet1);
+                outColor = textureSample(uv_pattern, default_sampler, uvSet1);
             } else {
-                outColor = vec4(pow(uvSet1, vec2(2.2)), 1.0, 1.0);
-            }        }
+                outColor = vec4(pow(fract(uvSet1), vec2(2.2)), 1.0, 1.0);
+            }        
+        }
         case 31u: {
             if (render_settings.render_uv_pattern.x == 1u) {
-                outColor = textureSample(uv_pattern, uv_pattern_sampler, uvSet2);
+                outColor = textureSample(uv_pattern, default_sampler, uvSet2);
             } else {
-                outColor = vec4(pow(uvSet2, vec2(2.2)), 1.0, 1.0);
+                outColor = vec4(pow(fract(uvSet2), vec2(2.2)), 1.0, 1.0);
             }
         }
         case 32u: {

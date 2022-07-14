@@ -424,7 +424,10 @@ impl SsbhRenderer {
         );
 
         let uv_pattern = uv_pattern(device, queue);
-        let uv_sampler = device.create_sampler(&wgpu::SamplerDescriptor {
+
+        // Share this with UVs and shadow maps to reduce sampler usage.
+        // Metal on MacOS expects at most 16 samplers.
+        let default_sampler = device.create_sampler(&wgpu::SamplerDescriptor {
             address_mode_u: wgpu::AddressMode::Repeat,
             address_mode_v: wgpu::AddressMode::Repeat,
             address_mode_w: wgpu::AddressMode::Repeat,
@@ -438,12 +441,11 @@ impl SsbhRenderer {
             crate::shader::model::bind_groups::BindGroupLayout0 {
                 camera: camera_buffer.as_entire_buffer_binding(),
                 texture_shadow: &variance_shadow.view,
-                sampler_shadow: &variance_shadow.sampler,
+                default_sampler: &default_sampler,
                 light: light_transform_buffer.as_entire_buffer_binding(),
                 render_settings: render_settings_buffer.as_entire_buffer_binding(),
                 stage_uniforms: stage_uniforms_buffer.as_entire_buffer_binding(),
                 uv_pattern: &uv_pattern.create_view(&wgpu::TextureViewDescriptor::default()),
-                uv_pattern_sampler: &uv_sampler,
             },
         );
 
