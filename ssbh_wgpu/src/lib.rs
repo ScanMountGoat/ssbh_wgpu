@@ -76,7 +76,6 @@ pub type ModelFiles<T> = Vec<(String, Result<T, Box<dyn Error>>)>;
 pub struct ModelFolder {
     pub folder_name: String,
     // TODO: Will a hashmap be faster for this many items?
-    // TODO: Should these be Result<T, E> to display error info in applications?
     pub meshes: ModelFiles<MeshData>,
     pub skels: ModelFiles<SkelData>,
     pub matls: ModelFiles<MatlData>,
@@ -179,6 +178,18 @@ impl ModelFolder {
             .iter()
             .find(|(f, _)| f == "model.adjb")
             .and_then(|(_, m)| m.as_ref().ok())
+    }
+
+    // Returns `true` if the folder has no supported files.
+    pub fn is_empty(&self) -> bool {
+        self.meshes.is_empty()
+            && self.skels.is_empty()
+            && self.matls.is_empty()
+            && self.modls.is_empty()
+            && self.anims.is_empty()
+            && self.adjs.is_empty()
+            && self.hlpbs.is_empty()
+            && self.nutexbs.is_empty()
     }
 }
 
