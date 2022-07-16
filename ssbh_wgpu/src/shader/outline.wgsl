@@ -25,12 +25,18 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let dim = textureDimensions(color_texture);
     let texel = vec2<i32>(in.uvs * vec2<f32>(dim));
 
-    // Expand the silhouette by 1 pixel.
+    // Expand the silhouette by 2 pixel.
+    // TODO: Is this more efficient as a compute shader?
+    let left2 = textureLoad(color_texture, texel + vec2(-2, 0), 0);
+    let left1 = textureLoad(color_texture, texel + vec2(-1, 0), 0);
     let center = textureLoad(color_texture, texel, 0);
-    let left = textureLoad(color_texture, texel + vec2(-1, 0), 0);
-    let right = textureLoad(color_texture, texel + vec2(1, 0), 0);
-    let top = textureLoad(color_texture, texel + vec2(0, 1), 0);
-    let bottom = textureLoad(color_texture, texel + vec2(0, -1), 0);
+    let right1 = textureLoad(color_texture, texel + vec2(1, 0), 0);
+    let right2 = textureLoad(color_texture, texel + vec2(2, 0), 0);
 
-    return center + left + right + top + bottom;
+    let top2 = textureLoad(color_texture, texel + vec2(0, 2), 0);
+    let top1 = textureLoad(color_texture, texel + vec2(0, 1), 0);
+    let bottom1 = textureLoad(color_texture, texel + vec2(0, -1), 0);
+    let bottom2 = textureLoad(color_texture, texel + vec2(0, -2), 0);
+
+    return left2 + left1 + center + right1 + right2 + top2 + top1 + bottom1 + bottom2;
 }
