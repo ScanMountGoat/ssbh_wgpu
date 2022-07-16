@@ -650,6 +650,7 @@ impl SsbhRenderer {
         self.model_silhouette_pass(encoder, render_models);
 
         // Expand silhouettes to create outlines using stencil texture
+        // TODO: Disable this when not needed to save on performance.
         self.outline_pass(encoder);
 
         // Composite the outlines onto the result of the debug or shaded passes.

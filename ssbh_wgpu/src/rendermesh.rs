@@ -37,6 +37,7 @@ pub struct RenderModel {
     pub is_selected: bool,
     mesh_buffers: MeshBuffers,
     material_data_by_label: HashMap<String, MaterialData>,
+    default_material_data: MaterialData,
     pipelines: HashMap<PipelineKey, wgpu::RenderPipeline>,
     textures: Vec<(String, wgpu::Texture, wgpu::TextureViewDimension)>,
 
@@ -430,23 +431,25 @@ impl RenderModel {
     ) {
         // Assume the pipeline is already set.
         for mesh in self.meshes.iter().filter(|m| m.is_visible) {
-            // TODO: Use a default if there is no material.
             // Models should always show up in debug mode.
-            if let Some(material_data) = self.material_data_by_label.get(&mesh.material_label) {
-                crate::shader::model::bind_groups::set_bind_groups(
-                    render_pass,
-                    crate::shader::model::bind_groups::BindGroups::<'a> {
-                        bind_group0: per_frame_bind_group,
-                        bind_group1: &material_data.material_uniforms_bind_group,
-                    },
-                );
+            let material_data = self
+                .material_data_by_label
+                .get(&mesh.material_label)
+                .unwrap_or(&self.default_material_data);
 
-                self.set_mesh_buffers(render_pass, mesh);
+            crate::shader::model::bind_groups::set_bind_groups(
+                render_pass,
+                crate::shader::model::bind_groups::BindGroups::<'a> {
+                    bind_group0: per_frame_bind_group,
+                    bind_group1: &material_data.material_uniforms_bind_group,
+                },
+            );
 
-                // Prevent potential validation error from zero count on Metal.
-                if mesh.vertex_index_count > 0 {
-                    render_pass.draw_indexed(0..mesh.vertex_index_count as u32, 0, 0..1);
-                }
+            self.set_mesh_buffers(render_pass, mesh);
+
+            // Prevent potential validation error from zero count on Metal.
+            if mesh.vertex_index_count > 0 {
+                render_pass.draw_indexed(0..mesh.vertex_index_count as u32, 0, 0..1);
             }
         }
     }
@@ -463,22 +466,21 @@ impl RenderModel {
             .iter()
             .filter(|m| m.is_selected || self.is_selected)
         {
-            // TODO: Create defaults for the uniform buffer.
-            if let Some(material_data) = self.material_data_by_label.get(&mesh.material_label) {
-                crate::shader::model::bind_groups::set_bind_groups(
-                    render_pass,
-                    crate::shader::model::bind_groups::BindGroups::<'a> {
-                        bind_group0: per_frame_bind_group,
-                        bind_group1: &material_data.material_uniforms_bind_group,
-                    },
-                );
+            // Render outlines for models with missing materials.
+            let material_data = &self.default_material_data;
+            crate::shader::model::bind_groups::set_bind_groups(
+                render_pass,
+                crate::shader::model::bind_groups::BindGroups::<'a> {
+                    bind_group0: per_frame_bind_group,
+                    bind_group1: &material_data.material_uniforms_bind_group,
+                },
+            );
 
-                self.set_mesh_buffers(render_pass, mesh);
+            self.set_mesh_buffers(render_pass, mesh);
 
-                // Prevent potential validation error from zero count on Metal.
-                if mesh.vertex_index_count > 0 {
-                    render_pass.draw_indexed(0..mesh.vertex_index_count as u32, 0, 0..1);
-                }
+            // Prevent potential validation error from zero count on Metal.
+            if mesh.vertex_index_count > 0 {
+                render_pass.draw_indexed(0..mesh.vertex_index_count as u32, 0, 0..1);
             }
         }
     }
@@ -679,6 +681,8 @@ impl<'a> RenderMeshSharedData<'a> {
             world_transforms,
         };
 
+        let default_material_data = create_material_data(device, None, &[], &self.shared_data);
+
         let RenderMeshData {
             meshes,
             material_data_by_label,
@@ -703,6 +707,7 @@ impl<'a> RenderMeshSharedData<'a> {
             meshes,
             mesh_buffers,
             material_data_by_label,
+            default_material_data,
             textures,
             pipelines,
             joint_world_transforms,
