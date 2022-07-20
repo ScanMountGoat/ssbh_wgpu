@@ -4,6 +4,7 @@ use crate::{
     pipeline::{
         create_debug_pipeline, create_depth_pipeline, create_invalid_attributes_pipeline,
         create_invalid_shader_pipeline, create_silhouette_pipeline, create_uv_pipeline,
+        create_wireframe_pipeline,
     },
     texture::{load_default_lut, uv_pattern},
     uniform_buffer, CameraTransforms, RenderModel, ShaderDatabase,
@@ -128,6 +129,8 @@ pub struct RenderSettings {
     pub render_prm: [bool; 4],
     /// Use a UV test pattern for UV debug modes when `true`. Otherwise, display UVs as RGB colors.
     pub use_uv_pattern: bool,
+    /// Draw a wireframe on shaded when `true` for all modes except [DebugMode::Shaded].
+    pub wireframe: bool,
 }
 
 impl From<&RenderSettings> for crate::shader::model::RenderSettings {
@@ -168,6 +171,7 @@ impl Default for RenderSettings {
             render_nor: [true; 4],
             render_prm: [true; 4],
             use_uv_pattern: true,
+            wireframe: false,
         }
     }
 }
@@ -190,6 +194,7 @@ pub struct SsbhRenderer {
     outline_pipeline: wgpu::RenderPipeline,
     uv_pipeline: wgpu::RenderPipeline,
     overlay_pipeline: wgpu::RenderPipeline,
+    wireframe_pipeline: wgpu::RenderPipeline,
 
     bone_pipeline: wgpu::RenderPipeline,
     bone_outer_pipeline: wgpu::RenderPipeline,
@@ -467,6 +472,7 @@ impl SsbhRenderer {
         let silhouette_pipeline = create_silhouette_pipeline(device, RGBA_COLOR_FORMAT);
         let outline_pipeline = create_outline_pipeline(device, RGBA_COLOR_FORMAT);
         let uv_pipeline = create_uv_pipeline(device, RGBA_COLOR_FORMAT);
+        let wireframe_pipeline = create_wireframe_pipeline(device, RGBA_COLOR_FORMAT);
 
         // TODO: Does this need to match the initial config?
         let config = wgpu::SurfaceConfiguration {
@@ -520,6 +526,7 @@ impl SsbhRenderer {
             brush,
             joint_buffers,
             overlay_pipeline,
+            wireframe_pipeline,
         }
     }
 
@@ -614,8 +621,7 @@ impl SsbhRenderer {
 
         // TODO: Don't make color_final a parameter since we already take self.
         if self.render_settings.debug_mode != DebugMode::Shaded {
-            // Draw the models directly to the output.
-            self.model_debug_pass(encoder, render_models, &self.pass_info.color_final.view);
+            self.model_debug_pass(encoder, render_models);
         } else {
             // Depth only pass for shadow maps.
             self.shadow_pass(encoder, render_models);
@@ -887,16 +893,11 @@ impl SsbhRenderer {
         }
     }
 
-    fn model_debug_pass(
-        &self,
-        encoder: &mut wgpu::CommandEncoder,
-        render_models: &[RenderModel],
-        output_view: &wgpu::TextureView,
-    ) {
+    fn model_debug_pass(&self, encoder: &mut wgpu::CommandEncoder, render_models: &[RenderModel]) {
         let mut debug_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("Model Debug Pass"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                view: output_view,
+                view: &self.pass_info.color_final.view,
                 resolve_target: None,
                 ops: wgpu::Operations {
                     load: wgpu::LoadOp::Clear(self.clear_color()),
@@ -914,9 +915,15 @@ impl SsbhRenderer {
         });
 
         debug_pass.set_pipeline(&self.debug_pipeline);
-
         for model in render_models {
             model.draw_render_meshes_debug(&mut debug_pass, &self.per_frame_bind_group);
+        }
+
+        if self.render_settings.wireframe {
+            debug_pass.set_pipeline(&self.wireframe_pipeline);
+            for model in render_models {
+                model.draw_render_meshes_debug(&mut debug_pass, &self.per_frame_bind_group);
+            }
         }
     }
 

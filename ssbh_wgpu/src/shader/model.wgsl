@@ -762,7 +762,7 @@ fn fs_invalid_attributes(in: VertexOutputInvalid) -> @location(0) vec4<f32> {
 }
 
 @fragment
-fn fs_outline(in: VertexOutput) -> @location(0) vec4<f32> {
+fn fs_solid(in: VertexOutput) -> @location(0) vec4<f32> {
     // TODO: Customize this color?
     return vec4(1.0);
 }

@@ -190,14 +190,13 @@ pub fn create_silhouette_pipeline(
     let shader = crate::shader::model::create_shader_module(device);
     let render_pipeline_layout = crate::shader::model::create_pipeline_layout(device);
 
-    // TODO: Double check these stencil settings.
     device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
         label: Some("Model Silhouette"),
         layout: Some(&render_pipeline_layout),
         vertex: vertex_state(&shader, "vs_main"),
         fragment: Some(wgpu::FragmentState {
             module: &shader,
-            entry_point: "fs_outline",
+            entry_point: "fs_solid",
             targets: &[Some(surface_format.into())],
         }),
         primitive: wgpu::PrimitiveState::default(),
@@ -222,6 +221,38 @@ pub fn create_silhouette_pipeline(
                 read_mask: 0xff,
                 write_mask: 0xff,
             },
+            bias: wgpu::DepthBiasState::default(),
+        }),
+        multisample: wgpu::MultisampleState::default(),
+        multiview: None,
+    })
+}
+
+pub fn create_wireframe_pipeline(
+    device: &wgpu::Device,
+    surface_format: wgpu::TextureFormat,
+) -> wgpu::RenderPipeline {
+    let shader = crate::shader::model::create_shader_module(device);
+    let render_pipeline_layout = crate::shader::model::create_pipeline_layout(device);
+
+    device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+        label: Some("Model Wireframe"),
+        layout: Some(&render_pipeline_layout),
+        vertex: vertex_state(&shader, "vs_main"),
+        fragment: Some(wgpu::FragmentState {
+            module: &shader,
+            entry_point: "fs_solid",
+            targets: &[Some(surface_format.into())],
+        }),
+        primitive: wgpu::PrimitiveState {
+            polygon_mode: wgpu::PolygonMode::Line,
+            ..Default::default()
+        },
+        depth_stencil: Some(wgpu::DepthStencilState {
+            format: crate::renderer::DEPTH_FORMAT,
+            depth_write_enabled: true,
+            depth_compare: wgpu::CompareFunction::LessEqual,
+            stencil: wgpu::StencilState::default(),
             bias: wgpu::DepthBiasState::default(),
         }),
         multisample: wgpu::MultisampleState::default(),
