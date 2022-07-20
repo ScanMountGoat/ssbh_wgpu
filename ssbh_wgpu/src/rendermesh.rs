@@ -42,7 +42,7 @@ pub struct RenderModel {
     textures: Vec<(String, wgpu::Texture, wgpu::TextureViewDimension)>,
 
     joint_world_transforms: wgpu::Buffer,
-    bone_data_bind_group: crate::shader::skeleton::bind_groups::BindGroup1,
+    bone_data: crate::shader::skeleton::bind_groups::BindGroup1,
     bone_data_outer: crate::shader::skeleton::bind_groups::BindGroup1,
     joint_data: crate::shader::skeleton::bind_groups::BindGroup1,
     joint_data_outer: crate::shader::skeleton::bind_groups::BindGroup1,
@@ -255,10 +255,12 @@ impl RenderModel {
         joint_buffers: &'a JointBuffers,
         render_pass: &mut wgpu::RenderPass<'a>,
         camera_bind_group: &'a crate::shader::skeleton::bind_groups::BindGroup0,
+        // TODO: Create a struct for these?
         bone_pipeline: &'a wgpu::RenderPipeline,
         bone_outer_pipeline: &'a wgpu::RenderPipeline,
         joint_pipeline: &'a wgpu::RenderPipeline,
         joint_outer_pipeline: &'a wgpu::RenderPipeline,
+        axes_pipeline: &'a wgpu::RenderPipeline,
     ) {
         if let Some(skel) = skel {
             self.draw_joints(
@@ -269,7 +271,8 @@ impl RenderModel {
                 joint_pipeline,
                 joint_outer_pipeline,
             );
-            // Draw the bones last to cover up the geometry at the ends of the joints.
+
+            // Draw the bones after to cover up the geometry at the ends of the joints.
             self.draw_bones(
                 joint_buffers,
                 render_pass,
@@ -278,6 +281,15 @@ impl RenderModel {
                 bone_pipeline,
                 bone_outer_pipeline,
             );
+
+            // TODO: Toggle this in render settings.
+            self.draw_bone_axes(
+                joint_buffers,
+                render_pass,
+                skel,
+                camera_bind_group,
+                axes_pipeline,
+            )
         }
     }
 
@@ -341,8 +353,29 @@ impl RenderModel {
             &joint_buffers.bone_vertex_buffer,
             &joint_buffers.bone_index_buffer,
             camera_bind_group,
-            &self.bone_data_bind_group,
+            &self.bone_data,
             bone_index_count() as u32,
+        );
+    }
+
+    fn draw_bone_axes<'a>(
+        &'a self,
+        joint_buffers: &'a JointBuffers,
+        render_pass: &mut wgpu::RenderPass<'a>,
+        skel: &SkelData,
+        camera_bind_group: &'a crate::shader::skeleton::bind_groups::BindGroup0,
+        axes_pipeline: &'a wgpu::RenderPipeline,
+    ) {
+        // TODO: Instancing?
+        self.draw_skel_inner(
+            render_pass,
+            skel,
+            axes_pipeline,
+            &joint_buffers.axes_vertex_buffer,
+            &joint_buffers.axes_index_buffer,
+            camera_bind_group,
+            &self.bone_data_outer,
+            bone_axes_index_count() as u32,
         );
     }
 
@@ -648,15 +681,6 @@ impl<'a> RenderMeshSharedData<'a> {
         // TODO: Clean this up.
         let bone_colors = bone_colors_buffer(device, self.skel, self.hlpb);
 
-        // TODO: How to avoid applying scale to the bone geometry?
-        let bone_data_bind_group = crate::shader::skeleton::bind_groups::BindGroup1::from_bindings(
-            device,
-            crate::shader::skeleton::bind_groups::BindGroupLayout1 {
-                world_transforms: world_transforms.as_entire_buffer_binding(),
-                bone_colors: bone_colors.as_entire_buffer_binding(),
-            },
-        );
-
         let joint_transforms = self
             .skel
             .map(|skel| joint_transforms(skel, &animation_transforms))
@@ -671,6 +695,8 @@ impl<'a> RenderMeshSharedData<'a> {
             &vec![[0.0f32; 4]; crate::animation::MAX_BONE_COUNT],
         );
 
+        // TODO: How to avoid applying scale to the bone geometry?
+        let bone_data = bone_bind_group1(device, &world_transforms, &bone_colors);
         let bone_data_outer = bone_bind_group1(device, &world_transforms, &bone_colors_outer);
         let joint_data = bone_bind_group1(device, &joint_world_transforms, &bone_colors);
         let joint_data_outer =
@@ -711,7 +737,7 @@ impl<'a> RenderMeshSharedData<'a> {
             textures,
             pipelines,
             joint_world_transforms,
-            bone_data_bind_group,
+            bone_data,
             bone_data_outer,
             joint_data,
             joint_data_outer,

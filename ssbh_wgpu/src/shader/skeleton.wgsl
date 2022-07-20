@@ -45,9 +45,22 @@ var<uniform> bone_colors: BoneColors;
 var<uniform> per_bone: PerBone;
 
 @vertex
-fn vs_bone(
-    in: VertexInput,
-) -> VertexOutput {
+fn vs_axes(in: VertexInput) -> VertexOutput {
+    let bone_index = per_bone.indices.x;
+    var out: VertexOutput;
+    if (bone_index >= 0 && bone_index < 512) {
+        let position = vec4(in.position.xyz, 1.0);
+        out.clip_position = camera.mvp_matrix * world_transforms.transforms[bone_index] * position;
+        out.position = in.position;
+        // Use the normal as the color.
+        out.normal = in.position;
+    }
+
+    return out;
+}
+
+@vertex
+fn vs_bone(in: VertexInput) -> VertexOutput {
     let bone_index = per_bone.indices.x;
     var out: VertexOutput;
     if (bone_index >= 0 && bone_index < 512) {
@@ -65,9 +78,7 @@ fn vs_bone(
 }
 
 @vertex
-fn vs_joint(
-    in: VertexInput,
-) -> VertexOutput {
+fn vs_joint(in: VertexInput) -> VertexOutput {
     let bone_index = per_bone.indices.x;
     var out: VertexOutput;
     if (bone_index >= 0 && bone_index < 512) {
@@ -95,4 +106,10 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         color = bone_colors.colors[bone_index].xyz * shading;
     }
     return vec4(pow(color, vec3(2.2)), 1.0);
+}
+
+@fragment
+fn fs_axes(in: VertexOutput) -> @location(0) vec4<f32> {
+    // Use the normals as vertex color.
+    return vec4(in.normal.xyz, 1.0);
 }

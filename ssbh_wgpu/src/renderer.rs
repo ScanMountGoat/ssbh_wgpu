@@ -200,6 +200,7 @@ pub struct SsbhRenderer {
     bone_outer_pipeline: wgpu::RenderPipeline,
     joint_pipeline: wgpu::RenderPipeline,
     joint_outer_pipeline: wgpu::RenderPipeline,
+    bone_axes_pipeline: wgpu::RenderPipeline,
 
     joint_buffers: JointBuffers,
 
@@ -249,12 +250,14 @@ impl SsbhRenderer {
         clear_color: [f64; 3],
         font_bytes: &'static [u8],
     ) -> Self {
+        // TODO: Move this to bone rendering?
         let bone_pipeline = skeleton_pipeline(device, "vs_bone", "fs_main", wgpu::Face::Back);
         let bone_outer_pipeline =
             skeleton_pipeline(device, "vs_bone", "fs_main", wgpu::Face::Front);
         let joint_pipeline = skeleton_pipeline(device, "vs_joint", "fs_main", wgpu::Face::Back);
         let joint_outer_pipeline =
             skeleton_pipeline(device, "vs_joint", "fs_main", wgpu::Face::Front);
+        let bone_axes_pipeline = bone_axes_pipeline(device);
 
         let shader = crate::shader::post_process::create_shader_module(device);
         let layout = crate::shader::post_process::create_pipeline_layout(device);
@@ -515,6 +518,7 @@ impl SsbhRenderer {
             bone_outer_pipeline,
             joint_pipeline,
             joint_outer_pipeline,
+            bone_axes_pipeline,
             invalid_shader_pipeline,
             invalid_attributes_pipeline,
             debug_pipeline,
@@ -975,6 +979,7 @@ impl SsbhRenderer {
                 &self.bone_outer_pipeline,
                 &self.joint_pipeline,
                 &self.joint_outer_pipeline,
+                &self.bone_axes_pipeline,
             );
         }
     }
@@ -1109,6 +1114,43 @@ fn skeleton_pipeline(
             format: crate::renderer::DEPTH_FORMAT,
             depth_write_enabled: true,
             depth_compare: wgpu::CompareFunction::LessEqual,
+            stencil: wgpu::StencilState::default(),
+            bias: wgpu::DepthBiasState::default(),
+        }),
+        multisample: wgpu::MultisampleState::default(),
+        multiview: None,
+    })
+}
+
+fn bone_axes_pipeline(device: &wgpu::Device) -> wgpu::RenderPipeline {
+    let shader = crate::shader::skeleton::create_shader_module(device);
+    let layout = crate::shader::skeleton::create_pipeline_layout(device);
+    device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+        label: None,
+        layout: Some(&layout),
+        vertex: wgpu::VertexState {
+            module: &shader,
+            entry_point: "vs_axes",
+            buffers: &[wgpu::VertexBufferLayout {
+                array_stride: crate::shader::skeleton::VertexInput::SIZE_IN_BYTES,
+                step_mode: wgpu::VertexStepMode::Vertex,
+                attributes: &crate::shader::skeleton::VertexInput::VERTEX_ATTRIBUTES,
+            }],
+        },
+        fragment: Some(wgpu::FragmentState {
+            module: &shader,
+            entry_point: "fs_axes",
+            targets: &[Some(crate::RGBA_COLOR_FORMAT.into())],
+        }),
+        primitive: wgpu::PrimitiveState {
+            polygon_mode: wgpu::PolygonMode::Line,
+            topology: wgpu::PrimitiveTopology::LineList,
+            ..Default::default()
+        }, // TODO: Just disable the depth?
+        depth_stencil: Some(wgpu::DepthStencilState {
+            format: crate::renderer::DEPTH_FORMAT,
+            depth_write_enabled: true,
+            depth_compare: wgpu::CompareFunction::Always,
             stencil: wgpu::StencilState::default(),
             bias: wgpu::DepthBiasState::default(),
         }),

@@ -11,6 +11,8 @@ pub struct JointBuffers {
     pub joint_vertex_buffer: wgpu::Buffer,
     pub joint_vertex_buffer_outer: wgpu::Buffer,
     pub joint_index_buffer: wgpu::Buffer,
+    pub axes_vertex_buffer: wgpu::Buffer,
+    pub axes_index_buffer: wgpu::Buffer,
 }
 
 impl JointBuffers {
@@ -21,6 +23,8 @@ impl JointBuffers {
         let joint_vertex_buffer = joint_vertex_buffer(device);
         let joint_vertex_buffer_outer = joint_vertex_buffer_outer(device);
         let joint_index_buffer = joint_index_buffer(device);
+        let axes_vertex_buffer = axes_vertex_buffer(device);
+        let axes_index_buffer = axes_index_buffer(device);
 
         Self {
             bone_vertex_buffer,
@@ -29,6 +33,8 @@ impl JointBuffers {
             joint_vertex_buffer,
             joint_vertex_buffer_outer,
             joint_index_buffer,
+            axes_vertex_buffer,
+            axes_index_buffer,
         }
     }
 }
@@ -63,6 +69,10 @@ pub fn joint_transforms(skel: &SkelData, anim_transforms: &AnimationTransforms) 
         .collect();
     joint_transforms.resize(crate::animation::MAX_BONE_COUNT, glam::Mat4::IDENTITY);
     joint_transforms
+}
+
+pub fn bone_axes_index_count() -> usize {
+    bone_axes_indices().len()
 }
 
 pub fn bone_index_count() -> usize {
@@ -127,6 +137,43 @@ pub fn joint_index_buffer(device: &wgpu::Device) -> wgpu::Buffer {
         contents: bytemuck::cast_slice(&pyramid_indices()),
         usage: wgpu::BufferUsages::INDEX,
     })
+}
+
+pub fn axes_vertex_buffer(device: &wgpu::Device) -> wgpu::Buffer {
+    device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        label: Some("Bone Axes Vertex Buffer"),
+        contents: bytemuck::cast_slice(&[
+            // Use the normals to store colors.
+            // X+
+            [0f32, 0f32, 0f32],
+            [1f32, 0f32, 0f32],
+            [1f32, 0f32, 0f32],
+            [1f32, 0f32, 0f32],
+            // Y+
+            [0f32, 0f32, 0f32],
+            [0f32, 1f32, 0f32],
+            [0f32, 1f32, 0f32],
+            [0f32, 1f32, 0f32],
+            // Z+
+            [0f32, 0f32, 0f32],
+            [0f32, 0f32, 1f32],
+            [0f32, 0f32, 1f32],
+            [0f32, 0f32, 1f32],
+        ]),
+        usage: wgpu::BufferUsages::VERTEX,
+    })
+}
+
+pub fn axes_index_buffer(device: &wgpu::Device) -> wgpu::Buffer {
+    device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        label: Some("Bone Axes Index Buffer"),
+        contents: bytemuck::cast_slice(&bone_axes_indices()),
+        usage: wgpu::BufferUsages::INDEX,
+    })
+}
+
+fn bone_axes_indices() -> Vec<u32> {
+    vec![0, 1, 2, 3, 4, 5]
 }
 
 fn pyramid() -> Vec<[f32; 3]> {
