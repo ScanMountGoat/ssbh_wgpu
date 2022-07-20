@@ -101,6 +101,7 @@ fn apply_orient_constraint(
         .map(|p| world_transform(bones, p, true).unwrap_or(glam::Mat4::IDENTITY))
         .unwrap_or(glam::Mat4::IDENTITY);
 
+    // TODO: These angles correct twists for some models?
     let _quat1 = glam::Quat::from_array(constraint.quat1.to_array());
     let _quat2 = glam::Quat::from_array(constraint.quat2.to_array());
 
@@ -114,27 +115,28 @@ fn apply_orient_constraint(
     let source_transform = target_parent_world.inverse() * source_world;
     let (_, source_r, _) = (source_transform).to_scale_rotation_translation();
 
-    let (source_rot_x, source_rot_y, source_rot_z) = (source_r).to_euler(glam::EulerRot::XYZ);
+    // Apply rotations in the order X -> Y -> Z.
+    let (source_rot_z, source_rot_y, source_rot_x) = (source_r).to_euler(glam::EulerRot::ZYX);
 
     // Leave the target transform as is since it's already relative to the target parent.
     let target_transform = target.animated_transform(true, true);
     let (_, target_r, _) = (target_transform).to_scale_rotation_translation();
 
-    let (target_rot_x, target_rot_y, target_rot_z) = target_r.to_euler(glam::EulerRot::XYZ);
+    let (target_rot_z, target_rot_y, target_rot_x) = target_r.to_euler(glam::EulerRot::ZYX);
 
-    // TODO: This doesn't work properly.
-    let _interp_rotation = glam::Quat::from_euler(
-        glam::EulerRot::XYZ,
-        interp(target_rot_x, source_rot_x, constraint.constraint_axes.x),
-        interp(target_rot_y, source_rot_y, constraint.constraint_axes.y),
+    // The first angle is Z, the second angle is Y, and the third angle is X.
+    let interp_rotation = glam::Quat::from_euler(
+        glam::EulerRot::ZYX,
         interp(target_rot_z, source_rot_z, constraint.constraint_axes.z),
+        interp(target_rot_y, source_rot_y, constraint.constraint_axes.y),
+        interp(target_rot_x, source_rot_x, constraint.constraint_axes.x),
     );
 
     let mut new_transform = target
         .anim_transform
         .unwrap_or_else(|| AnimTransform::from_bone(target.bone));
 
-    new_transform.rotation = source_r;
+    new_transform.rotation = interp_rotation;
     target.anim_transform = Some(new_transform);
     // This bone was modified, so its animated world transform needs to be recalculated.
     target.anim_world_transform = None;
@@ -270,6 +272,66 @@ mod tests {
 
         assert_vector_relative_eq!(
             bones[0].anim_transform.unwrap().rotation.to_array(),
+            bones[1].anim_transform.unwrap().rotation.to_array()
+        );
+    }
+
+    #[test]
+    fn single_orient_constraint_half_xyz() {
+        let a = identity_bone("A", None);
+        let b = identity_bone("B", None);
+
+        // Use a rotation order of X -> Y -> Z.
+        let mut bones = vec![
+            AnimatedBone {
+                bone: &a,
+                anim_transform: Some(AnimTransform {
+                    translation: glam::Vec3::ZERO,
+                    rotation: glam::Quat::from_euler(glam::EulerRot::ZYX, 0.3, 0.2, 0.1),
+                    scale: glam::Vec3::ONE,
+                }),
+                compensate_scale: false,
+                inherit_scale: false,
+                flags: TransformFlags::default(),
+                world_transform: None,
+                anim_world_transform: None,
+            },
+            AnimatedBone {
+                bone: &b,
+                anim_transform: None,
+                compensate_scale: false,
+                inherit_scale: false,
+                flags: TransformFlags::default(),
+                world_transform: None,
+                anim_world_transform: None,
+            },
+        ];
+
+        // Copy half of the rotation of A onto B.
+        apply_hlpb_constraints(
+            &mut bones,
+            &HlpbData {
+                major_version: 1,
+                minor_version: 0,
+                aim_constraints: Vec::new(),
+                orient_constraints: vec![OrientConstraintData {
+                    name: "constraint1".into(),
+                    bone_name: "A".into(),
+                    root_bone_name: "A".into(),
+                    parent_bone_name: "A".into(),
+                    driver_bone_name: "B".into(),
+                    unk_type: 2,
+                    constraint_axes: Vector3::new(0.5, 0.5, 0.5),
+                    quat1: Vector4::new(0.0, 0.0, 0.0, 1.0),
+                    quat2: Vector4::new(0.0, 0.0, 0.0, 1.0),
+                    range_min: Vector3::new(-180.0, -180.0, -180.0),
+                    range_max: Vector3::new(180.0, 180.0, 180.0),
+                }],
+            },
+        );
+
+        assert_vector_relative_eq!(
+            glam::Quat::from_euler(glam::EulerRot::ZYX, 0.15, 0.1, 0.05).to_array(),
             bones[1].anim_transform.unwrap().rotation.to_array()
         );
     }
