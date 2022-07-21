@@ -1286,7 +1286,7 @@ mod tests {
         // This impacts constraints applied to multiple bones in a chain.
         let mut transforms = AnimationTransforms::identity();
 
-        // TODO: Adjust this test to detect incorrectly precompuing anim world transforms.
+        // TODO: Adjust this test to detect incorrectly precomputing anim world transforms.
         animate_skel(
             &mut transforms,
             &ssbh_data::skel_data::SkelData {
@@ -1386,8 +1386,8 @@ mod tests {
                         name: "constraint1".into(),
                         bone_name: "Root".into(), // TODO: What to put here?
                         root_bone_name: "Root".into(),
-                        parent_bone_name: "R0".into(),
-                        driver_bone_name: "L0".into(),
+                        source_bone_name: "R0".into(),
+                        target_bone_name: "L0".into(),
                         unk_type: 2,
                         constraint_axes: Vector3::new(1.0, 1.0, 1.0),
                         quat1: Vector4::new(0.0, 0.0, 0.0, 1.0),
@@ -1399,8 +1399,8 @@ mod tests {
                         name: "constraint2".into(),
                         bone_name: "Root".into(), // TODO: What to put here?
                         root_bone_name: "Root".into(),
-                        parent_bone_name: "R1".into(),
-                        driver_bone_name: "L1".into(),
+                        source_bone_name: "R1".into(),
+                        target_bone_name: "L1".into(),
                         unk_type: 2,
                         constraint_axes: Vector3::new(1.0, 1.0, 1.0),
                         quat1: Vector4::new(0.0, 0.0, 0.0, 1.0),

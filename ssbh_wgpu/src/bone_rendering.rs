@@ -417,7 +417,7 @@ fn bone_colors(skel: Option<&SkelData>, hlpb: Option<&HlpbData>) -> Vec<[f32; 4]
                 }
 
                 for constraint in &hlpb.orient_constraints {
-                    if bone.name == constraint.driver_bone_name {
+                    if bone.name == constraint.target_bone_name {
                         colors[i] = helper_color;
                     }
                 }

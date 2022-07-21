@@ -82,11 +82,11 @@ fn apply_orient_constraint(
     // TODO: quat1 and quat2 correct for twists?
     let source = bones
         .iter()
-        .position(|b| b.bone.name == constraint.parent_bone_name)?;
+        .position(|b| b.bone.name == constraint.source_bone_name)?;
 
     let target = bones
         .iter()
-        .position(|b| b.bone.name == constraint.driver_bone_name)?;
+        .position(|b| b.bone.name == constraint.target_bone_name)?;
 
     let source_parent = bones[source].bone.parent_index;
     let target_parent = bones[target].bone.parent_index;
@@ -107,7 +107,7 @@ fn apply_orient_constraint(
 
     let target = bones
         .iter_mut()
-        .find(|b| b.bone.name == constraint.driver_bone_name)?;
+        .find(|b| b.bone.name == constraint.target_bone_name)?;
 
     // Calculate the source bone's world orientation.
     // Convert to be relative to the target's parent using the inverse.
@@ -202,8 +202,8 @@ mod tests {
                     name: String::new(),
                     bone_name: String::new(),
                     root_bone_name: String::new(),
-                    parent_bone_name: String::new(),
-                    driver_bone_name: String::new(),
+                    source_bone_name: String::new(),
+                    target_bone_name: String::new(),
                     unk_type: 2,
                     constraint_axes: Vector3::new(1.0, 1.0, 1.0),
                     quat1: Vector4::new(0.0, 0.0, 0.0, 1.0),
@@ -258,8 +258,8 @@ mod tests {
                     name: "constraint1".into(),
                     bone_name: "A".into(),
                     root_bone_name: "A".into(),
-                    parent_bone_name: "A".into(),
-                    driver_bone_name: "B".into(),
+                    source_bone_name: "A".into(),
+                    target_bone_name: "B".into(),
                     unk_type: 2,
                     constraint_axes: Vector3::new(1.0, 1.0, 1.0),
                     quat1: Vector4::new(0.0, 0.0, 0.0, 1.0),
@@ -318,8 +318,8 @@ mod tests {
                     name: "constraint1".into(),
                     bone_name: "A".into(),
                     root_bone_name: "A".into(),
-                    parent_bone_name: "A".into(),
-                    driver_bone_name: "B".into(),
+                    source_bone_name: "A".into(),
+                    target_bone_name: "B".into(),
                     unk_type: 2,
                     constraint_axes: Vector3::new(0.5, 0.5, 0.5),
                     quat1: Vector4::new(0.0, 0.0, 0.0, 1.0),
@@ -394,8 +394,8 @@ mod tests {
                     name: "constraint1".into(),
                     bone_name: "Root".into(),
                     root_bone_name: "Root".into(),
-                    parent_bone_name: "A".into(),
-                    driver_bone_name: "B".into(),
+                    source_bone_name: "A".into(),
+                    target_bone_name: "B".into(),
                     unk_type: 2,
                     constraint_axes: Vector3::new(1.0, 1.0, 1.0),
                     quat1: Vector4::new(0.0, 0.0, 0.0, 1.0),
@@ -524,8 +524,8 @@ mod tests {
                     name: "constraint1".into(),
                     bone_name: "Root".into(), // TODO: What to put here?
                     root_bone_name: "Root".into(),
-                    parent_bone_name: "L1".into(),
-                    driver_bone_name: "R1".into(),
+                    source_bone_name: "L1".into(),
+                    target_bone_name: "R1".into(),
                     unk_type: 2,
                     constraint_axes: Vector3::new(1.0, 1.0, 1.0),
                     quat1: Vector4::new(0.0, 0.0, 0.0, 1.0),
