@@ -3,7 +3,8 @@ use crate::{
     lighting::{anim_to_lights, calculate_light_transform},
     pipeline::{
         create_debug_pipeline, create_depth_pipeline, create_invalid_attributes_pipeline,
-        create_invalid_shader_pipeline, create_silhouette_pipeline, create_uv_pipeline,
+        create_invalid_shader_pipeline, create_selected_material_pipeline,
+        create_silhouette_pipeline, create_unselected_material_pipeline, create_uv_pipeline,
         create_wireframe_pipeline,
     },
     texture::{load_default_lut, uv_pattern},
@@ -183,6 +184,8 @@ pub struct SsbhRenderer {
     bloom_combine_pipeline: wgpu::RenderPipeline,
     bloom_upscale_pipeline: wgpu::RenderPipeline,
     post_process_pipeline: wgpu::RenderPipeline,
+
+    // TODO: Group model related pipelines?
     skinning_pipeline: wgpu::ComputePipeline,
     renormal_pipeline: wgpu::ComputePipeline,
     shadow_pipeline: wgpu::RenderPipeline,
@@ -195,6 +198,8 @@ pub struct SsbhRenderer {
     uv_pipeline: wgpu::RenderPipeline,
     overlay_pipeline: wgpu::RenderPipeline,
     wireframe_pipeline: wgpu::RenderPipeline,
+    selected_material_pipeline: wgpu::RenderPipeline,
+    unselected_material_pipeline: wgpu::RenderPipeline,
 
     bone_pipelines: BonePipelines,
     bone_buffers: BoneBuffers,
@@ -480,6 +485,11 @@ impl SsbhRenderer {
         let bone_pipelines = BonePipelines::new(device);
         let bone_buffers = BoneBuffers::new(device);
 
+        let selected_material_pipeline =
+            create_selected_material_pipeline(device, RGBA_COLOR_FORMAT);
+        let unselected_material_pipeline =
+            create_unselected_material_pipeline(device, RGBA_COLOR_FORMAT);
+
         Self {
             bloom_threshold_pipeline,
             bloom_blur_pipeline,
@@ -514,6 +524,8 @@ impl SsbhRenderer {
             bone_buffers,
             overlay_pipeline,
             wireframe_pipeline,
+            selected_material_pipeline,
+            unselected_material_pipeline,
         }
     }
 
@@ -587,7 +599,9 @@ impl SsbhRenderer {
     }
 
     /// Renders the `render_meshes` to `output_view` using the standard rendering passes for Smash Ultimate.
+    ///
     /// The `output_view` should have the format [crate::RGBA_COLOR_FORMAT].
+    /// The output is cleared before drawing.
     pub fn render_ssbh_passes(
         &self,
         encoder: &mut wgpu::CommandEncoder,
@@ -661,10 +675,14 @@ impl SsbhRenderer {
 
         // TODO: Just take an iterator over render meshes instead?
         for model in render_models {
-            model.draw_render_meshes_uv(render_pass, &self.per_frame_bind_group);
+            model.draw_meshes_uv(render_pass, &self.per_frame_bind_group);
         }
     }
 
+    /// Renders the corresponding skeleton in `skel` for each model in `render_models` to `output_view`.
+    ///
+    /// The `output_view` should have the format [crate::RGBA_COLOR_FORMAT].
+    /// The output is not cleared before drawing.
     pub fn render_skeleton(
         &mut self,
         device: &wgpu::Device,
@@ -677,7 +695,7 @@ impl SsbhRenderer {
         height: u32,
         mvp: glam::Mat4,
         bone_name_font_size: Option<f32>,
-        draw_bone_axes: bool
+        draw_bone_axes: bool,
     ) -> Option<wgpu::CommandBuffer> {
         self.skeleton_pass(encoder, render_models, output_view, skels, draw_bone_axes);
 
@@ -692,6 +710,51 @@ impl SsbhRenderer {
             Some(brush.draw(device, output_view, queue))
         } else {
             None
+        }
+    }
+
+    /// Renders meshes with the selected model and material with a different color.
+    ///
+    /// The `output_view` should have the format [crate::RGBA_COLOR_FORMAT].
+    /// The output is cleared before drawing.
+    pub fn render_material_mask(
+        &mut self,
+        encoder: &mut wgpu::CommandEncoder,
+        output_view: &wgpu::TextureView,
+        render_models: &[RenderModel],
+        model_index: usize,
+        material_label: &str,
+    ) {
+        let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("Material Mask Pass"),
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view: output_view,
+                resolve_target: None,
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(self.clear_color()),
+                    store: true,
+                },
+            })],
+            depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                view: &self.pass_info.depth.view,
+                depth_ops: Some(wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(1.0),
+                    store: true,
+                }),
+                stencil_ops: None,
+            }),
+        });
+
+        // Material labels may be repeated in multiple models.
+        // Only show the selected material for the specified model.
+        for (i, model) in render_models.iter().enumerate() {
+            model.draw_meshes_material_mask(
+                &mut pass,
+                &self.per_frame_bind_group,
+                &self.selected_material_pipeline,
+                &self.unselected_material_pipeline,
+                if i == model_index { material_label } else { "" },
+            );
         }
     }
 
@@ -835,7 +898,7 @@ impl SsbhRenderer {
         pass: &str,
     ) {
         for model in render_models.iter().filter(|m| m.is_visible) {
-            model.draw_render_meshes(
+            model.draw_meshes(
                 model_pass,
                 &self.per_frame_bind_group,
                 shader_database,
@@ -877,7 +940,7 @@ impl SsbhRenderer {
         pass.set_pipeline(&self.silhouette_pipeline);
 
         for model in render_models {
-            model.draw_render_meshes_silhouettes(&mut pass, &self.per_frame_bind_group);
+            model.draw_meshes_silhouettes(&mut pass, &self.per_frame_bind_group);
         }
     }
 
@@ -904,13 +967,14 @@ impl SsbhRenderer {
 
         debug_pass.set_pipeline(&self.debug_pipeline);
         for model in render_models {
-            model.draw_render_meshes_debug(&mut debug_pass, &self.per_frame_bind_group);
+            model.draw_meshes_debug(&mut debug_pass, &self.per_frame_bind_group);
         }
 
+        // TODO: Add antialiasing?
         if self.render_settings.wireframe {
             debug_pass.set_pipeline(&self.wireframe_pipeline);
             for model in render_models {
-                model.draw_render_meshes_debug(&mut debug_pass, &self.per_frame_bind_group);
+                model.draw_meshes_debug(&mut debug_pass, &self.per_frame_bind_group);
             }
         }
     }
@@ -931,7 +995,7 @@ impl SsbhRenderer {
         render_models: &[RenderModel],
         view: &wgpu::TextureView,
         skels: &[Option<&SkelData>],
-        draw_bone_axes: bool
+        draw_bone_axes: bool,
     ) {
         // TODO: Force having a color attachment for each fragment shader output in wgsl_to_wgpu?
         let mut skeleton_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
@@ -961,7 +1025,7 @@ impl SsbhRenderer {
                 &mut skeleton_pass,
                 &self.skeleton_camera_bind_group,
                 &self.bone_pipelines,
-                draw_bone_axes
+                draw_bone_axes,
             );
         }
     }

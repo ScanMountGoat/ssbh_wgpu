@@ -403,7 +403,30 @@ impl RenderModel {
         }
     }
 
-    pub fn draw_render_meshes<'a>(
+    fn draw_mesh<'a>(
+        &'a self,
+        render_pass: &mut wgpu::RenderPass<'a>,
+        mesh: &RenderMesh,
+        bind_group0: &'a crate::shader::model::bind_groups::BindGroup0,
+        bind_group1: &'a crate::shader::model::bind_groups::BindGroup1,
+    ) {
+        crate::shader::model::bind_groups::set_bind_groups(
+            render_pass,
+            crate::shader::model::bind_groups::BindGroups::<'a> {
+                bind_group0,
+                bind_group1,
+            },
+        );
+
+        self.set_mesh_buffers(render_pass, mesh);
+
+        // Prevent potential validation error from zero count on Metal.
+        if mesh.vertex_index_count > 0 {
+            render_pass.draw_indexed(0..mesh.vertex_index_count as u32, 0, 0..1);
+        }
+    }
+
+    pub fn draw_meshes<'a>(
         &'a self,
         render_pass: &mut wgpu::RenderPass<'a>,
         per_frame_bind_group: &'a crate::shader::model::bind_groups::BindGroup0,
@@ -436,25 +459,42 @@ impl RenderModel {
                     render_pass.set_pipeline(invalid_shader_pipeline);
                 }
 
-                crate::shader::model::bind_groups::set_bind_groups(
+                self.draw_mesh(
                     render_pass,
-                    crate::shader::model::bind_groups::BindGroups::<'a> {
-                        bind_group0: per_frame_bind_group,
-                        bind_group1: &material_data.material_uniforms_bind_group,
-                    },
+                    mesh,
+                    per_frame_bind_group,
+                    &material_data.material_uniforms_bind_group,
                 );
-
-                self.set_mesh_buffers(render_pass, mesh);
-
-                // Prevent potential validation error from zero count on Metal.
-                if mesh.vertex_index_count > 0 {
-                    render_pass.draw_indexed(0..mesh.vertex_index_count as u32, 0, 0..1);
-                }
             }
         }
     }
 
-    pub fn draw_render_meshes_debug<'a>(
+    pub fn draw_meshes_material_mask<'a>(
+        &'a self,
+        render_pass: &mut wgpu::RenderPass<'a>,
+        per_frame_bind_group: &'a crate::shader::model::bind_groups::BindGroup0,
+        selected_pipeline: &'a wgpu::RenderPipeline,
+        unselected_pipeline: &'a wgpu::RenderPipeline,
+        material_label: &str,
+    ) {
+        // TODO: Show hidden meshes?
+        for mesh in self.meshes.iter().filter(|m| m.is_visible) {
+            if mesh.material_label == material_label {
+                render_pass.set_pipeline(selected_pipeline);
+            } else {
+                render_pass.set_pipeline(unselected_pipeline);
+            }
+
+            self.draw_mesh(
+                render_pass,
+                mesh,
+                per_frame_bind_group,
+                &self.default_material_data.material_uniforms_bind_group,
+            );
+        }
+    }
+
+    pub fn draw_meshes_debug<'a>(
         &'a self,
         render_pass: &mut wgpu::RenderPass<'a>,
         per_frame_bind_group: &'a crate::shader::model::bind_groups::BindGroup0,
@@ -467,24 +507,16 @@ impl RenderModel {
                 .get(&mesh.material_label)
                 .unwrap_or(&self.default_material_data);
 
-            crate::shader::model::bind_groups::set_bind_groups(
+            self.draw_mesh(
                 render_pass,
-                crate::shader::model::bind_groups::BindGroups::<'a> {
-                    bind_group0: per_frame_bind_group,
-                    bind_group1: &material_data.material_uniforms_bind_group,
-                },
+                mesh,
+                per_frame_bind_group,
+                &material_data.material_uniforms_bind_group,
             );
-
-            self.set_mesh_buffers(render_pass, mesh);
-
-            // Prevent potential validation error from zero count on Metal.
-            if mesh.vertex_index_count > 0 {
-                render_pass.draw_indexed(0..mesh.vertex_index_count as u32, 0, 0..1);
-            }
         }
     }
 
-    pub fn draw_render_meshes_silhouettes<'a>(
+    pub fn draw_meshes_silhouettes<'a>(
         &'a self,
         render_pass: &mut wgpu::RenderPass<'a>,
         per_frame_bind_group: &'a crate::shader::model::bind_groups::BindGroup0,
@@ -496,49 +528,29 @@ impl RenderModel {
             .iter()
             .filter(|m| m.is_selected || self.is_selected)
         {
-            // Render outlines for models with missing materials.
-            let material_data = &self.default_material_data;
-            crate::shader::model::bind_groups::set_bind_groups(
+            // Use defaults to render outlines for models with missing materials.
+            self.draw_mesh(
                 render_pass,
-                crate::shader::model::bind_groups::BindGroups::<'a> {
-                    bind_group0: per_frame_bind_group,
-                    bind_group1: &material_data.material_uniforms_bind_group,
-                },
+                mesh,
+                per_frame_bind_group,
+                &self.default_material_data.material_uniforms_bind_group,
             );
-
-            self.set_mesh_buffers(render_pass, mesh);
-
-            // Prevent potential validation error from zero count on Metal.
-            if mesh.vertex_index_count > 0 {
-                render_pass.draw_indexed(0..mesh.vertex_index_count as u32, 0, 0..1);
-            }
         }
     }
 
-    pub fn draw_render_meshes_uv<'a>(
+    pub fn draw_meshes_uv<'a>(
         &'a self,
         render_pass: &mut wgpu::RenderPass<'a>,
         per_frame_bind_group: &'a crate::shader::model::bind_groups::BindGroup0,
     ) {
         // Assume the pipeline is already set.
         for mesh in self.meshes.iter().filter(|m| m.is_selected) {
-            // TODO: This should just use a default.
-            if let Some(material_data) = self.material_data_by_label.get(&mesh.material_label) {
-                crate::shader::model::bind_groups::set_bind_groups(
-                    render_pass,
-                    crate::shader::model::bind_groups::BindGroups::<'a> {
-                        bind_group0: per_frame_bind_group,
-                        bind_group1: &material_data.material_uniforms_bind_group,
-                    },
-                );
-
-                self.set_mesh_buffers(render_pass, mesh);
-
-                // Prevent potential validation error from zero count on Metal.
-                if mesh.vertex_index_count > 0 {
-                    render_pass.draw_indexed(0..mesh.vertex_index_count as u32, 0, 0..1);
-                }
-            }
+            self.draw_mesh(
+                render_pass,
+                mesh,
+                per_frame_bind_group,
+                &self.default_material_data.material_uniforms_bind_group,
+            );
         }
     }
 

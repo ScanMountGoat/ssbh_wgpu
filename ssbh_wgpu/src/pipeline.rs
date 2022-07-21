@@ -163,6 +163,32 @@ pub fn create_invalid_shader_pipeline(
     )
 }
 
+pub fn create_selected_material_pipeline(
+    device: &wgpu::Device,
+    surface_format: wgpu::TextureFormat,
+) -> wgpu::RenderPipeline {
+    create_model_pipeline_from_entry(
+        device,
+        surface_format,
+        "vs_main",
+        "fs_selected_material",
+        "Model Selected Material",
+    )
+}
+
+pub fn create_unselected_material_pipeline(
+    device: &wgpu::Device,
+    surface_format: wgpu::TextureFormat,
+) -> wgpu::RenderPipeline {
+    create_model_pipeline_from_entry(
+        device,
+        surface_format,
+        "vs_main",
+        "fs_unselected_material",
+        "Model Selected Material",
+    )
+}
+
 pub fn create_invalid_attributes_pipeline(
     device: &wgpu::Device,
     surface_format: wgpu::TextureFormat,

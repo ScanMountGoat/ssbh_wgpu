@@ -768,6 +768,18 @@ fn fs_solid(in: VertexOutput) -> @location(0) vec4<f32> {
 }
 
 @fragment
+fn fs_selected_material(in: VertexOutput) -> @location(0) vec4<f32> {
+    // TODO: Customize this color?
+    return vec4(0.0, 1.0, 1.0, 1.0);
+}
+
+@fragment
+fn fs_unselected_material(in: VertexOutput) -> @location(0) vec4<f32> {
+    // TODO: Customize this color?
+    return vec4(0.0);
+}
+
+@fragment
 fn fs_uv() -> @location(0) vec4<f32> {
     // TODO: Customize this color?
     return vec4(1.0);
