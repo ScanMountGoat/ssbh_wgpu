@@ -178,49 +178,43 @@ pub fn skin_weights(
 ) -> Result<Vec<VertexWeight>, Error> {
     let vertex_count = mesh.vertex_count()?;
 
-    match skel {
-        Some(skel) => {
-            if mesh.bone_influences.is_empty() {
-                Ok(vec![VertexWeight::default(); vertex_count])
-            } else {
-                // Collect influences per vertex.
-                let mut weights = vec![VertexWeight::default(); vertex_count];
+    // Use the default weight to represent no influences.
+    // TODO: What is the in game behavior?
+    let mut weights = vec![VertexWeight::default(); vertex_count];
 
-                for influence in &mesh.bone_influences {
-                    if let Some(bone_index) = skel
-                        .bones
-                        .iter()
-                        .position(|b| b.name == influence.bone_name)
-                    {
-                        // TODO: How to handle meshes with no influences but a parent bone?
-                        for w in &influence.vertex_weights {
-                            if let Some(weight) = weights.get_mut(w.vertex_index as usize) {
-                                if !weight.add_weight(bone_index as i32, w.vertex_weight) {
-                                    warn!(
-                                        "Vertex {} for mesh {} has more than 4 weights. Additional weights will be ignored.", 
-                                        w.vertex_index,
-                                        mesh.name
-                                    );
-                                }
-                            } else {
-                                warn!(
-                                    "Vertex weight assigns to vertex {}, which is out of range for mesh {} with {} vertices.",
-                                    w.vertex_index, mesh.name, vertex_count
-                                );
-                            }
+    if let Some(skel) = skel {
+        for influence in &mesh.bone_influences {
+            if let Some(bone_index) = skel
+                .bones
+                .iter()
+                .position(|b| b.name == influence.bone_name)
+            {
+                // Collect influences per vertex.
+                // TODO: How to handle meshes with no influences but a parent bone?
+                for w in &influence.vertex_weights {
+                    if let Some(weight) = weights.get_mut(w.vertex_index as usize) {
+                        if !weight.add_weight(bone_index as i32, w.vertex_weight) {
+                            warn!(
+                                "Vertex {} for mesh {} has more than 4 weights. Additional weights will be ignored.", 
+                                w.vertex_index,
+                                mesh.name,
+                            );
                         }
+                    } else {
+                        warn!(
+                            "Vertex weight assigns to vertex {}, which is out of range for mesh {} with {} vertices.",
+                            w.vertex_index,
+                            mesh.name,
+                            vertex_count,
+                        );
                     }
                 }
-
-                Ok(weights)
             }
         }
-        None => {
-            // TODO: What is the in game behavior?
-            // Use the default weight to represent no influences.
-            Ok(vec![VertexWeight::default(); vertex_count])
-        }
     }
+
+    // TODO: Log if there are any unweighted vertices but no parent bone.
+    Ok(weights)
 }
 
 pub struct MeshObjectBufferData {
