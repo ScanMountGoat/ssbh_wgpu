@@ -424,6 +424,7 @@ impl State {
             self.size.height,
             mvp,
             None,
+            true,
         ) {
             self.queue.submit([encoder.finish(), text_commands]);
         } else {

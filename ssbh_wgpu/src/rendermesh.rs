@@ -252,50 +252,47 @@ impl RenderModel {
     pub fn draw_skeleton<'a>(
         &'a self,
         skel: Option<&SkelData>,
-        joint_buffers: &'a JointBuffers,
+        bone_buffers: &'a BoneBuffers,
         render_pass: &mut wgpu::RenderPass<'a>,
         camera_bind_group: &'a crate::shader::skeleton::bind_groups::BindGroup0,
-        // TODO: Create a struct for these?
-        bone_pipeline: &'a wgpu::RenderPipeline,
-        bone_outer_pipeline: &'a wgpu::RenderPipeline,
-        joint_pipeline: &'a wgpu::RenderPipeline,
-        joint_outer_pipeline: &'a wgpu::RenderPipeline,
-        axes_pipeline: &'a wgpu::RenderPipeline,
+        bone_pipelines: &'a BonePipelines,
+        draw_bone_axes: bool,
     ) {
         if let Some(skel) = skel {
             self.draw_joints(
-                joint_buffers,
+                bone_buffers,
                 render_pass,
                 skel,
                 camera_bind_group,
-                joint_pipeline,
-                joint_outer_pipeline,
+                &bone_pipelines.joint_pipeline,
+                &bone_pipelines.joint_outer_pipeline,
             );
 
             // Draw the bones after to cover up the geometry at the ends of the joints.
             self.draw_bones(
-                joint_buffers,
+                bone_buffers,
                 render_pass,
                 skel,
                 camera_bind_group,
-                bone_pipeline,
-                bone_outer_pipeline,
+                &bone_pipelines.bone_pipeline,
+                &bone_pipelines.bone_outer_pipeline,
             );
 
-            // TODO: Toggle this in render settings.
-            self.draw_bone_axes(
-                joint_buffers,
-                render_pass,
-                skel,
-                camera_bind_group,
-                axes_pipeline,
-            )
+            if draw_bone_axes {
+                self.draw_bone_axes(
+                    bone_buffers,
+                    render_pass,
+                    skel,
+                    camera_bind_group,
+                    &bone_pipelines.bone_axes_pipeline,
+                )
+            }
         }
     }
 
     fn draw_joints<'a>(
         &'a self,
-        joint_buffers: &'a JointBuffers,
+        bone_buffers: &'a BoneBuffers,
         render_pass: &mut wgpu::RenderPass<'a>,
         skel: &SkelData,
         camera_bind_group: &'a crate::shader::skeleton::bind_groups::BindGroup0,
@@ -306,8 +303,8 @@ impl RenderModel {
             render_pass,
             skel,
             skeleton_outer_pipeline,
-            &joint_buffers.joint_vertex_buffer_outer,
-            &joint_buffers.joint_index_buffer,
+            &bone_buffers.joint_vertex_buffer_outer,
+            &bone_buffers.joint_index_buffer,
             camera_bind_group,
             &self.joint_data_outer,
             joint_index_count() as u32,
@@ -317,8 +314,8 @@ impl RenderModel {
             render_pass,
             skel,
             skeleton_pipeline,
-            &joint_buffers.joint_vertex_buffer,
-            &joint_buffers.joint_index_buffer,
+            &bone_buffers.joint_vertex_buffer,
+            &bone_buffers.joint_index_buffer,
             camera_bind_group,
             &self.joint_data,
             joint_index_count() as u32,
@@ -327,7 +324,7 @@ impl RenderModel {
 
     fn draw_bones<'a>(
         &'a self,
-        joint_buffers: &'a JointBuffers,
+        bone_buffers: &'a BoneBuffers,
         render_pass: &mut wgpu::RenderPass<'a>,
         skel: &SkelData,
         camera_bind_group: &'a crate::shader::skeleton::bind_groups::BindGroup0,
@@ -339,8 +336,8 @@ impl RenderModel {
             render_pass,
             skel,
             skeleton_outer_pipeline,
-            &joint_buffers.bone_vertex_buffer_outer,
-            &joint_buffers.bone_index_buffer,
+            &bone_buffers.bone_vertex_buffer_outer,
+            &bone_buffers.bone_index_buffer,
             camera_bind_group,
             &self.bone_data_outer,
             bone_index_count() as u32,
@@ -350,8 +347,8 @@ impl RenderModel {
             render_pass,
             skel,
             skeleton_pipeline,
-            &joint_buffers.bone_vertex_buffer,
-            &joint_buffers.bone_index_buffer,
+            &bone_buffers.bone_vertex_buffer,
+            &bone_buffers.bone_index_buffer,
             camera_bind_group,
             &self.bone_data,
             bone_index_count() as u32,
@@ -360,7 +357,7 @@ impl RenderModel {
 
     fn draw_bone_axes<'a>(
         &'a self,
-        joint_buffers: &'a JointBuffers,
+        bone_buffers: &'a BoneBuffers,
         render_pass: &mut wgpu::RenderPass<'a>,
         skel: &SkelData,
         camera_bind_group: &'a crate::shader::skeleton::bind_groups::BindGroup0,
@@ -371,8 +368,8 @@ impl RenderModel {
             render_pass,
             skel,
             axes_pipeline,
-            &joint_buffers.axes_vertex_buffer,
-            &joint_buffers.axes_index_buffer,
+            &bone_buffers.axes_vertex_buffer,
+            &bone_buffers.axes_index_buffer,
             camera_bind_group,
             &self.bone_data_outer,
             bone_axes_index_count() as u32,

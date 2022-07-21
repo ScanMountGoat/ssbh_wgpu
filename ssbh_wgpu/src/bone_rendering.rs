@@ -4,7 +4,36 @@ use ssbh_data::{hlpb_data::HlpbData, skel_data::SkelData};
 use crate::{animation::AnimationTransforms, uniform_buffer_readonly};
 use wgpu::util::DeviceExt;
 
-pub struct JointBuffers {
+pub struct BonePipelines {
+    pub bone_pipeline: wgpu::RenderPipeline,
+    pub bone_outer_pipeline: wgpu::RenderPipeline,
+    pub joint_pipeline: wgpu::RenderPipeline,
+    pub joint_outer_pipeline: wgpu::RenderPipeline,
+    pub bone_axes_pipeline: wgpu::RenderPipeline,
+}
+
+impl BonePipelines {
+    pub fn new(device: &wgpu::Device) -> Self {
+        // TODO: Move this to bone rendering?
+        let bone_pipeline = skeleton_pipeline(device, "vs_bone", "fs_main", wgpu::Face::Back);
+        let bone_outer_pipeline =
+            skeleton_pipeline(device, "vs_bone", "fs_main", wgpu::Face::Front);
+        let joint_pipeline = skeleton_pipeline(device, "vs_joint", "fs_main", wgpu::Face::Back);
+        let joint_outer_pipeline =
+            skeleton_pipeline(device, "vs_joint", "fs_main", wgpu::Face::Front);
+        let bone_axes_pipeline = bone_axes_pipeline(device);
+
+        Self {
+            bone_pipeline,
+            bone_outer_pipeline,
+            joint_pipeline,
+            joint_outer_pipeline,
+            bone_axes_pipeline,
+        }
+    }
+}
+
+pub struct BoneBuffers {
     pub bone_vertex_buffer: wgpu::Buffer,
     pub bone_vertex_buffer_outer: wgpu::Buffer,
     pub bone_index_buffer: wgpu::Buffer,
@@ -15,7 +44,7 @@ pub struct JointBuffers {
     pub axes_index_buffer: wgpu::Buffer,
 }
 
-impl JointBuffers {
+impl BoneBuffers {
     pub fn new(device: &wgpu::Device) -> Self {
         let bone_vertex_buffer = bone_vertex_buffer(device);
         let bone_vertex_buffer_outer = bone_vertex_buffer_outer(device);
@@ -425,4 +454,82 @@ fn bone_colors(skel: Option<&SkelData>, hlpb: Option<&HlpbData>) -> Vec<[f32; 4]
         }
     }
     colors
+}
+
+fn skeleton_pipeline(
+    device: &wgpu::Device,
+    vertex_entry: &str,
+    fragment_entry: &str,
+    cull_face: wgpu::Face,
+) -> wgpu::RenderPipeline {
+    let shader = crate::shader::skeleton::create_shader_module(device);
+    let layout = crate::shader::skeleton::create_pipeline_layout(device);
+    device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+        label: None,
+        layout: Some(&layout),
+        vertex: wgpu::VertexState {
+            module: &shader,
+            entry_point: vertex_entry,
+            buffers: &[wgpu::VertexBufferLayout {
+                array_stride: crate::shader::skeleton::VertexInput::SIZE_IN_BYTES,
+                step_mode: wgpu::VertexStepMode::Vertex,
+                attributes: &crate::shader::skeleton::VertexInput::VERTEX_ATTRIBUTES,
+            }],
+        },
+        fragment: Some(wgpu::FragmentState {
+            module: &shader,
+            entry_point: fragment_entry,
+            targets: &[Some(crate::RGBA_COLOR_FORMAT.into())],
+        }),
+        primitive: wgpu::PrimitiveState {
+            cull_mode: Some(cull_face),
+            ..Default::default()
+        }, // TODO: Just disable the depth?
+        depth_stencil: Some(wgpu::DepthStencilState {
+            format: crate::renderer::DEPTH_FORMAT,
+            depth_write_enabled: true,
+            depth_compare: wgpu::CompareFunction::LessEqual,
+            stencil: wgpu::StencilState::default(),
+            bias: wgpu::DepthBiasState::default(),
+        }),
+        multisample: wgpu::MultisampleState::default(),
+        multiview: None,
+    })
+}
+
+fn bone_axes_pipeline(device: &wgpu::Device) -> wgpu::RenderPipeline {
+    let shader = crate::shader::skeleton::create_shader_module(device);
+    let layout = crate::shader::skeleton::create_pipeline_layout(device);
+    device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+        label: None,
+        layout: Some(&layout),
+        vertex: wgpu::VertexState {
+            module: &shader,
+            entry_point: "vs_axes",
+            buffers: &[wgpu::VertexBufferLayout {
+                array_stride: crate::shader::skeleton::VertexInput::SIZE_IN_BYTES,
+                step_mode: wgpu::VertexStepMode::Vertex,
+                attributes: &crate::shader::skeleton::VertexInput::VERTEX_ATTRIBUTES,
+            }],
+        },
+        fragment: Some(wgpu::FragmentState {
+            module: &shader,
+            entry_point: "fs_axes",
+            targets: &[Some(crate::RGBA_COLOR_FORMAT.into())],
+        }),
+        primitive: wgpu::PrimitiveState {
+            polygon_mode: wgpu::PolygonMode::Line,
+            topology: wgpu::PrimitiveTopology::LineList,
+            ..Default::default()
+        }, // TODO: Just disable the depth?
+        depth_stencil: Some(wgpu::DepthStencilState {
+            format: crate::renderer::DEPTH_FORMAT,
+            depth_write_enabled: true,
+            depth_compare: wgpu::CompareFunction::Always,
+            stencil: wgpu::StencilState::default(),
+            bias: wgpu::DepthBiasState::default(),
+        }),
+        multisample: wgpu::MultisampleState::default(),
+        multiview: None,
+    })
 }
