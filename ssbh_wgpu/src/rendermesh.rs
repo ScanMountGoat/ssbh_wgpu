@@ -218,7 +218,7 @@ impl RenderModel {
                 // TODO: Is it possible to avoid per frame allocations here?
                 let animated_materials = animate_materials(anim, frame, &matl.entries);
                 // TODO: Should this go in a separate module?
-                // Get updated uniform buffers for animated materials
+                // TODO: Just update the uniform buffers and keep textures.
                 self.update_materials(device, queue, &animated_materials, shared_data);
             }
         }
@@ -1253,17 +1253,14 @@ fn create_material_uniforms_bind_group(
                     .map(|t| t.data.as_str())
             })
             .and_then(|material_path| {
-                // TODO: Pass in replace cube map here?
                 load_texture(material_path, textures, default_textures, dim).map_err(|e| {
                     match e {
                         LoadTextureError::PathNotFound => {
-                            // TODO: This doesn't work for cube maps?
-                            if material_path != "#replace_cubemap" {
-                                warn!("Missing texture {:?} assigned to {}. Applying default texture.", material_path, texture_id)
-                            }
+                            warn!("Missing texture {:?} assigned to {}. Applying default texture.", material_path, texture_id)
                         },
                         LoadTextureError::DimensionMismatch { expected, actual } => {
-                            warn!("Texture {:?} assigned to {} has invalid dimensions. Expected {:?} but found {:?}.", material_path, texture_id, expected, actual)
+                            warn!("Texture {:?} assigned to {} has invalid dimensions. Expected {:?} but found {:?}.", 
+                                material_path, texture_id, expected, actual)
                         },
                     }
                 }
@@ -1277,10 +1274,7 @@ fn create_material_uniforms_bind_group(
             .unwrap_or_else(|| device.create_sampler(&SamplerDescriptor::default()))
     };
 
-    // TODO: Better cube map handling.
     // TODO: Default texture for other cube maps?
-
-    // TODO: How to enforce certain textures being cube maps?
     crate::shader::model::bind_groups::BindGroup1::from_bindings(
         device,
         crate::shader::model::bind_groups::BindGroupLayout1 {

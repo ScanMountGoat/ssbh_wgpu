@@ -207,6 +207,11 @@ pub fn create_default_textures(
 ) -> Vec<(String, Texture, TextureViewDimension)> {
     // TODO: Return a dictionary?
     vec![
+        (
+            "#replace_cubemap".to_owned(),
+            load_default_spec_cube(device, queue).0,
+            TextureViewDimension::Cube,
+        ),
         solid_color_texture_2d(
             device,
             queue,
