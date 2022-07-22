@@ -474,17 +474,15 @@ impl RenderModel {
         render_pass: &mut wgpu::RenderPass<'a>,
         per_frame_bind_group: &'a crate::shader::model::bind_groups::BindGroup0,
         selected_pipeline: &'a wgpu::RenderPipeline,
-        unselected_pipeline: &'a wgpu::RenderPipeline,
         material_label: &str,
     ) {
         // TODO: Show hidden meshes?
-        for mesh in self.meshes.iter().filter(|m| m.is_visible) {
-            if mesh.material_label == material_label {
-                render_pass.set_pipeline(selected_pipeline);
-            } else {
-                render_pass.set_pipeline(unselected_pipeline);
-            }
-
+        render_pass.set_pipeline(selected_pipeline);
+        for mesh in self
+            .meshes
+            .iter()
+            .filter(|m| m.is_visible && m.material_label == material_label)
+        {
             self.draw_mesh(
                 render_pass,
                 mesh,

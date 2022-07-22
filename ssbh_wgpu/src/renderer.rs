@@ -4,8 +4,7 @@ use crate::{
     pipeline::{
         create_debug_pipeline, create_depth_pipeline, create_invalid_attributes_pipeline,
         create_invalid_shader_pipeline, create_selected_material_pipeline,
-        create_silhouette_pipeline, create_unselected_material_pipeline, create_uv_pipeline,
-        create_wireframe_pipeline,
+        create_silhouette_pipeline, create_uv_pipeline, create_wireframe_pipeline,
     },
     texture::{load_default_lut, uv_pattern},
     uniform_buffer, CameraTransforms, RenderModel, ShaderDatabase,
@@ -199,7 +198,6 @@ pub struct SsbhRenderer {
     overlay_pipeline: wgpu::RenderPipeline,
     wireframe_pipeline: wgpu::RenderPipeline,
     selected_material_pipeline: wgpu::RenderPipeline,
-    unselected_material_pipeline: wgpu::RenderPipeline,
 
     bone_pipelines: BonePipelines,
     bone_buffers: BoneBuffers,
@@ -487,8 +485,6 @@ impl SsbhRenderer {
 
         let selected_material_pipeline =
             create_selected_material_pipeline(device, RGBA_COLOR_FORMAT);
-        let unselected_material_pipeline =
-            create_unselected_material_pipeline(device, RGBA_COLOR_FORMAT);
 
         Self {
             bloom_threshold_pipeline,
@@ -525,7 +521,6 @@ impl SsbhRenderer {
             overlay_pipeline,
             wireframe_pipeline,
             selected_material_pipeline,
-            unselected_material_pipeline,
         }
     }
 
@@ -713,10 +708,9 @@ impl SsbhRenderer {
         }
     }
 
-    /// Renders meshes with the selected model and material with a different color.
+    /// Renders meshes for the selected model and material with a solid color.
     ///
     /// The `output_view` should have the format [crate::RGBA_COLOR_FORMAT].
-    /// The output is cleared before drawing.
     pub fn render_material_mask(
         &mut self,
         encoder: &mut wgpu::CommandEncoder,
@@ -731,15 +725,15 @@ impl SsbhRenderer {
                 view: output_view,
                 resolve_target: None,
                 ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(self.clear_color()),
+                    load: wgpu::LoadOp::Load,
                     store: true,
                 },
             })],
             depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
                 view: &self.pass_info.depth.view,
                 depth_ops: Some(wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(1.0),
-                    store: true,
+                    load: wgpu::LoadOp::Load,
+                    store: false,
                 }),
                 stencil_ops: None,
             }),
@@ -747,13 +741,12 @@ impl SsbhRenderer {
 
         // Material labels may be repeated in multiple models.
         // Only show the selected material for the specified model.
-        for (i, model) in render_models.iter().enumerate() {
+        if let Some(model) = render_models.get(model_index) {
             model.draw_meshes_material_mask(
                 &mut pass,
                 &self.per_frame_bind_group,
                 &self.selected_material_pipeline,
-                &self.unselected_material_pipeline,
-                if i == model_index { material_label } else { "" },
+                material_label,
             );
         }
     }
