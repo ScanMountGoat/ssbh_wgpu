@@ -90,12 +90,13 @@ pub struct ModelFolder {
 impl<'a> arbitrary::Arbitrary<'a> for ModelFolder {
     fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
         // TODO: Createy arbitrary nutexbs.
+        // TODO: Use option to make some files missing?
         Ok(Self {
             folder_name: u.arbitrary()?,
-            meshes: vec![(u.arbitrary()?, Ok(u.arbitrary()?))],
-            skels: vec![(u.arbitrary()?, Ok(u.arbitrary()?))],
-            matls: vec![(u.arbitrary()?, Ok(u.arbitrary()?))],
-            modls: vec![(u.arbitrary()?, Ok(u.arbitrary()?))],
+            meshes: vec![("model.numshb".to_owned(), Ok(u.arbitrary()?))],
+            skels: vec![("model.nusktb".to_owned(), Ok(u.arbitrary()?))],
+            matls: vec![("model.numatb".to_owned(), Ok(u.arbitrary()?))],
+            modls: vec![("model.numdlb".to_owned(), Ok(u.arbitrary()?))],
             adjs: vec![(u.arbitrary()?, Ok(u.arbitrary()?))],
             anims: vec![(u.arbitrary()?, Ok(u.arbitrary()?))],
             hlpbs: vec![(u.arbitrary()?, Ok(u.arbitrary()?))],

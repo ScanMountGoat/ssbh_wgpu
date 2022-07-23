@@ -410,18 +410,18 @@ impl RenderModel {
         bind_group0: &'a crate::shader::model::bind_groups::BindGroup0,
         bind_group1: &'a crate::shader::model::bind_groups::BindGroup1,
     ) {
-        crate::shader::model::bind_groups::set_bind_groups(
-            render_pass,
-            crate::shader::model::bind_groups::BindGroups::<'a> {
-                bind_group0,
-                bind_group1,
-            },
-        );
-
-        self.set_mesh_buffers(render_pass, mesh);
-
-        // Prevent potential validation error from zero count on Metal.
+        // Prevent potential validation error from empty meshes.
         if mesh.vertex_index_count > 0 {
+            crate::shader::model::bind_groups::set_bind_groups(
+                render_pass,
+                crate::shader::model::bind_groups::BindGroups::<'a> {
+                    bind_group0,
+                    bind_group1,
+                },
+            );
+
+            self.set_mesh_buffers(render_pass, mesh);
+
             render_pass.draw_indexed(0..mesh.vertex_index_count as u32, 0, 0..1);
         }
     }
@@ -626,9 +626,12 @@ impl RenderModel {
         // Assume only one shared bind group for all meshes.
         camera_bind_group.set(render_pass);
         for mesh in self.meshes.iter().filter(|m| m.is_visible) {
-            self.set_mesh_buffers(render_pass, mesh);
+            // Prevent potential validation error from empty meshes.
+            if mesh.vertex_index_count > 0 {
+                self.set_mesh_buffers(render_pass, mesh);
 
-            render_pass.draw_indexed(0..mesh.vertex_index_count as u32, 0, 0..1);
+                render_pass.draw_indexed(0..mesh.vertex_index_count as u32, 0, 0..1);
+            }
         }
     }
 }
@@ -833,6 +836,7 @@ struct RenderMeshData {
     buffer_data: MeshObjectBufferData,
 }
 
+#[derive(Debug)]
 struct MeshBufferAccess {
     buffer0_start: u64,
     buffer0_size: u64,

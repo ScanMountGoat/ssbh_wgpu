@@ -32,7 +32,9 @@ pub fn buffer0(mesh_data: &MeshObjectData) -> Result<Vec<VertexInput0>, Error> {
         .tangents
         .first()
         .map(|a| match &a.data {
-            ssbh_data::mesh_data::VectorData::Vector2(_) => todo!(),
+            ssbh_data::mesh_data::VectorData::Vector2(v) => {
+                v.iter().map(|[x, y]| [*x, *y, 0.0, 1.0]).collect()
+            }
             ssbh_data::mesh_data::VectorData::Vector3(v) => {
                 v.iter().map(|[x, y, z]| [*x, *y, *z, 1.0]).collect()
             }
@@ -58,7 +60,7 @@ pub fn buffer0(mesh_data: &MeshObjectData) -> Result<Vec<VertexInput0>, Error> {
 }
 
 // TODO: Support and test other lengths?
-macro_rules! set_attribute {
+macro_rules! set_uv_attribute {
     ($v:ident, $data:expr, $field:ident, $dst1: literal, $dst2:literal) => {
         match $data {
             ssbh_data::mesh_data::VectorData::Vector2(values) => {
@@ -67,8 +69,18 @@ macro_rules! set_attribute {
                     $v[i].$field[$dst2] = value[1];
                 }
             }
-            ssbh_data::mesh_data::VectorData::Vector3(_) => todo!(),
-            ssbh_data::mesh_data::VectorData::Vector4(_) => todo!(),
+            ssbh_data::mesh_data::VectorData::Vector3(values) => {
+                for (i, value) in values.iter().enumerate() {
+                    $v[i].$field[$dst1] = value[0];
+                    $v[i].$field[$dst2] = value[1];
+                }
+            }
+            ssbh_data::mesh_data::VectorData::Vector4(values) => {
+                for (i, value) in values.iter().enumerate() {
+                    $v[i].$field[$dst1] = value[0];
+                    $v[i].$field[$dst2] = value[1];
+                }
+            }
         }
     };
 }
@@ -114,11 +126,11 @@ pub fn buffer1(mesh_data: &MeshObjectData) -> Result<Vec<VertexInput1>, Error> {
 
     for attribute in &mesh_data.texture_coordinates {
         match attribute.name.as_str() {
-            "map1" => set_attribute!(vertices, &attribute.data, map1_uvset, 0, 1),
-            "uvSet" => set_attribute!(vertices, &attribute.data, map1_uvset, 2, 3),
-            "uvSet1" => set_attribute!(vertices, &attribute.data, uv_set1_uv_set2, 0, 1),
-            "uvSet2" => set_attribute!(vertices, &attribute.data, uv_set1_uv_set2, 2, 3),
-            "bake1" => set_attribute!(vertices, &attribute.data, bake1, 0, 1),
+            "map1" => set_uv_attribute!(vertices, &attribute.data, map1_uvset, 0, 1),
+            "uvSet" => set_uv_attribute!(vertices, &attribute.data, map1_uvset, 2, 3),
+            "uvSet1" => set_uv_attribute!(vertices, &attribute.data, uv_set1_uv_set2, 0, 1),
+            "uvSet2" => set_uv_attribute!(vertices, &attribute.data, uv_set1_uv_set2, 2, 3),
+            "bake1" => set_uv_attribute!(vertices, &attribute.data, bake1, 0, 1),
             _ => (),
         }
     }

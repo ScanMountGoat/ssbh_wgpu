@@ -35,13 +35,12 @@ static SHARED: Lazy<(Device, Queue, SharedRenderData, SsbhRenderer, TextureView)
 
     let shared_data = SharedRenderData::new(&device, &queue, surface_format);
 
-
-    let renderer = SsbhRenderer::new(&device, &queue, 512, 512, 1.0, [0.0; 3], &[]);
+    let renderer = SsbhRenderer::new(&device, &queue, 64, 64, 1.0, [0.0; 3], &[]);
 
     let texture_desc = TextureDescriptor {
         size: Extent3d {
-            width: 512,
-            height: 512,
+            width: 64,
+            height: 64,
             depth_or_array_layers: 1,
         },
         mip_level_count: 1,
@@ -82,8 +81,11 @@ fuzz_target!(|model: ModelFolder| {
     let renderer = &SHARED.3;
     let output_view = &SHARED.4;
     
+    // Check for errors when loading and rendering models.
+    // This helps check for validation errors and WGPU panics.
     let render_models = load_render_models(&device, &queue, &[model], &shared_data);
-    
+
+    // TODO: Apply animations as well?
     render(
         &device,
         &queue,
