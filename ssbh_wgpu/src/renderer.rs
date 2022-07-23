@@ -652,9 +652,7 @@ impl SsbhRenderer {
         let rendered_silhouette = self.model_silhouette_pass(encoder, render_models);
 
         // Expand silhouettes to create outlines using stencil texture
-        if rendered_silhouette {
-            self.outline_pass(encoder);
-        }
+        self.outline_pass(encoder, rendered_silhouette);
 
         // Composite the outlines onto the result of the debug or shaded passes.
         self.overlay_pass(encoder, output_view);
@@ -1026,7 +1024,8 @@ impl SsbhRenderer {
         }
     }
 
-    fn outline_pass(&self, encoder: &mut wgpu::CommandEncoder) {
+    fn outline_pass(&self, encoder: &mut wgpu::CommandEncoder, enabled: bool) {
+        // Always clear the outlines even if nothing is selected.
         let mut outline_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("Outline Pass"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
@@ -1046,16 +1045,19 @@ impl SsbhRenderer {
                 }),
             }),
         });
-        outline_pass.set_pipeline(&self.outline_pipeline);
-        crate::shader::outline::bind_groups::set_bind_groups(
-            &mut outline_pass,
-            crate::shader::outline::bind_groups::BindGroups {
-                bind_group0: &self.pass_info.outline_bind_group,
-            },
-        );
-        // Mask out the inner black regions to keep the outline.
-        outline_pass.set_stencil_reference(0xff);
-        outline_pass.draw(0..3, 0..1);
+
+        if enabled {
+            outline_pass.set_pipeline(&self.outline_pipeline);
+            crate::shader::outline::bind_groups::set_bind_groups(
+                &mut outline_pass,
+                crate::shader::outline::bind_groups::BindGroups {
+                    bind_group0: &self.pass_info.outline_bind_group,
+                },
+            );
+            // Mask out the inner black regions to keep the outline.
+            outline_pass.set_stencil_reference(0xff);
+            outline_pass.draw(0..3, 0..1);
+        }
     }
 
     fn overlay_pass(&self, encoder: &mut wgpu::CommandEncoder, output_view: &wgpu::TextureView) {
