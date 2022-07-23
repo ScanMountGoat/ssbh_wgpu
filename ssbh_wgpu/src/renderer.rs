@@ -649,11 +649,12 @@ impl SsbhRenderer {
 
         // TODO: Add additional passes to create outlines?
         // Draw selected meshes to silhouette texture and stencil texture.
-        self.model_silhouette_pass(encoder, render_models);
+        let rendered_silhouette = self.model_silhouette_pass(encoder, render_models);
 
         // Expand silhouettes to create outlines using stencil texture
-        // TODO: Disable this when not needed to save on performance.
-        self.outline_pass(encoder);
+        if rendered_silhouette {
+            self.outline_pass(encoder);
+        }
 
         // Composite the outlines onto the result of the debug or shaded passes.
         self.overlay_pass(encoder, output_view);
@@ -906,7 +907,7 @@ impl SsbhRenderer {
         &self,
         encoder: &mut wgpu::CommandEncoder,
         render_models: &[RenderModel],
-    ) {
+    ) -> bool {
         let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("Model Silhouette Pass"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
@@ -932,9 +933,11 @@ impl SsbhRenderer {
 
         pass.set_pipeline(&self.silhouette_pipeline);
 
+        let mut active = false;
         for model in render_models {
-            model.draw_meshes_silhouettes(&mut pass, &self.per_frame_bind_group);
+            active |= model.draw_meshes_silhouettes(&mut pass, &self.per_frame_bind_group);
         }
+        active
     }
 
     fn model_debug_pass(&self, encoder: &mut wgpu::CommandEncoder, render_models: &[RenderModel]) {

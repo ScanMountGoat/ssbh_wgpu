@@ -518,8 +518,9 @@ impl RenderModel {
         &'a self,
         render_pass: &mut wgpu::RenderPass<'a>,
         per_frame_bind_group: &'a crate::shader::model::bind_groups::BindGroup0,
-    ) {
+    ) -> bool {
         // Assume the pipeline is already set.
+        let mut active = false;
         // TODO: Show meshes that aren't visible?
         for mesh in self
             .meshes
@@ -533,7 +534,9 @@ impl RenderModel {
                 per_frame_bind_group,
                 &self.default_material_data.material_uniforms_bind_group,
             );
+            active = true;
         }
+        active
     }
 
     pub fn draw_meshes_uv<'a>(
