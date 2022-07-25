@@ -392,6 +392,7 @@ pub fn animate_materials(
     materials: &[MatlEntryData],
 ) -> Vec<MatlEntryData> {
     // Avoid modifying the original materials.
+    // TODO: Iterate instead to avoid allocating?
     // TODO: Is this approach significantly slower than modifying in place?
     let mut changed_materials = materials.to_vec();
 

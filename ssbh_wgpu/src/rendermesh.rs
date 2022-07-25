@@ -4,7 +4,7 @@ use crate::{
     pipeline::{create_pipeline, PipelineKey},
     texture::{load_default, load_sampler, load_texture, LoadTextureError},
     uniform_buffer, uniform_buffer_readonly,
-    uniforms::create_uniforms_buffer,
+    uniforms::{create_uniforms, create_uniforms_buffer},
     vertex::{buffer0, buffer1, mesh_object_buffers, skin_weights, MeshObjectBufferData},
     ModelFiles, ModelFolder, ShaderDatabase, SharedRenderData,
 };
@@ -125,7 +125,7 @@ impl RenderModel {
 
 struct MaterialData {
     material_uniforms_bind_group: crate::shader::model::bind_groups::BindGroup1,
-    _uniforms_buffer: wgpu::Buffer,
+    uniforms_buffer: wgpu::Buffer,
 }
 
 struct MeshBuffers {
@@ -158,45 +158,46 @@ impl RenderModel {
         }
     }
 
-    /// Update the render data associated with `materials`.
-    pub fn update_materials(
+    /// Recreates the material render data from `materials`.
+    ///
+    /// This updates all material data, including texture assignments and pipeline changes like blending modes.
+    /// The `material_label` for each [RenderMesh] does not change and should be updated with [RenderModel::reassign_materials].
+    /// Avoid calling this every frame since creating new GPU resources is slow.
+    pub fn recreate_materials(
         &mut self,
         device: &wgpu::Device,
-        _queue: &wgpu::Queue,
         materials: &[MatlEntryData],
         shared_data: &SharedRenderData,
     ) {
-        // TODO: Modify the buffer in place if possible to avoid allocations.
-        self.material_data_by_label.clear();
-        for material in materials {
-            self.material_data_by_label
-                .entry(material.material_label.clone())
-                .or_insert_with(|| {
-                    // Create a new pipeline if needed.
-                    // Update the pipeline key for associated RenderMeshes.
-                    // TODO: Update the pipeline key if the mesh depth settings change.
-                    for mesh in self
-                        .meshes
-                        .iter_mut()
-                        .filter(|m| m.material_label == material.material_label)
-                    {
-                        let pipeline_key = mesh.pipeline_key.with_material(Some(material));
-                        self.pipelines.entry(pipeline_key).or_insert_with(|| {
-                            create_pipeline(device, &shared_data.pipeline_data, &pipeline_key)
-                        });
+        self.material_data_by_label = materials
+            .iter()
+            .map(|material| {
+                // Only create new pipelines as needed since creation is slow.
+                // Multiple meshes often share the same pipeline configuration.
+                // TODO: Update the pipeline key if the mesh depth settings change.
+                for mesh in self
+                    .meshes
+                    .iter_mut()
+                    .filter(|m| m.material_label == material.material_label)
+                {
+                    let pipeline_key = mesh.pipeline_key.with_material(Some(material));
+                    self.pipelines.entry(pipeline_key).or_insert_with(|| {
+                        create_pipeline(device, &shared_data.pipeline_data, &pipeline_key)
+                    });
 
-                        mesh.pipeline_key = pipeline_key;
-                    }
-                    create_material_data(device, Some(material), &self.textures, shared_data)
-                });
-        }
-        // TODO: Efficiently remove unused entries if the counts have changed?
-        // Renaming materials will quickly fill this cache.
+                    // Update the pipeline key for associated RenderMeshes.
+                    mesh.pipeline_key = pipeline_key;
+                }
+
+                let data =
+                    create_material_data(device, Some(material), &self.textures, shared_data);
+                (material.material_label.clone(), data)
+            })
+            .collect();
     }
 
     pub fn apply_anim<'a>(
         &mut self,
-        device: &wgpu::Device,
         queue: &wgpu::Queue,
         anims: impl Iterator<Item = &'a AnimData> + Clone,
         skel: Option<&SkelData>,
@@ -214,12 +215,7 @@ impl RenderModel {
             animate_visibility(anim, frame, &mut self.meshes);
 
             if let Some(matl) = matl {
-                // Get a list of changed materials.
-                // TODO: Is it possible to avoid per frame allocations here?
-                let animated_materials = animate_materials(anim, frame, &matl.entries);
-                // TODO: Should this go in a separate module?
-                // TODO: Just update the uniform buffers and keep textures.
-                self.update_materials(device, queue, &animated_materials, shared_data);
+                self.update_material_uniforms(anim, frame, matl, shared_data, queue);
             }
         }
 
@@ -238,6 +234,7 @@ impl RenderModel {
                 bytemuck::cast_slice(&self.animation_transforms.world_transforms),
             );
 
+            // TODO: Avoid allocating here?
             let joint_transforms = joint_transforms(skel, &self.animation_transforms);
             queue.write_buffer(
                 &self.joint_world_transforms,
@@ -247,6 +244,34 @@ impl RenderModel {
         }
 
         debug!("Apply Anim: {:?}", start.elapsed());
+    }
+
+    fn update_material_uniforms(
+        &mut self,
+        anim: &AnimData,
+        frame: f32,
+        matl: &MatlData,
+        shared_data: &SharedRenderData,
+        queue: &wgpu::Queue,
+    ) {
+        // Get a list of changed materials.
+        // TODO: Avoid per frame allocations here?
+        let animated_materials = animate_materials(anim, frame, &matl.entries);
+        for material in animated_materials {
+            self.material_data_by_label
+                .entry(material.material_label.clone())
+                .and_modify(|material_data| {
+                    // Material animations don't assign textures.
+                    // We only need to update the material parameter buffer.
+                    // This avoids creating GPU resources each frame.
+                    let uniforms = create_uniforms(Some(&material), &shared_data.database);
+                    queue.write_buffer(
+                        &material_data.uniforms_buffer,
+                        0,
+                        bytemuck::cast_slice(&[uniforms]),
+                    );
+                });
+        }
     }
 
     pub fn draw_skeleton<'a>(
@@ -824,7 +849,7 @@ fn create_material_data(
 
     MaterialData {
         material_uniforms_bind_group,
-        _uniforms_buffer: uniforms_buffer,
+        uniforms_buffer,
     }
 }
 

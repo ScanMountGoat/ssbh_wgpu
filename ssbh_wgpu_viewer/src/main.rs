@@ -390,7 +390,6 @@ impl State {
             // TODO: Combine these into one list?
             for (i, model) in self.render_models.iter_mut().enumerate() {
                 model.apply_anim(
-                    &self.device,
                     &self.queue,
                     self.animations.iter(),
                     self.models[i].find_skel(),
@@ -478,6 +477,7 @@ fn main() {
 
     let args: Vec<_> = std::env::args().collect();
     let folder = Path::new(&args[1]);
+    // Load multiple animation files to test layering.
     let anim_paths: Vec<_> = args
         .get(2..)
         .map(|p| p.iter().map(Path::new).collect())
