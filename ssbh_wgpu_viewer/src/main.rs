@@ -415,18 +415,24 @@ impl State {
         let (_, _, mvp) =
             calculate_camera_pos_mvp(self.size, self.translation_xyz, self.rotation_xyz);
 
-        if let Some(text_commands) = self.renderer.render_skeleton(
+        self.renderer.render_skeleton(
+            &mut encoder,
+            &output_view,
+            &self.render_models,
+            &skels,
+            true,
+        );
+
+        if let Some(text_commands) = self.renderer.render_skeleton_names(
             &self.device,
             &self.queue,
-            &mut encoder,
             &output_view,
             &self.render_models,
             &skels,
             self.size.width,
             self.size.height,
             mvp,
-            None,
-            true,
+            16.0,
         ) {
             self.queue.submit([encoder.finish(), text_commands]);
         } else {

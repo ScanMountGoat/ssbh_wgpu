@@ -636,6 +636,7 @@ impl SsbhRenderer {
         self.skinning_pass(encoder, render_models);
         self.renormal_pass(encoder, render_models);
 
+        // TODO: Benchmark and investigate compute shaders for post processing.
         // TODO: Don't make color_final a parameter since we already take self.
         if self.render_settings.debug_mode != DebugMode::Shaded {
             self.model_debug_pass(encoder, render_models);
@@ -649,6 +650,7 @@ impl SsbhRenderer {
             // Draw the models to the initial color texture.
             self.model_pass(encoder, render_models, shader_database);
 
+            // TODO: Will these be faster as compute passes?
             // Extract the portions of the image that contribute to bloom.
             self.bloom_threshold_pass(encoder, self.render_settings.render_bloom);
 
@@ -668,13 +670,15 @@ impl SsbhRenderer {
             self.post_processing_pass(encoder, &self.pass_info.color_final.view);
         }
 
-        // TODO: Add additional passes to create outlines?
         // Draw selected meshes to silhouette texture and stencil texture.
+        // TODO: This can be combined with the model and model debug pass.
         let rendered_silhouette = self.model_silhouette_pass(encoder, render_models);
 
-        // Expand silhouettes to create outlines using stencil texture
+        // Expand silhouettes to create outlines using stencil texture.
+        // TODO: Will this be faster as a compute shader?
         self.outline_pass(encoder, rendered_silhouette);
 
+        // TODO: This can be combined with post processing.
         // Composite the outlines onto the result of the debug or shaded passes.
         self.overlay_pass(encoder, output_view)
     }
@@ -694,38 +698,40 @@ impl SsbhRenderer {
         }
     }
 
-    /// Renders the corresponding skeleton in `skel` for each model in `render_models` to `output_view`.
+    /// Renders the corresponding skeleton in `skels` for each model in `render_models`.
+    pub fn render_skeleton(
+        &self,
+        encoder: &mut wgpu::CommandEncoder,
+        output_view: &wgpu::TextureView,
+        render_models: &[RenderModel],
+        skels: &[Option<&SkelData>],
+        draw_bone_axes: bool,
+    ) {
+        self.skeleton_pass(encoder, render_models, output_view, skels, draw_bone_axes);
+    }
+
+    /// Renders the bone names for skeleton in `skels` for each model in `render_models` to `output_view`.
     ///
     /// The `output_view` should have the format [crate::RGBA_COLOR_FORMAT].
     /// The output is not cleared before drawing.
-    pub fn render_skeleton(
+    pub fn render_skeleton_names(
         &mut self,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
-        encoder: &mut wgpu::CommandEncoder,
         output_view: &wgpu::TextureView,
         render_models: &[RenderModel],
         skels: &[Option<&SkelData>],
         width: u32,
         height: u32,
         mvp: glam::Mat4,
-        bone_name_font_size: Option<f32>,
-        draw_bone_axes: bool,
+        font_size: f32,
     ) -> Option<wgpu::CommandBuffer> {
-        self.skeleton_pass(encoder, render_models, output_view, skels, draw_bone_axes);
+        let brush = self.brush.as_mut()?;
 
-        if let Some(font_size) = bone_name_font_size {
-            let brush = self.brush.as_mut()?;
-
-            for (model, skel) in render_models.iter().zip(skels) {
-                model.queue_bone_names(*skel, brush, width, height, mvp, font_size);
-            }
-
-            // TODO: Make text rendering optional without returning the command buffer?
-            Some(brush.draw(device, output_view, queue))
-        } else {
-            None
+        for (model, skel) in render_models.iter().zip(skels) {
+            model.queue_bone_names(*skel, brush, width, height, mvp, font_size);
         }
+        Some(brush.draw(device, output_view, queue))
     }
 
     /// Renders meshes for the selected model and material with a solid color.
