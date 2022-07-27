@@ -329,29 +329,18 @@ pub fn solid_color_texture_2d(
         height: 4,
         depth_or_array_layers: 1,
     };
-    let texture = device.create_texture(&TextureDescriptor {
-        label: Some(label),
-        size: texture_size,
-        mip_level_count: 1,
-        sample_count: 1,
-        dimension: TextureDimension::D2,
-        format: TextureFormat::Rgba8Unorm,
-        usage: TextureUsages::COPY_SRC | TextureUsages::COPY_DST | TextureUsages::TEXTURE_BINDING,
-    });
-    queue.write_texture(
-        wgpu::ImageCopyTexture {
-            texture: &texture,
-            mip_level: 0,
-            origin: wgpu::Origin3d::ZERO,
-            aspect: TextureAspect::All,
+    let texture = device.create_texture_with_data(
+        queue,
+        &TextureDescriptor {
+            label: Some(label),
+            size: texture_size,
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: TextureDimension::D2,
+            format: TextureFormat::Rgba8Unorm,
+            usage: TextureUsages::COPY_DST | TextureUsages::TEXTURE_BINDING,
         },
         bytemuck::cast_slice(&[color; 4 * 4]),
-        wgpu::ImageDataLayout {
-            offset: 0,
-            bytes_per_row: NonZeroU32::new(16),
-            rows_per_image: None,
-        },
-        texture_size,
     );
 
     (label.to_string(), texture, TextureViewDimension::D2)

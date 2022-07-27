@@ -11,3 +11,6 @@ ssbh_wgpu = { path = "../ssbh_wgpu" }
 log = "0.4.17"
 simple_logger = "2.1.0"
 globwalk = "0.8.0"
+image = "0.24.2"
+futures-intrusive = "0.4.0"
+glam = { version = "0.20.2" }
