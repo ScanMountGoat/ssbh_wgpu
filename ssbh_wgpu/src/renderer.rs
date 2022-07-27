@@ -732,7 +732,7 @@ impl SsbhRenderer {
     ///
     /// The `output_view` should have the format [crate::RGBA_COLOR_FORMAT].
     pub fn render_material_mask(
-        &mut self,
+        &self,
         encoder: &mut wgpu::CommandEncoder,
         output_view: &wgpu::TextureView,
         render_models: &[RenderModel],
