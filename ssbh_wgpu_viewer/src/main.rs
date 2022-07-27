@@ -402,12 +402,14 @@ impl State {
             }
         }
 
-        self.renderer.render_ssbh_passes(
+        let final_pass = self.renderer.render_models(
             &mut encoder,
             &output_view,
             &self.render_models,
             &self.shared_data.database,
         );
+
+        drop(final_pass);
 
         let skels: Vec<_> = self.models.iter().map(|m| m.find_skel()).collect();
         let (_, _, mvp) =

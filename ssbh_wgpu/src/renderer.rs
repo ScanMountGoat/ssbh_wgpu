@@ -609,17 +609,22 @@ impl SsbhRenderer {
         self.clear_color = color;
     }
 
+    // TODO: Add a code example to show how to drop it.
     /// Renders the `render_meshes` to `output_view` using the standard rendering passes for Smash Ultimate.
     ///
     /// The `output_view` should have the format [crate::RGBA_COLOR_FORMAT].
     /// The output is cleared before drawing.
-    pub fn render_ssbh_passes(
-        &self,
-        encoder: &mut wgpu::CommandEncoder,
-        output_view: &wgpu::TextureView,
-        render_models: &[RenderModel],
+    ///
+    /// Returns the final color pass with no depth attachment.
+    /// This enables adding efficient overlays.
+    /// Remember to drop the pass when done using it!
+    pub fn render_models<'a>(
+        &'a self,
+        encoder: &'a mut wgpu::CommandEncoder,
+        output_view: &'a wgpu::TextureView,
+        render_models: &'a [RenderModel],
         shader_database: &ShaderDatabase,
-    ) {
+    ) -> wgpu::RenderPass<'a> {
         // Render meshes are sorted globally rather than per folder.
         // This allows all transparent draw calls to happen after opaque draw calls.
         // TODO: How to have RenderModel own all resources but still sort RenderMesh?
@@ -671,7 +676,7 @@ impl SsbhRenderer {
         self.outline_pass(encoder, rendered_silhouette);
 
         // Composite the outlines onto the result of the debug or shaded passes.
-        self.overlay_pass(encoder, output_view);
+        self.overlay_pass(encoder, output_view)
     }
 
     /// Renders UVs for all of the meshes with `is_selected` set to `true`.
@@ -1095,7 +1100,11 @@ impl SsbhRenderer {
         }
     }
 
-    fn overlay_pass(&self, encoder: &mut wgpu::CommandEncoder, output_view: &wgpu::TextureView) {
+    fn overlay_pass<'a>(
+        &'a self,
+        encoder: &'a mut wgpu::CommandEncoder,
+        output_view: &'a wgpu::TextureView,
+    ) -> wgpu::RenderPass<'a> {
         let mut pass = create_color_pass(encoder, output_view, Some("Overlay Pass"));
 
         self.set_scissor(&mut pass);
@@ -1108,6 +1117,8 @@ impl SsbhRenderer {
             },
         );
         pass.draw(0..3, 0..1);
+
+        pass
     }
 
     fn post_processing_pass(

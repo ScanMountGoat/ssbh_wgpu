@@ -132,7 +132,7 @@ fn main() {
             label: Some("Render Encoder"),
         });
 
-        renderer.render_ssbh_passes(
+        renderer.render_models(
             &mut encoder,
             &output_view,
             &render_models,
