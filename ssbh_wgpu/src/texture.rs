@@ -1,13 +1,10 @@
 use image::EncodableLayout;
 use ssbh_data::matl_data::{MagFilter, MatlEntryData, MinFilter, ParamId, WrapMode};
-use std::{
-    num::{NonZeroU32, NonZeroU8},
-    path::Path,
-};
+use std::{num::NonZeroU8, path::Path};
 use wgpu::{
-    util::DeviceExt, Device, Queue, Sampler, SamplerDescriptor, Texture, TextureAspect,
-    TextureDescriptor, TextureDimension, TextureFormat, TextureUsages, TextureView,
-    TextureViewDescriptor, TextureViewDimension,
+    util::DeviceExt, Device, Queue, Sampler, SamplerDescriptor, Texture, TextureDescriptor,
+    TextureDimension, TextureFormat, TextureUsages, TextureView, TextureViewDescriptor,
+    TextureViewDimension,
 };
 
 pub enum LoadTextureError {

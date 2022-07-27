@@ -173,6 +173,7 @@ impl State {
                 new_size.width,
                 new_size.height,
                 scale_factor,
+                [0.0, 0.0, new_size.width as f32, new_size.height as f32],
             );
         }
     }

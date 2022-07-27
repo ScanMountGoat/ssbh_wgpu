@@ -227,6 +227,10 @@ pub struct SsbhRenderer {
 
     // TODO: Find a way to simplify this?
     brush: Option<TextBrush<FontRef<'static>, DefaultSectionHasher>>,
+
+    // Viewport parameters.
+    // Assume depth clamp is 0.0 to 1.0.
+    viewport_region: [f32; 4],
 }
 
 impl SsbhRenderer {
@@ -242,8 +246,8 @@ impl SsbhRenderer {
     pub fn new(
         device: &wgpu::Device,
         queue: &wgpu::Queue,
-        initial_width: u32,
-        initial_height: u32,
+        width: u32,
+        height: u32,
         scale_factor: f64,
         clear_color: [f64; 3],
         font_bytes: &'static [u8],
@@ -354,13 +358,7 @@ impl SsbhRenderer {
         };
 
         // TODO: Create a struct to store the stage rendering data?
-        let pass_info = PassInfo::new(
-            device,
-            initial_width,
-            initial_height,
-            scale_factor,
-            &color_lut,
-        );
+        let pass_info = PassInfo::new(device, width, height, scale_factor, &color_lut);
 
         // Assume the user will update the camera, so these values don't matter.
         let camera_buffer = uniform_buffer(
@@ -470,8 +468,8 @@ impl SsbhRenderer {
         let config = wgpu::SurfaceConfiguration {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
             format: RGBA_COLOR_FORMAT,
-            width: initial_width,
-            height: initial_height,
+            width,
+            height,
             present_mode: wgpu::PresentMode::Mailbox,
         };
 
@@ -521,19 +519,31 @@ impl SsbhRenderer {
             overlay_pipeline,
             wireframe_pipeline,
             selected_material_pipeline,
+            viewport_region: [0.0, 0.0, width as f32, height as f32],
         }
+    }
+
+    // TODO: Show code examples instead.
+    /// Sets which region of the surface is actually rendered.
+    /// The parameter is organized as `[origin x, origin y, width, height]`.
+    /// A value of `[0.0, 0.0, width as f32, height as f32]` will render to the entire surface.
+    /// Smaller regions are useful for creating viewports in applications without excessive overdraw.
+    pub fn set_viewport_region(&mut self, viewport_region: [f32; 4]) {
+        self.viewport_region = viewport_region;
     }
 
     /// A faster alternative to creating a new [SsbhRenderer] with the desired size.
     ///
-    /// The `scale_factor` maps physical pixels to logical pixels.
-    /// This adjusts screen based effects such as bloom to have a more appropriate scale on high DPI screens.
-    /// This should usually match the current monitor's scaling factor
-    /// in the OS such as `1.5` for 150% scaling.
-    ///
     /// Prefer this method over calling [SsbhRenderer::new] with the updated dimensions.
     /// To update the camera to a potentially new aspect ratio,
     /// pass the appropriate matrix to [SsbhRenderer::update_camera].
+    ///
+    /// The `scale_factor` maps physical pixels to logical pixels.
+    /// This adjusts screen based effects such as bloom to have a more appropriate scale on high DPI screens.
+    /// This should usually match the current monitor's scaling factor
+    /// in the OS such as `1.5` for 150% scaling. If unsure, use a value of `1.0`.
+    ///
+    /// For the `viewport_region`, see [SsbhRenderer::set_viewport_region].
     pub fn resize(
         &mut self,
         device: &wgpu::Device,
@@ -541,7 +551,10 @@ impl SsbhRenderer {
         width: u32,
         height: u32,
         scale_factor: f64,
+        viewport_region: [f32; 4],
     ) {
+        self.set_viewport_region(viewport_region);
+
         self.pass_info = PassInfo::new(device, width, height, scale_factor, &self.color_lut);
         if let Some(brush) = self.brush.as_mut() {
             brush.resize_view(width as f32, height as f32, queue);
@@ -750,8 +763,19 @@ impl SsbhRenderer {
         }
     }
 
+    fn set_viewport(&self, model_pass: &mut wgpu::RenderPass) {
+        model_pass.set_viewport(
+            self.viewport_region[0],
+            self.viewport_region[1],
+            self.viewport_region[2],
+            self.viewport_region[3],
+            0.0,
+            1.0,
+        );
+    }
+
     fn bloom_upscale_pass(&self, encoder: &mut wgpu::CommandEncoder) {
-        bloom_pass(
+        self.bloom_pass(
             encoder,
             "Bloom Upscale Pass",
             &self.bloom_upscale_pipeline,
@@ -762,7 +786,7 @@ impl SsbhRenderer {
 
     fn bloom_blur_passes(&self, encoder: &mut wgpu::CommandEncoder) {
         for (texture, bind_group0) in &self.pass_info.bloom_blur_colors {
-            bloom_pass(
+            self.bloom_pass(
                 encoder,
                 "Bloom Blur Pass",
                 &self.bloom_blur_pipeline,
@@ -774,7 +798,7 @@ impl SsbhRenderer {
 
     fn bloom_threshold_pass(&self, encoder: &mut wgpu::CommandEncoder, enable_bloom: bool) {
         if enable_bloom {
-            bloom_pass(
+            self.bloom_pass(
                 encoder,
                 "Bloom Threshold Pass",
                 &self.bloom_threshold_pipeline,
@@ -855,7 +879,7 @@ impl SsbhRenderer {
         // TODO: Force having a color attachment for each fragment shader output in wgsl_to_wgpu?
         // TODO: Should this pass draw to a floating point target?
         // The in game format isn't 8-bit yet.
-        let mut model_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+        let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("Model Pass"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                 view: &self.pass_info.color.view,
@@ -875,11 +899,13 @@ impl SsbhRenderer {
             }),
         });
 
+        self.set_viewport(&mut pass);
+
         // TODO: Investigate sorting.
-        self.draw_render_models(render_models, &mut model_pass, shader_database, "opaque");
-        self.draw_render_models(render_models, &mut model_pass, shader_database, "far");
-        self.draw_render_models(render_models, &mut model_pass, shader_database, "sort");
-        self.draw_render_models(render_models, &mut model_pass, shader_database, "near");
+        self.draw_render_models(render_models, &mut pass, shader_database, "opaque");
+        self.draw_render_models(render_models, &mut pass, shader_database, "far");
+        self.draw_render_models(render_models, &mut pass, shader_database, "sort");
+        self.draw_render_models(render_models, &mut pass, shader_database, "near");
     }
 
     fn draw_render_models<'a>(
@@ -929,6 +955,8 @@ impl SsbhRenderer {
             }),
         });
 
+        self.set_viewport(&mut pass);
+
         pass.set_pipeline(&self.silhouette_pipeline);
 
         let mut active = false;
@@ -939,7 +967,7 @@ impl SsbhRenderer {
     }
 
     fn model_debug_pass(&self, encoder: &mut wgpu::CommandEncoder, render_models: &[RenderModel]) {
-        let mut debug_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+        let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("Model Debug Pass"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                 view: &self.pass_info.color_final.view,
@@ -959,16 +987,18 @@ impl SsbhRenderer {
             }),
         });
 
-        debug_pass.set_pipeline(&self.debug_pipeline);
+        self.set_viewport(&mut pass);
+
+        pass.set_pipeline(&self.debug_pipeline);
         for model in render_models {
-            model.draw_meshes_debug(&mut debug_pass, &self.per_frame_bind_group);
+            model.draw_meshes_debug(&mut pass, &self.per_frame_bind_group);
         }
 
         // TODO: Add antialiasing?
         if self.render_settings.wireframe {
-            debug_pass.set_pipeline(&self.wireframe_pipeline);
+            pass.set_pipeline(&self.wireframe_pipeline);
             for model in render_models {
-                model.draw_meshes_debug(&mut debug_pass, &self.per_frame_bind_group);
+                model.draw_meshes_debug(&mut pass, &self.per_frame_bind_group);
             }
         }
     }
@@ -992,7 +1022,7 @@ impl SsbhRenderer {
         draw_bone_axes: bool,
     ) {
         // TODO: Force having a color attachment for each fragment shader output in wgsl_to_wgpu?
-        let mut skeleton_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+        let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("Skeleton Pass"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                 view,
@@ -1012,11 +1042,13 @@ impl SsbhRenderer {
             }),
         });
 
+        self.set_viewport(&mut pass);
+
         for (model, skel) in render_models.iter().zip(skels) {
             model.draw_skeleton(
                 *skel,
                 &self.bone_buffers,
-                &mut skeleton_pass,
+                &mut pass,
                 &self.skeleton_camera_bind_group,
                 &self.bone_pipelines,
                 draw_bone_axes,
@@ -1026,7 +1058,7 @@ impl SsbhRenderer {
 
     fn outline_pass(&self, encoder: &mut wgpu::CommandEncoder, enabled: bool) {
         // Always clear the outlines even if nothing is selected.
-        let mut outline_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+        let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("Outline Pass"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                 view: &self.pass_info.selected_outlines.view,
@@ -1046,30 +1078,35 @@ impl SsbhRenderer {
             }),
         });
 
+        self.set_viewport(&mut pass);
+
         if enabled {
-            outline_pass.set_pipeline(&self.outline_pipeline);
+            pass.set_pipeline(&self.outline_pipeline);
             crate::shader::outline::bind_groups::set_bind_groups(
-                &mut outline_pass,
+                &mut pass,
                 crate::shader::outline::bind_groups::BindGroups {
                     bind_group0: &self.pass_info.outline_bind_group,
                 },
             );
             // Mask out the inner black regions to keep the outline.
-            outline_pass.set_stencil_reference(0xff);
-            outline_pass.draw(0..3, 0..1);
+            pass.set_stencil_reference(0xff);
+            pass.draw(0..3, 0..1);
         }
     }
 
     fn overlay_pass(&self, encoder: &mut wgpu::CommandEncoder, output_view: &wgpu::TextureView) {
-        let mut overlay_pass = create_color_pass(encoder, output_view, Some("Overlay Pass"));
-        overlay_pass.set_pipeline(&self.overlay_pipeline);
+        let mut pass = create_color_pass(encoder, output_view, Some("Overlay Pass"));
+
+        self.set_viewport(&mut pass);
+
+        pass.set_pipeline(&self.overlay_pipeline);
         crate::shader::overlay::bind_groups::set_bind_groups(
-            &mut overlay_pass,
+            &mut pass,
             crate::shader::overlay::bind_groups::BindGroups {
                 bind_group0: &self.pass_info.overlay_bind_group,
             },
         );
-        overlay_pass.draw(0..3, 0..1);
+        pass.draw(0..3, 0..1);
     }
 
     fn post_processing_pass(
@@ -1077,36 +1114,41 @@ impl SsbhRenderer {
         encoder: &mut wgpu::CommandEncoder,
         output_view: &wgpu::TextureView,
     ) {
-        let mut post_processing_pass =
-            create_color_pass(encoder, output_view, Some("Post Processing Pass"));
-        post_processing_pass.set_pipeline(&self.post_process_pipeline);
+        let mut pass = create_color_pass(encoder, output_view, Some("Post Processing Pass"));
+
+        self.set_viewport(&mut pass);
+
+        pass.set_pipeline(&self.post_process_pipeline);
         crate::shader::post_process::bind_groups::set_bind_groups(
-            &mut post_processing_pass,
+            &mut pass,
             crate::shader::post_process::bind_groups::BindGroups {
                 bind_group0: &self.pass_info.post_process_bind_group,
             },
         );
-        post_processing_pass.draw(0..3, 0..1);
+        pass.draw(0..3, 0..1);
     }
 
     fn bloom_combine_pass(&self, encoder: &mut wgpu::CommandEncoder) {
-        let mut bloom_combine_pass = create_color_pass(
+        let mut pass = create_color_pass(
             encoder,
             &self.pass_info.bloom_combined.view,
             Some("Bloom Combined Pass"),
         );
-        bloom_combine_pass.set_pipeline(&self.bloom_combine_pipeline);
+
+        self.set_viewport(&mut pass);
+
+        pass.set_pipeline(&self.bloom_combine_pipeline);
         crate::shader::bloom_combine::bind_groups::set_bind_groups(
-            &mut bloom_combine_pass,
+            &mut pass,
             crate::shader::bloom_combine::bind_groups::BindGroups {
                 bind_group0: &self.pass_info.bloom_combine_bind_group,
             },
         );
-        bloom_combine_pass.draw(0..3, 0..1);
+        pass.draw(0..3, 0..1);
     }
 
     fn shadow_pass(&self, encoder: &mut wgpu::CommandEncoder, render_models: &[RenderModel]) {
-        let mut shadow_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+        let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("Shadow Pass"),
             color_attachments: &[],
             depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
@@ -1118,10 +1160,35 @@ impl SsbhRenderer {
                 stencil_ops: None,
             }),
         });
-        shadow_pass.set_pipeline(&self.shadow_pipeline);
+
+        self.set_viewport(&mut pass);
+
+        pass.set_pipeline(&self.shadow_pipeline);
         for model in render_models {
-            model.draw_render_meshes_depth(&mut shadow_pass, &self.per_frame_bind_group);
+            model.draw_render_meshes_depth(&mut pass, &self.per_frame_bind_group);
         }
+    }
+
+    fn bloom_pass(
+        &self,
+        encoder: &mut wgpu::CommandEncoder,
+        name: &str,
+        pipeline: &wgpu::RenderPipeline,
+        view: &wgpu::TextureView,
+        bind_group: &crate::shader::bloom::bind_groups::BindGroup0,
+    ) {
+        let mut pass = create_color_pass(encoder, view, Some(name));
+
+        self.set_viewport(&mut pass);
+
+        pass.set_pipeline(pipeline);
+        crate::shader::bloom::bind_groups::set_bind_groups(
+            &mut pass,
+            crate::shader::bloom::bind_groups::BindGroups {
+                bind_group0: bind_group,
+            },
+        );
+        pass.draw(0..3, 0..1);
     }
 }
 
@@ -1151,24 +1218,6 @@ fn create_screen_pipeline(
         multisample: wgpu::MultisampleState::default(),
         multiview: None,
     })
-}
-
-fn bloom_pass(
-    encoder: &mut wgpu::CommandEncoder,
-    name: &str,
-    pipeline: &wgpu::RenderPipeline,
-    view: &wgpu::TextureView,
-    bind_group: &crate::shader::bloom::bind_groups::BindGroup0,
-) {
-    let mut pass = create_color_pass(encoder, view, Some(name));
-    pass.set_pipeline(pipeline);
-    crate::shader::bloom::bind_groups::set_bind_groups(
-        &mut pass,
-        crate::shader::bloom::bind_groups::BindGroups {
-            bind_group0: bind_group,
-        },
-    );
-    pass.draw(0..3, 0..1);
 }
 
 fn create_color_pass<'a>(
