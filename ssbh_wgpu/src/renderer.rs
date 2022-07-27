@@ -228,21 +228,22 @@ pub struct SsbhRenderer {
     // TODO: Find a way to simplify this?
     brush: Option<TextBrush<FontRef<'static>, DefaultSectionHasher>>,
 
-    // Viewport parameters.
-    // Assume depth clamp is 0.0 to 1.0.
-    viewport_region: [f32; 4],
+    scissor_rect: [u32; 4],
 }
 
 impl SsbhRenderer {
     /// Initializes the renderer for the given dimensions and monitor scaling.
+    ///
+    /// This is an expensive operation, so applications should create and reuse a single [SsbhRenderer].
+    /// Use [SsbhRenderer::resize] and [SsbhRenderer::update_camera] for changing window sizes and user interaction.
     ///
     /// The `scale_factor` should typically match the monitor scaling in the OS such as `1.5` for 150% scaling.
     /// If unsure, set `scale_factor` to `1.0`.
     ///
     /// The `clear_color` determines the RGB color of the viewport background.
     ///
-    /// This is an expensive operation, so applications should create and reuse a single [SsbhRenderer].
-    /// Use [SsbhRenderer::resize] and [SsbhRenderer::update_camera] for changing window sizes and user interaction.
+    /// The `font_bytes` should be the file contents of a `.ttf` font file.
+    /// If `font_bytes` is empty or is not a valid font, text rendering will be disabled.
     pub fn new(
         device: &wgpu::Device,
         queue: &wgpu::Queue,
@@ -519,17 +520,19 @@ impl SsbhRenderer {
             overlay_pipeline,
             wireframe_pipeline,
             selected_material_pipeline,
-            viewport_region: [0.0, 0.0, width as f32, height as f32],
+            scissor_rect: [0, 0, width, height],
         }
     }
 
     // TODO: Show code examples instead.
-    /// Sets which region of the surface is actually rendered.
+    /// Only fragments within this region will be rendered.
+    /// This functions like a "mask" for the rendered output.
+    ///
     /// The parameter is organized as `[origin x, origin y, width, height]`.
-    /// A value of `[0.0, 0.0, width as f32, height as f32]` will render to the entire surface.
+    /// A value of `[0, 0, width, height]` will render to the entire surface.
     /// Smaller regions are useful for creating viewports in applications without excessive overdraw.
-    pub fn set_viewport_region(&mut self, viewport_region: [f32; 4]) {
-        self.viewport_region = viewport_region;
+    pub fn set_scissor_rect(&mut self, scissor_rect: [u32; 4]) {
+        self.scissor_rect = scissor_rect;
     }
 
     /// A faster alternative to creating a new [SsbhRenderer] with the desired size.
@@ -543,7 +546,7 @@ impl SsbhRenderer {
     /// This should usually match the current monitor's scaling factor
     /// in the OS such as `1.5` for 150% scaling. If unsure, use a value of `1.0`.
     ///
-    /// For the `viewport_region`, see [SsbhRenderer::set_viewport_region].
+    /// For the `scissor_rect`, see [SsbhRenderer::set_scissor_rect].
     pub fn resize(
         &mut self,
         device: &wgpu::Device,
@@ -551,9 +554,9 @@ impl SsbhRenderer {
         width: u32,
         height: u32,
         scale_factor: f64,
-        viewport_region: [f32; 4],
+        scissor_rect: [u32; 4],
     ) {
-        self.set_viewport_region(viewport_region);
+        self.set_scissor_rect(scissor_rect);
 
         self.pass_info = PassInfo::new(device, width, height, scale_factor, &self.color_lut);
         if let Some(brush) = self.brush.as_mut() {
@@ -763,14 +766,12 @@ impl SsbhRenderer {
         }
     }
 
-    fn set_viewport(&self, model_pass: &mut wgpu::RenderPass) {
-        model_pass.set_viewport(
-            self.viewport_region[0],
-            self.viewport_region[1],
-            self.viewport_region[2],
-            self.viewport_region[3],
-            0.0,
-            1.0,
+    fn set_scissor(&self, model_pass: &mut wgpu::RenderPass) {
+        model_pass.set_scissor_rect(
+            self.scissor_rect[0],
+            self.scissor_rect[1],
+            self.scissor_rect[2],
+            self.scissor_rect[3],
         );
     }
 
@@ -899,7 +900,7 @@ impl SsbhRenderer {
             }),
         });
 
-        self.set_viewport(&mut pass);
+        self.set_scissor(&mut pass);
 
         // TODO: Investigate sorting.
         self.draw_render_models(render_models, &mut pass, shader_database, "opaque");
@@ -955,7 +956,7 @@ impl SsbhRenderer {
             }),
         });
 
-        self.set_viewport(&mut pass);
+        self.set_scissor(&mut pass);
 
         pass.set_pipeline(&self.silhouette_pipeline);
 
@@ -987,7 +988,7 @@ impl SsbhRenderer {
             }),
         });
 
-        self.set_viewport(&mut pass);
+        self.set_scissor(&mut pass);
 
         pass.set_pipeline(&self.debug_pipeline);
         for model in render_models {
@@ -1042,7 +1043,7 @@ impl SsbhRenderer {
             }),
         });
 
-        self.set_viewport(&mut pass);
+        self.set_scissor(&mut pass);
 
         for (model, skel) in render_models.iter().zip(skels) {
             model.draw_skeleton(
@@ -1078,7 +1079,7 @@ impl SsbhRenderer {
             }),
         });
 
-        self.set_viewport(&mut pass);
+        self.set_scissor(&mut pass);
 
         if enabled {
             pass.set_pipeline(&self.outline_pipeline);
@@ -1097,7 +1098,7 @@ impl SsbhRenderer {
     fn overlay_pass(&self, encoder: &mut wgpu::CommandEncoder, output_view: &wgpu::TextureView) {
         let mut pass = create_color_pass(encoder, output_view, Some("Overlay Pass"));
 
-        self.set_viewport(&mut pass);
+        self.set_scissor(&mut pass);
 
         pass.set_pipeline(&self.overlay_pipeline);
         crate::shader::overlay::bind_groups::set_bind_groups(
@@ -1116,7 +1117,7 @@ impl SsbhRenderer {
     ) {
         let mut pass = create_color_pass(encoder, output_view, Some("Post Processing Pass"));
 
-        self.set_viewport(&mut pass);
+        self.set_scissor(&mut pass);
 
         pass.set_pipeline(&self.post_process_pipeline);
         crate::shader::post_process::bind_groups::set_bind_groups(
@@ -1134,8 +1135,6 @@ impl SsbhRenderer {
             &self.pass_info.bloom_combined.view,
             Some("Bloom Combined Pass"),
         );
-
-        self.set_viewport(&mut pass);
 
         pass.set_pipeline(&self.bloom_combine_pipeline);
         crate::shader::bloom_combine::bind_groups::set_bind_groups(
@@ -1161,8 +1160,6 @@ impl SsbhRenderer {
             }),
         });
 
-        self.set_viewport(&mut pass);
-
         pass.set_pipeline(&self.shadow_pipeline);
         for model in render_models {
             model.draw_render_meshes_depth(&mut pass, &self.per_frame_bind_group);
@@ -1178,8 +1175,6 @@ impl SsbhRenderer {
         bind_group: &crate::shader::bloom::bind_groups::BindGroup0,
     ) {
         let mut pass = create_color_pass(encoder, view, Some(name));
-
-        self.set_viewport(&mut pass);
 
         pass.set_pipeline(pipeline);
         crate::shader::bloom::bind_groups::set_bind_groups(
