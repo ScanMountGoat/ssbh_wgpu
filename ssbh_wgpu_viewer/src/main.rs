@@ -402,33 +402,28 @@ impl State {
             }
         }
 
+        let skels = self.models.iter().map(|m| m.find_skel());
+
         let final_pass = self.renderer.render_models(
             &mut encoder,
             &output_view,
             &self.render_models,
+            skels.clone(),
             &self.shared_data.database,
+            true,
         );
 
         drop(final_pass);
 
-        let skels: Vec<_> = self.models.iter().map(|m| m.find_skel()).collect();
         let (_, _, mvp) =
             calculate_camera_pos_mvp(self.size, self.translation_xyz, self.rotation_xyz);
-
-        self.renderer.render_skeleton(
-            &mut encoder,
-            &output_view,
-            &self.render_models,
-            &skels,
-            true,
-        );
 
         if let Some(text_commands) = self.renderer.render_skeleton_names(
             &self.device,
             &self.queue,
             &output_view,
             &self.render_models,
-            &skels,
+            skels,
             self.size.width,
             self.size.height,
             mvp,

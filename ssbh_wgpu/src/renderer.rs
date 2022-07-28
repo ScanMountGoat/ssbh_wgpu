@@ -615,15 +615,19 @@ impl SsbhRenderer {
     /// The `output_view` should have the format [crate::RGBA_COLOR_FORMAT].
     /// The output is cleared before drawing.
     ///
+    /// For disabling bone rendering, pass an empty iterator for `skels`.
+    ///
     /// Returns the final color pass with no depth attachment.
     /// This enables adding efficient overlays.
     /// Remember to drop the pass when done using it!
-    pub fn render_models<'a>(
+    pub fn render_models<'a, 'b>(
         &'a self,
         encoder: &'a mut wgpu::CommandEncoder,
         output_view: &'a wgpu::TextureView,
         render_models: &'a [RenderModel],
+        skels: impl Iterator<Item = Option<&'b SkelData>>,
         shader_database: &ShaderDatabase,
+        draw_bone_axes: bool,
     ) -> wgpu::RenderPass<'a> {
         // Render meshes are sorted globally rather than per folder.
         // This allows all transparent draw calls to happen after opaque draw calls.
@@ -678,13 +682,22 @@ impl SsbhRenderer {
         // TODO: Will this be faster as a compute shader?
         self.outline_pass(encoder, rendered_silhouette);
 
+        // TODO: Disable this pass if not needed.
+        self.skeleton_pass(
+            encoder,
+            render_models,
+            &self.pass_info.color_final.view,
+            skels,
+            draw_bone_axes,
+        );
+
         // TODO: This can be combined with post processing.
         // Composite the outlines onto the result of the debug or shaded passes.
         self.overlay_pass(encoder, output_view)
     }
 
     /// Renders UVs for all of the meshes with `is_selected` set to `true`.
-    pub fn render_model_uvs<'a>(
+    pub fn render_models_uv<'a>(
         &'a self,
         render_pass: &mut wgpu::RenderPass<'a>,
         render_models: &'a [RenderModel],
@@ -698,29 +711,17 @@ impl SsbhRenderer {
         }
     }
 
-    /// Renders the corresponding skeleton in `skels` for each model in `render_models`.
-    pub fn render_skeleton(
-        &self,
-        encoder: &mut wgpu::CommandEncoder,
-        output_view: &wgpu::TextureView,
-        render_models: &[RenderModel],
-        skels: &[Option<&SkelData>],
-        draw_bone_axes: bool,
-    ) {
-        self.skeleton_pass(encoder, render_models, output_view, skels, draw_bone_axes);
-    }
-
     /// Renders the bone names for skeleton in `skels` for each model in `render_models` to `output_view`.
     ///
     /// The `output_view` should have the format [crate::RGBA_COLOR_FORMAT].
     /// The output is not cleared before drawing.
-    pub fn render_skeleton_names(
+    pub fn render_skeleton_names<'a>(
         &mut self,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
         output_view: &wgpu::TextureView,
         render_models: &[RenderModel],
-        skels: &[Option<&SkelData>],
+        skels: impl Iterator<Item = Option<&'a SkelData>>,
         width: u32,
         height: u32,
         mvp: glam::Mat4,
@@ -728,10 +729,20 @@ impl SsbhRenderer {
     ) -> Option<wgpu::CommandBuffer> {
         let brush = self.brush.as_mut()?;
 
+        // TODO: Optimize this?
         for (model, skel) in render_models.iter().zip(skels) {
-            model.queue_bone_names(*skel, brush, width, height, mvp, font_size);
+            model.queue_bone_names(skel, brush, width, height, mvp, font_size);
         }
-        Some(brush.draw(device, output_view, queue))
+
+        let region = wgpu_text::ScissorRegion {
+            x: self.scissor_rect[0],
+            y: self.scissor_rect[1],
+            width: self.scissor_rect[2],
+            height: self.scissor_rect[3],
+            out_width: width,
+            out_height: height,
+        };
+        Some(brush.draw_custom(device, output_view, queue, Some(region)))
     }
 
     /// Renders meshes for the selected model and material with a solid color.
@@ -751,6 +762,7 @@ impl SsbhRenderer {
                 view: output_view,
                 resolve_target: None,
                 ops: wgpu::Operations {
+                    // TODO: Combine with another pass to avoid loading.
                     load: wgpu::LoadOp::Load,
                     store: true,
                 },
@@ -1025,12 +1037,12 @@ impl SsbhRenderer {
         }
     }
 
-    fn skeleton_pass(
+    fn skeleton_pass<'a>(
         &self,
         encoder: &mut wgpu::CommandEncoder,
         render_models: &[RenderModel],
         view: &wgpu::TextureView,
-        skels: &[Option<&SkelData>],
+        skels: impl Iterator<Item = Option<&'a SkelData>>,
         draw_bone_axes: bool,
     ) {
         // TODO: Force having a color attachment for each fragment shader output in wgsl_to_wgpu?
@@ -1040,6 +1052,7 @@ impl SsbhRenderer {
                 view,
                 resolve_target: None,
                 ops: wgpu::Operations {
+                    // TODO: Combine with another pass to avoid loading.
                     load: wgpu::LoadOp::Load,
                     store: true,
                 },
@@ -1048,7 +1061,7 @@ impl SsbhRenderer {
                 view: &self.pass_info.depth.view,
                 depth_ops: Some(wgpu::Operations {
                     load: wgpu::LoadOp::Clear(1.0),
-                    store: true,
+                    store: false,
                 }),
                 stencil_ops: None,
             }),
@@ -1058,7 +1071,7 @@ impl SsbhRenderer {
 
         for (model, skel) in render_models.iter().zip(skels) {
             model.draw_skeleton(
-                *skel,
+                skel,
                 &self.bone_buffers,
                 &mut pass,
                 &self.skeleton_camera_bind_group,
