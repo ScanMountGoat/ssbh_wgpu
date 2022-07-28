@@ -649,7 +649,12 @@ impl SsbhRenderer {
         // TODO: Benchmark and investigate compute shaders for post processing.
         // TODO: Don't make color_final a parameter since we already take self.
         if self.render_settings.debug_mode != DebugMode::Shaded {
-            self.model_debug_pass(encoder, render_models);
+            self.model_debug_pass(
+                encoder,
+                render_models,
+                mask_model_index,
+                mask_material_label,
+            );
         } else {
             // Depth only pass for shadow maps.
             self.shadow_pass(encoder, render_models);
@@ -658,7 +663,13 @@ impl SsbhRenderer {
             self.variance_shadow_pass(encoder);
 
             // Draw the models to the initial color texture.
-            self.model_pass(encoder, render_models, shader_database);
+            self.model_pass(
+                encoder,
+                render_models,
+                shader_database,
+                mask_model_index,
+                mask_material_label,
+            );
 
             // TODO: Will these be faster as compute passes?
             // Extract the portions of the image that contribute to bloom.
@@ -687,15 +698,6 @@ impl SsbhRenderer {
         // Expand silhouettes to create outlines using stencil texture.
         // TODO: Will this be faster as a compute shader?
         self.outline_pass(encoder, rendered_silhouette);
-
-        // TODO: Combine with the model pass to avoid a LoadOp::Load?
-        self.material_mask_pass(
-            encoder,
-            &self.pass_info.color_final.view,
-            render_models,
-            mask_model_index,
-            mask_material_label,
-        );
 
         // TODO: Disable this pass if not needed.
         self.skeleton_pass(
@@ -760,40 +762,18 @@ impl SsbhRenderer {
         Some(brush.draw_custom(device, output_view, queue, Some(region)))
     }
 
-    fn material_mask_pass(
-        &self,
-        encoder: &mut wgpu::CommandEncoder,
-        output_view: &wgpu::TextureView,
-        render_models: &[RenderModel],
+    fn draw_material_mask<'a>(
+        &'a self,
+        pass: &mut wgpu::RenderPass<'a>,
+        render_models: &'a [RenderModel],
         model_index: usize,
         material_label: &str,
     ) {
-        let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-            label: Some("Material Mask Pass"),
-            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                view: output_view,
-                resolve_target: None,
-                ops: wgpu::Operations {
-                    // TODO: Combine with another pass to avoid loading.
-                    load: wgpu::LoadOp::Load,
-                    store: true,
-                },
-            })],
-            depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                view: &self.pass_info.depth.view,
-                depth_ops: Some(wgpu::Operations {
-                    load: wgpu::LoadOp::Load,
-                    store: false,
-                }),
-                stencil_ops: None,
-            }),
-        });
-
         // Material labels may be repeated in multiple models.
         // Only show the selected material for the specified model.
         if let Some(model) = render_models.get(model_index) {
             model.draw_meshes_material_mask(
-                &mut pass,
+                pass,
                 &self.per_frame_bind_group,
                 &self.selected_material_pipeline,
                 material_label,
@@ -911,6 +891,8 @@ impl SsbhRenderer {
         encoder: &mut wgpu::CommandEncoder,
         render_models: &[RenderModel],
         shader_database: &ShaderDatabase,
+        mask_model_index: usize,
+        mask_material_label: &str,
     ) {
         // TODO: Force having a color attachment for each fragment shader output in wgsl_to_wgpu?
         // TODO: Should this pass draw to a floating point target?
@@ -942,6 +924,13 @@ impl SsbhRenderer {
         self.draw_render_models(render_models, &mut pass, shader_database, "far");
         self.draw_render_models(render_models, &mut pass, shader_database, "sort");
         self.draw_render_models(render_models, &mut pass, shader_database, "near");
+
+        self.draw_material_mask(
+            &mut pass,
+            render_models,
+            mask_model_index,
+            mask_material_label,
+        );
     }
 
     fn draw_render_models<'a>(
@@ -1002,7 +991,13 @@ impl SsbhRenderer {
         active
     }
 
-    fn model_debug_pass(&self, encoder: &mut wgpu::CommandEncoder, render_models: &[RenderModel]) {
+    fn model_debug_pass(
+        &self,
+        encoder: &mut wgpu::CommandEncoder,
+        render_models: &[RenderModel],
+        mask_model_index: usize,
+        mask_material_label: &str,
+    ) {
         let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("Model Debug Pass"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
@@ -1037,6 +1032,13 @@ impl SsbhRenderer {
                 model.draw_meshes_debug(&mut pass, &self.per_frame_bind_group);
             }
         }
+
+        self.draw_material_mask(
+            &mut pass,
+            render_models,
+            mask_model_index,
+            mask_material_label,
+        );
     }
 
     fn clear_color(&self) -> wgpu::Color {
