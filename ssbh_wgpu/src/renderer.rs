@@ -1058,10 +1058,10 @@ impl SsbhRenderer {
                 },
             })],
             depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                view: &self.pass_info.depth.view,
+                view: &self.pass_info.skel_depth.view,
                 depth_ops: Some(wgpu::Operations {
                     load: wgpu::LoadOp::Clear(1.0),
-                    store: false,
+                    store: true,
                 }),
                 stencil_ops: None,
             }),
@@ -1266,6 +1266,7 @@ fn create_color_pass<'a>(
 
 struct PassInfo {
     depth: TextureSamplerView,
+    skel_depth: TextureSamplerView,
     color: TextureSamplerView,
 
     // Final color before applying overlays
@@ -1304,6 +1305,7 @@ impl PassInfo {
         color_lut: &TextureSamplerView,
     ) -> Self {
         let depth = create_depth(device, width, height);
+        let skel_depth = create_depth(device, width, height);
 
         let color = create_texture_sampler(device, width, height, crate::RGBA_COLOR_FORMAT);
         let color_final = create_texture_sampler(device, width, height, crate::RGBA_COLOR_FORMAT);
@@ -1361,6 +1363,7 @@ impl PassInfo {
 
         Self {
             depth,
+            skel_depth,
             color,
             color_final,
             bloom_threshold,
