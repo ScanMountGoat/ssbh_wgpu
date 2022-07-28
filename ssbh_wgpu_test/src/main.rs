@@ -136,7 +136,9 @@ fn main() {
             &mut encoder,
             &output_view,
             &render_models,
+            std::iter::empty(),
             &shared_data.database,
+            false,
         );
 
         encoder.copy_texture_to_buffer(

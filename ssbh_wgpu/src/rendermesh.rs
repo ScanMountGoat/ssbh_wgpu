@@ -15,6 +15,7 @@ use ssbh_data::{
     adj_data::AdjEntryData,
     matl_data::{MatlEntryData, ParamId},
     mesh_data::MeshObjectData,
+    meshex_data::EntryFlags,
     prelude::*,
 };
 use std::{collections::HashMap, error::Error, num::NonZeroU64};
@@ -62,6 +63,7 @@ pub struct RenderMesh {
     pub name: String,
     pub is_visible: bool,
     pub is_selected: bool,
+    meshex_flags: EntryFlags, // TODO: How to update these?
     material_label: String,
     shader_label: String,
     sub_index: u64,
@@ -95,6 +97,7 @@ impl RenderModel {
         // TODO: Avoid creating the render model if there is no mesh?
         let shared_data = RenderMeshSharedData {
             mesh: model.find_mesh(),
+            meshex: model.find_meshex(),
             modl: model.find_modl(),
             skel: model.find_skel(),
             matl: model.find_matl(),
@@ -463,10 +466,13 @@ impl RenderModel {
         // TODO: How to store all data in RenderModel but still draw sorted meshes?
         // TODO: Does sort bias only effect meshes within a model or the entire pass?
         // TODO: Test in game and add test cases for sorting.
+
+        // The numshexb can disable rendering of some meshes.
+        // This allows invisible meshes to still cast shadows.
         for mesh in self
             .meshes
             .iter()
-            .filter(|m| m.is_visible && m.shader_label.ends_with(pass))
+            .filter(|m| m.is_visible && m.shader_label.ends_with(pass) && m.meshex_flags.draw_model)
         {
             // Meshes with no modl entry or an entry with an invalid material label are skipped entirely in game.
             // If the material entry is deleted from the matl, the mesh is also skipped.
@@ -643,14 +649,20 @@ impl RenderModel {
         );
     }
 
-    pub fn draw_render_meshes_depth<'a>(
+    pub fn draw_meshes_depth<'a>(
         &'a self,
         render_pass: &mut wgpu::RenderPass<'a>,
         camera_bind_group: &'a crate::shader::model::bind_groups::BindGroup0,
     ) {
         // Assume only one shared bind group for all meshes.
         camera_bind_group.set(render_pass);
-        for mesh in self.meshes.iter().filter(|m| m.is_visible) {
+
+        // The numshexb can disable shadows for transparent models or special effects.
+        for mesh in self
+            .meshes
+            .iter()
+            .filter(|m| m.is_visible && m.meshex_flags.cast_shadow)
+        {
             // Prevent potential validation error from empty meshes.
             if mesh.vertex_index_count > 0 {
                 self.set_mesh_buffers(render_pass, mesh);
@@ -681,6 +693,7 @@ fn bone_screen_position(
 struct RenderMeshSharedData<'a> {
     shared_data: &'a SharedRenderData,
     mesh: Option<&'a MeshData>,
+    meshex: Option<&'a MeshExData>,
     modl: Option<&'a ModlData>,
     skel: Option<&'a SkelData>,
     matl: Option<&'a MatlData>,
@@ -745,7 +758,7 @@ impl<'a> RenderMeshSharedData<'a> {
             world_transforms,
         };
 
-        let default_material_data = create_material_data(device, None, &[], &self.shared_data);
+        let default_material_data = create_material_data(device, None, &[], self.shared_data);
 
         let RenderMeshData {
             meshes,
@@ -753,7 +766,7 @@ impl<'a> RenderMeshSharedData<'a> {
             textures,
             pipelines,
             buffer_data,
-        } = create_render_mesh_data(device, queue, &mesh_buffers, self);
+        } = self.create_render_mesh_data(device, queue, &mesh_buffers);
 
         let bone_bind_groups = self.bone_bind_groups(device);
 
@@ -815,6 +828,349 @@ impl<'a> RenderMeshSharedData<'a> {
             })
             .unwrap_or_default()
     }
+
+    fn create_render_mesh_data(
+        &self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        mesh_buffers: &MeshBuffers,
+    ) -> RenderMeshData {
+        // TODO: Find a way to organize this.
+
+        // Initialize textures exactly once for performance.
+        // Unused textures are rare, so we won't lazy load them.
+        let textures = self.create_textures(device, queue);
+
+        // Materials can be shared between mesh objects.
+        let material_data_by_label = self.create_materials(device, &textures);
+
+        // TODO: Find a way to have fewer function parameters?
+        let mut model_buffer0_data = Vec::new();
+        let mut model_buffer1_data = Vec::new();
+        let mut model_skin_weights_data = Vec::new();
+        let mut model_index_data = Vec::new();
+
+        let mut accesses = Vec::new();
+
+        if let Some(mesh) = self.mesh.as_ref() {
+            for mesh_object in &mesh.objects {
+                if let Err(e) = append_mesh_object_buffer_data(
+                    &mut accesses,
+                    &mut model_buffer0_data,
+                    &mut model_buffer1_data,
+                    &mut model_skin_weights_data,
+                    &mut model_index_data,
+                    mesh_object,
+                    self,
+                ) {
+                    error!(
+                        "Error accessing vertex data for mesh {}: {}",
+                        mesh_object.name, e
+                    );
+                }
+            }
+        }
+
+        let buffer_data = mesh_object_buffers(
+            device,
+            &model_buffer0_data,
+            &model_buffer1_data,
+            &model_skin_weights_data,
+            &model_index_data,
+        );
+
+        // Mesh objects control the depth state of the pipeline.
+        // In practice, each (shader,mesh) pair may need a unique pipeline.
+        // Cache materials separately since materials may share a pipeline.
+        // TODO: How to test these optimizations?
+        let mut pipelines = HashMap::new();
+
+        let meshes = self
+            .create_render_meshes(accesses, device, &mut pipelines, mesh_buffers, &buffer_data)
+            .unwrap_or_default();
+
+        RenderMeshData {
+            meshes,
+            material_data_by_label,
+            textures,
+            pipelines,
+            buffer_data,
+        }
+    }
+
+    fn create_render_meshes(
+        &self,
+        accesses: Vec<MeshBufferAccess>,
+        device: &wgpu::Device,
+        pipelines: &mut HashMap<PipelineKey, wgpu::RenderPipeline>,
+        mesh_buffers: &MeshBuffers,
+        buffer_data: &MeshObjectBufferData,
+    ) -> Option<Vec<RenderMesh>> {
+        Some(
+            self.mesh?
+                .objects
+                .iter() // TODO: par_iter?
+                .zip(accesses.into_iter())
+                .enumerate()
+                .filter_map(|(i, (mesh_object, access))| {
+                    // Some mesh objects have associated triangle adjacency.
+                    let adj_entry = self
+                        .adj
+                        .and_then(|adj| adj.entries.iter().find(|e| e.mesh_object_index == i));
+
+                    // Find rendering flags from the numshexb.
+                    let meshex_flags = self
+                        .meshex
+                        .and_then(|meshex| {
+                            meshex
+                                .mesh_object_groups
+                                .iter()
+                                .find(|g| g.mesh_object_full_name == mesh_object.name)
+                        })
+                        .and_then(|g| g.entry_flags.get(mesh_object.sub_index as usize));
+
+                    self.create_render_mesh(
+                        device,
+                        mesh_object,
+                        adj_entry,
+                        meshex_flags.copied(),
+                        pipelines,
+                        mesh_buffers,
+                        access,
+                        buffer_data,
+                    )
+                    .map_err(|e| {
+                        error!(
+                            "Error creating render mesh for mesh {}: {}",
+                            mesh_object.name, e
+                        );
+                        e
+                    })
+                    .ok()
+                })
+                .collect(),
+        )
+    }
+
+    fn create_textures(
+        &self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+    ) -> Vec<(String, wgpu::Texture, wgpu::TextureViewDimension)> {
+        self.nutexbs
+            .iter()
+            .filter_map(|(name, nutexb)| {
+                let nutexb = nutexb
+                    .as_ref()
+                    .map_err(|e| {
+                        error!("Failed to read nutexb file {}: {}", name, e);
+                        e
+                    })
+                    .ok()?;
+                let (texture, dim) = nutexb_wgpu::create_texture(nutexb, device, queue)
+                    .map_err(|e| {
+                        error!("Failed to create nutexb texture {}: {}", name, e);
+                        e
+                    })
+                    .ok()?;
+                Some((name.clone(), texture, dim))
+            })
+            .collect()
+    }
+
+    fn create_materials(
+        &self,
+        device: &wgpu::Device,
+        textures: &[(String, wgpu::Texture, wgpu::TextureViewDimension)],
+    ) -> HashMap<String, MaterialData> {
+        // TODO: Split into PerMaterial, PerObject, etc in the shaders?
+        self.matl
+            .map(|matl| {
+                matl.entries
+                    .iter()
+                    .map(|entry| {
+                        let data =
+                            create_material_data(device, Some(entry), textures, self.shared_data);
+                        (entry.material_label.clone(), data)
+                    })
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
+    // TODO: Group these parameters?
+    fn create_render_mesh(
+        &self,
+        device: &wgpu::Device,
+        mesh_object: &MeshObjectData,
+        adj_entry: Option<&AdjEntryData>,
+        meshex_flags: Option<EntryFlags>,
+        pipelines: &mut HashMap<PipelineKey, wgpu::RenderPipeline>,
+        mesh_buffers: &MeshBuffers,
+        access: MeshBufferAccess,
+        buffer_data: &MeshObjectBufferData,
+    ) -> Result<RenderMesh, Box<dyn Error>> {
+        // TODO: These could be cleaner as functions.
+        // TODO: Is using a default for the material label ok?
+        let material_label = self
+            .modl
+            .and_then(|m| {
+                m.entries
+                    .iter()
+                    .find(|e| {
+                        e.mesh_object_name == mesh_object.name
+                            && e.mesh_object_sub_index == mesh_object.sub_index
+                    })
+                    .map(|e| &e.material_label)
+            })
+            .unwrap_or(&String::new())
+            .to_string();
+
+        let material = self.matl.and_then(|matl| {
+            matl.entries
+                .iter()
+                .find(|e| e.material_label == material_label)
+        });
+
+        // Pipeline creation is expensive.
+        // Lazily initialize pipelines and share pipelines when possible.
+        // TODO: Should we delete unused pipelines when changes require a new pipeline?
+        let pipeline_key = PipelineKey::new(
+            mesh_object.disable_depth_write,
+            mesh_object.disable_depth_test,
+            material,
+        );
+
+        pipelines.entry(pipeline_key).or_insert_with(|| {
+            create_pipeline(device, &self.shared_data.pipeline_data, &pipeline_key)
+        });
+
+        let vertex_count = mesh_object.vertex_count()?;
+
+        // TODO: Function for this?
+        let adjacency = adj_entry
+            .map(|e| e.vertex_adjacency.iter().map(|i| *i as i32).collect())
+            .unwrap_or_else(|| vec![-1i32; vertex_count * 18]);
+        let adj_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("vertex buffer 0"),
+            contents: bytemuck::cast_slice(&adjacency),
+            usage: wgpu::BufferUsages::STORAGE,
+        });
+
+        // This is applied after skinning, so the source and destination buffer are the same.
+        // TODO: Can this be done in a single dispatch for the entire model?
+        // TODO: Add a proper error for empty meshes.
+        // TODO: Investigate why empty meshes crash on emulators.
+        let message = "Mesh has no vertices. Failed to create vertex buffers.";
+        let buffer0_binding = wgpu::BufferBinding {
+            buffer: &buffer_data.vertex_buffer0,
+            offset: access.buffer0_start,
+            size: Some(NonZeroU64::new(access.buffer0_size).ok_or(message)?),
+        };
+
+        let buffer0_source_binding = wgpu::BufferBinding {
+            buffer: &buffer_data.vertex_buffer0_source,
+            offset: access.buffer0_start,
+            size: Some(NonZeroU64::new(access.buffer0_size).ok_or(message)?),
+        };
+
+        let weights_binding = wgpu::BufferBinding {
+            buffer: &buffer_data.skinning_buffer,
+            offset: access.weights_start,
+            size: Some(NonZeroU64::new(access.weights_size).ok_or(message)?),
+        };
+
+        let renormal_bind_group = crate::shader::renormal::bind_groups::BindGroup0::from_bindings(
+            device,
+            crate::shader::renormal::bind_groups::BindGroupLayout0 {
+                vertices: buffer0_binding.clone(),
+                adj_data: adj_buffer.as_entire_buffer_binding(),
+            },
+        );
+
+        let skinning_bind_group = crate::shader::skinning::bind_groups::BindGroup0::from_bindings(
+            device,
+            crate::shader::skinning::bind_groups::BindGroupLayout0 {
+                src: buffer0_source_binding,
+                vertex_weights: weights_binding,
+                dst: buffer0_binding.clone(),
+            },
+        );
+
+        let skinning_transforms_bind_group =
+            crate::shader::skinning::bind_groups::BindGroup1::from_bindings(
+                device,
+                crate::shader::skinning::bind_groups::BindGroupLayout1 {
+                    transforms: mesh_buffers.skinning_transforms.as_entire_buffer_binding(),
+                    world_transforms: mesh_buffers.world_transforms.as_entire_buffer_binding(),
+                },
+            );
+
+        let parent_index = find_parent_index(mesh_object, self.skel);
+        let mesh_object_info_buffer = uniform_buffer_readonly(
+            device,
+            "Mesh Object Info Buffer",
+            &[crate::shader::skinning::MeshObjectInfo {
+                parent_index: [parent_index, -1, -1, -1],
+            }],
+        );
+
+        let mesh_object_info_bind_group =
+            crate::shader::skinning::bind_groups::BindGroup2::from_bindings(
+                device,
+                crate::shader::skinning::bind_groups::BindGroupLayout2 {
+                    mesh_object_info: mesh_object_info_buffer.as_entire_buffer_binding(),
+                },
+            );
+
+        // The end of the shader label is used to determine draw order.
+        // ex: "SFX_PBS_0101000008018278_sort" has a tag of "sort".
+        // The render order is opaque -> far -> sort -> near.
+        // TODO: How to handle missing tags?
+        let shader_label = material
+            .map(|m| m.shader_label.as_str())
+            .unwrap_or("")
+            .to_string();
+
+        let attribute_names = mesh_object
+            .positions
+            .iter()
+            .map(|a| a.name.clone())
+            .chain(mesh_object.normals.iter().map(|a| a.name.clone()))
+            .chain(mesh_object.tangents.iter().map(|a| a.name.clone()))
+            .chain(
+                mesh_object
+                    .texture_coordinates
+                    .iter()
+                    .map(|a| a.name.clone()),
+            )
+            .chain(mesh_object.color_sets.iter().map(|a| a.name.clone()))
+            .collect();
+
+        // TODO: Set entry flags?
+        Ok(RenderMesh {
+            name: mesh_object.name.clone(),
+            material_label: material_label.clone(),
+            shader_label,
+            is_visible: true,
+            is_selected: false,
+            meshex_flags: meshex_flags.unwrap_or(EntryFlags {
+                draw_model: true,
+                cast_shadow: true,
+            }),
+            sort_bias: mesh_object.sort_bias,
+            skinning_bind_group,
+            skinning_transforms_bind_group,
+            mesh_object_info_bind_group,
+            pipeline_key,
+            normals_bind_group: renormal_bind_group,
+            sub_index: mesh_object.sub_index,
+            vertex_count,
+            vertex_index_count: mesh_object.vertex_indices.len(),
+            access,
+            attribute_names,
+        })
+    }
 }
 
 fn bone_bind_group1(
@@ -873,178 +1229,6 @@ struct MeshBufferAccess {
     indices_size: u64,
 }
 
-fn create_render_mesh_data(
-    device: &wgpu::Device,
-    queue: &wgpu::Queue,
-    mesh_buffers: &MeshBuffers,
-    shared_data: &RenderMeshSharedData,
-) -> RenderMeshData {
-    // TODO: Find a way to organize this.
-
-    // Initialize textures exactly once for performance.
-    // Unused textures are rare, so we won't lazy load them.
-    let textures = create_textures(shared_data, device, queue);
-
-    // Materials can be shared between mesh objects.
-    let material_data_by_label = create_materials(shared_data, device, &textures);
-
-    // TODO: Find a way to have fewer function parameters?
-    let mut model_buffer0_data = Vec::new();
-    let mut model_buffer1_data = Vec::new();
-    let mut model_skin_weights_data = Vec::new();
-    let mut model_index_data = Vec::new();
-
-    let mut accesses = Vec::new();
-
-    if let Some(mesh) = shared_data.mesh.as_ref() {
-        for mesh_object in &mesh.objects {
-            if let Err(e) = append_mesh_object_buffer_data(
-                &mut accesses,
-                &mut model_buffer0_data,
-                &mut model_buffer1_data,
-                &mut model_skin_weights_data,
-                &mut model_index_data,
-                mesh_object,
-                shared_data,
-            ) {
-                error!(
-                    "Error accessing vertex data for mesh {}: {}",
-                    mesh_object.name, e
-                );
-            }
-        }
-    }
-
-    let buffer_data = mesh_object_buffers(
-        device,
-        &model_buffer0_data,
-        &model_buffer1_data,
-        &model_skin_weights_data,
-        &model_index_data,
-    );
-
-    // Mesh objects control the depth state of the pipeline.
-    // In practice, each (shader,mesh) pair may need a unique pipeline.
-    // Cache materials separately since materials may share a pipeline.
-    // TODO: How to test these optimizations?
-    let mut pipelines = HashMap::new();
-
-    let meshes = create_render_meshes(
-        shared_data,
-        accesses,
-        device,
-        &mut pipelines,
-        mesh_buffers,
-        &buffer_data,
-    )
-    .unwrap_or_default();
-
-    RenderMeshData {
-        meshes,
-        material_data_by_label,
-        textures,
-        pipelines,
-        buffer_data,
-    }
-}
-
-fn create_render_meshes(
-    shared_data: &RenderMeshSharedData,
-    accesses: Vec<MeshBufferAccess>,
-    device: &wgpu::Device,
-    pipelines: &mut HashMap<PipelineKey, wgpu::RenderPipeline>,
-    mesh_buffers: &MeshBuffers,
-    buffer_data: &MeshObjectBufferData,
-) -> Option<Vec<RenderMesh>> {
-    Some(
-        shared_data
-            .mesh?
-            .objects
-            .iter() // TODO: par_iter?
-            .zip(accesses.into_iter())
-            .enumerate()
-            .filter_map(|(i, (mesh_object, access))| {
-                // Some mesh objects have associated triangle adjacency.
-                let adj_entry = shared_data
-                    .adj
-                    .and_then(|adj| adj.entries.iter().find(|e| e.mesh_object_index == i));
-
-                create_render_mesh(
-                    device,
-                    mesh_object,
-                    adj_entry,
-                    pipelines,
-                    mesh_buffers,
-                    access,
-                    shared_data,
-                    buffer_data,
-                )
-                .map_err(|e| {
-                    error!(
-                        "Error creating render mesh for mesh {}: {}",
-                        mesh_object.name, e
-                    );
-                    e
-                })
-                .ok()
-            })
-            .collect(),
-    )
-}
-
-fn create_textures(
-    shared_data: &RenderMeshSharedData,
-    device: &wgpu::Device,
-    queue: &wgpu::Queue,
-) -> Vec<(String, wgpu::Texture, wgpu::TextureViewDimension)> {
-    let textures: Vec<_> = shared_data
-        .nutexbs
-        .iter()
-        .filter_map(|(name, nutexb)| {
-            let nutexb = nutexb
-                .as_ref()
-                .map_err(|e| {
-                    error!("Failed to read nutexb file {}: {}", name, e);
-                    e
-                })
-                .ok()?;
-            let (texture, dim) = nutexb_wgpu::create_texture(nutexb, device, queue)
-                .map_err(|e| {
-                    error!("Failed to create nutexb texture {}: {}", name, e);
-                    e
-                })
-                .ok()?;
-            Some((name.clone(), texture, dim))
-        })
-        .collect();
-    textures
-}
-
-fn create_materials(
-    shared_data: &RenderMeshSharedData,
-    device: &wgpu::Device,
-    textures: &[(String, wgpu::Texture, wgpu::TextureViewDimension)],
-) -> HashMap<String, MaterialData> {
-    // TODO: Split into PerMaterial, PerObject, etc in the shaders?
-    shared_data
-        .matl
-        .map(|matl| {
-            matl.entries
-                .iter()
-                .map(|entry| {
-                    let data = create_material_data(
-                        device,
-                        Some(entry),
-                        textures,
-                        shared_data.shared_data,
-                    );
-                    (entry.material_label.clone(), data)
-                })
-                .collect()
-        })
-        .unwrap_or_default()
-}
-
 fn append_mesh_object_buffer_data(
     accesses: &mut Vec<MeshBufferAccess>,
     model_buffer0_data: &mut Vec<u8>,
@@ -1093,178 +1277,6 @@ fn add_vertex_buffer_data<T: bytemuck::Pod>(model_data: &mut Vec<u8>, vertices: 
     model_data.resize(align(model_data.len()), 0u8);
 
     data.len()
-}
-
-// TODO: Group these parameters?
-fn create_render_mesh(
-    device: &wgpu::Device,
-    mesh_object: &MeshObjectData,
-    adj_entry: Option<&AdjEntryData>,
-    pipelines: &mut HashMap<PipelineKey, wgpu::RenderPipeline>,
-    mesh_buffers: &MeshBuffers,
-    access: MeshBufferAccess,
-    shared_data: &RenderMeshSharedData,
-    buffer_data: &MeshObjectBufferData,
-) -> Result<RenderMesh, Box<dyn Error>> {
-    // TODO: These could be cleaner as functions.
-    // TODO: Is using a default for the material label ok?
-    let material_label = shared_data
-        .modl
-        .and_then(|m| {
-            m.entries
-                .iter()
-                .find(|e| {
-                    e.mesh_object_name == mesh_object.name
-                        && e.mesh_object_sub_index == mesh_object.sub_index
-                })
-                .map(|e| &e.material_label)
-        })
-        .unwrap_or(&String::new())
-        .to_string();
-
-    let material = shared_data.matl.and_then(|matl| {
-        matl.entries
-            .iter()
-            .find(|e| e.material_label == material_label)
-    });
-
-    // Pipeline creation is expensive.
-    // Lazily initialize pipelines and share pipelines when possible.
-    // TODO: Should we delete unused pipelines when changes require a new pipeline?
-    let pipeline_key = PipelineKey::new(
-        mesh_object.disable_depth_write,
-        mesh_object.disable_depth_test,
-        material,
-    );
-
-    pipelines.entry(pipeline_key).or_insert_with(|| {
-        create_pipeline(
-            device,
-            &shared_data.shared_data.pipeline_data,
-            &pipeline_key,
-        )
-    });
-
-    let vertex_count = mesh_object.vertex_count()?;
-
-    // TODO: Function for this?
-    let adjacency = adj_entry
-        .map(|e| e.vertex_adjacency.iter().map(|i| *i as i32).collect())
-        .unwrap_or_else(|| vec![-1i32; vertex_count * 18]);
-    let adj_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-        label: Some("vertex buffer 0"),
-        contents: bytemuck::cast_slice(&adjacency),
-        usage: wgpu::BufferUsages::STORAGE,
-    });
-
-    // This is applied after skinning, so the source and destination buffer are the same.
-    // TODO: Can this be done in a single dispatch for the entire model?
-    // TODO: Add a proper error for empty meshes.
-    // TODO: Investigate why empty meshes crash on emulators.
-    let message = "Mesh has no vertices. Failed to create vertex buffers.";
-    let buffer0_binding = wgpu::BufferBinding {
-        buffer: &buffer_data.vertex_buffer0,
-        offset: access.buffer0_start,
-        size: Some(NonZeroU64::new(access.buffer0_size).ok_or(message)?),
-    };
-
-    let buffer0_source_binding = wgpu::BufferBinding {
-        buffer: &buffer_data.vertex_buffer0_source,
-        offset: access.buffer0_start,
-        size: Some(NonZeroU64::new(access.buffer0_size).ok_or(message)?),
-    };
-
-    let weights_binding = wgpu::BufferBinding {
-        buffer: &buffer_data.skinning_buffer,
-        offset: access.weights_start,
-        size: Some(NonZeroU64::new(access.weights_size).ok_or(message)?),
-    };
-
-    let renormal_bind_group = crate::shader::renormal::bind_groups::BindGroup0::from_bindings(
-        device,
-        crate::shader::renormal::bind_groups::BindGroupLayout0 {
-            vertices: buffer0_binding.clone(),
-            adj_data: adj_buffer.as_entire_buffer_binding(),
-        },
-    );
-
-    let skinning_bind_group = crate::shader::skinning::bind_groups::BindGroup0::from_bindings(
-        device,
-        crate::shader::skinning::bind_groups::BindGroupLayout0 {
-            src: buffer0_source_binding,
-            vertex_weights: weights_binding,
-            dst: buffer0_binding.clone(),
-        },
-    );
-
-    let skinning_transforms_bind_group =
-        crate::shader::skinning::bind_groups::BindGroup1::from_bindings(
-            device,
-            crate::shader::skinning::bind_groups::BindGroupLayout1 {
-                transforms: mesh_buffers.skinning_transforms.as_entire_buffer_binding(),
-                world_transforms: mesh_buffers.world_transforms.as_entire_buffer_binding(),
-            },
-        );
-
-    let parent_index = find_parent_index(mesh_object, shared_data.skel);
-    let mesh_object_info_buffer = uniform_buffer_readonly(
-        device,
-        "Mesh Object Info Buffer",
-        &[crate::shader::skinning::MeshObjectInfo {
-            parent_index: [parent_index, -1, -1, -1],
-        }],
-    );
-
-    let mesh_object_info_bind_group =
-        crate::shader::skinning::bind_groups::BindGroup2::from_bindings(
-            device,
-            crate::shader::skinning::bind_groups::BindGroupLayout2 {
-                mesh_object_info: mesh_object_info_buffer.as_entire_buffer_binding(),
-            },
-        );
-
-    // The end of the shader label is used to determine draw order.
-    // ex: "SFX_PBS_0101000008018278_sort" has a tag of "sort".
-    // The render order is opaque -> far -> sort -> near.
-    // TODO: How to handle missing tags?
-    let shader_label = material
-        .map(|m| m.shader_label.as_str())
-        .unwrap_or("")
-        .to_string();
-
-    let attribute_names = mesh_object
-        .positions
-        .iter()
-        .map(|a| a.name.clone())
-        .chain(mesh_object.normals.iter().map(|a| a.name.clone()))
-        .chain(mesh_object.tangents.iter().map(|a| a.name.clone()))
-        .chain(
-            mesh_object
-                .texture_coordinates
-                .iter()
-                .map(|a| a.name.clone()),
-        )
-        .chain(mesh_object.color_sets.iter().map(|a| a.name.clone()))
-        .collect();
-
-    Ok(RenderMesh {
-        name: mesh_object.name.clone(),
-        material_label: material_label.clone(),
-        shader_label,
-        is_visible: true,
-        is_selected: false,
-        sort_bias: mesh_object.sort_bias,
-        skinning_bind_group,
-        skinning_transforms_bind_group,
-        mesh_object_info_bind_group,
-        pipeline_key,
-        normals_bind_group: renormal_bind_group,
-        sub_index: mesh_object.sub_index,
-        vertex_count,
-        vertex_index_count: mesh_object.vertex_indices.len(),
-        access,
-        attribute_names,
-    })
 }
 
 fn create_material_uniforms_bind_group(

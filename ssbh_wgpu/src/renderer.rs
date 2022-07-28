@@ -1192,7 +1192,7 @@ impl SsbhRenderer {
 
         pass.set_pipeline(&self.shadow_pipeline);
         for model in render_models {
-            model.draw_render_meshes_depth(&mut pass, &self.per_frame_bind_group);
+            model.draw_meshes_depth(&mut pass, &self.per_frame_bind_group);
         }
     }
 

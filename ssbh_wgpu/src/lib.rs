@@ -77,6 +77,7 @@ pub struct ModelFolder {
     pub folder_name: String,
     // TODO: Will a hashmap be faster for this many items?
     pub meshes: ModelFiles<MeshData>,
+    pub meshexes: ModelFiles<MeshExData>,
     pub skels: ModelFiles<SkelData>,
     pub matls: ModelFiles<MatlData>,
     pub modls: ModelFiles<ModlData>,
@@ -115,6 +116,7 @@ impl ModelFolder {
         Self {
             folder_name,
             meshes: read_files(&files, "numshb", MeshData::from_file),
+            meshexes: read_files(&files, "numshexb", MeshExData::from_file),
             skels: read_files(&files, "nusktb", SkelData::from_file),
             matls: read_files(&files, "numatb", MatlData::from_file),
             modls: read_files(&files, "numdlb", ModlData::from_file),
@@ -125,7 +127,7 @@ impl ModelFolder {
         }
     }
 
-    /// Searches for the `"model.numdlb"` file in [modls](#structfield.modls).
+    /// Finds the `"model.numdlb"` file in [modls](#structfield.modls).
     pub fn find_modl(&self) -> Option<&ModlData> {
         self.modls
             .iter()
@@ -133,7 +135,7 @@ impl ModelFolder {
             .and_then(|(_, m)| m.as_ref().ok())
     }
 
-    /// Searches for the `"model.numatb"` file in [matls](#structfield.matls).
+    /// Finds the `"model.numatb"` file in [matls](#structfield.matls).
     pub fn find_matl(&self) -> Option<&MatlData> {
         self.matls
             .iter()
@@ -141,7 +143,7 @@ impl ModelFolder {
             .and_then(|(_, m)| m.as_ref().ok())
     }
 
-    /// Searches for the `"model.nusktb"` file in [skels](#structfield.skels).
+    /// Finds the `"model.nusktb"` file in [skels](#structfield.skels).
     pub fn find_skel(&self) -> Option<&SkelData> {
         self.skels
             .iter()
@@ -149,7 +151,7 @@ impl ModelFolder {
             .and_then(|(_, m)| m.as_ref().ok())
     }
 
-    /// Searches for the `"model.nuanmb"` file in [anims](#structfield.anims).
+    /// Finds the `"model.nuanmb"` file in [anims](#structfield.anims).
     pub fn find_anim(&self) -> Option<&AnimData> {
         self.anims
             .iter()
@@ -157,7 +159,7 @@ impl ModelFolder {
             .and_then(|(_, m)| m.as_ref().ok())
     }
 
-    /// Searches for the `"model.nuhlpb"` file in [hlpbs](#structfield.hlpbs).
+    /// Finds the `"model.nuhlpb"` file in [hlpbs](#structfield.hlpbs).
     pub fn find_hlpb(&self) -> Option<&HlpbData> {
         self.hlpbs
             .iter()
@@ -165,7 +167,7 @@ impl ModelFolder {
             .and_then(|(_, m)| m.as_ref().ok())
     }
 
-    /// Searches for the `"model.numshb"` file in [meshes](#structfield.meshes).
+    /// Finds the `"model.numshb"` file in [meshes](#structfield.meshes).
     pub fn find_mesh(&self) -> Option<&MeshData> {
         self.meshes
             .iter()
@@ -173,7 +175,15 @@ impl ModelFolder {
             .and_then(|(_, m)| m.as_ref().ok())
     }
 
-    /// Searches for the `"model.adjb"` file in [adjs](#structfield.adjs).
+    /// Finds the `"model.numshexb"` file in [meshexes](#structfield.meshexes).
+    pub fn find_meshex(&self) -> Option<&MeshExData> {
+        self.meshexes
+            .iter()
+            .find(|(f, _)| f == "model.numshexb")
+            .and_then(|(_, m)| m.as_ref().ok())
+    }
+
+    /// Finds the `"model.adjb"` file in [adjs](#structfield.adjs).
     pub fn find_adj(&self) -> Option<&AdjData> {
         self.adjs
             .iter()

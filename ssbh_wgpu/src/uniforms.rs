@@ -88,16 +88,14 @@ pub fn create_uniforms(
             // TODO: Research a more accurate heuristic for disabling specular.
             // Shaders with just emission or just diffuse textures seem to have no specular code.
             let mut just_emi = true;
-            for i in 0..19 {
-                if i != 5 && i != 14 {
-                    just_emi &= has_texture[i][0] == 0;
-                }
-            }
-
             let mut just_diffuse = true;
-            for i in 0..19 {
+            for (i, item) in has_texture.iter().enumerate() {
+                if i != 5 && i != 14 {
+                    just_emi &= item[0] == 0;
+                }
+
                 if i != 10 && i != 11 && i != 12 {
-                    just_diffuse &= has_texture[i][0] == 0;
+                    just_diffuse &= item[0] == 0;
                 }
             }
 
