@@ -609,13 +609,17 @@ impl SsbhRenderer {
         self.clear_color = color;
     }
 
-    // TODO: Add a code example to show how to drop it.
+    // TODO: Add a code example to show how to drop the pass.
+    // TODO: Simplify parameters?
     /// Renders the `render_meshes` to `output_view` using the standard rendering passes for Smash Ultimate.
     ///
     /// The `output_view` should have the format [crate::RGBA_COLOR_FORMAT].
     /// The output is cleared before drawing.
     ///
     /// For disabling bone rendering, pass an empty iterator for `skels`.
+    ///
+    /// Renders materials in a solid color for the given `mask_model_index` and
+    /// `mask_material_label`. Use `""` for disabling the mask.
     ///
     /// Returns the final color pass with no depth attachment.
     /// This enables adding efficient overlays.
@@ -628,6 +632,8 @@ impl SsbhRenderer {
         skels: impl Iterator<Item = Option<&'b SkelData>>,
         shader_database: &ShaderDatabase,
         draw_bone_axes: bool,
+        mask_model_index: usize,
+        mask_material_label: &str,
     ) -> wgpu::RenderPass<'a> {
         // Render meshes are sorted globally rather than per folder.
         // This allows all transparent draw calls to happen after opaque draw calls.
@@ -681,6 +687,15 @@ impl SsbhRenderer {
         // Expand silhouettes to create outlines using stencil texture.
         // TODO: Will this be faster as a compute shader?
         self.outline_pass(encoder, rendered_silhouette);
+
+        // TODO: Combine with the model pass to avoid a LoadOp::Load?
+        self.material_mask_pass(
+            encoder,
+            &self.pass_info.color_final.view,
+            render_models,
+            mask_model_index,
+            mask_material_label,
+        );
 
         // TODO: Disable this pass if not needed.
         self.skeleton_pass(
@@ -745,10 +760,7 @@ impl SsbhRenderer {
         Some(brush.draw_custom(device, output_view, queue, Some(region)))
     }
 
-    /// Renders meshes for the selected model and material with a solid color.
-    ///
-    /// The `output_view` should have the format [crate::RGBA_COLOR_FORMAT].
-    pub fn render_material_mask(
+    fn material_mask_pass(
         &self,
         encoder: &mut wgpu::CommandEncoder,
         output_view: &wgpu::TextureView,
