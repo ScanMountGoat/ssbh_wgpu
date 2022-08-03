@@ -366,8 +366,8 @@ impl SsbhRenderer {
             device,
             "Camera Buffer",
             &[crate::shader::model::CameraTransforms {
-                model_view_matrix: glam::Mat4::IDENTITY,
-                mvp_matrix: glam::Mat4::IDENTITY,
+                model_view_matrix: glam::Mat4::IDENTITY.to_cols_array_2d(),
+                mvp_matrix: glam::Mat4::IDENTITY.to_cols_array_2d(),
                 camera_pos: [0.0, 0.0, -1.0, 1.0],
                 screen_dimensions: [1.0; 4],
             }],
@@ -390,7 +390,7 @@ impl SsbhRenderer {
         let light_transform_buffer = uniform_buffer(
             device,
             "Light Transform Buffer",
-            &[crate::shader::model::LightTransforms { light_transform }],
+            &[crate::shader::model::LightTransforms { light_transform: light_transform.to_cols_array_2d() }],
         );
 
         // Depth from the perspective of the light.
@@ -600,7 +600,7 @@ impl SsbhRenderer {
         queue.write_buffer(
             &self.light_transform_buffer,
             0,
-            bytemuck::cast_slice(&[crate::shader::model::LightTransforms { light_transform }]),
+            bytemuck::cast_slice(&[crate::shader::model::LightTransforms { light_transform: light_transform.to_cols_array_2d() }]),
         );
     }
 

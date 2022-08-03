@@ -3,15 +3,15 @@
 #[repr(C)]
 #[derive(Debug, Copy, Clone, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct CameraTransforms {
-    pub model_view_matrix: glam::Mat4,
-    pub mvp_matrix: glam::Mat4,
+    pub model_view_matrix: [[f32; 4]; 4],
+    pub mvp_matrix: [[f32; 4]; 4],
     pub camera_pos: [f32; 4],
     pub screen_dimensions: [f32; 4],
 }
 #[repr(C)]
 #[derive(Debug, Copy, Clone, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct LightTransforms {
-    pub light_transform: glam::Mat4,
+    pub light_transform: [[f32; 4]; 4],
 }
 #[repr(C)]
 #[derive(Debug, Copy, Clone, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
@@ -767,8 +767,6 @@ pub mod vertex {
         pub const VERTEX_ATTRIBUTES: [wgpu::VertexAttribute; 3] = wgpu::vertex_attr_array![
             0 => Float32x4, 1 => Float32x4, 2 => Float32x4
         ];
-        /// The total size in bytes of all fields without considering padding or alignment.
-        pub const SIZE_IN_BYTES: u64 = 48;
     }
     impl super::VertexInput1 {
         pub const VERTEX_ATTRIBUTES: [wgpu::VertexAttribute; 10] = wgpu::vertex_attr_array![
@@ -776,8 +774,6 @@ pub mod vertex {
             Float32x4, 8 => Float32x4, 9 => Float32x4, 10 => Float32x4, 11 => Float32x4,
             12 => Float32x4
         ];
-        /// The total size in bytes of all fields without considering padding or alignment.
-        pub const SIZE_IN_BYTES: u64 = 160;
     }
 }
 pub fn create_shader_module(device: &wgpu::Device) -> wgpu::ShaderModule {

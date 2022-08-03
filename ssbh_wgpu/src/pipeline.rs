@@ -346,12 +346,12 @@ fn vertex_state<'a>(shader: &'a wgpu::ShaderModule, entry_point: &'a str) -> wgp
             // TODO: Can this be derived by wgsl_to_wgpu?
             // Assume tightly packed elements with no additional padding or alignment.
             wgpu::VertexBufferLayout {
-                array_stride: crate::shader::model::VertexInput0::SIZE_IN_BYTES,
+                array_stride: 48,
                 step_mode: wgpu::VertexStepMode::Vertex,
                 attributes: &crate::shader::model::VertexInput0::VERTEX_ATTRIBUTES,
             },
             wgpu::VertexBufferLayout {
-                array_stride: crate::shader::model::VertexInput1::SIZE_IN_BYTES,
+                array_stride: 160,
                 step_mode: wgpu::VertexStepMode::Vertex,
                 attributes: &crate::shader::model::VertexInput1::VERTEX_ATTRIBUTES,
             },

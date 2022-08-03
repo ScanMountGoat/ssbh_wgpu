@@ -16,13 +16,13 @@ pub struct VertexWeight {
 #[repr(C)]
 #[derive(Debug, Copy, Clone, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct AnimatedWorldTransforms {
-    pub transforms: [glam::Mat4; 512],
-    pub transforms_inv_transpose: [glam::Mat4; 512],
+    pub transforms: [[[f32; 4]; 4]; 512],
+    pub transforms_inv_transpose: [[[f32; 4]; 4]; 512],
 }
 #[repr(C)]
 #[derive(Debug, Copy, Clone, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct WorldTransforms {
-    pub transforms: [glam::Mat4; 512],
+    pub transforms: [[[f32; 4]; 4]; 512],
 }
 #[repr(C)]
 #[derive(Debug, Copy, Clone, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]

@@ -16,14 +16,14 @@ pub struct VertexOutput {
 #[repr(C)]
 #[derive(Debug, Copy, Clone, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct CameraTransforms {
-    pub model_view_matrix: glam::Mat4,
-    pub mvp_matrix: glam::Mat4,
+    pub model_view_matrix: [[f32; 4]; 4],
+    pub mvp_matrix: [[f32; 4]; 4],
     pub camera_pos: [f32; 4],
 }
 #[repr(C)]
 #[derive(Debug, Copy, Clone, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct WorldTransforms {
-    pub transforms: [glam::Mat4; 512],
+    pub transforms: [[[f32; 4]; 4]; 512],
 }
 #[repr(C)]
 #[derive(Debug, Copy, Clone, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
@@ -206,8 +206,6 @@ pub mod vertex {
         pub const VERTEX_ATTRIBUTES: [wgpu::VertexAttribute; 2] = wgpu::vertex_attr_array![
             0 => Float32x3, 1 => Float32x3
         ];
-        /// The total size in bytes of all fields without considering padding or alignment.
-        pub const SIZE_IN_BYTES: u64 = 24;
     }
 }
 pub fn create_shader_module(device: &wgpu::Device) -> wgpu::ShaderModule {

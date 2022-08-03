@@ -464,6 +464,7 @@ fn skeleton_pipeline(
 ) -> wgpu::RenderPipeline {
     let shader = crate::shader::skeleton::create_shader_module(device);
     let layout = crate::shader::skeleton::create_pipeline_layout(device);
+    // TODO: Get the stride using encase.
     device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
         label: None,
         layout: Some(&layout),
@@ -471,7 +472,7 @@ fn skeleton_pipeline(
             module: &shader,
             entry_point: vertex_entry,
             buffers: &[wgpu::VertexBufferLayout {
-                array_stride: crate::shader::skeleton::VertexInput::SIZE_IN_BYTES,
+                array_stride: 24,
                 step_mode: wgpu::VertexStepMode::Vertex,
                 attributes: &crate::shader::skeleton::VertexInput::VERTEX_ATTRIBUTES,
             }],
@@ -507,7 +508,7 @@ fn bone_axes_pipeline(device: &wgpu::Device) -> wgpu::RenderPipeline {
             module: &shader,
             entry_point: "vs_axes",
             buffers: &[wgpu::VertexBufferLayout {
-                array_stride: crate::shader::skeleton::VertexInput::SIZE_IN_BYTES,
+                array_stride: 24,
                 step_mode: wgpu::VertexStepMode::Vertex,
                 attributes: &crate::shader::skeleton::VertexInput::VERTEX_ATTRIBUTES,
             }],

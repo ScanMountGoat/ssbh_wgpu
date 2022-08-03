@@ -69,8 +69,8 @@ fn main() {
     let (camera_pos, model_view_matrix, mvp_matrix) =
         calculate_camera_pos_mvp(glam::Vec3::new(0.0, -8.0, -60.0), glam::Vec3::ZERO);
     let transforms = CameraTransforms {
-        model_view_matrix,
-        mvp_matrix,
+        model_view_matrix: model_view_matrix.to_cols_array_2d(),
+        mvp_matrix: mvp_matrix.to_cols_array_2d(),
         camera_pos: camera_pos.to_array(),
         screen_dimensions: [512.0, 512.0, 1.0, 0.0],
     };
@@ -139,6 +139,8 @@ fn main() {
             std::iter::empty(),
             &shared_data.database,
             false,
+            0,
+            ""
         );
 
         encoder.copy_texture_to_buffer(

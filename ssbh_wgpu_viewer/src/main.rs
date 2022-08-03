@@ -342,8 +342,8 @@ impl State {
         let (camera_pos, model_view_matrix, mvp_matrix) =
             calculate_camera_pos_mvp(self.size, self.translation_xyz, self.rotation_xyz);
         let transforms = CameraTransforms {
-            model_view_matrix,
-            mvp_matrix,
+            model_view_matrix: model_view_matrix.to_cols_array_2d(),
+            mvp_matrix: mvp_matrix.to_cols_array_2d(),
             camera_pos: camera_pos.to_array(),
             screen_dimensions: [
                 self.size.width as f32,
