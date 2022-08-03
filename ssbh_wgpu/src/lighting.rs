@@ -34,7 +34,8 @@ pub fn light_direction(rotation: Quat) -> Vec4 {
 impl StageUniforms {
     pub fn training() -> Self {
         let custom_boolean = [[0; 4]; 20];
-        let custom_vector = [[0.0; 4]; 64];
+        let mut custom_vector = [[0.0; 4]; 64];
+        custom_vector[8] = [1.0; 4];
         let custom_float = [[0.0; 4]; 20];
 
         // TODO: Set the scene attributes from the training nuanmb.
