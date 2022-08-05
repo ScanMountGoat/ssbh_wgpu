@@ -27,6 +27,45 @@ impl ShaderProgram {
             .map(String::to_string)
             .collect()
     }
+
+    /// Returns the color channels accessed by the shaders as `[x, y, z, w]`.
+    pub fn accessed_channels(&self, param_name: &str) -> [bool; 4] {
+        let mut channels = [false; 4];
+        if let Some(database_param) = self
+            .material_parameters
+            .iter()
+            .find(|p| p.starts_with(&param_name))
+        {
+            let (_, components) = split_param(database_param);
+            for (i, c) in "xyzw".chars().enumerate() {
+                channels[i] = components.contains(c);
+            }
+        }
+        channels
+    }
+}
+
+/// Splits `param` into its parameter name and accessed components.
+///
+/// # Examples
+/**
+```rust
+use ssbh_wgpu::split_param;
+
+assert_eq!(("CustomBoolean3", ""), split_param("CustomBoolean3"));
+assert_eq!(("CustomVector0", "x"), split_param("CustomVector0.x"));
+assert_eq!(("CustomVector12", ""), split_param("CustomVector12."));
+*/
+pub fn split_param(param: &str) -> (&str, &str) {
+    param
+        .find('.')
+        .map(|i| {
+            (
+                param.get(..i).unwrap_or(""),
+                param.get(i + 1..).unwrap_or(""),
+            )
+        })
+        .unwrap_or((param, ""))
 }
 
 static SHADER_JSON: &str = include_str!("shaders.json");

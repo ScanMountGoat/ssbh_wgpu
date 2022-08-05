@@ -28,23 +28,10 @@ pub fn create_uniforms(
                         database.get(material.shader_label.get(..24).unwrap_or(""))
                     {
                         let param_name = vector.param_id.to_string();
-                        if let Some(database_param) = program
-                            .material_parameters
-                            .iter()
-                            .find(|p| p.starts_with(&param_name))
-                        {
-                            dbg!(&database_param);
-                            if let Some(components) = database_param
-                                .find(".")
-                                .and_then(|i| database_param.get(i..))
-                            {
-                                for (i, c) in "xyzw".chars().enumerate() {
-                                    if components.contains(c) {
-                                        has_vector[index][i] = 1;
-                                    }
-                                }
-                            }
-                        }
+                        has_vector[index] =
+                            program
+                                .accessed_channels(&param_name)
+                                .map(|b| if b { 1 } else { 0 });
                     }
                 }
             }
