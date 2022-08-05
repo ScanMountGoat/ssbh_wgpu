@@ -319,6 +319,7 @@ fn GetAlbedoColorFinal(albedoColor: vec4<f32>) -> vec3<f32>
     var albedoColorFinal = albedoColor.rgb;
 
     // Color multiplier param.
+    // TODO: Check all channels?
     if (uniforms.has_vector[13].x == 1u) {
         albedoColorFinal = albedoColorFinal * uniforms.custom_vector[13].rgb;
     }
@@ -525,6 +526,7 @@ fn SpecularTerm(tangent: vec4<f32>, nDotH: f32, nDotL: f32, nDotV: f32, halfAngl
 fn EmissionTerm(emissionColor: vec4<f32>) -> vec3<f32>
 {
     var result = emissionColor.rgb;
+    // TODO: Check all channels?
     if (uniforms.has_vector[3].x == 1u) {
         result = result * uniforms.custom_vector[3].rgb;
     }
@@ -661,6 +663,7 @@ fn vs_main(
 
     // TODO: Also apply transforms to the debug shader?
     var uvTransform1 = vec4(1.0, 1.0, 0.0, 0.0);
+    // TODO: Check all channels?
     if (uniforms.has_vector[6].x == 1u) {
         uvTransform1 = uniforms.custom_vector[6];
     }
@@ -1147,7 +1150,11 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) is_front: bool) -> @location
         shadow = GetShadow(in.light_position);
     }
 
-    var outAlpha = max(albedoColor.a * emissionColor.a, uniforms.custom_vector[0].x);
+
+    var outAlpha = albedoColor.a * emissionColor.a;
+    if (uniforms.has_vector[0].x == 1u) {
+        outAlpha = max(albedoColor.a * emissionColor.a, uniforms.custom_vector[0].x);
+    }
     if (uniforms.is_discard.x == 1u && outAlpha < 0.5) {
         discard;
     }
@@ -1192,6 +1199,7 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) is_front: bool) -> @location
         outColor = GetRimBlend(outColor, albedoColorFinal, nDotV, max(nDotL, 0.0), rimOcclusion, shColor);
     }
 
+    // TODO: Check all channels?
     if (uniforms.has_vector[8].x == 1u) {
         // TODO: Does this affect alpha?
         outColor = outColor * uniforms.custom_vector[8].rgb;

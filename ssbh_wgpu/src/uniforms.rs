@@ -23,7 +23,29 @@ pub fn create_uniforms(
             for vector in &material.vectors {
                 if let Some(index) = vector_index(vector.param_id) {
                     custom_vector[index] = vector.data.to_array();
-                    has_vector[index][0] = 1;
+                    // TODO: Make a function for this?
+                    if let Some(program) =
+                        database.get(material.shader_label.get(..24).unwrap_or(""))
+                    {
+                        let param_name = vector.param_id.to_string();
+                        if let Some(database_param) = program
+                            .material_parameters
+                            .iter()
+                            .find(|p| p.starts_with(&param_name))
+                        {
+                            dbg!(&database_param);
+                            if let Some(components) = database_param
+                                .find(".")
+                                .and_then(|i| database_param.get(i..))
+                            {
+                                for (i, c) in "xyzw".chars().enumerate() {
+                                    if components.contains(c) {
+                                        has_vector[index][i] = 1;
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
 
@@ -409,11 +431,12 @@ mod tests {
             has_vector: [[0; 4]; 64],
             has_color_set1234: [0; 4],
             has_color_set567: [0; 4],
-            is_discard: [0; 4],
+            is_discard: [1; 4],
             enable_specular: [1; 4],
         };
+        expected.custom_vector[0] = [1.0, 2.0, 3.0, 4.0];
         expected.custom_vector[8] = [1.0; 4];
-        expected.has_vector[8] = [1, 0, 0, 0];
+        expected.has_vector[8] = [1, 0, 0, 1];
         expected.custom_boolean[5] = [1, 0, 0, 0];
         expected.has_boolean[5] = [1, 0, 0, 0];
         expected.custom_float[3] = [0.7, 0.0, 0.0, 0.0];
@@ -425,7 +448,7 @@ mod tests {
             create_uniforms(
                 Some(&MatlEntryData {
                     material_label: String::new(),
-                    shader_label: String::new(),
+                    shader_label: "SFX_PBS_010002000800824f_opaque".to_owned(),
                     blend_states: vec![BlendStateParam {
                         param_id: ParamId::BlendState0,
                         data: BlendStateData::default()
@@ -438,15 +461,26 @@ mod tests {
                         param_id: ParamId::CustomBoolean5,
                         data: true
                     }],
-                    vectors: vec![Vector4Param {
-                        param_id: ParamId::CustomVector8,
-                        data: Vector4 {
-                            x: 1.0,
-                            y: 1.0,
-                            z: 1.0,
-                            w: 1.0
+                    vectors: vec![
+                        Vector4Param {
+                            param_id: ParamId::CustomVector0,
+                            data: Vector4 {
+                                x: 1.0,
+                                y: 2.0,
+                                z: 3.0,
+                                w: 4.0
+                            }
+                        },
+                        Vector4Param {
+                            param_id: ParamId::CustomVector8,
+                            data: Vector4 {
+                                x: 1.0,
+                                y: 1.0,
+                                z: 1.0,
+                                w: 1.0
+                            }
                         }
-                    }],
+                    ],
                     rasterizer_states: vec![RasterizerStateParam {
                         param_id: ParamId::RasterizerState0,
                         data: RasterizerStateData::default()
@@ -460,7 +494,17 @@ mod tests {
                         data: String::new()
                     }],
                 }),
-                &ShaderDatabase::new()
+                &[(
+                    "SFX_PBS_010002000800824f".to_owned(),
+                    // Check that channels are parsed properly.
+                    ShaderProgram {
+                        discard: true,
+                        vertex_attributes: Vec::new(),
+                        material_parameters: vec!["CustomVector8.xw".to_owned()]
+                    }
+                )]
+                .into_iter()
+                .collect()
             )
         );
     }

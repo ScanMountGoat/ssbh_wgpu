@@ -1,12 +1,11 @@
 use serde_json::Value;
-use ssbh_data::matl_data::ParamId;
 use std::collections::HashMap;
 
 #[derive(Debug)]
 pub struct ShaderProgram {
     pub discard: bool,
     pub vertex_attributes: Vec<String>,
-    pub material_parameters: Vec<ParamId>,
+    pub material_parameters: Vec<String>,
 }
 
 impl ShaderProgram {
@@ -32,6 +31,8 @@ impl ShaderProgram {
 
 static SHADER_JSON: &str = include_str!("shaders.json");
 
+// TODO: Make a new type instead?
+// TODO: Add a function to get by shader?
 pub type ShaderDatabase = HashMap<String, ShaderProgram>;
 
 pub fn create_database() -> ShaderDatabase {
@@ -53,7 +54,7 @@ pub fn create_database() -> ShaderDatabase {
                     .as_array()
                     .unwrap()
                     .iter()
-                    .map(|v| ParamId::from_repr(v.as_u64().unwrap() as usize).unwrap())
+                    .map(|v| v.as_str().unwrap().to_string())
                     .collect(),
             },
         );
