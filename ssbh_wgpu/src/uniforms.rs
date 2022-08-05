@@ -1,4 +1,8 @@
-use crate::{shader::model::MaterialUniforms, uniform_buffer, ShaderDatabase, ShaderProgram};
+use std::str::FromStr;
+
+use crate::{
+    shader::model::MaterialUniforms, split_param, uniform_buffer, ShaderDatabase, ShaderProgram,
+};
 use ssbh_data::matl_data::*;
 
 pub fn create_uniforms_buffer(
@@ -19,45 +23,51 @@ pub fn create_uniforms(
         .map(|material| {
             // Ignore invalid parameters for now to avoid an error or panic.
             let mut custom_vector = [[0.0; 4]; 64];
-            let mut has_vector = [[0; 4]; 64];
             for vector in &material.vectors {
                 if let Some(index) = vector_index(vector.param_id) {
                     custom_vector[index] = vector.data.to_array();
-                    // TODO: Make a function for this?
-                    if let Some(program) =
-                        database.get(material.shader_label.get(..24).unwrap_or(""))
-                    {
-                        let param_name = vector.param_id.to_string();
-                        has_vector[index] =
-                            program
-                                .accessed_channels(&param_name)
-                                .map(|b| if b { 1 } else { 0 });
-                    }
                 }
             }
 
             let mut custom_float = [[0.0; 4]; 20];
-            let mut has_float = [[0; 4]; 20];
             for float in &material.floats {
                 if let Some(index) = float_index(float.param_id) {
                     custom_float[index][0] = float.data;
-                    has_float[index][0] = 1;
                 }
             }
 
             let mut custom_boolean = [[0; 4]; 20];
-            let mut has_boolean = [[0; 4]; 20];
             for boolean in &material.booleans {
                 if let Some(index) = boolean_index(boolean.param_id) {
                     custom_boolean[index][0] = if boolean.data { 1 } else { 0 };
-                    has_boolean[index][0] = 1;
                 }
             }
 
+            // The nufxlb defines what parameters are expected.
+            // Not all shaders require all parameters.
             let mut has_texture = [[0; 4]; 19];
-            for texture in &material.textures {
-                if let Some(index) = texture_index(texture.param_id) {
-                    has_texture[index][0] = 1;
+            let mut has_boolean = [[0; 4]; 20];
+            let mut has_float = [[0; 4]; 20];
+            let mut has_vector = [[0; 4]; 64];
+            if let Some(program) = database.get(material.shader_label.get(..24).unwrap_or("")) {
+                for param_name in &program.material_parameters {
+                    // TODO: This is redundant to split twice.
+                    let (param, _) = split_param(&param_name);
+                    // It's safe to assume the database has valid parameters.
+                    let id = ParamId::from_str(param).unwrap();
+                    if let Some(i) = texture_index(id) {
+                        has_texture[i][0] = 1;
+                    } else if let Some(i) = boolean_index(id) {
+                        has_boolean[i][0] = 1;
+                    } else if let Some(i) = float_index(id) {
+                        has_float[i][0] = 1;
+                    } else if let Some(i) = vector_index(id) {
+                        // Check which components are accessed by the shader binary.
+                        has_vector[i] =
+                            program
+                                .accessed_channels(&param_name)
+                                .map(|b| if b { 1 } else { 0 });
+                    }
                 }
             }
 
@@ -352,7 +362,6 @@ mod tests {
 
     #[test]
     fn create_uniforms_invalid_parameter_indices() {
-        // TODO: How is this handled in game?
         // Just ignore an invalid ParamId.
         assert_eq!(
             MaterialUniforms {
@@ -423,12 +432,13 @@ mod tests {
         };
         expected.custom_vector[0] = [1.0, 2.0, 3.0, 4.0];
         expected.custom_vector[8] = [1.0; 4];
-        expected.has_vector[8] = [1, 0, 0, 1];
         expected.custom_boolean[5] = [1, 0, 0, 0];
-        expected.has_boolean[5] = [1, 0, 0, 0];
         expected.custom_float[3] = [0.7, 0.0, 0.0, 0.0];
-        expected.has_float[3] = [1, 0, 0, 0];
-        expected.has_texture[1] = [1, 0, 0, 0];
+        // This is based on the database rather than the material.
+        expected.has_texture[0] = [1, 0, 0, 0];
+        expected.has_boolean[1] = [1, 0, 0, 0];
+        expected.has_float[2] = [1, 0, 0, 0];
+        expected.has_vector[8] = [1, 0, 0, 1];
 
         assert_eq!(
             expected,
@@ -487,7 +497,12 @@ mod tests {
                     ShaderProgram {
                         discard: true,
                         vertex_attributes: Vec::new(),
-                        material_parameters: vec!["CustomVector8.xw".to_owned()]
+                        material_parameters: vec![
+                            "Texture0".to_owned(),
+                            "CustomBoolean1".to_owned(),
+                            "CustomFloat2".to_owned(),
+                            "CustomVector8.xw".to_owned()
+                        ]
                     }
                 )]
                 .into_iter()
