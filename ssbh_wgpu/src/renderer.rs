@@ -390,7 +390,9 @@ impl SsbhRenderer {
         let light_transform_buffer = uniform_buffer(
             device,
             "Light Transform Buffer",
-            &[crate::shader::model::LightTransforms { light_transform: light_transform.to_cols_array_2d() }],
+            &[crate::shader::model::LightTransforms {
+                light_transform: light_transform.to_cols_array_2d(),
+            }],
         );
 
         // Depth from the perspective of the light.
@@ -600,7 +602,9 @@ impl SsbhRenderer {
         queue.write_buffer(
             &self.light_transform_buffer,
             0,
-            bytemuck::cast_slice(&[crate::shader::model::LightTransforms { light_transform: light_transform.to_cols_array_2d() }]),
+            bytemuck::cast_slice(&[crate::shader::model::LightTransforms {
+                light_transform: light_transform.to_cols_array_2d(),
+            }]),
         );
     }
 
@@ -1404,8 +1408,8 @@ struct TextureSamplerView {
 
 fn create_depth(device: &wgpu::Device, width: u32, height: u32) -> TextureSamplerView {
     let size = wgpu::Extent3d {
-        width,
-        height,
+        width: width.max(1),
+        height: height.max(1),
         depth_or_array_layers: 1,
     };
     let desc = wgpu::TextureDescriptor {
@@ -1474,8 +1478,8 @@ fn create_texture_sampler(
     let texture = device.create_texture(&wgpu::TextureDescriptor {
         label: Some("color texture"),
         size: wgpu::Extent3d {
-            width,
-            height,
+            width: width.max(1),
+            height: height.max(1),
             depth_or_array_layers: 1,
         },
         mip_level_count: 1,
