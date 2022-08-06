@@ -167,8 +167,6 @@ struct MaterialUniforms {
     has_color_set1234: vec4<u32>,
     has_color_set567: vec4<u32>,
     is_discard: vec4<u32>,
-    // Workaround for some shaders not containing specular code.
-    enable_specular: vec4<u32>,
 };
 
 @group(1) @binding(30)
@@ -1072,10 +1070,9 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) is_front: bool) -> @location
     let customVector11Final = mix(uniforms.custom_vector[11], transitionCustomVector11, render_settings.transition_factor.x);
     let customVector30Final = mix(uniforms.custom_vector[30], transitionCustomVector30, render_settings.transition_factor.x);
 
-    // TODO: Some materials disable specular entirely?
-    // Is there a reliably way to check for this?
     var prm = vec4(0.0, 0.0, 1.0, 0.0);
-    if (uniforms.has_texture[6].x == 1u) {
+    let hasPrm = uniforms.has_texture[6].x == 1u;
+    if (hasPrm) {
         prm = textureSample(texture6, sampler6, map1);
         // TODO: Simpler way to toggle channels?
         if (render_settings.render_prm.r == 0u) {
@@ -1144,7 +1141,6 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) is_front: bool) -> @location
         shadow = GetShadow(in.light_position);
     }
 
-
     var outAlpha = albedoColor.a * emissionColor.a;
     if (uniforms.has_vector[0].x == 1u) {
         outAlpha = max(albedoColor.a * emissionColor.a, uniforms.custom_vector[0].x);
@@ -1175,7 +1171,8 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) is_front: bool) -> @location
         outColor = outColor + (diffusePass * kDiffuse) / 3.14159;
     }
 
-    if (render_settings.render_specular.x == 1u && uniforms.enable_specular.x == 1u) {
+    // Assume materials without PRM omit the specular code entirely.
+    if (render_settings.render_specular.x == 1u && hasPrm) {
         outColor = outColor + specularPass * kSpecular * ao;
     }
 

@@ -104,24 +104,6 @@ pub fn create_uniforms(
                 .map(|program| [if program.discard { 1 } else { 0 }; 4])
                 .unwrap_or_default();
 
-            // TODO: Research a more accurate heuristic for disabling specular.
-            // Shaders with just emission or just diffuse textures seem to have no specular code.
-            let mut just_emi = true;
-            let mut just_diffuse = true;
-            for (i, item) in has_texture.iter().enumerate() {
-                if i != 5 && i != 14 {
-                    just_emi &= item[0] == 0;
-                }
-
-                if i != 10 && i != 11 && i != 12 {
-                    just_diffuse &= item[0] == 0;
-                }
-            }
-
-            // TODO: Add test cases for this.
-            let enable_specular = !just_emi && !just_diffuse;
-            let enable_specular = [if enable_specular { 1 } else { 0 }; 4];
-
             MaterialUniforms {
                 custom_vector,
                 custom_boolean,
@@ -133,7 +115,6 @@ pub fn create_uniforms(
                 has_color_set1234,
                 has_color_set567,
                 is_discard,
-                enable_specular,
             }
         })
         .unwrap_or(
@@ -149,7 +130,6 @@ pub fn create_uniforms(
                 has_color_set1234: [0; 4],
                 has_color_set567: [0; 4],
                 is_discard: [0; 4],
-                enable_specular: [1; 4],
             },
         )
 }
@@ -321,7 +301,6 @@ mod tests {
                 has_color_set1234: [0; 4],
                 has_color_set567: [0; 4],
                 is_discard: [0; 4],
-                enable_specular: [1; 4]
             },
             create_uniforms(None, &ShaderDatabase::new())
         );
@@ -341,7 +320,6 @@ mod tests {
                 has_color_set1234: [0; 4],
                 has_color_set567: [0; 4],
                 is_discard: [0; 4],
-                enable_specular: [0; 4]
             },
             create_uniforms(
                 Some(&MatlEntryData {
@@ -375,7 +353,6 @@ mod tests {
                 has_color_set1234: [0; 4],
                 has_color_set567: [0; 4],
                 is_discard: [0; 4],
-                enable_specular: [0; 4]
             },
             create_uniforms(
                 Some(&MatlEntryData {
@@ -428,7 +405,6 @@ mod tests {
             has_color_set1234: [0; 4],
             has_color_set567: [0; 4],
             is_discard: [1; 4],
-            enable_specular: [1; 4],
         };
         expected.custom_vector[0] = [1.0, 2.0, 3.0, 4.0];
         expected.custom_vector[8] = [1.0; 4];
