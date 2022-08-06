@@ -514,7 +514,7 @@ fn SpecularTerm(tangent: vec4<f32>, nDotH: f32, nDotL: f32, nDotV: f32, halfAngl
 
     var indirectSpecular = specularIbl;
     if (uniforms.has_boolean[4].x == 1u && uniforms.custom_boolean[4].x == 0u) {
-        directSpecular = vec3(0.0);
+        indirectSpecular = vec3(0.0);
     }
 
     // TODO: Why is the indirect specular off by a factor of 0.5?
@@ -539,13 +539,7 @@ fn GetF0FromIor(ior: f32) -> f32
     return pow((1.0 - ior) / (1.0 + ior), 2.0);
 }
 
-fn Luminance(rgb: vec3<f32>) -> f32
-{
-    let W = vec3(0.2125, 0.7154, 0.0721);
-    return dot(rgb, W);
-}
-
-fn GetSpecularWeight(f0: f32, diffusePass: vec3<f32>, metalness: f32, nDotV: f32, roughness: f32) -> vec3<f32>
+fn GetSpecularWeight(f0: f32, diffusePass: vec3<f32>, metalness: f32, nDotV: f32) -> vec3<f32>
 {
     // Metals use albedo instead of the specular color/tint.
     let specularReflectionF0 = vec3(f0);
@@ -1171,13 +1165,10 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) is_front: bool) -> @location
     let shColor = vec3(shAmbientR, shAmbientG, shAmbientB);
 
     let diffusePass = DiffuseTerm(bake1, albedoColorFinal.rgb, nDotL, shColor, vec3(ao), sssBlend, shadow, customVector11Final, customVector30Final, colorSet2);
-
     let specularPass = SpecularTerm(in.tangent, nDotH, max(nDotL, 0.0), nDotV, halfAngle, fragmentNormal, roughness, specularIbl, metalness, prm.a, shadow);
 
-    let kSpecular = GetSpecularWeight(specularF0, albedoColorFinal.rgb, metalness, nDotV, roughness);
-
-    var kDiffuse = max((vec3(1.0) - kSpecular) * (1.0 - metalness), vec3(0.0));
-    kDiffuse = max(vec3(1.0 - metalness), vec3(0.0));
+    let kSpecular = GetSpecularWeight(specularF0, albedoColorFinal.rgb, metalness, nDotV);
+    let kDiffuse = max(vec3(1.0 - metalness), vec3(0.0));
 
     var outColor = vec3(0.0, 0.0, 0.0);
     if (render_settings.render_diffuse.x == 1u) {
