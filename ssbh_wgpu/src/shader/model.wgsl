@@ -331,13 +331,11 @@ fn GetAlbedoColorFinal(albedoColor: vec4<f32>) -> vec3<f32>
 }
 
 
-fn GetBitangent(normal: vec3<f32>, tangent: vec3<f32>, tangentSign: f32) -> vec3<f32>
+fn GetBitangent(normal: vec3<f32>, tangent: vec4<f32>) -> vec3<f32>
 {
     // Flip after normalization to avoid issues with tangentSign being 0.0.
-    // Flip after normalization to avoid issues with tangentSign being 0.0.
     // Smash Ultimate requires Tangent0.W to be flipped.
-    // Smash Ultimate requires Tangent0.W to be flipped.
-    return normalize(cross(normal.xyz, tangent.xyz)) * tangentSign * -1.0;
+    return normalize(cross(normal.xyz, tangent.xyz)) * tangent.w * -1.0;
 }
     
 fn GetBumpMapNormal(normal: vec3<f32>, tangent: vec3<f32>, bitangent: vec3<f32>, norColor: vec4<f32>) -> vec3<f32>
@@ -361,65 +359,6 @@ fn GetBumpMapNormal(normal: vec3<f32>, tangent: vec3<f32>, bitangent: vec3<f32>,
     return normalize(newNormal);
 }
 
-// Schlick fresnel approximation.
-fn FresnelSchlick(cosTheta: f32, F0: vec3<f32>) -> vec3<f32>
-{
-    return F0 + (1.0 - F0) * pow(1.0 - cosTheta, 5.0);
-} 
-
-// Ultimate shaders use a schlick geometry masking term.
-// http://cwyman.org/code/dxrTutors/tutors/Tutor14/tutorial14.md.html
-fn SchlickMaskingTerm(nDotL: f32, nDotV: f32, a2: f32) -> f32
-{
-    // TODO: Double check this masking term.
-    let k = a2 * 0.5;
-    let gV = nDotV / (nDotV * (1.0 - k) + k);
-    let gL = nDotL / (nDotL * (1.0 - k) + k);
-    return gV * gL;
-}
-
-// Ultimate shaders use a mostly standard GGX BRDF for specular.
-// http://graphicrants.blogspot.com/2013/08/specular-brdf-reference.html
-fn Ggx(nDotH: f32, nDotL: f32, nDotV: f32, roughness: f32) -> f32
-{
-    // Clamp to 0.01 to prevent divide by 0.
-    let a = max(roughness, 0.01) * max(roughness, 0.01);
-    let a2 = a*a;
-    let PI = 3.14159;
-    let nDotH2 = nDotH * nDotH;
-
-    let denominator = ((nDotH2) * (a2 - 1.0) + 1.0);
-    let specular = a2 / (PI * denominator * denominator);
-    let shadowing = SchlickMaskingTerm(nDotL, nDotV, a2);
-    // TODO: double check the denominator
-    return specular * shadowing / 3.141519;
-}
-
-// A very similar BRDF as used for GGX.
-fn GgxAnisotropic(nDotH: f32, h: vec3<f32>, tangent: vec3<f32>, bitangent: vec3<f32>, roughness: f32, anisotropy: f32) -> f32
-{
-    // TODO: How much of this is shared with GGX?
-    // Clamp to 0.01 to prevent divide by 0.
-    let roughnessX = max(roughness * anisotropy, 0.01);
-    let roughnessY = max(roughness / anisotropy, 0.01);
-
-    let roughnessX4 = pow(roughnessX, 4.0);
-    let roughnessY4 = pow(roughnessY, 4.0);
-
-    let xDotH = dot(bitangent, h);
-    let xTerm = (xDotH * xDotH) / roughnessX4;
-
-    let yDotH = dot(tangent, h);
-    let yTerm = (yDotH * yDotH) / roughnessY4;
-
-    // TODO: Check this section of code.
-    let nDotH2 = nDotH * nDotH;
-    let denominator = xTerm + yTerm + nDotH2;
-
-    // TODO: Is there a geometry term for anisotropic?
-    let normalization = (3.14159 * roughnessX * roughnessY);
-    return 1.0 / (normalization * denominator * denominator);
-}
 
 fn DiffuseTerm(
     bake1: vec2<f32>, 
@@ -472,6 +411,79 @@ fn DiffuseTerm(
     return result;
 }
 
+// Schlick fresnel approximation.
+fn FresnelSchlick(cosTheta: f32, f0: vec3<f32>) -> vec3<f32>
+{
+    return f0 + (1.0 - f0) * pow(1.0 - cosTheta, 5.0);
+} 
+
+// Ultimate uses something similar to the schlick geometry masking term.
+// http://cwyman.org/code/dxrTutors/tutors/Tutor14/tutorial14.md.html
+fn SchlickMaskingTerm(nDotL: f32, nDotV: f32, a2: f32) -> f32
+{
+    let PI = 3.14159;
+    let k = a2 * 0.5;
+    let gV = 1.0 / (nDotV * (1.0 - k) + k);
+    // TODO: This is nDotL/PI in the shader?
+    let gL = 1.0 / ((nDotL/PI) * (1.0 - k) + k);
+    return gV * gL;
+}
+
+// Ultimate shaders use a mostly standard GGX BRDF for specular.
+// http://graphicrants.blogspot.com/2013/08/specular-brdf-reference.html
+fn Ggx(nDotH: f32, nDotL: f32, nDotV: f32, roughness: f32) -> f32
+{
+    // Clamp to 0.01 to prevent divide by 0.
+    let a = max(roughness, 0.01) * max(roughness, 0.01);
+    let a2 = a*a;
+    let PI = 3.14159;
+    let nDotH2 = nDotH * nDotH;
+
+    let denominator = ((nDotH2) * (a2 - 1.0) + 1.0);
+    let ggx = a2 / (denominator * denominator);
+    let shadowing = SchlickMaskingTerm(nDotL, nDotV, a2);
+    // TODO: why do we need to divide by an extra PI here?
+    return nDotL/PI * ggx * shadowing / PI / PI;
+}
+
+// A very similar BRDF as used for GGX.
+fn GgxAnisotropic(nDotH: f32, h: vec3<f32>, nDotL: f32, nDotV: f32, tangent: vec3<f32>, bitangent: vec3<f32>, roughness: f32, anisotropy: f32) -> f32
+{
+    // TODO: How much of this is shared with GGX?
+    // Clamp to 0.01 to prevent divide by 0.
+    let roughnessX = max(max(roughness, 0.01) * anisotropy, 0.01);
+    let roughnessY = max(max(roughness, 0.01) / anisotropy, 0.01);
+
+    let roughnessX2 = roughnessX * roughnessX;
+    let roughnessY2 = roughnessY * roughnessY;
+
+    let roughnessX4 = roughnessX2 * roughnessX2;
+    let roughnessY4 = roughnessY2 * roughnessY2;
+
+    // TODO: Why does this look too smooth?
+    // TODO: These depend on normals?
+    let xDotH = dot(bitangent, h); // TODO: Is this right?
+    let xTerm = (xDotH * xDotH) / roughnessX4;
+
+    let yDotH = dot(tangent, h); // TODO: Is this right?
+    let yTerm = (yDotH * yDotH) / roughnessY4;
+
+    // TODO: Check this section of code.
+    let nDotHClamp = clamp(nDotH, 0.0, 1.0);
+    let denominator = xTerm + yTerm + nDotHClamp*nDotHClamp;
+
+    let normalization = roughnessX2 * roughnessY2 * denominator*denominator;
+
+    // TODO: Optimize GGX functions and share code.
+    // TODO: constants in WGSL?
+    let PI = 3.14159;
+    let a = max(roughness, 0.01) * max(roughness, 0.01);
+    let a2 = a*a;
+    let shadowing = SchlickMaskingTerm(nDotL, nDotV, a2);
+    // TODO: why do we need to divide by an extra PI here?
+    return nDotL/PI * shadowing / normalization / PI / PI;
+}
+
 // Create a rotation matrix to rotate around an arbitrary axis.
 //http://www.neilmendoza.com/glsl-rotation-about-an-arbitrary-axis/
 // fn rotationMatrix(axis: vec3<f32>, angle: f32) -> mat4x4<f32>
@@ -484,28 +496,24 @@ fn DiffuseTerm(
 //     return mat4x4<f32>(oc * axis.x * axis.x + c, oc * axis.x * axis.y - axis.z * s,  oc * axis.z * axis.x + axis.y * s, 0.0, oc * axis.x * axis.y + axis.z * s, oc * axis.y * axis.y + c, oc * axis.y * axis.z - axis.x * s,  0.0, oc * axis.z * axis.x - axis.y * s,  oc * axis.y * axis.z + axis.x * s,  oc * axis.z * axis.z + c, 0.0, 0.0, 0.0, 0.0, 1.0);
 // }
 
-// TODO: Make bitangent and argument?
-fn SpecularBrdf(tangent: vec4<f32>, nDotH: f32, nDotL: f32, nDotV: f32, halfAngle: vec3<f32>, normal: vec3<f32>, roughness: f32, anisotropicRotation: f32) -> f32
+fn SpecularBrdf(tangent: vec4<f32>, bitangent: vec3<f32>, nDotH: f32, nDotL: f32, nDotV: f32, halfAngle: vec3<f32>, roughness: f32) -> f32
 {
-    let angle = anisotropicRotation * 3.14159;
     //let tangentMatrix = rotationMatrix(normal, angle);
     //let rotatedTangent = mat3x3<f32>(tangentMatrix) * tangent.xyz;
     // TODO: How is the rotation calculated for tangents and bitangents?
-    let bitangent = GetBitangent(normal, tangent.xyz, tangent.w);
     // The two BRDFs look very different so don't just use anisotropic for everything.
     if (uniforms.has_float[10].x == 1u) {
-        return GgxAnisotropic(nDotH, halfAngle, tangent.xyz, bitangent, roughness, uniforms.custom_float[10].x);
+        return GgxAnisotropic(nDotH, halfAngle, nDotL, nDotV, tangent.xyz, bitangent, roughness, uniforms.custom_float[10].x);
     } else {
         return Ggx(nDotH, nDotL, nDotV, roughness);
     }
 }
 
-fn SpecularTerm(tangent: vec4<f32>, nDotH: f32, nDotL: f32, nDotV: f32, halfAngle: vec3<f32>, normal: vec3<f32>, roughness: f32, 
-    specularIbl: vec3<f32>, metalness: f32, anisotropicRotation: f32,
-    shadow: f32) -> vec3<f32>
+fn SpecularTerm(tangent: vec4<f32>, bitangent: vec3<f32>, nDotH: f32, nDotL: f32, nDotV: f32, halfAngle: vec3<f32>, 
+    roughness: f32, specularIbl: vec3<f32>, kDirect: vec3<f32>, kIndirect: vec3<f32>) -> vec3<f32>
 {
     var directSpecular = vec3(4.0);
-    directSpecular = directSpecular * SpecularBrdf(tangent, nDotH, nDotL, nDotV, halfAngle, normal, roughness, anisotropicRotation);
+    directSpecular = directSpecular * SpecularBrdf(tangent, bitangent, nDotH, nDotL, nDotV, halfAngle, roughness);
     if (uniforms.has_boolean[3].x == 1u && uniforms.custom_boolean[3].x == 0u) {
         directSpecular = vec3(0.0);
     }
@@ -515,8 +523,7 @@ fn SpecularTerm(tangent: vec4<f32>, nDotH: f32, nDotL: f32, nDotV: f32, halfAngl
         indirectSpecular = vec3(0.0);
     }
 
-    // TODO: Why is the indirect specular off by a factor of 0.5?
-    let specularTerm = (directSpecular * shadow) + (indirectSpecular * 0.5);
+    let specularTerm = directSpecular * kDirect + indirectSpecular * kIndirect;
 
     return specularTerm;
 }
@@ -535,14 +542,6 @@ fn EmissionTerm(emissionColor: vec4<f32>) -> vec3<f32>
 fn GetF0FromIor(ior: f32) -> f32
 {
     return pow((1.0 - ior) / (1.0 + ior), 2.0);
-}
-
-fn GetSpecularWeight(f0: f32, diffusePass: vec3<f32>, metalness: f32, nDotV: f32) -> vec3<f32>
-{
-    // Metals use albedo instead of the specular color/tint.
-    let specularReflectionF0 = vec3(f0);
-    let f0Final = mix(specularReflectionF0, diffusePass, metalness);
-    return FresnelSchlick(nDotV, f0Final);
 }
 
 // TODO: Is this just a regular lighting term?
@@ -793,7 +792,7 @@ fn fs_debug(in: VertexOutput) -> @location(0) vec4<f32> {
 
     let normal = normalize(in.normal.xyz);
     let tangent = normalize(in.tangent.xyz);
-    let bitangent = normalize(cross(normal, tangent)) * in.tangent.w * -1.0;
+    let bitangent = GetBitangent(normal, in.tangent.xyzw);
 
     let viewVector = normalize(camera.camera_pos.xyz - in.position.xyz);
 
@@ -1106,12 +1105,16 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) is_front: bool) -> @location
 
     let normal = normalize(in.normal.xyz);
     let tangent = normalize(in.tangent.xyz);
-    let bitangent = normalize(cross(normal, tangent)) * in.tangent.w * -1.0;
+    let bitangent = GetBitangent(normal, in.tangent.xyzw);
 
     var fragmentNormal = normal;
     if (uniforms.has_texture[4].x == 1u) {
         fragmentNormal = GetBumpMapNormal(normal, tangent, bitangent, nor);
     }
+
+    
+    // TODO: Is this correct?
+    let bitangent = GetBitangent(fragmentNormal, in.tangent.xyzw);
 
     // TODO: Investigate lighting for double sided materials with culling disabled.
     if (!is_front) {
@@ -1149,8 +1152,6 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) is_front: bool) -> @location
         discard;
     }
 
-    let specularF0 = GetF0FromSpecular(prm.a);
-
     let specularLod = RoughnessToLod(roughness);
     let specularIbl = textureSampleLevel(texture7, sampler7, reflectionVector, specularLod).rgb;
 
@@ -1161,19 +1162,27 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) is_front: bool) -> @location
     let shColor = vec3(shAmbientR, shAmbientG, shAmbientB);
 
     let diffusePass = DiffuseTerm(bake1, albedoColorFinal.rgb, nDotL, shColor, vec3(ao), sssBlend, shadow, customVector11Final, customVector30Final, colorSet2);
-    let specularPass = SpecularTerm(in.tangent, nDotH, max(nDotL, 0.0), nDotV, halfAngle, fragmentNormal, roughness, specularIbl, metalness, prm.a, shadow);
 
-    let kSpecular = GetSpecularWeight(specularF0, albedoColorFinal.rgb, metalness, nDotV);
-    let kDiffuse = max(vec3(1.0 - metalness), vec3(0.0));
+    let specularF0 = GetF0FromSpecular(prm.a);
+    let specularReflectionF0 = vec3(specularF0);
+    // Metals use albedo instead of the specular color/tint.
+    let kSpecular = mix(specularReflectionF0, diffusePass, metalness);
+    // TODO: Not all shaders use nor.a as a cavity map.
+    // TODO: Include ambient occlusion in specular?
+    // TODO: Does cavity occlude ambient specular?
+    let kDirect = kSpecular * shadow * nor.a;
+    let kIndirect = FresnelSchlick(nDotV, kSpecular) * nor.a * 0.5; // TODO: Why is 0.5 needed here?
+    let specularPass = SpecularTerm(in.tangent, bitangent, nDotH, max(nDotL, 0.0), nDotV, halfAngle, roughness, specularIbl, kDirect, kIndirect);
 
     var outColor = vec3(0.0, 0.0, 0.0);
     if (render_settings.render_diffuse.x == 1u) {
+        let kDiffuse = max(vec3(1.0 - metalness), vec3(0.0));
         outColor = outColor + (diffusePass * kDiffuse) / 3.14159;
     }
 
     // Assume materials without PRM omit the specular code entirely.
     if (render_settings.render_specular.x == 1u && hasPrm) {
-        outColor = outColor + specularPass * kSpecular * ao;
+        outColor = outColor + specularPass * ao;
     }
 
     if (render_settings.render_emission.x == 1u) {
@@ -1183,8 +1192,7 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) is_front: bool) -> @location
 
     // TODO: What affects rim lighting intensity?
     if (render_settings.render_rim_lighting.x == 1u) {
-        let rimOcclusion = shadow;
-        outColor = GetRimBlend(outColor, albedoColorFinal, nDotV, max(nDotL, 0.0), rimOcclusion, shColor);
+        outColor = GetRimBlend(outColor, albedoColorFinal, nDotV, max(nDotL, 0.0), shadow * nor.a, shColor);
     }
 
     // TODO: Check all channels?
