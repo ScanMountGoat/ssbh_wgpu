@@ -446,10 +446,8 @@ fn Ggx(nDotH: f32, nDotL: f32, nDotV: f32, roughness: f32) -> f32
     return nDotL/PI * ggx * shadowing / PI / PI;
 }
 
-// A very similar BRDF as used for GGX.
 fn GgxAnisotropic(nDotH: f32, h: vec3<f32>, nDotL: f32, nDotV: f32, tangent: vec3<f32>, bitangent: vec3<f32>, roughness: f32, anisotropy: f32) -> f32
 {
-    // TODO: How much of this is shared with GGX?
     // Clamp to 0.01 to prevent divide by 0.
     let roughnessX = max(max(roughness, 0.01) * anisotropy, 0.01);
     let roughnessY = max(max(roughness, 0.01) / anisotropy, 0.01);
@@ -480,27 +478,13 @@ fn GgxAnisotropic(nDotH: f32, h: vec3<f32>, nDotL: f32, nDotV: f32, tangent: vec
     let a = max(roughness, 0.01) * max(roughness, 0.01);
     let a2 = a*a;
     let shadowing = SchlickMaskingTerm(nDotL, nDotV, a2);
-    // TODO: why do we need to divide by an extra PI here?
+    // TODO: Why do we need to divide by an extra PI here?
     return nDotL/PI * shadowing / normalization / PI / PI;
 }
 
-// Create a rotation matrix to rotate around an arbitrary axis.
-//http://www.neilmendoza.com/glsl-rotation-about-an-arbitrary-axis/
-// fn rotationMatrix(axis: vec3<f32>, angle: f32) -> mat4x4<f32>
-// {
-//     let axis = normalize(axis);
-//     let s = sin(angle);
-//     let c = cos(angle);
-//     let oc = 1.0 - c;
-
-//     return mat4x4<f32>(oc * axis.x * axis.x + c, oc * axis.x * axis.y - axis.z * s,  oc * axis.z * axis.x + axis.y * s, 0.0, oc * axis.x * axis.y + axis.z * s, oc * axis.y * axis.y + c, oc * axis.y * axis.z - axis.x * s,  0.0, oc * axis.z * axis.x - axis.y * s,  oc * axis.y * axis.z + axis.x * s,  oc * axis.z * axis.z + c, 0.0, 0.0, 0.0, 0.0, 1.0);
-// }
-
 fn SpecularBrdf(tangent: vec4<f32>, bitangent: vec3<f32>, nDotH: f32, nDotL: f32, nDotV: f32, halfAngle: vec3<f32>, roughness: f32) -> f32
 {
-    //let tangentMatrix = rotationMatrix(normal, angle);
-    //let rotatedTangent = mat3x3<f32>(tangentMatrix) * tangent.xyz;
-    // TODO: How is the rotation calculated for tangents and bitangents?
+    // TODO: How to calculate tangents and bitangents for prm.a anisotropic rotation?
     // The two BRDFs look very different so don't just use anisotropic for everything.
     if (uniforms.has_float[10].x == 1u) {
         return GgxAnisotropic(nDotH, halfAngle, nDotL, nDotV, tangent.xyz, bitangent, roughness, uniforms.custom_float[10].x);
@@ -1084,8 +1068,7 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) is_front: bool) -> @location
             prm.b = 1.0;
         }
         if (render_settings.render_prm.a == 0u) {
-            // TODO: What default to use here?
-            prm.a = 0.0;
+            prm.a = 0.16;
         }
     }
 
@@ -1112,7 +1095,6 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) is_front: bool) -> @location
         fragmentNormal = GetBumpMapNormal(normal, tangent, bitangent, nor);
     }
 
-    
     // TODO: Is this correct?
     let bitangent = GetBitangent(fragmentNormal, in.tangent.xyzw);
 
@@ -1166,11 +1148,12 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) is_front: bool) -> @location
     let specularF0 = GetF0FromSpecular(prm.a);
     let specularReflectionF0 = vec3(specularF0);
     // Metals use albedo instead of the specular color/tint.
-    let kSpecular = mix(specularReflectionF0, diffusePass, metalness);
-    // TODO: Not all shaders use nor.a as a cavity map.
+    let kSpecular = mix(specularReflectionF0, albedoColorFinal, metalness);
+    // TODO: Not all shaders use nor.a as a cavity map (check if has texture).
     // TODO: Include ambient occlusion in specular?
     // TODO: Does cavity occlude ambient specular?
     let kDirect = kSpecular * shadow * nor.a;
+    // TODO: Is this correct for masking environment reflections?
     let kIndirect = FresnelSchlick(nDotV, kSpecular) * nor.a * 0.5; // TODO: Why is 0.5 needed here?
     let specularPass = SpecularTerm(in.tangent, bitangent, nDotH, max(nDotL, 0.0), nDotV, halfAngle, roughness, specularIbl, kDirect, kIndirect);
 
