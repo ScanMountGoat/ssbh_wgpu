@@ -1025,14 +1025,14 @@ impl SsbhRenderer {
         self.set_scissor(&mut pass);
 
         pass.set_pipeline(&self.debug_pipeline);
-        for model in render_models {
+        for model in render_models.iter().filter(|m| m.is_visible) {
             model.draw_meshes_debug(&mut pass, &self.per_frame_bind_group);
         }
 
         // TODO: Add antialiasing?
         if self.render_settings.wireframe {
             pass.set_pipeline(&self.wireframe_pipeline);
-            for model in render_models {
+            for model in render_models.iter().filter(|m| m.is_visible) {
                 model.draw_meshes_debug(&mut pass, &self.per_frame_bind_group);
             }
         }
@@ -1209,7 +1209,7 @@ impl SsbhRenderer {
         });
 
         pass.set_pipeline(&self.shadow_pipeline);
-        for model in render_models {
+        for model in render_models.iter().filter(|m| m.is_visible) {
             model.draw_meshes_depth(&mut pass, &self.per_frame_bind_group);
         }
     }
