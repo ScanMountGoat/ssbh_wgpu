@@ -331,23 +331,19 @@ fn GetAlbedoColorFinal(albedoColor: vec4<f32>) -> vec3<f32>
 }
 
 
-fn GetBitangent(normal: vec3<f32>, tangent: vec4<f32>) -> vec3<f32>
+fn GetBitangent(normal: vec3<f32>, tangent: vec3<f32>, bitangent_sign: f32) -> vec3<f32>
 {
-    // Flip after normalization to avoid issues with tangentSign being 0.0.
-    // Smash Ultimate requires Tangent0.W to be flipped.
-    return normalize(cross(normal.xyz, tangent.xyz)) * tangent.w * -1.0;
+    // Ultimate flips the bitangent before using it for normal mapping.
+    return cross(normal.xyz, tangent.xyz) * bitangent_sign * -1.0;
 }
-    
+
 fn GetBumpMapNormal(normal: vec3<f32>, tangent: vec3<f32>, bitangent: vec3<f32>, norColor: vec4<f32>) -> vec3<f32>
 {
-    // Remap the normal map to the correct range.
     // Remap the normal map to the correct range.
     let x = 2.0 * norColor.x - 1.0;
     let y = 2.0 * norColor.y - 1.0;
 
     // Calculate z based on the fact that x*x + y*y + z*z = 1.
-    // Calculate z based on the fact that x*x + y*y + z*z = 1.
-    // Clamp to prevent z being 0.0.
     // Clamp to prevent z being 0.0.
     let z = sqrt(max(1.0 - (x * x) + (y * y), 0.001));
     
@@ -774,9 +770,10 @@ fn fs_debug(in: VertexOutput) -> @location(0) vec4<f32> {
     let colorSet6 = in.color_set6;
     let colorSet7 = in.color_set7;
 
+    // Normal code ported from in game.
     let normal = normalize(in.normal.xyz);
     let tangent = normalize(in.tangent.xyz);
-    let bitangent = GetBitangent(normal, in.tangent.xyzw);
+    let bitangent = GetBitangent(normal, tangent, in.tangent.w);
 
     let viewVector = normalize(camera.camera_pos.xyz - in.position.xyz);
 
@@ -810,11 +807,11 @@ fn fs_debug(in: VertexOutput) -> @location(0) vec4<f32> {
             outColor = vec4(pow(color, vec3(2.2)), 1.0);
         }
         case 2u: {
-            let color = normalize(in.normal.xyz) * 0.5 + 0.5;
+            let color = in.normal.xyz * 0.5 + 0.5;
             outColor = vec4(pow(color, vec3(2.2)), 1.0);
         }
         case 3u: {
-            let color = normalize(in.tangent.xyz) * 0.5 + 0.5;
+            let color = in.tangent.xyz * 0.5 + 0.5;
             outColor = vec4(pow(color, vec3(2.2)), in.tangent.w);
         }
         case 4u: {
@@ -1086,9 +1083,10 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) is_front: bool) -> @location
 
     let viewVector = normalize(camera.camera_pos.xyz - in.position.xyz);
 
+    // Normal code ported from in game.
     let normal = normalize(in.normal.xyz);
     let tangent = normalize(in.tangent.xyz);
-    let bitangent = GetBitangent(normal, in.tangent.xyzw);
+    let bitangent = GetBitangent(normal, tangent, in.tangent.w);
 
     var fragmentNormal = normal;
     if (uniforms.has_texture[4].x == 1u) {
@@ -1096,7 +1094,7 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) is_front: bool) -> @location
     }
 
     // TODO: Is this correct?
-    let bitangent = GetBitangent(fragmentNormal, in.tangent.xyzw);
+    let bitangent = GetBitangent(fragmentNormal, tangent, in.tangent.w);
 
     // TODO: Investigate lighting for double sided materials with culling disabled.
     if (!is_front) {
