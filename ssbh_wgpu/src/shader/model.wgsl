@@ -815,7 +815,7 @@ fn fs_debug(in: VertexOutput) -> @location(0) vec4<f32> {
         }
         case 3u: {
             let color = normalize(in.tangent.xyz) * 0.5 + 0.5;
-            outColor = vec4(pow(color, vec3(2.2)), 1.0);
+            outColor = vec4(pow(color, vec3(2.2)), in.tangent.w);
         }
         case 4u: {
             outColor = colorSet1;
