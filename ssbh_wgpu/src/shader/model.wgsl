@@ -771,6 +771,7 @@ fn fs_debug(in: VertexOutput) -> @location(0) vec4<f32> {
     let colorSet7 = in.color_set7;
 
     // Normal code ported from in game.
+    // This is similar to mikktspace but normalization happens in the fragment shader.
     let normal = normalize(in.normal.xyz);
     let tangent = normalize(in.tangent.xyz);
     let bitangent = GetBitangent(normal, tangent, in.tangent.w);
@@ -783,7 +784,20 @@ fn fs_debug(in: VertexOutput) -> @location(0) vec4<f32> {
     // TODO: Apply normal maps and convert to view space.
     var fragmentNormal = normal;
     if (uniforms.has_texture[4].x == 1u) {
-        let nor = textureSample(texture4, sampler4, map1);
+        var nor = textureSample(texture4, sampler4, map1);
+        // TODO: Simpler way to toggle channels?
+        if (render_settings.render_nor.r == 0u) {
+            nor.r = 0.5;
+        }
+        if (render_settings.render_nor.g == 0u) {
+            nor.g = 0.5;
+        }
+        if (render_settings.render_nor.b == 0u) {
+            nor.b = 0.0;
+        }
+        if (render_settings.render_nor.a == 0u) {
+            nor.a = 1.0;
+        }
         fragmentNormal = GetBumpMapNormal(normal, tangent, bitangent, nor);
     }
 
@@ -1084,6 +1098,7 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) is_front: bool) -> @location
     let viewVector = normalize(camera.camera_pos.xyz - in.position.xyz);
 
     // Normal code ported from in game.
+    // This is similar to mikktspace but normalization happens in the fragment shader.
     let normal = normalize(in.normal.xyz);
     let tangent = normalize(in.tangent.xyz);
     let bitangent = GetBitangent(normal, tangent, in.tangent.w);
