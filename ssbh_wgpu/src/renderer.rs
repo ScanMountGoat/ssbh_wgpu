@@ -605,7 +605,7 @@ impl SsbhRenderer {
     }
 
     /// Updates the stage color grading lut texture.
-    /// Invalid nutexb files are ignored and the lut will not be updated.
+    /// Invalid nutexb files are ignored and the texture will not be updated.
     pub fn update_color_lut(
         &mut self,
         device: &wgpu::Device,
@@ -617,7 +617,11 @@ impl SsbhRenderer {
             if dim == wgpu::TextureViewDimension::D3 {
                 let color_lut = TextureSamplerView {
                     view: texture.create_view(&wgpu::TextureViewDescriptor::default()),
-                    sampler: device.create_sampler(&wgpu::SamplerDescriptor::default()),
+                    sampler: device.create_sampler(&wgpu::SamplerDescriptor {
+                        min_filter: wgpu::FilterMode::Linear,
+                        mag_filter: wgpu::FilterMode::Linear,
+                        ..Default::default()
+                    }),
                 };
                 self.pass_info.post_process_bind_group = create_post_process_bind_group(
                     device,

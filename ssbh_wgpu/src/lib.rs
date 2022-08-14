@@ -71,6 +71,32 @@ impl SharedRenderData {
     pub fn database(&self) -> &ShaderDatabase {
         &self.database
     }
+
+    /// Updates the default texture for `#replace_cubemap` from `nutexb`.
+    /// Invalid nutexb files are ignored.
+    ///
+    /// Textures will need to be updated for each [RenderModel] with
+    /// [RenderModel::recreate_materials] for this change to take effect.
+    pub fn update_stage_cube_map(
+        &mut self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        nutexb: &NutexbFile,
+    ) {
+        // TODO: Return errors.
+        if let Some((_, texture, dim)) = self
+            .default_textures
+            .iter_mut()
+            .find(|(name, _, _)| name == "#replace_cubemap")
+        {
+            if let Ok((new_texture, wgpu::TextureViewDimension::Cube)) =
+                nutexb_wgpu::create_texture(nutexb, device, queue)
+            {
+                *texture = new_texture;
+                *dim = wgpu::TextureViewDimension::Cube;
+            }
+        }
+    }
 }
 
 pub type ModelFiles<T> = Vec<(String, Result<T, Box<dyn Error>>)>;
