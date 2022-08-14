@@ -148,8 +148,9 @@ mod tests {
     use super::*;
     use crate::assert_vector_relative_eq;
     use ssbh_data::{
-        anim_data::{TransformFlags, Vector3, Vector4},
+        anim_data::TransformFlags,
         skel_data::{BillboardType, BoneData},
+        Vector3, Vector4,
     };
 
     fn identity_bone(name: &str, parent_index: Option<usize>) -> BoneData {
@@ -200,8 +201,8 @@ mod tests {
                 aim_constraints: Vec::new(),
                 orient_constraints: vec![OrientConstraintData {
                     name: String::new(),
-                    bone_name: String::new(),
-                    root_bone_name: String::new(),
+                    parent_bone1_name: String::new(),
+                    parent_bone2_name: String::new(),
                     source_bone_name: String::new(),
                     target_bone_name: String::new(),
                     unk_type: 2,
@@ -256,8 +257,8 @@ mod tests {
                 aim_constraints: Vec::new(),
                 orient_constraints: vec![OrientConstraintData {
                     name: "constraint1".into(),
-                    bone_name: "A".into(),
-                    root_bone_name: "A".into(),
+                    parent_bone1_name: "A".into(),
+                    parent_bone2_name: "A".into(),
                     source_bone_name: "A".into(),
                     target_bone_name: "B".into(),
                     unk_type: 2,
@@ -316,8 +317,8 @@ mod tests {
                 aim_constraints: Vec::new(),
                 orient_constraints: vec![OrientConstraintData {
                     name: "constraint1".into(),
-                    bone_name: "A".into(),
-                    root_bone_name: "A".into(),
+                    parent_bone1_name: "A".into(),
+                    parent_bone2_name: "A".into(),
                     source_bone_name: "A".into(),
                     target_bone_name: "B".into(),
                     unk_type: 2,
@@ -392,8 +393,8 @@ mod tests {
                 aim_constraints: Vec::new(),
                 orient_constraints: vec![OrientConstraintData {
                     name: "constraint1".into(),
-                    bone_name: "Root".into(),
-                    root_bone_name: "Root".into(),
+                    parent_bone1_name: "Root".into(),
+                    parent_bone2_name: "Root".into(),
                     source_bone_name: "A".into(),
                     target_bone_name: "B".into(),
                     unk_type: 2,
@@ -522,8 +523,8 @@ mod tests {
                 aim_constraints: Vec::new().into(),
                 orient_constraints: vec![OrientConstraintData {
                     name: "constraint1".into(),
-                    bone_name: "Root".into(), // TODO: What to put here?
-                    root_bone_name: "Root".into(),
+                    parent_bone1_name: "Root".into(), // TODO: What to put here?
+                    parent_bone2_name: "Root".into(),
                     source_bone_name: "L1".into(),
                     target_bone_name: "R1".into(),
                     unk_type: 2,

@@ -1,8 +1,9 @@
 use ssbh_data::{
-    anim_data::{GroupType, TrackValues, TransformFlags, Vector3, Vector4},
+    anim_data::{GroupType, TrackValues, TransformFlags},
     matl_data::MatlEntryData,
     prelude::*,
     skel_data::{BoneData, BoneTransformError},
+    Vector3, Vector4,
 };
 
 use crate::{shader::skinning::AnimatedWorldTransforms, RenderMesh};
@@ -1385,8 +1386,8 @@ mod tests {
                 orient_constraints: vec![
                     OrientConstraintData {
                         name: "constraint1".into(),
-                        bone_name: "Root".into(), // TODO: What to put here?
-                        root_bone_name: "Root".into(),
+                        parent_bone1_name: "Root".into(), // TODO: What to put here?
+                        parent_bone2_name: "Root".into(),
                         source_bone_name: "R0".into(),
                         target_bone_name: "L0".into(),
                         unk_type: 2,
@@ -1398,8 +1399,8 @@ mod tests {
                     },
                     OrientConstraintData {
                         name: "constraint2".into(),
-                        bone_name: "Root".into(), // TODO: What to put here?
-                        root_bone_name: "Root".into(),
+                        parent_bone1_name: "Root".into(), // TODO: What to put here?
+                        parent_bone2_name: "Root".into(),
                         source_bone_name: "R1".into(),
                         target_bone_name: "L1".into(),
                         unk_type: 2,
