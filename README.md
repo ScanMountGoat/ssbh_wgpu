@@ -1,6 +1,14 @@
 # ssbh_wgpu
 ssbh_wgpu is a lightweight and portable Smash Ultimate model renderer built using [WGPU](https://github.com/gfx-rs/wgpu). 
 
+## Usage
+Add the following lines to the `Cargo.toml`. This library is still highly experimental. Specify the commit tag or commit the `Cargo.lock` file to version control to avoid any versioning issues.
+
+```
+ssbh_wgpu = { git = "https://github.com/ScanMountGoat/ssbh_wgpu" }
+nutexb_wgpu = { git = "https://github.com/ScanMountGoat/ssbh_wgpu" }
+```
+
 ## Overview
 - nutexb_wgpu -- texture renderer and library for converting nutexb files to WGPU textures
 - nutexb_wgpu_viewer -- simple winit application for viewing nutexb textures
