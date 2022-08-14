@@ -6,10 +6,11 @@ use crate::{
         create_invalid_shader_pipeline, create_selected_material_pipeline,
         create_silhouette_pipeline, create_uv_pipeline, create_wireframe_pipeline,
     },
-    texture::{load_default_lut, uv_pattern},
+    texture::{load_default_lut, uv_pattern, TextureSamplerView},
     uniform_buffer, CameraTransforms, RenderModel, ShaderDatabase,
 };
 use glyph_brush::DefaultSectionHasher;
+use nutexb_wgpu::NutexbFile;
 use ssbh_data::{anim_data::AnimData, skel_data::SkelData};
 use strum::{Display, EnumString, EnumVariantNames};
 use wgpu::{ComputePassDescriptor, ComputePipelineDescriptor};
@@ -215,11 +216,9 @@ pub struct SsbhRenderer {
     variance_bind_group: crate::shader::variance_shadow::bind_groups::BindGroup0,
 
     pass_info: PassInfo,
-    // TODO: Rework this to allow for updating the lut externally.
-    // TODO: What's the easiest format to allow these updates?
+
     color_lut: TextureSamplerView,
 
-    // TODO: Should this be configurable at runtime?
     clear_color: [f64; 3],
 
     render_settings: RenderSettings,
@@ -352,11 +351,7 @@ impl SsbhRenderer {
             create_screen_pipeline(device, &shader, &layout, "fs_main", VARIANCE_SHADOW_FORMAT);
 
         // TODO: Where should stage specific assets be loaded?
-        let (color_lut_view, color_lut_sampler) = load_default_lut(device, queue);
-        let color_lut = TextureSamplerView {
-            view: color_lut_view,
-            sampler: color_lut_sampler,
-        };
+        let color_lut = load_default_lut(device, queue);
 
         // TODO: Create a struct to store the stage rendering data?
         let pass_info = PassInfo::new(device, width, height, scale_factor, &color_lut);
@@ -566,6 +561,7 @@ impl SsbhRenderer {
         }
     }
 
+    // TODO: Document that anything that takes a device reference shouldn't be called each frame.
     /// Updates the camera transforms.
     /// This method is lightweight, so it can be called each frame if necessary.
     pub fn update_camera(&mut self, queue: &wgpu::Queue, transforms: CameraTransforms) {
@@ -606,6 +602,31 @@ impl SsbhRenderer {
                 light_transform: light_transform.to_cols_array_2d(),
             }]),
         );
+    }
+
+    /// Updates the stage color grading lut texture.
+    /// Invalid nutexb files are ignored and the lut will not be updated.
+    pub fn update_color_lut(
+        &mut self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        nutexb: &NutexbFile,
+    ) {
+        // TODO: Return or log errors?
+        if let Ok((texture, dim)) = nutexb_wgpu::create_texture(nutexb, device, queue) {
+            if dim == wgpu::TextureViewDimension::D3 {
+                let color_lut = TextureSamplerView {
+                    view: texture.create_view(&wgpu::TextureViewDescriptor::default()),
+                    sampler: device.create_sampler(&wgpu::SamplerDescriptor::default()),
+                };
+                self.pass_info.post_process_bind_group = create_post_process_bind_group(
+                    device,
+                    &self.pass_info.color,
+                    &self.pass_info.bloom_upscaled,
+                    &color_lut,
+                );
+            }
+        }
     }
 
     /// Sets the viewport background color.
@@ -1399,11 +1420,6 @@ impl PassInfo {
             outline_bind_group,
         }
     }
-}
-
-struct TextureSamplerView {
-    sampler: wgpu::Sampler,
-    view: wgpu::TextureView,
 }
 
 fn create_depth(device: &wgpu::Device, width: u32, height: u32) -> TextureSamplerView {

@@ -15,6 +15,11 @@ pub enum LoadTextureError {
     },
 }
 
+pub struct TextureSamplerView {
+    pub view: wgpu::TextureView,
+    pub sampler: wgpu::Sampler,
+}
+
 pub fn load_texture(
     material_path: &str,
     textures: &[(String, Texture, TextureViewDimension)],
@@ -125,7 +130,7 @@ pub fn load_default_spec_cube(device: &Device, queue: &Queue) -> (Texture, Sampl
     (texture, sampler)
 }
 
-pub fn load_default_lut(device: &Device, queue: &wgpu::Queue) -> (TextureView, Sampler) {
+pub fn load_default_lut(device: &Device, queue: &wgpu::Queue) -> TextureSamplerView {
     let default_lut = create_default_lut();
 
     let size = wgpu::Extent3d {
@@ -161,7 +166,7 @@ pub fn load_default_lut(device: &Device, queue: &wgpu::Queue) -> (TextureView, S
         ..Default::default()
     });
 
-    (view, sampler)
+    TextureSamplerView { view, sampler }
 }
 
 fn mip_filter_mode(filter: MinFilter) -> wgpu::FilterMode {

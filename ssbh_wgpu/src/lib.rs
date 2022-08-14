@@ -1,6 +1,5 @@
 use bytemuck::Pod;
 use log::{error, info};
-use nutexb_wgpu::NutexbFile;
 use ssbh_data::prelude::*;
 use std::{
     error::Error,
@@ -9,6 +8,8 @@ use std::{
 use walkdir::WalkDir;
 use wgpu::util::DeviceExt;
 // TODO: Use rayon to speed up load times?
+
+pub use nutexb_wgpu::NutexbFile;
 
 mod pipeline;
 mod shader;
