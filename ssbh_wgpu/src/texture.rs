@@ -83,14 +83,14 @@ pub fn load_sampler(
 
 pub fn load_default(
     param_id: ParamId,
-    stage_cube: &(Texture, Sampler),
+    stage_cube: &Texture,
     default_white: &Texture,
 ) -> TextureView {
     match param_id {
         ParamId::Texture2 | ParamId::Texture7 | ParamId::Texture8 => {
             // TODO: Diffuse cube maps seem to load a different stage cube map?
             // TODO: Investigate irradiance cube maps.
-            stage_cube.0.create_view(&TextureViewDescriptor {
+            stage_cube.create_view(&TextureViewDescriptor {
                 dimension: Some(TextureViewDimension::Cube),
                 ..Default::default()
             })

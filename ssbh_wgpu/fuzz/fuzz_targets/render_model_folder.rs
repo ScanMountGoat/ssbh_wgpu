@@ -92,6 +92,6 @@ fuzz_target!(|model: ModelFolder| {
         &renderer,
         &output_view,
         &render_models,
-        &shared_data.database,
+        &shared_data.database(),
     );
 });

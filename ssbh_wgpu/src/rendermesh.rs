@@ -1199,7 +1199,6 @@ fn create_material_data(
         device,
         textures,
         &shared_data.default_textures,
-        &shared_data.stage_cube,
         &uniforms_buffer,
     );
 
@@ -1284,13 +1283,18 @@ fn create_material_uniforms_bind_group(
     device: &wgpu::Device,
     textures: &[(String, wgpu::Texture, wgpu::TextureViewDimension)],
     default_textures: &[(String, wgpu::Texture, wgpu::TextureViewDimension)],
-    stage_cube: &(wgpu::Texture, wgpu::Sampler),
     uniforms_buffer: &wgpu::Buffer, // TODO: Just return this?
 ) -> crate::shader::model::bind_groups::BindGroup1 {
     // TODO: Do all 2D textures default to white if the path isn't correct?
     let default_white = &default_textures
         .iter()
         .find(|d| d.0 == "/common/shader/sfxpbs/default_white")
+        .unwrap()
+        .1;
+
+    let default_cube = &default_textures
+        .iter()
+        .find(|d| d.0 == "#replace_cubemap")
         .unwrap()
         .1;
 
@@ -1319,7 +1323,7 @@ fn create_material_uniforms_bind_group(
                     }
                 }
                 ).ok()
-            }).unwrap_or_else(|| load_default(texture_id, stage_cube, default_white))
+            }).unwrap_or_else(|| load_default(texture_id, default_cube, default_white))
     };
 
     let load_sampler = |sampler_id| {

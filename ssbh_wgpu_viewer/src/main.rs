@@ -1,5 +1,4 @@
-use std::path::Path;
-
+use ssbh_data::prelude::*;
 use ssbh_wgpu::CameraTransforms;
 use ssbh_wgpu::DebugMode;
 use ssbh_wgpu::ModelFolder;
@@ -9,9 +8,7 @@ use ssbh_wgpu::SharedRenderData;
 use ssbh_wgpu::TransitionMaterial;
 use ssbh_wgpu::REQUIRED_FEATURES;
 use ssbh_wgpu::{load_model_folders, load_render_models, SsbhRenderer};
-
-use ssbh_data::prelude::*;
-
+use std::path::Path;
 use winit::{
     dpi::PhysicalPosition,
     event::*,
@@ -409,7 +406,7 @@ impl State {
             &output_view,
             &self.render_models,
             skels.clone(),
-            &self.shared_data.database,
+            &self.shared_data.database(),
             true,
             0,
             "",

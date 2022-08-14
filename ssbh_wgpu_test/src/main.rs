@@ -137,7 +137,7 @@ fn main() {
             &output_view,
             &render_models,
             std::iter::empty(),
-            &shared_data.database,
+            &shared_data.database(),
             false,
             0,
             ""

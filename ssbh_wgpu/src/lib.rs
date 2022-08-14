@@ -44,13 +44,11 @@ pub const REQUIRED_FEATURES: wgpu::Features = wgpu::Features::from_bits_truncate
         | wgpu::Features::POLYGON_MODE_LINE.bits(),
 );
 
-// TODO: Make these fields get only like fn database(&self)?
 // TODO: Better name?
 pub struct SharedRenderData {
-    pub pipeline_data: PipelineData,
-    pub default_textures: Vec<(String, wgpu::Texture, wgpu::TextureViewDimension)>,
-    pub stage_cube: (wgpu::Texture, wgpu::Sampler), // TODO: This should be editable?
-    pub database: ShaderDatabase,
+    pipeline_data: PipelineData,
+    default_textures: Vec<(String, wgpu::Texture, wgpu::TextureViewDimension)>,
+    database: ShaderDatabase,
 }
 
 impl SharedRenderData {
@@ -62,9 +60,16 @@ impl SharedRenderData {
         Self {
             pipeline_data: PipelineData::new(device, surface_format),
             default_textures: create_default_textures(device, queue),
-            stage_cube: load_default_spec_cube(device, queue),
             database: create_database(),
         }
+    }
+
+    pub fn default_textures(&self) -> &[(String, wgpu::Texture, wgpu::TextureViewDimension)] {
+        &self.default_textures
+    }
+
+    pub fn database(&self) -> &ShaderDatabase {
+        &self.database
     }
 }
 
