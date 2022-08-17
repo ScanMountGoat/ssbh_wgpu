@@ -286,6 +286,7 @@ pub fn boolean_index(param: ParamId) -> Option<usize> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ssbh_data::Vector4;
 
     #[test]
     fn create_uniforms_no_material() {

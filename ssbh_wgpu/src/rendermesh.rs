@@ -66,7 +66,7 @@ pub struct RenderMesh {
     meshex_flags: EntryFlags, // TODO: How to update these?
     material_label: String,
     shader_label: String,
-    sub_index: u64,
+    subindex: u64,
     sort_bias: i32,
     normals_bind_group: crate::shader::renormal::bind_groups::BindGroup0,
     skinning_bind_group: crate::shader::skinning::bind_groups::BindGroup0,
@@ -142,7 +142,7 @@ impl RenderModel {
     pub fn reassign_materials(&mut self, modl: &ModlData, matl: Option<&MatlData>) {
         for mesh in &mut self.meshes {
             if let Some(entry) = modl.entries.iter().find(|e| {
-                e.mesh_object_name == mesh.name && e.mesh_object_sub_index == mesh.sub_index
+                e.mesh_object_name == mesh.name && e.mesh_object_subindex == mesh.subindex
             }) {
                 mesh.material_label = entry.material_label.clone();
                 mesh.shader_label = matl
@@ -927,7 +927,7 @@ impl<'a> RenderMeshSharedData<'a> {
                                 .iter()
                                 .find(|g| g.mesh_object_full_name == mesh_object.name)
                         })
-                        .and_then(|g| g.entry_flags.get(mesh_object.sub_index as usize));
+                        .and_then(|g| g.entry_flags.get(mesh_object.subindex as usize));
 
                     self.create_render_mesh(
                         device,
@@ -1019,7 +1019,7 @@ impl<'a> RenderMeshSharedData<'a> {
                     .iter()
                     .find(|e| {
                         e.mesh_object_name == mesh_object.name
-                            && e.mesh_object_sub_index == mesh_object.sub_index
+                            && e.mesh_object_subindex == mesh_object.subindex
                     })
                     .map(|e| &e.material_label)
             })
@@ -1164,7 +1164,7 @@ impl<'a> RenderMeshSharedData<'a> {
             mesh_object_info_bind_group,
             pipeline_key,
             normals_bind_group: renormal_bind_group,
-            sub_index: mesh_object.sub_index,
+            subindex: mesh_object.subindex,
             vertex_count,
             vertex_index_count: mesh_object.vertex_indices.len(),
             access,
