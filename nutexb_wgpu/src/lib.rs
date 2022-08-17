@@ -154,11 +154,13 @@ pub fn create_texture(
         wgpu::TextureDimension::D2
     };
 
+    let label = nutexb.footer.string.to_string();
+
     let max_mips = size.max_mips(dimension);
     if nutexb.footer.mipmap_count > max_mips {
         warn!(
             "Mipmap count {} exceeds the maximum of {} for Nutexb {:?}.",
-            nutexb.footer.mipmap_count, max_mips, nutexb.footer.string,
+            nutexb.footer.mipmap_count, max_mips, label,
         );
     }
 
@@ -170,7 +172,7 @@ pub fn create_texture(
     let texture = device.create_texture_with_data(
         queue,
         &wgpu::TextureDescriptor {
-            label: Some(&nutexb.footer.string.to_string()),
+            label: Some(&label),
             size,
             // TODO: Should this be an error?
             // TODO: How does in game handle this case?
