@@ -723,7 +723,7 @@ fn vs_main_invalid(
 fn fs_invalid_shader(in: VertexOutputInvalid) -> @location(0) vec4<f32> {
     let position_clip = (in.position.xy / in.position.w) * 0.5 + 0.5;
     // Account for screen dimensions and scale.
-    let checker = ScreenCheckerBoard(position_clip * camera.screen_dimensions.xy * camera.screen_dimensions.z);
+    let checker = ScreenCheckerBoard(position_clip * camera.screen_dimensions.xy / camera.screen_dimensions.z);
     return vec4(checker, 0.0, 0.0, 1.0);
 }
 
@@ -731,7 +731,7 @@ fn fs_invalid_shader(in: VertexOutputInvalid) -> @location(0) vec4<f32> {
 fn fs_invalid_attributes(in: VertexOutputInvalid) -> @location(0) vec4<f32> {
     let position_clip = (in.position.xy / in.position.w) * 0.5 + 0.5;
     // Account for screen dimensions and scale.
-    let checker = ScreenCheckerBoard(position_clip * camera.screen_dimensions.xy * camera.screen_dimensions.z);
+    let checker = ScreenCheckerBoard(position_clip * camera.screen_dimensions.xy / camera.screen_dimensions.z);
     return vec4(checker, checker, 0.0, 1.0);
 }
 
