@@ -2,6 +2,7 @@ use ssbh_data::prelude::*;
 use ssbh_wgpu::CameraTransforms;
 use ssbh_wgpu::DebugMode;
 use ssbh_wgpu::ModelFolder;
+use ssbh_wgpu::ModelRenderOptions;
 use ssbh_wgpu::RenderModel;
 use ssbh_wgpu::RenderSettings;
 use ssbh_wgpu::SharedRenderData;
@@ -407,9 +408,7 @@ impl State {
             &self.render_models,
             skels.clone(),
             &self.shared_data.database(),
-            true,
-            0,
-            "",
+            &ModelRenderOptions::default(),
         );
 
         drop(final_pass);

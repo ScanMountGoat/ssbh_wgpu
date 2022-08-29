@@ -28,7 +28,9 @@ mod shader_database;
 
 pub use crate::pipeline::PipelineData;
 pub use renderer::SsbhRenderer;
-pub use renderer::{DebugMode, RenderSettings, TransitionMaterial, RGBA_COLOR_FORMAT};
+pub use renderer::{
+    DebugMode, ModelRenderOptions, RenderSettings, TransitionMaterial, RGBA_COLOR_FORMAT,
+};
 pub use rendermesh::{RenderMesh, RenderModel};
 pub use shader::model::CameraTransforms;
 pub use shader_database::{create_database, split_param, ShaderDatabase, ShaderProgram};

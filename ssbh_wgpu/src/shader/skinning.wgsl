@@ -45,6 +45,16 @@ struct MeshObjectInfo {
 
 @compute
 @workgroup_size(256)
+fn main_disabled(@builtin(global_invocation_id) global_invocation_id: vec3<u32>) {
+    // Disable skinning by writing the input unmodified.
+    let index = global_invocation_id.x;
+    if (index < arrayLength(&src)) {
+        dst[index] = src[index];
+    }
+}
+
+@compute
+@workgroup_size(256)
 fn main(@builtin(global_invocation_id) global_invocation_id: vec3<u32>) {
     let total = arrayLength(&src);
     let index = global_invocation_id.x;

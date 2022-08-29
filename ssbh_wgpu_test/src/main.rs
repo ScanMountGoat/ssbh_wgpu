@@ -3,8 +3,8 @@ use std::{num::NonZeroU32, path::Path};
 use futures::executor::block_on;
 use image::ImageBuffer;
 use ssbh_wgpu::{
-    load_render_models, CameraTransforms, ModelFolder, SharedRenderData, SsbhRenderer,
-    REQUIRED_FEATURES, RGBA_COLOR_FORMAT,
+    load_render_models, CameraTransforms, ModelFolder, ModelRenderOptions, SharedRenderData,
+    SsbhRenderer, REQUIRED_FEATURES, RGBA_COLOR_FORMAT,
 };
 use wgpu::{
     Backends, DeviceDescriptor, Extent3d, Instance, Limits, PowerPreference, RequestAdapterOptions,
@@ -138,9 +138,7 @@ fn main() {
             &render_models,
             std::iter::empty(),
             &shared_data.database(),
-            false,
-            0,
-            ""
+            &ModelRenderOptions::default(),
         );
 
         encoder.copy_texture_to_buffer(

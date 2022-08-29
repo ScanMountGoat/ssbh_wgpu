@@ -108,10 +108,13 @@ pub enum TransitionMaterial {
 }
 
 /// Settings for configuring the rendered output of an [SsbhRenderer].
+/// These settings modify internal WGPU state and should only be updated as needed.
 #[derive(PartialEq, Clone, Copy)]
 pub struct RenderSettings {
     /// The attribute to render as the output color when [Some].
     pub debug_mode: DebugMode,
+    /// The secondary material when rendering with [DebugMode::Shaded].
+    /// The [transition_factor](#structfield.transition_factor) controls the mix intensity.
     pub transition_material: TransitionMaterial,
     /// The amount to blend between the regular material and the [transition_material](#structfield.transition_material).
     /// 0.0 = regular material, 1.0 = transition material.
@@ -130,8 +133,6 @@ pub struct RenderSettings {
     pub render_prm: [bool; 4],
     /// Use a UV test pattern for UV debug modes when `true`. Otherwise, display UVs as RGB colors.
     pub use_uv_pattern: bool,
-    /// Draw a wireframe on shaded when `true` for all modes except [DebugMode::Shaded].
-    pub wireframe: bool,
 }
 
 impl From<&RenderSettings> for crate::shader::model::RenderSettings {
@@ -172,7 +173,34 @@ impl Default for RenderSettings {
             render_nor: [true; 4],
             render_prm: [true; 4],
             use_uv_pattern: true,
-            wireframe: false,
+        }
+    }
+}
+
+/// Lightweight settings for configuring model rendering each frame.
+///
+/// Renders materials in a solid color for the given `mask_model_index` and
+/// `mask_material_label`. Use `""` for disabling the mask.
+pub struct ModelRenderOptions {
+    // TODO: Add a draw bones parameter?
+    pub draw_bone_axes: bool,
+    // TODO: Make these Option instead?
+    pub mask_model_index: usize,
+    pub mask_material_label: String,
+    // TODO: Add an option to enable parent bone but disable skinning
+    pub enable_vertex_skinning: bool,
+    /// Draw a wireframe on shaded when `true` for all modes except [DebugMode::Shaded].
+    pub draw_wireframe: bool,
+}
+
+impl Default for ModelRenderOptions {
+    fn default() -> Self {
+        Self {
+            draw_bone_axes: false,
+            mask_model_index: 0,
+            mask_material_label: String::new(),
+            enable_vertex_skinning: true,
+            draw_wireframe: false,
         }
     }
 }
@@ -187,6 +215,7 @@ pub struct SsbhRenderer {
 
     // TODO: Group model related pipelines?
     skinning_pipeline: wgpu::ComputePipeline,
+    skinning_disabled_pipeline: wgpu::ComputePipeline,
     renormal_pipeline: wgpu::ComputePipeline,
     shadow_pipeline: wgpu::RenderPipeline,
     variance_shadow_pipeline: wgpu::RenderPipeline,
@@ -332,6 +361,13 @@ impl SsbhRenderer {
             module: &module,
             entry_point: "main",
         });
+        let skinning_disabled_pipeline =
+            device.create_compute_pipeline(&ComputePipelineDescriptor {
+                label: Some("Vertex Skinning Compute Disabled"),
+                layout: Some(&layout),
+                module: &module,
+                entry_point: "main_disabled",
+            });
 
         let module = crate::shader::renormal::create_shader_module(device);
         let layout = crate::shader::renormal::create_pipeline_layout(device);
@@ -489,6 +525,7 @@ impl SsbhRenderer {
             bloom_upscale_pipeline,
             post_process_pipeline,
             skinning_pipeline,
+            skinning_disabled_pipeline,
             renormal_pipeline,
             shadow_pipeline,
             camera_buffer,
@@ -647,9 +684,6 @@ impl SsbhRenderer {
     ///
     /// For disabling bone rendering, pass an empty iterator for `skels`.
     ///
-    /// Renders materials in a solid color for the given `mask_model_index` and
-    /// `mask_material_label`. Use `""` for disabling the mask.
-    ///
     /// Returns the final color pass with no depth attachment.
     /// This enables adding efficient overlays.
     /// Remember to drop the pass when done using it!
@@ -660,9 +694,7 @@ impl SsbhRenderer {
         render_models: &'a [RenderModel],
         skels: impl Iterator<Item = Option<&'b SkelData>>,
         shader_database: &ShaderDatabase,
-        draw_bone_axes: bool,
-        mask_model_index: usize,
-        mask_material_label: &str,
+        options: &ModelRenderOptions,
     ) -> wgpu::RenderPass<'a> {
         // Render meshes are sorted globally rather than per folder.
         // This allows all transparent draw calls to happen after opaque draw calls.
@@ -672,7 +704,7 @@ impl SsbhRenderer {
 
         // Transform the vertex positions and normals.
         // Always run compute passes to preserve vertex positions when switching to debug shading.
-        self.skinning_pass(encoder, render_models);
+        self.skinning_pass(encoder, render_models, options.enable_vertex_skinning);
         self.renormal_pass(encoder, render_models);
 
         // TODO: Benchmark and investigate compute shaders for post processing.
@@ -681,8 +713,9 @@ impl SsbhRenderer {
             self.model_debug_pass(
                 encoder,
                 render_models,
-                mask_model_index,
-                mask_material_label,
+                options.mask_model_index,
+                &options.mask_material_label,
+                options.draw_wireframe,
             );
         } else {
             // Depth only pass for shadow maps.
@@ -696,8 +729,8 @@ impl SsbhRenderer {
                 encoder,
                 render_models,
                 shader_database,
-                mask_model_index,
-                mask_material_label,
+                options.mask_model_index,
+                &options.mask_material_label,
             );
 
             // TODO: Will these be faster as compute passes?
@@ -734,7 +767,7 @@ impl SsbhRenderer {
             render_models,
             &self.pass_info.color_final.view,
             skels,
-            draw_bone_axes,
+            options.draw_bone_axes,
         );
 
         // TODO: This can be combined with post processing.
@@ -890,14 +923,25 @@ impl SsbhRenderer {
         variance_shadow_pass.draw(0..3, 0..1);
     }
 
-    fn skinning_pass(&self, encoder: &mut wgpu::CommandEncoder, render_models: &[RenderModel]) {
+    fn skinning_pass(
+        &self,
+        encoder: &mut wgpu::CommandEncoder,
+        render_models: &[RenderModel],
+        enabled: bool,
+    ) {
         // Skin the render meshes using a compute pass instead of in the vertex shader.
         // Compute shaders give more flexibility compared to vertex shaders.
         // Modifying the vertex buffers once avoids redundant work in later passes.
         let mut skinning_pass = encoder.begin_compute_pass(&ComputePassDescriptor {
             label: Some("Skinning Pass"),
         });
-        skinning_pass.set_pipeline(&self.skinning_pipeline);
+        if enabled {
+            skinning_pass.set_pipeline(&self.skinning_pipeline);
+        } else {
+            // This requires a pipeline to copy between vertex buffers.
+            // TODO: Create a rendermesh function to just copy buffers?
+            skinning_pass.set_pipeline(&self.skinning_disabled_pipeline);
+        }
         for model in render_models {
             crate::rendermesh::dispatch_skinning(&model.meshes, &mut skinning_pass);
         }
@@ -1026,6 +1070,7 @@ impl SsbhRenderer {
         render_models: &[RenderModel],
         mask_model_index: usize,
         mask_material_label: &str,
+        wireframe: bool,
     ) {
         let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("Model Debug Pass"),
@@ -1055,7 +1100,7 @@ impl SsbhRenderer {
         }
 
         // TODO: Add antialiasing?
-        if self.render_settings.wireframe {
+        if wireframe {
             pass.set_pipeline(&self.wireframe_pipeline);
             for model in render_models.iter().filter(|m| m.is_visible) {
                 model.draw_meshes_debug(&mut pass, &self.per_frame_bind_group);
