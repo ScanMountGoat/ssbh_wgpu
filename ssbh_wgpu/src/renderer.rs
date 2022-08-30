@@ -206,6 +206,12 @@ impl Default for ModelRenderOptions {
 }
 
 /// A renderer for drawing a collection of [RenderModel].
+///
+/// Create a renderer with [SsbhRenderer::new].
+/// This is an expensive operation, so applications should create and reuse a single [SsbhRenderer].
+///
+/// Methods that require a [wgpu::Device] reference are potentially costly and shouldn't be called each frame.
+/// Methods that only take a [wgpu::Queue] reference are lightweight and can be called each frame if needed.
 pub struct SsbhRenderer {
     bloom_threshold_pipeline: wgpu::RenderPipeline,
     bloom_blur_pipeline: wgpu::RenderPipeline,
@@ -261,9 +267,6 @@ pub struct SsbhRenderer {
 
 impl SsbhRenderer {
     /// Initializes the renderer for the given dimensions and monitor scaling.
-    ///
-    /// This is an expensive operation, so applications should create and reuse a single [SsbhRenderer].
-    /// Use [SsbhRenderer::resize] and [SsbhRenderer::update_camera] for changing window sizes and user interaction.
     ///
     /// The `scale_factor` should typically match the monitor scaling in the OS such as `1.5` for 150% scaling.
     /// If unsure, set `scale_factor` to `1.0`.
@@ -600,13 +603,11 @@ impl SsbhRenderer {
 
     // TODO: Document that anything that takes a device reference shouldn't be called each frame.
     /// Updates the camera transforms.
-    /// This method is lightweight, so it can be called each frame if necessary.
     pub fn update_camera(&mut self, queue: &wgpu::Queue, transforms: CameraTransforms) {
         queue.write_buffer(&self.camera_buffer, 0, bytemuck::cast_slice(&[transforms]));
     }
 
     /// Updates the render settings.
-    /// This method is lightweight, so it can be called each frame if necessary.
     pub fn update_render_settings(
         &mut self,
         queue: &wgpu::Queue,
@@ -621,7 +622,6 @@ impl SsbhRenderer {
     }
 
     /// Updates the stage lighting data.
-    /// This method is lightweight, so it can be called each frame if necessary.
     pub fn update_stage_uniforms(&mut self, queue: &wgpu::Queue, data: &AnimData) {
         // TODO: How to animate using the current frame?
         let (stage_uniforms, light_transform) = anim_to_lights(data);
@@ -641,7 +641,16 @@ impl SsbhRenderer {
         );
     }
 
-    /// Updates the stage color grading lut texture.
+    /// Resets the stage uniforms and lighting to their default values.
+    pub fn reset_stage_uniforms(&mut self, queue: &wgpu::Queue) {
+        queue.write_buffer(
+            &self.stage_uniforms_buffer,
+            0,
+            bytemuck::cast_slice(&[crate::shader::model::StageUniforms::training()]),
+        );
+    }
+
+    /// Updates the stage color grading LUT texture.
     /// Invalid nutexb files are ignored and the texture will not be updated.
     pub fn update_color_lut(
         &mut self,
@@ -668,6 +677,17 @@ impl SsbhRenderer {
                 );
             }
         }
+    }
+
+    /// Resets the color grading LUT texture to its default value.
+    pub fn reset_color_lut(&mut self, device: &wgpu::Device, queue: &wgpu::Queue) {
+        let color_lut = load_default_lut(device, queue);
+        self.pass_info.post_process_bind_group = create_post_process_bind_group(
+            device,
+            &self.pass_info.color,
+            &self.pass_info.bloom_upscaled,
+            &color_lut,
+        );
     }
 
     /// Sets the viewport background color.
