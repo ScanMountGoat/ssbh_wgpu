@@ -86,7 +86,7 @@ impl SharedRenderData {
         nutexb: &NutexbFile,
     ) {
         // TODO: Return errors.
-        if let Some((_, texture, dim)) = self
+        if let Some((_, texture, _)) = self
             .default_textures
             .iter_mut()
             .find(|(name, _, _)| name == "#replace_cubemap")
@@ -95,8 +95,19 @@ impl SharedRenderData {
                 nutexb_wgpu::create_texture(nutexb, device, queue)
             {
                 *texture = new_texture;
-                *dim = wgpu::TextureViewDimension::Cube;
             }
+        }
+    }
+
+    /// Resets the default texture for `#replace_cubemap` to its default value.
+    pub fn reset_stage_cube_map(&mut self, device: &wgpu::Device, queue: &wgpu::Queue) {
+        if let Some((_, texture, _)) = self
+            .default_textures
+            .iter_mut()
+            .find(|(name, _, _)| name == "#replace_cubemap")
+        {
+            let (new_texture, _) = load_default_spec_cube(device, queue);
+            *texture = new_texture;
         }
     }
 }
