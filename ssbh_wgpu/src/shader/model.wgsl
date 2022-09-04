@@ -1091,7 +1091,7 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) is_front: bool) -> @location
     let sssBlend = prm.r * customVector30Final.x;
 
     // Skin shaders use metalness for masking the fake SSS effect.
-    if (customVector30Final.x > 0.0) {
+    if (uniforms.has_vector[30].x == 1u) {
         metalness = 0.0;
     }
 
