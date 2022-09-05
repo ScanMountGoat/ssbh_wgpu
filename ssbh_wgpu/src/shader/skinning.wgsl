@@ -34,6 +34,11 @@ struct MeshObjectInfo {
     parent_index: vec4<i32>
 };
 
+struct SkinningSettings {
+    enable_parenting: vec4<u32>,
+    enable_skinning: vec4<u32>
+};
+
 @group(0) @binding(0) var<storage, read> src : array<VertexInput0>;
 @group(0) @binding(1) var<storage, read> vertex_weights : array<VertexWeight>;
 @group(0) @binding(2) var<storage, read_write> dst : array<VertexInput0>;
@@ -43,15 +48,7 @@ struct MeshObjectInfo {
 
 @group(2) @binding(0) var<uniform> mesh_object_info: MeshObjectInfo;
 
-@compute
-@workgroup_size(256)
-fn main_disabled(@builtin(global_invocation_id) global_invocation_id: vec3<u32>) {
-    // Disable skinning by writing the input unmodified.
-    let index = global_invocation_id.x;
-    if (index < arrayLength(&src)) {
-        dst[index] = src[index];
-    }
-}
+@group(3) @binding(0) var<uniform> settings: SkinningSettings;
 
 @compute
 @workgroup_size(256)
@@ -63,7 +60,6 @@ fn main(@builtin(global_invocation_id) global_invocation_id: vec3<u32>) {
     }
 
     var vertex = src[index];
-    let influence = vertex_weights[index];
     
     // Some mesh objects are parented to a bone and don't use skinning.
     // This transform is currently applied in the vertex shader.
@@ -77,14 +73,16 @@ fn main(@builtin(global_invocation_id) global_invocation_id: vec3<u32>) {
     // Assume the object won't also have vertex weights.
     // The application of vertex weights "resets" the vectors.
     let parent_index = mesh_object_info.parent_index.x;
-    if (parent_index >= 0 && parent_index < 512) {
+    if (settings.enable_parenting.x == 1u && parent_index >= 0 && parent_index < 512) {
         position = (world_transforms.transforms[parent_index] * vec4(position, 1.0)).xyz;
         normal = (world_transforms.transforms[parent_index] * vec4(normal, 0.0)).xyz;
         tangent = (world_transforms.transforms[parent_index] * vec4(tangent, 0.0)).xyz;
     }
-
+    
     // Disabling skinning if the first influence is unused.
-    if (influence.bone_indices.x >= 0) {
+    // TODO: Is this accurate to the in game behavior?
+    let influence = vertex_weights[index];
+    if (settings.enable_skinning.x == 1u && influence.bone_indices.x >= 0) {
         position = vec3(0.0);
         normal = vec3(0.0);
         tangent = vec3(0.0);

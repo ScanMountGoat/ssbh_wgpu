@@ -177,6 +177,32 @@ impl Default for RenderSettings {
     }
 }
 
+/// Settings for configuring vertex skinning and skeletal animation rendering.
+/// These settings modify internal WGPU state and should only be updated as needed.
+#[derive(PartialEq, Clone, Copy)]
+pub struct SkinningSettings {
+    pub enable_parenting: bool,
+    pub enable_skinning: bool,
+}
+
+impl From<&SkinningSettings> for crate::shader::skinning::SkinningSettings {
+    fn from(s: &SkinningSettings) -> Self {
+        Self {
+            enable_parenting: [if s.enable_parenting { 1 } else { 0 }; 4],
+            enable_skinning: [if s.enable_skinning { 1 } else { 0 }; 4],
+        }
+    }
+}
+
+impl Default for SkinningSettings {
+    fn default() -> Self {
+        Self {
+            enable_parenting: true,
+            enable_skinning: true,
+        }
+    }
+}
+
 /// Lightweight settings for configuring model rendering each frame.
 ///
 /// Renders materials in a solid color for the given `mask_model_index` and
@@ -187,8 +213,6 @@ pub struct ModelRenderOptions {
     // TODO: Make these Option instead?
     pub mask_model_index: usize,
     pub mask_material_label: String,
-    // TODO: Add an option to enable parent bone but disable skinning
-    pub enable_vertex_skinning: bool,
     /// Draw a wireframe on shaded when `true` for all modes except [DebugMode::Shaded].
     pub draw_wireframe: bool,
 }
@@ -199,7 +223,6 @@ impl Default for ModelRenderOptions {
             draw_bone_axes: false,
             mask_model_index: 0,
             mask_material_label: String::new(),
-            enable_vertex_skinning: true,
             draw_wireframe: false,
         }
     }
@@ -221,7 +244,6 @@ pub struct SsbhRenderer {
 
     // TODO: Group model related pipelines?
     skinning_pipeline: wgpu::ComputePipeline,
-    skinning_disabled_pipeline: wgpu::ComputePipeline,
     renormal_pipeline: wgpu::ComputePipeline,
     shadow_pipeline: wgpu::RenderPipeline,
     variance_shadow_pipeline: wgpu::RenderPipeline,
@@ -258,6 +280,9 @@ pub struct SsbhRenderer {
 
     render_settings: RenderSettings,
     render_settings_buffer: wgpu::Buffer,
+
+    skinning_settings_buffer: wgpu::Buffer,
+    skinning_settings_bind_group: crate::shader::skinning::bind_groups::BindGroup3,
 
     // TODO: Find a way to simplify this?
     brush: Option<TextBrush<FontRef<'static>, DefaultSectionHasher>>,
@@ -364,13 +389,6 @@ impl SsbhRenderer {
             module: &module,
             entry_point: "main",
         });
-        let skinning_disabled_pipeline =
-            device.create_compute_pipeline(&ComputePipelineDescriptor {
-                label: Some("Vertex Skinning Compute Disabled"),
-                layout: Some(&layout),
-                module: &module,
-                entry_point: "main_disabled",
-            });
 
         let module = crate::shader::renormal::create_shader_module(device);
         let layout = crate::shader::renormal::create_pipeline_layout(device);
@@ -521,6 +539,21 @@ impl SsbhRenderer {
         let selected_material_pipeline =
             create_selected_material_pipeline(device, RGBA_COLOR_FORMAT);
 
+        let skinning_settings_buffer = uniform_buffer(
+            device,
+            "Skinning Settings Buffer",
+            &[crate::shader::skinning::SkinningSettings::from(
+                &SkinningSettings::default(),
+            )],
+        );
+        let skinning_settings_bind_group =
+            crate::shader::skinning::bind_groups::BindGroup3::from_bindings(
+                device,
+                crate::shader::skinning::bind_groups::BindGroupLayout3 {
+                    settings: skinning_settings_buffer.as_entire_buffer_binding(),
+                },
+            );
+
         Self {
             bloom_threshold_pipeline,
             bloom_blur_pipeline,
@@ -528,7 +561,6 @@ impl SsbhRenderer {
             bloom_upscale_pipeline,
             post_process_pipeline,
             skinning_pipeline,
-            skinning_disabled_pipeline,
             renormal_pipeline,
             shadow_pipeline,
             camera_buffer,
@@ -558,6 +590,8 @@ impl SsbhRenderer {
             wireframe_pipeline,
             selected_material_pipeline,
             scissor_rect: [0, 0, width, height],
+            skinning_settings_buffer,
+            skinning_settings_bind_group,
         }
     }
 
@@ -618,6 +652,21 @@ impl SsbhRenderer {
             &self.render_settings_buffer,
             0,
             bytemuck::cast_slice(&[crate::shader::model::RenderSettings::from(render_settings)]),
+        );
+    }
+
+    /// Updates the skinning settings.
+    pub fn update_skinning_settings(
+        &mut self,
+        queue: &wgpu::Queue,
+        skinning_settings: &SkinningSettings,
+    ) {
+        queue.write_buffer(
+            &self.skinning_settings_buffer,
+            0,
+            bytemuck::cast_slice(&[crate::shader::skinning::SkinningSettings::from(
+                skinning_settings,
+            )]),
         );
     }
 
@@ -724,7 +773,7 @@ impl SsbhRenderer {
 
         // Transform the vertex positions and normals.
         // Always run compute passes to preserve vertex positions when switching to debug shading.
-        self.skinning_pass(encoder, render_models, options.enable_vertex_skinning);
+        self.skinning_pass(encoder, render_models);
         self.renormal_pass(encoder, render_models);
 
         // TODO: Benchmark and investigate compute shaders for post processing.
@@ -943,27 +992,21 @@ impl SsbhRenderer {
         variance_shadow_pass.draw(0..3, 0..1);
     }
 
-    fn skinning_pass(
-        &self,
-        encoder: &mut wgpu::CommandEncoder,
-        render_models: &[RenderModel],
-        enabled: bool,
-    ) {
+    fn skinning_pass(&self, encoder: &mut wgpu::CommandEncoder, render_models: &[RenderModel]) {
         // Skin the render meshes using a compute pass instead of in the vertex shader.
         // Compute shaders give more flexibility compared to vertex shaders.
         // Modifying the vertex buffers once avoids redundant work in later passes.
         let mut skinning_pass = encoder.begin_compute_pass(&ComputePassDescriptor {
             label: Some("Skinning Pass"),
         });
-        if enabled {
-            skinning_pass.set_pipeline(&self.skinning_pipeline);
-        } else {
-            // This requires a pipeline to copy between vertex buffers.
-            // TODO: Create a rendermesh function to just copy buffers?
-            skinning_pass.set_pipeline(&self.skinning_disabled_pipeline);
-        }
+        skinning_pass.set_pipeline(&self.skinning_pipeline);
+
         for model in render_models {
-            crate::rendermesh::dispatch_skinning(&model.meshes, &mut skinning_pass);
+            crate::rendermesh::dispatch_skinning(
+                &model.meshes,
+                &mut skinning_pass,
+                &self.skinning_settings_bind_group,
+            );
         }
     }
 

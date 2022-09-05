@@ -1424,7 +1424,11 @@ pub fn dispatch_renormal<'a>(meshes: &'a [RenderMesh], compute_pass: &mut wgpu::
     }
 }
 
-pub fn dispatch_skinning<'a>(meshes: &'a [RenderMesh], compute_pass: &mut wgpu::ComputePass<'a>) {
+pub fn dispatch_skinning<'a>(
+    meshes: &'a [RenderMesh],
+    compute_pass: &mut wgpu::ComputePass<'a>,
+    bind_group3: &'a crate::shader::skinning::bind_groups::BindGroup3,
+) {
     // Assume the pipeline is already set.
     for mesh in meshes {
         crate::shader::skinning::bind_groups::set_bind_groups(
@@ -1433,6 +1437,7 @@ pub fn dispatch_skinning<'a>(meshes: &'a [RenderMesh], compute_pass: &mut wgpu::
                 bind_group0: &mesh.skinning_bind_group,
                 bind_group1: &mesh.skinning_transforms_bind_group,
                 bind_group2: &mesh.mesh_object_info_bind_group,
+                bind_group3,
             },
         );
 
