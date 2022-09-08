@@ -343,14 +343,12 @@ fn GetBumpMapNormal(normal: vec3<f32>, tangent: vec3<f32>, bitangent: vec3<f32>,
     let y = 2.0 * norColor.y - 1.0;
 
     // Calculate z based on the fact that x*x + y*y + z*z = 1.
-    // Clamp to prevent z being 0.0.
+    // Clamp to ensure z is positive.
     let z = sqrt(max(1.0 - (x * x) + (y * y), 0.001));
-    
-    let normalMapNormal = vec3(x, y, z);
-    
-    let tbnMatrix = mat3x3<f32>(tangent, bitangent, normal);
-    
-    let newNormal = tbnMatrix * normalMapNormal;
+
+    // Normal mapping is a change of basis using the TBN vectors.
+    let nor = vec3(x, y, z);    
+    let newNormal = tangent * nor.x + bitangent * nor.y + normal * nor.z;
     return normalize(newNormal);
 }
 
