@@ -330,7 +330,6 @@ fn GetAlbedoColorFinal(albedoColor: vec4<f32>) -> vec3<f32>
     return albedoColorFinal;
 }
 
-
 fn GetBitangent(normal: vec3<f32>, tangent: vec3<f32>, bitangent_sign: f32) -> vec3<f32>
 {
     // Ultimate flips the bitangent before using it for normal mapping.
@@ -1082,6 +1081,26 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) is_front: bool) -> @location
             prm.a = 0.16;
         }
     }
+    // Not all channels are used for all shaders.
+    // TODO: Is there a cleaner way of writing this?
+    let vector47 = uniforms.custom_vector[47];
+    var hasVector47 = false;
+    if (uniforms.has_vector[47].x == 1u) {
+        prm.x = vector47.x;
+        hasVector47 = true;
+    }
+    if (uniforms.has_vector[47].y == 1u) {
+        prm.y = vector47.y;
+        hasVector47 = true;
+    }
+    if (uniforms.has_vector[47].z == 1u) {
+        prm.z = vector47.z;
+        hasVector47 = true;
+    }
+    if (uniforms.has_vector[47].w == 1u) {
+        prm.w = vector47.w;
+        hasVector47 = true;
+    }
 
     var metalness = mix(prm.r, transitionPrm.r, transitionFactor);
     let roughness = mix(prm.g, transitionPrm.g, transitionFactor);
@@ -1177,7 +1196,7 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) is_front: bool) -> @location
     }
 
     // Assume materials without PRM omit the specular code entirely.
-    if (render_settings.render_specular.x == 1u && hasPrm) {
+    if (render_settings.render_specular.x == 1u && (hasPrm || hasVector47)) {
         outColor = outColor + specularPass * ao;
     }
 
