@@ -616,6 +616,8 @@ fn vs_main(
     var out: VertexOutput;
     out.position = buffer0.position0.xyz;
     out.clip_position = camera.mvp_matrix * vec4(buffer0.position0.xyz, 1.0);
+    // Assume the z offset defaults to 0.0.
+    out.clip_position.z = out.clip_position.z - uniforms.custom_float[16].x;
     out.normal = buffer0.normal0.xyz;
     out.tangent = buffer0.tangent0;
     
