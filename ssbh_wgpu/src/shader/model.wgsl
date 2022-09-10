@@ -199,9 +199,9 @@ struct VertexOutput {
     @location(0) position: vec3<f32>,
     @location(1) normal: vec3<f32>,
     @location(2) tangent: vec4<f32>,
-    @location(3) map1_uvset: vec4<f32>,
-    @location(4) uv_set1_uv_set2: vec4<f32>,
-    @location(5) bake1: vec2<f32>,
+    @location(3) map1: vec4<f32>,
+    @location(4) uv_set_uv_set1: vec4<f32>,
+    @location(5) uv_set2_bake1: vec4<f32>,
     @location(6) color_set1: vec4<f32>,
     @location(7) color_set2_combined: vec4<f32>,
     @location(8) color_set3: vec4<f32>,
@@ -648,7 +648,14 @@ fn vs_main(
         uvTransform3 = uniforms.custom_vector[32];
     }
 
+    var uvTransformDualNormal = vec4(1.0, 1.0, 0.0, 0.0);
+    if (uniforms.has_vector[34].x == 1u) {
+        uvTransformDualNormal = uniforms.custom_vector[34];
+    }
+
     var map1 = TransformUv(buffer1.map1_uvset.xy, uvTransform1);
+    var map1_dual = TransformUv(buffer1.map1_uvset.xy, uvTransformDualNormal);
+
     // Sprite sheet params.
     // Perform this in the fragment shader to avoid effecting debug modes.
     if (uniforms.custom_boolean[9].x == 1u) {
@@ -660,9 +667,9 @@ fn vs_main(
     // TODO: Transform for uvSet2?
     let uvSet2 = TransformUv(buffer1.uv_set1_uv_set2.xy, uvTransform3);
 
-    out.map1_uvset = vec4(map1, uvSet);
-    out.uv_set1_uv_set2 = vec4(uvSet1, uvSet2);
-    out.bake1 = buffer1.bake1.xy;
+    out.map1 = vec4(map1, map1_dual);
+    out.uv_set_uv_set1 = vec4(uvSet, uvSet1);
+    out.uv_set2_bake1 = vec4(uvSet2, buffer1.bake1.xy);
     out.color_set1 = colorSet1;
     out.color_set2_combined = colorSet2; // TODO: colorSet2 is added together?
     out.color_set3 = colorSet3;
@@ -755,11 +762,12 @@ fn fs_uv() -> @location(0) vec4<f32> {
 
 @fragment
 fn fs_debug(in: VertexOutput) -> @location(0) vec4<f32> {
-    let map1 = in.map1_uvset.xy;
-    let uvSet = in.map1_uvset.zw;
-    let uvSet1 = in.uv_set1_uv_set2.xy;
-    let uvSet2 = in.uv_set1_uv_set2.zw;
-    let bake1 = in.bake1.xy;
+    let map1 = in.map1.xy;
+    let map1_dual = in.map1.zw;
+    let uvSet = in.uv_set_uv_set1.xy;
+    let uvSet1 = in.uv_set_uv_set1.zw;
+    let uvSet2 = in.uv_set2_bake1.xy;
+    let bake1 = in.uv_set2_bake1.zw;
 
     let colorSet1 = in.color_set1;
     let colorSet2 = in.color_set2_combined;
@@ -977,11 +985,12 @@ fn fs_debug(in: VertexOutput) -> @location(0) vec4<f32> {
 
 @fragment
 fn fs_main(in: VertexOutput, @builtin(front_facing) is_front: bool) -> @location(0) vec4<f32> {
-    let map1 = in.map1_uvset.xy;
-    let uvSet = in.map1_uvset.zw;
-    let uvSet1 = in.uv_set1_uv_set2.xy;
-    let uvSet2 = in.uv_set1_uv_set2.zw;
-    let bake1 = in.bake1.xy;
+    let map1 = in.map1.xy;
+    let map1_dual = in.map1.zw;
+    let uvSet = in.uv_set_uv_set1.xy;
+    let uvSet1 = in.uv_set_uv_set1.zw;
+    let uvSet2 = in.uv_set2_bake1.xy;
+    let bake1 = in.uv_set2_bake1.zw;
 
     let colorSet1 = in.color_set1;
     let colorSet2 = in.color_set2_combined;
@@ -995,6 +1004,14 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) is_front: bool) -> @location
     var nor = vec4(0.5, 0.5, 1.0, 1.0);
     if (uniforms.has_texture[4].x == 1u) {
         nor = textureSample(texture4, sampler4, map1);
+        if (uniforms.has_vector[34].x == 1u) {
+            // The second layer is added to the first layer.
+            // TODO: These shaders use the z channel as a normal map.
+            let nor1 = nor.xyz;
+            let nor2 = textureSample(texture4, sampler4, map1_dual).xyz;
+            nor = vec4(nor1 + nor2 - 1.0, nor.w);
+        }
+
         // TODO: Simpler way to toggle channels?
         if (render_settings.render_nor.r == 0u) {
             nor.r = 0.5;
