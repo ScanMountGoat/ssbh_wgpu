@@ -394,8 +394,9 @@ impl State {
                     self.models[i].find_skel(),
                     self.models[i].find_matl(),
                     self.models[i].find_hlpb(),
-                    self.current_frame,
                     &self.shared_data,
+                    self.current_frame,
+                    true,
                 );
             }
         }
@@ -463,7 +464,8 @@ pub fn next_frame(
         .fold(0.0, |a, b| f32::max(a, b));
 
     if next_frame > max_final_frame {
-        next_frame = 0.0;
+        // Loop around since the delta might not be an integral number of frames.
+        next_frame = next_frame.rem_euclid(max_final_frame);
     }
 
     next_frame

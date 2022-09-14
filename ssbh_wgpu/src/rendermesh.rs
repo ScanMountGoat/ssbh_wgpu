@@ -199,6 +199,10 @@ impl RenderModel {
             .collect();
     }
 
+    /// Apply skeletal and material animations for this model.
+    ///
+    /// If `should_loop` is true, `frame` values less than `0.0`
+    /// or greater than the max frame count for each animation will wrap around.
     pub fn apply_anim<'a>(
         &mut self,
         queue: &wgpu::Queue,
@@ -206,8 +210,9 @@ impl RenderModel {
         skel: Option<&SkelData>,
         matl: Option<&MatlData>,
         hlpb: Option<&HlpbData>,
-        frame: f32,
         shared_data: &SharedRenderData,
+        frame: f32,
+        should_loop: bool,
     ) {
         // Update the buffers associated with each skel.
         // This avoids updating per mesh object and allocating new buffers.
@@ -215,15 +220,28 @@ impl RenderModel {
 
         // TODO: Restructure this to iterate the animations only once?
         for anim in anims.clone() {
-            animate_visibility(anim, frame, &mut self.meshes);
+            // Assume final_frame_index is set to the length of the longest track.
+            let current_frame = if should_loop {
+                frame.rem_euclid(anim.final_frame_index)
+            } else {
+                frame
+            };
+            animate_visibility(anim, current_frame, &mut self.meshes);
 
             if let Some(matl) = matl {
-                self.update_material_uniforms(anim, frame, matl, shared_data, queue);
+                self.update_material_uniforms(anim, current_frame, matl, shared_data, queue);
             }
         }
 
         if let Some(skel) = skel {
-            animate_skel(&mut self.animation_transforms, skel, anims, hlpb, frame);
+            animate_skel(
+                &mut self.animation_transforms,
+                skel,
+                anims,
+                hlpb,
+                frame,
+                should_loop,
+            );
 
             queue.write_buffer(
                 &self.mesh_buffers.skinning_transforms,
