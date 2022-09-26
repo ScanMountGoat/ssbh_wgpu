@@ -211,7 +211,8 @@ pub fn animate_skel<'a>(
 
     for anim in anims {
         // Assume final_frame_index is set to the length of the longest track.
-        let current_frame = if should_loop {
+        // Check for 0 length animations to avoid a potential NaN.
+        let current_frame = if should_loop && anim.final_frame_index > 0.0 {
             frame.rem_euclid(anim.final_frame_index)
         } else {
             frame
@@ -1402,8 +1403,8 @@ mod tests {
                 orient_constraints: vec![
                     OrientConstraintData {
                         name: "constraint1".into(),
-                        parent_bone1_name: "Root".into(), // TODO: What to put here?
-                        parent_bone2_name: "Root".into(),
+                        parent_bone_name1: "Root".into(), // TODO: What to put here?
+                        parent_bone_name2: "Root".into(),
                         source_bone_name: "R0".into(),
                         target_bone_name: "L0".into(),
                         unk_type: 2,
@@ -1415,8 +1416,8 @@ mod tests {
                     },
                     OrientConstraintData {
                         name: "constraint2".into(),
-                        parent_bone1_name: "Root".into(), // TODO: What to put here?
-                        parent_bone2_name: "Root".into(),
+                        parent_bone_name1: "Root".into(), // TODO: What to put here?
+                        parent_bone_name2: "Root".into(),
                         source_bone_name: "R1".into(),
                         target_bone_name: "L1".into(),
                         unk_type: 2,
