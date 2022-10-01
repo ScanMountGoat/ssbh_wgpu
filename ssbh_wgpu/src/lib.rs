@@ -34,7 +34,7 @@ pub use renderer::{
 };
 pub use rendermesh::{RenderMesh, RenderModel};
 pub use shader::model::CameraTransforms;
-pub use shader_database::{create_database, split_param, ShaderDatabase, ShaderProgram};
+pub use shader_database::{split_param, ShaderDatabase, ShaderProgram};
 pub use texture::{create_default_textures, load_default_spec_cube};
 
 // TODO: Find a way to avoid using the format features for filterable f32 textures.
@@ -63,7 +63,7 @@ impl SharedRenderData {
         Self {
             pipeline_data: PipelineData::new(device, surface_format),
             default_textures: create_default_textures(device, queue),
-            database: create_database(),
+            database: ShaderDatabase::new(),
         }
     }
 

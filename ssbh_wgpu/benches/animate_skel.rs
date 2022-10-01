@@ -44,7 +44,16 @@ fn animate_skel_roots_benchmark(c: &mut Criterion) {
 
         group.throughput(Throughput::Elements(count as u64));
         group.bench_with_input(BenchmarkId::from_parameter(count), &count, |b, _| {
-            b.iter(|| animate_skel(&mut transforms, &skel, std::iter::once(&anim), None, 0.0, false));
+            b.iter(|| {
+                animate_skel(
+                    &mut transforms,
+                    &skel,
+                    std::iter::once(&anim),
+                    None,
+                    0.0,
+                    false,
+                )
+            });
         });
     }
     group.finish();
@@ -77,7 +86,16 @@ fn animate_skel_chain_benchmark(c: &mut Criterion) {
 
         group.throughput(Throughput::Elements(count as u64));
         group.bench_with_input(BenchmarkId::from_parameter(count), &count, |b, _| {
-            b.iter(|| animate_skel(&mut transforms, &skel, std::iter::once(&anim), None, 0.0, false));
+            b.iter(|| {
+                animate_skel(
+                    &mut transforms,
+                    &skel,
+                    std::iter::once(&anim),
+                    None,
+                    0.0,
+                    false,
+                )
+            });
         });
     }
     group.finish();

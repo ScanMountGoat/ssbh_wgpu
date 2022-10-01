@@ -30,7 +30,6 @@ use wgpu_text::{
 // Shared resources can be updated once per model instead of per mesh.
 // Keep most fields private since the buffer layout is an implementation detail.
 // Assume render data is only shared within a folder.
-// TODO: Associate animation folders with model folders?
 // TODO: Is it worth allowing models to reference textures from other folders?
 pub struct RenderModel {
     pub meshes: Vec<RenderMesh>,
@@ -496,7 +495,7 @@ impl RenderModel {
             // If the material entry is deleted from the matl, the mesh is also skipped.
             if let Some(material_data) = self.material_data_by_label.get(&mesh.material_label) {
                 // TODO: Does the invalid shader pipeline take priority?
-                if let Some(info) = shader_database.get(mesh.shader_label.get(..24).unwrap_or("")) {
+                if let Some(info) = shader_database.get(&mesh.shader_label) {
                     if info.has_required_attributes(&mesh.attribute_names) {
                         // TODO: Don't assume the pipeline exists?
                         render_pass.set_pipeline(&self.pipelines[&mesh.pipeline_key]);

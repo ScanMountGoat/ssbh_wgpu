@@ -49,7 +49,7 @@ pub fn create_uniforms(
             let mut has_boolean = [[0; 4]; 20];
             let mut has_float = [[0; 4]; 20];
             let mut has_vector = [[0; 4]; 64];
-            if let Some(program) = database.get(material.shader_label.get(..24).unwrap_or("")) {
+            if let Some(program) = database.get(&material.shader_label) {
                 for param_name in &program.material_parameters {
                     // TODO: This is redundant to split twice.
                     let (param, _) = split_param(&param_name);
@@ -79,7 +79,7 @@ pub fn create_uniforms(
                 }
             };
 
-            let program = database.get(material.shader_label.get(..24).unwrap_or(""));
+            let program = database.get(&material.shader_label);
 
             let (has_color_set1234, has_color_set567) = if let Some(program) = program {
                 (
@@ -303,7 +303,7 @@ mod tests {
                 has_color_set567: [0; 4],
                 is_discard: [0; 4],
             },
-            create_uniforms(None, &ShaderDatabase::new())
+            create_uniforms(None, &ShaderDatabase::from_iter(std::iter::empty()))
         );
     }
 
@@ -334,7 +334,7 @@ mod tests {
                     samplers: Vec::new(),
                     textures: Vec::new(),
                 }),
-                &ShaderDatabase::new()
+                &ShaderDatabase::from_iter(std::iter::empty())
             )
         );
     }
@@ -388,7 +388,7 @@ mod tests {
                         data: String::new()
                     }],
                 }),
-                &ShaderDatabase::new()
+                &ShaderDatabase::from_iter(std::iter::empty())
             )
         );
     }
@@ -468,22 +468,23 @@ mod tests {
                         data: String::new()
                     }],
                 }),
-                &[(
-                    "SFX_PBS_010002000800824f".to_owned(),
-                    // Check that channels are parsed properly.
-                    ShaderProgram {
-                        discard: true,
-                        vertex_attributes: Vec::new(),
-                        material_parameters: vec![
-                            "Texture0".to_owned(),
-                            "CustomBoolean1".to_owned(),
-                            "CustomFloat2".to_owned(),
-                            "CustomVector8.xw".to_owned()
-                        ]
-                    }
-                )]
-                .into_iter()
-                .collect()
+                &ShaderDatabase::from_iter(
+                    [(
+                        "SFX_PBS_010002000800824f".to_owned(),
+                        // Check that channels are parsed properly.
+                        ShaderProgram {
+                            discard: true,
+                            vertex_attributes: Vec::new(),
+                            material_parameters: vec![
+                                "Texture0".to_owned(),
+                                "CustomBoolean1".to_owned(),
+                                "CustomFloat2".to_owned(),
+                                "CustomVector8.xw".to_owned()
+                            ]
+                        }
+                    )]
+                    .into_iter()
+                )
             )
         );
     }

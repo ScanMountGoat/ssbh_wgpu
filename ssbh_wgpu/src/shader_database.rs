@@ -70,36 +70,50 @@ pub fn split_param(param: &str) -> (&str, &str) {
 
 static SHADER_JSON: &str = include_str!("shaders.json");
 
-// TODO: Make a new type instead?
-// TODO: Add a function to get by shader?
-pub type ShaderDatabase = HashMap<String, ShaderProgram>;
+pub struct ShaderDatabase(HashMap<String, ShaderProgram>);
 
-pub fn create_database() -> ShaderDatabase {
-    let mut database = HashMap::with_capacity(4008);
-
-    let v: Value = serde_json::from_str(SHADER_JSON).unwrap();
-    for program in v["shaders"].as_array().unwrap() {
-        database.insert(
-            program["name"].as_str().unwrap().to_string(),
-            ShaderProgram {
-                discard: program["discard"].as_bool().unwrap(),
-                vertex_attributes: program["attrs"]
-                    .as_array()
-                    .unwrap()
-                    .iter()
-                    .map(|v| v.as_str().unwrap().to_string())
-                    .collect(),
-                material_parameters: program["params"]
-                    .as_array()
-                    .unwrap()
-                    .iter()
-                    .map(|v| v.as_str().unwrap().to_string())
-                    .collect(),
-            },
-        );
+impl ShaderDatabase {
+    /// Creates a database with the specified shader programs.
+    pub fn from_iter<I>(programs: I) -> Self
+    where
+        I: Iterator<Item = (String, ShaderProgram)>,
+    {
+        Self(HashMap::from_iter(programs))
     }
 
-    database
+    /// Creates the shader database used for Smash Ultimate.
+    pub fn new() -> Self {
+        let mut programs = HashMap::with_capacity(4008);
+
+        let v: Value = serde_json::from_str(SHADER_JSON).unwrap();
+        for program in v["shaders"].as_array().unwrap() {
+            programs.insert(
+                program["name"].as_str().unwrap().to_string(),
+                ShaderProgram {
+                    discard: program["discard"].as_bool().unwrap(),
+                    vertex_attributes: program["attrs"]
+                        .as_array()
+                        .unwrap()
+                        .iter()
+                        .map(|v| v.as_str().unwrap().to_string())
+                        .collect(),
+                    material_parameters: program["params"]
+                        .as_array()
+                        .unwrap()
+                        .iter()
+                        .map(|v| v.as_str().unwrap().to_string())
+                        .collect(),
+                },
+            );
+        }
+
+        ShaderDatabase(programs)
+    }
+
+    /// Get the shader with the specified `shader_label` while ignoring tags like `"_opaque"`.
+    pub fn get(&self, shader_label: &str) -> Option<&ShaderProgram> {
+        self.0.get(shader_label.get(..24).unwrap_or(""))
+    }
 }
 
 #[cfg(test)]
@@ -108,8 +122,13 @@ mod tests {
 
     #[test]
     fn program_discard() {
-        let database = create_database();
-        assert!(!database.get("SFX_PBS_011000000800826b").unwrap().discard);
+        let database = ShaderDatabase::new();
+        assert!(
+            !database
+                .get("SFX_PBS_011000000800826b_IGNORE_TAGS")
+                .unwrap()
+                .discard
+        );
         assert!(database.get("SFX_PBS_010000000804826b").unwrap().discard);
         assert!(database.get("SFX_PBS_010000000804830d").unwrap().discard);
     }
