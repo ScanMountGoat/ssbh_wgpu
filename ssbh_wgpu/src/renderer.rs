@@ -765,16 +765,12 @@ impl SsbhRenderer {
         shader_database: &ShaderDatabase,
         options: &ModelRenderOptions,
     ) -> wgpu::RenderPass<'a> {
-        // Render meshes are sorted globally rather than per folder.
-        // This allows all transparent draw calls to happen after opaque draw calls.
         // TODO: How to have RenderModel own all resources but still sort RenderMesh?
-        // let mut meshes: Vec<_> = render_models.iter().flat_map(|m| &m.meshes).collect();
-        // meshes.sort_by_key(|m| m.render_order());
 
         // Transform the vertex positions and normals.
         // Always run compute passes to preserve vertex positions when switching to debug shading.
-        self.skinning_pass(encoder, render_models);
-        self.renormal_pass(encoder, render_models);
+        self.skinning_pass(encoder, render_models.iter());
+        self.renormal_pass(encoder, render_models.iter());
 
         // TODO: Benchmark and investigate compute shaders for post processing.
         // TODO: Don't make color_final a parameter since we already take self.
@@ -788,7 +784,7 @@ impl SsbhRenderer {
             );
         } else {
             // Depth only pass for shadow maps.
-            self.shadow_pass(encoder, render_models);
+            self.shadow_pass(encoder, render_models.iter());
 
             // Create the two channel shadow map for variance shadows.
             self.variance_shadow_pass(encoder);
@@ -824,7 +820,7 @@ impl SsbhRenderer {
 
         // Draw selected meshes to silhouette texture and stencil texture.
         // TODO: This can be combined with the model and model debug pass.
-        let rendered_silhouette = self.model_silhouette_pass(encoder, render_models);
+        let rendered_silhouette = self.model_silhouette_pass(encoder, render_models.iter());
 
         // Expand silhouettes to create outlines using stencil texture.
         // TODO: Will this be faster as a compute shader?
@@ -833,7 +829,7 @@ impl SsbhRenderer {
         // TODO: Disable this pass if not needed.
         self.skeleton_pass(
             encoder,
-            render_models,
+            render_models.iter(),
             &self.pass_info.color_final.view,
             skels,
             options.draw_bone_axes,
@@ -868,7 +864,7 @@ impl SsbhRenderer {
         device: &wgpu::Device,
         queue: &wgpu::Queue,
         output_view: &wgpu::TextureView,
-        render_models: &[RenderModel],
+        render_models: impl Iterator<Item = &'a RenderModel>,
         skels: impl Iterator<Item = Option<&'a SkelData>>,
         width: u32,
         height: u32,
@@ -878,7 +874,7 @@ impl SsbhRenderer {
         let brush = self.brush.as_mut()?;
 
         // TODO: Optimize this?
-        for (model, skel) in render_models.iter().zip(skels) {
+        for (model, skel) in render_models.into_iter().zip(skels) {
             model.queue_bone_names(skel, brush, width, height, mvp, font_size);
         }
 
@@ -896,13 +892,13 @@ impl SsbhRenderer {
     fn draw_material_mask<'a>(
         &'a self,
         pass: &mut wgpu::RenderPass<'a>,
-        render_models: &'a [RenderModel],
+        render_models: impl Iterator<Item = &'a RenderModel>,
         model_index: usize,
         material_label: &str,
     ) {
         // Material labels may be repeated in multiple models.
         // Only show the selected material for the specified model.
-        if let Some(model) = render_models.get(model_index) {
+        if let Some(model) = render_models.into_iter().nth(model_index) {
             model.draw_meshes_material_mask(
                 pass,
                 &self.per_frame_bind_group,
@@ -992,7 +988,11 @@ impl SsbhRenderer {
         variance_shadow_pass.draw(0..3, 0..1);
     }
 
-    fn skinning_pass(&self, encoder: &mut wgpu::CommandEncoder, render_models: &[RenderModel]) {
+    fn skinning_pass<'a>(
+        &self,
+        encoder: &mut wgpu::CommandEncoder,
+        render_models: impl Iterator<Item = &'a RenderModel>,
+    ) {
         // Skin the render meshes using a compute pass instead of in the vertex shader.
         // Compute shaders give more flexibility compared to vertex shaders.
         // Modifying the vertex buffers once avoids redundant work in later passes.
@@ -1010,7 +1010,11 @@ impl SsbhRenderer {
         }
     }
 
-    fn renormal_pass(&self, encoder: &mut wgpu::CommandEncoder, render_models: &[RenderModel]) {
+    fn renormal_pass<'a>(
+        &self,
+        encoder: &mut wgpu::CommandEncoder,
+        render_models: impl Iterator<Item = &'a RenderModel>,
+    ) {
         // TODO: This doesn't appear to be a compute shader in game?
         // TODO: What is the performance cost of this?
         let mut renormal_pass = encoder.begin_compute_pass(&ComputePassDescriptor {
@@ -1056,14 +1060,14 @@ impl SsbhRenderer {
         self.set_scissor(&mut pass);
 
         // TODO: Investigate sorting.
-        self.draw_render_models(render_models, &mut pass, shader_database, "opaque");
-        self.draw_render_models(render_models, &mut pass, shader_database, "far");
-        self.draw_render_models(render_models, &mut pass, shader_database, "sort");
-        self.draw_render_models(render_models, &mut pass, shader_database, "near");
+        self.draw_render_models(render_models.iter(), &mut pass, shader_database, "opaque");
+        self.draw_render_models(render_models.iter(), &mut pass, shader_database, "far");
+        self.draw_render_models(render_models.iter(), &mut pass, shader_database, "sort");
+        self.draw_render_models(render_models.iter(), &mut pass, shader_database, "near");
 
         self.draw_material_mask(
             &mut pass,
-            render_models,
+            render_models.iter(),
             mask_model_index,
             mask_material_label,
         );
@@ -1071,12 +1075,12 @@ impl SsbhRenderer {
 
     fn draw_render_models<'a>(
         &'a self,
-        render_models: &'a [RenderModel],
+        render_models: impl Iterator<Item = &'a RenderModel>,
         model_pass: &mut wgpu::RenderPass<'a>,
         shader_database: &ShaderDatabase,
         pass: &str,
     ) {
-        for model in render_models.iter().filter(|m| m.is_visible) {
+        for model in render_models.into_iter().filter(|m| m.is_visible) {
             model.draw_meshes(
                 model_pass,
                 &self.per_frame_bind_group,
@@ -1088,10 +1092,10 @@ impl SsbhRenderer {
         }
     }
 
-    fn model_silhouette_pass(
+    fn model_silhouette_pass<'a>(
         &self,
         encoder: &mut wgpu::CommandEncoder,
-        render_models: &[RenderModel],
+        render_models: impl Iterator<Item = &'a RenderModel>,
     ) -> bool {
         let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("Model Silhouette Pass"),
@@ -1172,7 +1176,7 @@ impl SsbhRenderer {
 
         self.draw_material_mask(
             &mut pass,
-            render_models,
+            render_models.iter(),
             mask_model_index,
             mask_material_label,
         );
@@ -1188,12 +1192,12 @@ impl SsbhRenderer {
         }
     }
 
-    fn skeleton_pass<'a>(
+    fn skeleton_pass<'a, 'b>(
         &self,
         encoder: &mut wgpu::CommandEncoder,
-        render_models: &[RenderModel],
+        render_models: impl Iterator<Item = &'a RenderModel>,
         view: &wgpu::TextureView,
-        skels: impl Iterator<Item = Option<&'a SkelData>>,
+        skels: impl Iterator<Item = Option<&'b SkelData>>,
         draw_bone_axes: bool,
     ) {
         // TODO: Force having a color attachment for each fragment shader output in wgsl_to_wgpu?
@@ -1220,7 +1224,7 @@ impl SsbhRenderer {
 
         self.set_scissor(&mut pass);
 
-        for (model, skel) in render_models.iter().zip(skels) {
+        for (model, skel) in render_models.into_iter().zip(skels) {
             model.draw_skeleton(
                 skel,
                 &self.bone_buffers,
@@ -1327,7 +1331,11 @@ impl SsbhRenderer {
         pass.draw(0..3, 0..1);
     }
 
-    fn shadow_pass(&self, encoder: &mut wgpu::CommandEncoder, render_models: &[RenderModel]) {
+    fn shadow_pass<'a>(
+        &self,
+        encoder: &mut wgpu::CommandEncoder,
+        render_models: impl Iterator<Item = &'a RenderModel>,
+    ) {
         let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("Shadow Pass"),
             color_attachments: &[],
@@ -1342,7 +1350,7 @@ impl SsbhRenderer {
         });
 
         pass.set_pipeline(&self.shadow_pipeline);
-        for model in render_models.iter().filter(|m| m.is_visible) {
+        for model in render_models.into_iter().filter(|m| m.is_visible) {
             model.draw_meshes_depth(&mut pass, &self.per_frame_bind_group);
         }
     }
