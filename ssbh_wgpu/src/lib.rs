@@ -250,23 +250,23 @@ impl ModelFolder {
     }
 }
 
-pub fn load_render_models(
+pub fn load_render_models<'a>(
     device: &wgpu::Device,
     queue: &wgpu::Queue,
-    models: &[ModelFolder],
+    models: impl IntoIterator<Item = &'a ModelFolder>,
     shared_data: &SharedRenderData,
 ) -> Vec<RenderModel> {
     let start = std::time::Instant::now();
 
     // TODO: Find a way to efficiently parallelize render mesh creation?
     let render_models: Vec<_> = models
-        .iter()
+        .into_iter()
         .map(|model| RenderModel::from_folder(device, queue, model, shared_data))
         .collect();
 
     info!(
         "Load {:?} render model(s): {:?}",
-        models.len(),
+        render_models.len(),
         start.elapsed()
     );
 
