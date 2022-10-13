@@ -407,7 +407,7 @@ impl State {
             &mut encoder,
             &output_view,
             &self.render_models,
-            skels.clone(),
+            std::iter::empty(),
             &self.shared_data.database(),
             &ModelRenderOptions::default(),
         );
@@ -421,7 +421,7 @@ impl State {
             &self.device,
             &self.queue,
             &output_view,
-            &self.render_models,
+            self.render_models.iter(),
             skels,
             self.size.width,
             self.size.height,
