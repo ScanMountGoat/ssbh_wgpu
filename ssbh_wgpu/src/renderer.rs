@@ -126,6 +126,9 @@ pub struct RenderSettings {
     pub render_shadows: bool,
     pub render_bloom: bool,
     pub render_vertex_color: bool,
+    /// Apply the in game scale factors such as `2.0` for colorSet1 when `true`.
+    /// This applies to all modes including [DebugMode::Shaded].
+    pub scale_vertex_color: bool,
     pub render_rgba: [bool; 4],
     /// Replaces the RGBA channels of the nor map (Texture4) with a default when false.
     pub render_nor: [bool; 4],
@@ -148,6 +151,7 @@ impl From<&RenderSettings> for crate::shader::model::RenderSettings {
             render_shadows: [if r.render_shadows { 1 } else { 0 }; 4],
             render_bloom: [if r.render_bloom { 1 } else { 0 }; 4],
             render_vertex_color: [if r.render_vertex_color { 1 } else { 0 }; 4],
+            scale_vertex_color: [if r.scale_vertex_color { 1 } else { 0 }; 4],
             render_rgba: r.render_rgba.map(|b| if b { 1.0 } else { 0.0 }),
             render_nor: r.render_nor.map(|b| if b { 1 } else { 0 }),
             render_prm: r.render_prm.map(|b| if b { 1 } else { 0 }),
@@ -169,6 +173,7 @@ impl Default for RenderSettings {
             render_shadows: true,
             render_bloom: true,
             render_vertex_color: true,
+            scale_vertex_color: true,
             render_rgba: [true; 4],
             render_nor: [true; 4],
             render_prm: [true; 4],

@@ -23,6 +23,7 @@ struct RenderSettings {
     render_shadows: vec4<u32>,
     render_bloom: vec4<u32>,
     render_vertex_color: vec4<u32>,
+    scale_vertex_color: vec4<u32>,
     render_rgba: vec4<f32>,
     render_nor: vec4<u32>,
     render_prm: vec4<u32>,
@@ -620,16 +621,6 @@ fn vs_main(
     out.clip_position.z = out.clip_position.z - uniforms.custom_float[16].x;
     out.normal = buffer0.normal0.xyz;
     out.tangent = buffer0.tangent0;
-    
-    // Apply color scaling since the attribute is stored as four bytes.
-    // This allows values greater than the normal 0.0 to 1.0 range.
-    let colorSet1 = buffer1.color_set1 * 2.0;
-    let colorSet2 = (buffer1.color_set2_combined * buffer1.color_set2_combined) * 7.0;
-    let colorSet3 = buffer1.color_set3 * 2.0;
-    let colorSet4 = buffer1.color_set4 * 2.0;
-    let colorSet5 = buffer1.color_set5 * 3.0;
-    let colorSet6 = buffer1.color_set6;
-    let colorSet7 = buffer1.color_set7;
 
     // TODO: Also apply transforms to the debug shader?
     var uvTransform1 = vec4(1.0, 1.0, 0.0, 0.0);
@@ -670,13 +661,28 @@ fn vs_main(
     out.map1 = vec4(map1, map1_dual);
     out.uv_set_uv_set1 = vec4(uvSet, uvSet1);
     out.uv_set2_bake1 = vec4(uvSet2, buffer1.bake1.xy);
-    out.color_set1 = colorSet1;
-    out.color_set2_combined = colorSet2; // TODO: colorSet2 is added together?
-    out.color_set3 = colorSet3;
-    out.color_set4 = colorSet4;
-    out.color_set5 = colorSet5;
-    out.color_set6 = colorSet6;
-    out.color_set7 = colorSet7;
+
+    if (render_settings.scale_vertex_color.x == 1u) {
+        // Apply color scaling since the attribute is stored as four bytes.
+        // This allows values greater than the normal 0.0 to 1.0 range.
+        out.color_set1 = buffer1.color_set1 * 2.0;
+        out.color_set2_combined = (buffer1.color_set2_combined * buffer1.color_set2_combined) * 7.0;
+        out.color_set3 = buffer1.color_set3 * 2.0;
+        out.color_set4 =  buffer1.color_set4 * 2.0;
+        out.color_set5 = buffer1.color_set5 * 3.0;
+        out.color_set6 = buffer1.color_set5 * 3.0;
+        out.color_set7 = buffer1.color_set7;
+    } else {
+        // It can be useful to see the unmodified values for debug modes.
+        out.color_set1 = buffer1.color_set1;
+        out.color_set2_combined = buffer1.color_set2_combined;
+        out.color_set3 = buffer1.color_set3;
+        out.color_set4 =  buffer1.color_set4;
+        out.color_set5 = buffer1.color_set5;
+        out.color_set6 = buffer1.color_set5;
+        out.color_set7 = buffer1.color_set7;
+    }
+
 
     out.light_position = light.light_transform * vec4(buffer0.position0.xyz, 1.0);
     return out;

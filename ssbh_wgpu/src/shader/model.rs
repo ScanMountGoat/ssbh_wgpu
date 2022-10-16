@@ -27,6 +27,7 @@ pub struct RenderSettings {
     pub render_shadows: [u32; 4],
     pub render_bloom: [u32; 4],
     pub render_vertex_color: [u32; 4],
+    pub scale_vertex_color: [u32; 4],
     pub render_rgba: [f32; 4],
     pub render_nor: [u32; 4],
     pub render_prm: [u32; 4],
