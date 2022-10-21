@@ -44,7 +44,8 @@ pub const REQUIRED_FEATURES: wgpu::Features = wgpu::Features::from_bits_truncate
     wgpu::Features::TEXTURE_COMPRESSION_BC.bits()
         | wgpu::Features::ADDRESS_MODE_CLAMP_TO_BORDER.bits()
         | wgpu::Features::TEXTURE_ADAPTER_SPECIFIC_FORMAT_FEATURES.bits()
-        | wgpu::Features::POLYGON_MODE_LINE.bits(),
+        | wgpu::Features::POLYGON_MODE_LINE.bits()
+        | wgpu::Features::DEPTH32FLOAT_STENCIL8.bits(),
 );
 
 // TODO: Better name?

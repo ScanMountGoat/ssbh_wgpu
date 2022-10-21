@@ -26,7 +26,7 @@ const BLOOM_COLOR_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba16Float
 pub const RGBA_COLOR_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Bgra8UnormSrgb;
 
 pub const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
-pub const DEPTH_STENCIL_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth24PlusStencil8;
+pub const DEPTH_STENCIL_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32FloatStencil8;
 
 // TODO: The in game format is R16G16_UNORM
 // TODO: Find a way to get this working without filtering samplers?
@@ -531,6 +531,7 @@ impl SsbhRenderer {
             width,
             height,
             present_mode: wgpu::PresentMode::Mailbox,
+            alpha_mode:  wgpu::CompositeAlphaMode::Auto
         };
 
         // TODO: Log errors?

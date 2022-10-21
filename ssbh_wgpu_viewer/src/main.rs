@@ -107,11 +107,11 @@ impl State {
             width: size.width as u32,
             height: size.height as u32,
             present_mode: wgpu::PresentMode::Fifo,
+            alpha_mode: wgpu::CompositeAlphaMode::Auto
         };
         surface.configure(&device, &config);
 
         // TODO: Frame bounding spheres?
-
         let animations: Vec<_> = anim_paths
             .iter()
             .map(|anim_path| AnimData::from_file(anim_path).unwrap())
