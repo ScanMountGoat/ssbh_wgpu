@@ -182,10 +182,11 @@ impl Visibility for (String, bool) {
     }
 }
 
+// Take a reference to the transforms to avoid repeating large allocations.
 // TODO: Separate module for skeletal animation?
 // TODO: Benchmarks for criterion.rs that test performance scaling with bone and constraint count.
 pub fn animate_skel<'a>(
-    animation_transforms: &mut AnimationTransforms,
+    result: &mut AnimationTransforms,
     skel: &SkelData,
     anims: impl Iterator<Item = &'a AnimData>,
     hlpb: Option<&HlpbData>,
@@ -220,32 +221,67 @@ pub fn animate_skel<'a>(
         apply_transforms(&mut bones, anim, current_frame);
     }
 
-    // TODO: Does the order of constraints here affect the world transforms?
     // Constraining a bone affects the world transforms of its children.
     // This step should initialize most of the anim world transforms if everything works.
+    // TODO: Does the order of constraints here affect the world transforms?
+    // TODO: Just assign constraints to each animated bone and evaluate them in the final loop?
+    // This would prevent needing to call world_transform again since we assume proper bone ordering.
     if let Some(hlpb) = hlpb {
         apply_hlpb_constraints(&mut bones, hlpb);
     }
 
-    // TODO: Assume a partial order over the bones using parent relationship.
-    // This would simplify the logic and avoid the need to cache.
+    // Assume parents always appear before their children.
+    // This partial order respects dependencies, so bones can be iterated exactly once.
+    // TODO: Can this be safely combined with the loop below?
+    // TODO: Limit the amount of stack space this function needs.
+    let mut bone_inv_world = [glam::Mat4::IDENTITY; MAX_BONE_COUNT];
+    for i in 0..bones.len() {
+        if let Some(parent_index) = bones[i].bone.parent_index {
+            bone_inv_world[i] =
+                bone_inv_world[parent_index] * bones[i].animated_transform(true, false);
+        } else {
+            bone_inv_world[i] = bones[i].animated_transform(true, false);
+        }
+    }
+    for i in 0..bones.len() {
+        bone_inv_world[i] = bone_inv_world[i].inverse();
+    }
 
-    // TODO: Avoid enumerate here?
+    // TODO: Faster to use enumerate?
     // TODO: Should scale inheritance be part of ssbh_data itself?
     // TODO: Is there a more efficient way of calculating this?
     for i in 0..bones.len() {
-        // Avoid the slower ssbh_data method since it can't assume the max bone count.
-        // TODO: Return an error instead?
-        let bone_world = world_transform(&mut bones, i, false).unwrap_or(glam::Mat4::IDENTITY);
-        let anim_world = world_transform(&mut bones, i, true).unwrap_or(glam::Mat4::IDENTITY);
-        let anim_transform = anim_world * bone_world.inverse();
+        if let Some(parent_index) = bones[i].bone.parent_index {
+            // TODO: Avoid potential indexing panics.
+            let parent_transform = result.world_transforms[parent_index];
+            // TODO: Test for inheritance being set.
+            // TODO: What happens if compensate_scale is true and inherit_scale is false?
+            // TODO: Should we always include the current bone's scale?
+            let mut current_transform = bones[i].animated_transform(true, true);
 
-        animation_transforms.animated_world_transforms.transforms[i] =
-            anim_transform.to_cols_array_2d();
-        animation_transforms.world_transforms[i] = anim_world;
-        animation_transforms
-            .animated_world_transforms
-            .transforms_inv_transpose[i] = anim_transform.inverse().transpose().to_cols_array_2d();
+            if !bones[i].inherit_scale {
+                // Disabling scale inheritance compensates for all accumulated scale.
+                current_transform = compensate_scale(current_transform, parent_transform);
+            } else if bones[i].compensate_scale {
+                // Compensate scale uses the parent's non accumulated scale.
+                // TODO: Does this also compensate the parent's skel scale?
+                let immediate_parent = bones[parent_index].animated_transform(true, true);
+                current_transform = compensate_scale(current_transform, immediate_parent);
+            }
+
+            // TODO: Create more three bone tests to check how inheritance works.
+            // ex: inherit -> no inherit -> inherit, compensate -> no compensate -> compensate, etc.
+            result.world_transforms[i] = parent_transform * current_transform;
+        } else {
+            // TODO: Should we always include the current bone's scale?
+            result.world_transforms[i] = bones[i].animated_transform(true, true);
+        }
+
+        let anim_transform = result.world_transforms[i] * bone_inv_world[i];
+
+        result.animated_world_transforms.transforms[i] = anim_transform.to_cols_array_2d();
+        result.animated_world_transforms.transforms_inv_transpose[i] =
+            anim_transform.inverse().transpose().to_cols_array_2d();
     }
 }
 
