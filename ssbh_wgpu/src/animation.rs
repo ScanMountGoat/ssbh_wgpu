@@ -23,50 +23,50 @@ pub struct AnimatedBone<'a> {
     compensate_scale: bool,
     inherit_scale: bool,
     flags: TransformFlags,
+    // TODO: Refactor constraints to avoid needing to cache this value.
     // Record the world transform to avoid duplicate work.
     // In the ideal case, calculating all world transforms is O(N) instead of O(N^2).
-    world_transform: Option<glam::Mat4>,
     anim_world_transform: Option<glam::Mat4>,
 }
 
 impl<'a> AnimatedBone<'a> {
-    fn animated_transform(&self, include_anim_scale: bool, include_anim: bool) -> glam::Mat4 {
-        if include_anim {
-            self.anim_transform
-                .as_ref()
-                .map(|t| {
-                    // Decompose the default "rest" pose from the skeleton.
-                    // Transform flags allow some parts of the transform to be set externally.
-                    // For example, suppose Mario throws a different fighter like Bowser.
-                    // Mario's "thrown" anim needs to use some transforms from Bowser's skel.
-                    let (skel_scale, skel_rot, scale_trans) =
-                        glam::Mat4::from_cols_array_2d(&self.bone.transform)
-                            .to_scale_rotation_translation();
+    fn animated_transform(&self, include_anim_scale: bool) -> glam::Mat4 {
+        self.anim_transform
+            .as_ref()
+            .map(|t| {
+                // Decompose the default "rest" pose from the skeleton.
+                // Transform flags allow some parts of the transform to be set externally.
+                // For example, suppose Mario throws a different fighter like Bowser.
+                // Mario's "thrown" anim needs to use some transforms from Bowser's skel.
+                let (skel_scale, skel_rot, scale_trans) =
+                    glam::Mat4::from_cols_array_2d(&self.bone.transform)
+                        .to_scale_rotation_translation();
 
-                    let adjusted_transform = AnimTransform {
-                        translation: if self.flags.override_translation {
-                            scale_trans
-                        } else {
-                            t.translation
-                        },
-                        rotation: if self.flags.override_rotation {
-                            skel_rot
-                        } else {
-                            t.rotation
-                        },
-                        scale: if self.flags.override_scale {
-                            skel_scale
-                        } else {
-                            t.scale
-                        },
-                    };
+                let adjusted_transform = AnimTransform {
+                    translation: if self.flags.override_translation {
+                        scale_trans
+                    } else {
+                        t.translation
+                    },
+                    rotation: if self.flags.override_rotation {
+                        skel_rot
+                    } else {
+                        t.rotation
+                    },
+                    scale: if self.flags.override_scale {
+                        skel_scale
+                    } else {
+                        t.scale
+                    },
+                };
 
-                    adjusted_transform.to_mat4(include_anim_scale)
-                })
-                .unwrap_or_else(|| glam::Mat4::from_cols_array_2d(&self.bone.transform))
-        } else {
-            glam::Mat4::from_cols_array_2d(&self.bone.transform)
-        }
+                adjusted_transform.to_mat4(include_anim_scale)
+            })
+            .unwrap_or_else(|| glam::Mat4::from_cols_array_2d(&self.bone.transform))
+    }
+
+    fn transform(&self) -> glam::Mat4 {
+        glam::Mat4::from_cols_array_2d(&self.bone.transform)
     }
 }
 
@@ -205,7 +205,6 @@ pub fn animate_skel<'a>(
             inherit_scale: true,
             anim_transform: None,
             flags: TransformFlags::default(),
-            world_transform: None,
             anim_world_transform: None,
         })
         .collect();
@@ -237,45 +236,17 @@ pub fn animate_skel<'a>(
     let mut bone_inv_world = [glam::Mat4::IDENTITY; MAX_BONE_COUNT];
     for i in 0..bones.len() {
         if let Some(parent_index) = bones[i].bone.parent_index {
-            bone_inv_world[i] =
-                bone_inv_world[parent_index] * bones[i].animated_transform(true, false);
+            bone_inv_world[i] = bone_inv_world[parent_index] * bones[i].transform();
         } else {
-            bone_inv_world[i] = bones[i].animated_transform(true, false);
+            bone_inv_world[i] = bones[i].transform();
         }
     }
     for i in 0..bones.len() {
         bone_inv_world[i] = bone_inv_world[i].inverse();
     }
 
-    // TODO: Faster to use enumerate?
-    // TODO: Should scale inheritance be part of ssbh_data itself?
-    // TODO: Is there a more efficient way of calculating this?
-    for i in 0..bones.len() {
-        if let Some(parent_index) = bones[i].bone.parent_index {
-            // TODO: Avoid potential indexing panics.
-            let parent_transform = result.world_transforms[parent_index];
-            // TODO: Test for inheritance being set.
-            // TODO: What happens if compensate_scale is true and inherit_scale is false?
-            // TODO: Should we always include the current bone's scale?
-            let mut current_transform = bones[i].animated_transform(true, true);
-
-            if !bones[i].inherit_scale {
-                // Disabling scale inheritance compensates for all accumulated scale.
-                current_transform = compensate_scale(current_transform, parent_transform);
-            } else if bones[i].compensate_scale {
-                // Compensate scale uses the parent's non accumulated scale.
-                // TODO: Does this also compensate the parent's skel scale?
-                let immediate_parent = bones[parent_index].animated_transform(true, true);
-                current_transform = compensate_scale(current_transform, immediate_parent);
-            }
-
-            // TODO: Create more three bone tests to check how inheritance works.
-            // ex: inherit -> no inherit -> inherit, compensate -> no compensate -> compensate, etc.
-            result.world_transforms[i] = parent_transform * current_transform;
-        } else {
-            // TODO: Should we always include the current bone's scale?
-            result.world_transforms[i] = bones[i].animated_transform(true, true);
-        }
+    for (i, bone) in bones.iter().enumerate() {
+        result.world_transforms[i] = calculate_world_transform(&bones, bone, result);
 
         let anim_transform = result.world_transforms[i] * bone_inv_world[i];
 
@@ -285,15 +256,47 @@ pub fn animate_skel<'a>(
     }
 }
 
+fn calculate_world_transform(
+    bones: &[AnimatedBone],
+    bone: &AnimatedBone,
+    result: &AnimationTransforms,
+) -> glam::Mat4 {
+    if let Some(parent_index) = bone.bone.parent_index {
+        // TODO: Avoid potential indexing panics.
+        let parent_transform = result.world_transforms[parent_index];
+        // TODO: Test for inheritance being set.
+        // TODO: What happens if compensate_scale is true and inherit_scale is false?
+        // TODO: Should we always include the current bone's scale?
+        let mut current_transform = bone.animated_transform(true);
+
+        // TODO: How to handle !inherit_scale && !compensate_scale?
+        if !bone.inherit_scale {
+            // Disabling scale inheritance compensates for all accumulated scale.
+            current_transform = compensate_scale(current_transform, parent_transform);
+        } else if bone.compensate_scale {
+            // Compensate scale uses the parent's non accumulated scale.
+            // TODO: Does this also compensate the parent's skel scale?
+            let immediate_parent = bones[parent_index].animated_transform(true);
+            current_transform = compensate_scale(current_transform, immediate_parent);
+        }
+
+        // TODO: Create more three bone tests to check how inheritance works.
+        // ex: inherit -> no inherit -> inherit, compensate -> no compensate -> compensate, etc.
+        parent_transform * current_transform
+    } else {
+        // TODO: Should we always include the current bone's scale?
+        bone.animated_transform(true)
+    }
+}
+
 // TODO: Move matrix utilities to a separate module?
 fn world_transform(
     bones: &mut [AnimatedBone],
     bone_index: usize,
-    include_anim: bool,
 ) -> Result<glam::Mat4, BoneTransformError> {
     // TODO: Should we always include the root bone's scale?
     let mut current = &bones[bone_index];
-    let mut transform = current.animated_transform(true, include_anim);
+    let mut transform = current.animated_transform(true);
 
     let mut inherit_scale = current.inherit_scale;
 
@@ -316,41 +319,30 @@ fn world_transform(
         }
 
         if let Some(parent) = bones.get(parent_index) {
-            match (
-                parent.anim_world_transform,
-                parent.world_transform,
-                include_anim,
-            ) {
+            match parent.anim_world_transform {
                 // Use an already calculated animated world transform.
-                (Some(parent_anim_world), _, true) => {
+                Some(parent_anim_world) => {
                     if !inherit_scale {
                         // Disabling scale inheritance compensates for all accumulated scale.
                         transform = compensate_scale(transform, parent_anim_world);
                     } else if current.compensate_scale {
                         // compensate_scale only compensates for the immediate parent's scale.
-                        let parent_transform =
-                            parent.animated_transform(inherit_scale, include_anim);
+                        let parent_transform = parent.animated_transform(inherit_scale);
                         transform = compensate_scale(transform, parent_transform);
                     }
 
                     transform = parent_anim_world * transform;
                     break;
                 }
-                // Use an already calculated world_transform.
-                (_, Some(parent_world), false) => {
-                    // The skeleton transforms don't have any scale settings.
-                    transform = parent_world * transform;
-                    break;
-                }
                 // Fall back to accumulating transforms up the chain.
                 _ => {
                     // TODO: Does scale compensation take into account scaling in the skeleton?
-                    let parent_transform = parent.animated_transform(inherit_scale, include_anim);
+                    let parent_transform = parent.animated_transform(inherit_scale);
                     // Compensate scale only takes into account the immediate parent.
                     // TODO: Test for inheritance being set.
                     // TODO: What happens if compensate_scale is true and inherit_scale is false?
                     // Only apply scale compensation if the anim is included.
-                    if include_anim && current.compensate_scale && inherit_scale {
+                    if current.compensate_scale && inherit_scale {
                         // TODO: Does this also compensate the parent's skel scale?
                         transform = compensate_scale(transform, parent_transform);
                     }
@@ -370,11 +362,7 @@ fn world_transform(
     }
 
     // Cache the transforms to improve performance.
-    if include_anim {
-        bones[bone_index].anim_world_transform = Some(transform);
-    } else {
-        bones[bone_index].world_transform = Some(transform);
-    }
+    bones[bone_index].anim_world_transform = Some(transform);
     Ok(transform)
 }
 
@@ -544,7 +532,6 @@ fn create_animated_bone<'a>(
         compensate_scale: track.scale_options.compensate_scale,
         inherit_scale: track.scale_options.inherit_scale,
         flags: track.transform_flags,
-        world_transform: None,
         anim_world_transform: None,
     }
 }

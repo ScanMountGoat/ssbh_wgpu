@@ -29,7 +29,7 @@ fn apply_aim_constraint(bones: &mut [AnimatedBone], constraint: &AimConstraintDa
 
     // We want the target bone to point at the source bone.
     // TODO: Is there a way to do this without using the world transforms?
-    let source_world = world_transform(bones, source, true).unwrap_or(glam::Mat4::IDENTITY);
+    let source_world = world_transform(bones, source).unwrap_or(glam::Mat4::IDENTITY);
 
     // TODO: Avoid finding the bone twice?
     let target_world = world_transform(
@@ -37,7 +37,6 @@ fn apply_aim_constraint(bones: &mut [AnimatedBone], constraint: &AimConstraintDa
         bones
             .iter()
             .position(|b| b.bone.name == constraint.target_bone_name1)?,
-        true,
     )
     .unwrap_or(glam::Mat4::IDENTITY);
 
@@ -91,14 +90,14 @@ fn apply_orient_constraint(
     let source_parent = bones[source].bone.parent_index;
     let target_parent = bones[target].bone.parent_index;
 
-    let source_world = world_transform(bones, source, true).unwrap_or(glam::Mat4::IDENTITY);
-    let _target_world = world_transform(bones, target, true).unwrap_or(glam::Mat4::IDENTITY);
+    let source_world = world_transform(bones, source).unwrap_or(glam::Mat4::IDENTITY);
+    let _target_world = world_transform(bones, target).unwrap_or(glam::Mat4::IDENTITY);
     // TODO: Do we need the source parent world?
     let _source_parent_world = source_parent
-        .map(|p| world_transform(bones, p, true).unwrap_or(glam::Mat4::IDENTITY))
+        .map(|p| world_transform(bones, p).unwrap_or(glam::Mat4::IDENTITY))
         .unwrap_or(glam::Mat4::IDENTITY);
     let target_parent_world = target_parent
-        .map(|p| world_transform(bones, p, true).unwrap_or(glam::Mat4::IDENTITY))
+        .map(|p| world_transform(bones, p).unwrap_or(glam::Mat4::IDENTITY))
         .unwrap_or(glam::Mat4::IDENTITY);
 
     // TODO: These angles correct twists for some models?
@@ -119,7 +118,7 @@ fn apply_orient_constraint(
     let (source_rot_z, source_rot_y, source_rot_x) = (source_r).to_euler(glam::EulerRot::ZYX);
 
     // Leave the target transform as is since it's already relative to the target parent.
-    let target_transform = target.animated_transform(true, true);
+    let target_transform = target.animated_transform(true);
     let (_, target_r, _) = (target_transform).to_scale_rotation_translation();
 
     let (target_rot_z, target_rot_y, target_rot_x) = target_r.to_euler(glam::EulerRot::ZYX);
@@ -179,7 +178,6 @@ mod tests {
                 compensate_scale: false,
                 inherit_scale: false,
                 flags: TransformFlags::default(),
-                world_transform: None,
                 anim_world_transform: None,
             },
             AnimatedBone {
@@ -188,7 +186,6 @@ mod tests {
                 compensate_scale: false,
                 inherit_scale: false,
                 flags: TransformFlags::default(),
-                world_transform: None,
                 anim_world_transform: None,
             },
         ];
@@ -234,7 +231,6 @@ mod tests {
                 compensate_scale: false,
                 inherit_scale: false,
                 flags: TransformFlags::default(),
-                world_transform: None,
                 anim_world_transform: None,
             },
             AnimatedBone {
@@ -243,7 +239,6 @@ mod tests {
                 compensate_scale: false,
                 inherit_scale: false,
                 flags: TransformFlags::default(),
-                world_transform: None,
                 anim_world_transform: None,
             },
         ];
@@ -294,7 +289,6 @@ mod tests {
                 compensate_scale: false,
                 inherit_scale: false,
                 flags: TransformFlags::default(),
-                world_transform: None,
                 anim_world_transform: None,
             },
             AnimatedBone {
@@ -303,7 +297,6 @@ mod tests {
                 compensate_scale: false,
                 inherit_scale: false,
                 flags: TransformFlags::default(),
-                world_transform: None,
                 anim_world_transform: None,
             },
         ];
@@ -353,7 +346,6 @@ mod tests {
                 compensate_scale: false,
                 inherit_scale: false,
                 flags: TransformFlags::default(),
-                world_transform: None,
                 anim_world_transform: None,
             },
             AnimatedBone {
@@ -366,7 +358,6 @@ mod tests {
                 compensate_scale: false,
                 inherit_scale: false,
                 flags: TransformFlags::default(),
-                world_transform: None,
                 anim_world_transform: None,
             },
             AnimatedBone {
@@ -379,7 +370,6 @@ mod tests {
                 compensate_scale: false,
                 inherit_scale: false,
                 flags: TransformFlags::default(),
-                world_transform: None,
                 anim_world_transform: None,
             },
         ];
@@ -443,7 +433,6 @@ mod tests {
                 compensate_scale: false,
                 inherit_scale: false,
                 flags: TransformFlags::default(),
-                world_transform: None,
                 anim_world_transform: None,
             },
             AnimatedBone {
@@ -456,7 +445,6 @@ mod tests {
                 compensate_scale: false,
                 inherit_scale: false,
                 flags: TransformFlags::default(),
-                world_transform: None,
                 anim_world_transform: None,
             },
             AnimatedBone {
@@ -469,7 +457,6 @@ mod tests {
                 compensate_scale: false,
                 inherit_scale: false,
                 flags: TransformFlags::default(),
-                world_transform: None,
                 anim_world_transform: None,
             },
             AnimatedBone {
@@ -482,7 +469,6 @@ mod tests {
                 compensate_scale: false,
                 inherit_scale: false,
                 flags: TransformFlags::default(),
-                world_transform: None,
                 anim_world_transform: None,
             },
             AnimatedBone {
@@ -496,7 +482,6 @@ mod tests {
                 compensate_scale: false,
                 inherit_scale: false,
                 flags: TransformFlags::default(),
-                world_transform: None,
                 anim_world_transform: None,
             },
             AnimatedBone {
@@ -509,7 +494,6 @@ mod tests {
                 compensate_scale: false,
                 inherit_scale: false,
                 flags: TransformFlags::default(),
-                world_transform: None,
                 anim_world_transform: None,
             },
         ];
@@ -563,7 +547,7 @@ mod tests {
         );
 
         let mut position_world = |bone| {
-            world_transform(&mut bones, bone, true)
+            world_transform(&mut bones, bone)
                 .unwrap()
                 .to_scale_rotation_translation()
                 .2
@@ -604,7 +588,6 @@ mod tests {
                 compensate_scale: false,
                 inherit_scale: false,
                 flags: TransformFlags::default(),
-                world_transform: None,
                 anim_world_transform: None,
             },
             AnimatedBone {
@@ -617,7 +600,6 @@ mod tests {
                 compensate_scale: false,
                 inherit_scale: false,
                 flags: TransformFlags::default(),
-                world_transform: None,
                 anim_world_transform: None,
             },
         ];
@@ -683,7 +665,6 @@ mod tests {
                 compensate_scale: false,
                 inherit_scale: false,
                 flags: TransformFlags::default(),
-                world_transform: None,
                 anim_world_transform: None,
             },
             AnimatedBone {
@@ -696,7 +677,6 @@ mod tests {
                 compensate_scale: false,
                 inherit_scale: false,
                 flags: TransformFlags::default(),
-                world_transform: None,
                 anim_world_transform: None,
             },
         ];
