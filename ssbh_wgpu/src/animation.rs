@@ -227,6 +227,9 @@ pub fn animate_skel<'a>(
         apply_hlpb_constraints(&mut bones, hlpb);
     }
 
+    // TODO: Assume a partial order over the bones using parent relationship.
+    // This would simplify the logic and avoid the need to cache.
+
     // TODO: Avoid enumerate here?
     // TODO: Should scale inheritance be part of ssbh_data itself?
     // TODO: Is there a more efficient way of calculating this?
@@ -316,6 +319,8 @@ fn world_transform(
                         transform = compensate_scale(transform, parent_transform);
                     }
 
+                    // TODO: Create more three bone tests to check how inheritance works.
+                    // ex: inherit -> no inherit -> inherit, compensate -> no compensate -> compensate, etc.
                     transform = parent_transform * transform;
                     current = parent;
                     // Disabling scale inheritance propogates up the bone chain.
@@ -1053,9 +1058,10 @@ mod tests {
         // TODO: Test other matrices?
     }
 
-    #[test]
-    fn apply_animation_bone_chain_compensate_scale() {
-        // Test an entire chain with scale compensation.
+    fn animate_three_bone_chain(
+        scale: [f32; 3],
+        scale_options: ScaleOptions,
+    ) -> AnimationTransforms {
         let mut transforms = AnimationTransforms::identity();
         animate_skel(
             &mut transforms,
@@ -1079,12 +1085,9 @@ mod tests {
                             name: "A".to_string(),
                             tracks: vec![TrackData {
                                 name: "Transform".to_string(),
-                                scale_options: ScaleOptions {
-                                    inherit_scale: true,
-                                    compensate_scale: true,
-                                },
+                                scale_options,
                                 values: TrackValues::Transform(vec![Transform {
-                                    scale: Vector3::new(1.0, 2.0, 3.0),
+                                    scale: scale.into(),
                                     rotation: Vector4::new(0.0, 0.0, 0.0, 1.0),
                                     translation: Vector3::new(0.0, 0.0, 0.0),
                                 }]),
@@ -1095,12 +1098,9 @@ mod tests {
                             name: "B".to_string(),
                             tracks: vec![TrackData {
                                 name: "Transform".to_string(),
-                                scale_options: ScaleOptions {
-                                    inherit_scale: true,
-                                    compensate_scale: true,
-                                },
+                                scale_options,
                                 values: TrackValues::Transform(vec![Transform {
-                                    scale: Vector3::new(1.0, 2.0, 3.0),
+                                    scale: scale.into(),
                                     rotation: Vector4::new(0.0, 0.0, 0.0, 1.0),
                                     translation: Vector3::new(0.0, 0.0, 0.0),
                                 }]),
@@ -1111,12 +1111,9 @@ mod tests {
                             name: "C".to_string(),
                             tracks: vec![TrackData {
                                 name: "Transform".to_string(),
-                                scale_options: ScaleOptions {
-                                    inherit_scale: true,
-                                    compensate_scale: true,
-                                },
+                                scale_options,
                                 values: TrackValues::Transform(vec![Transform {
-                                    scale: Vector3::new(1.0, 2.0, 3.0),
+                                    scale: scale.into(),
                                     rotation: Vector4::new(0.0, 0.0, 0.0, 1.0),
                                     translation: Vector3::new(0.0, 0.0, 0.0),
                                 }]),
@@ -1130,6 +1127,57 @@ mod tests {
             None,
             0.0,
             true,
+        );
+        transforms
+    }
+
+    #[test]
+    fn apply_animation_bone_chain_inherit_scale_no_compensate_scale() {
+        let transforms = animate_three_bone_chain(
+            [1.0, 2.0, 3.0],
+            ScaleOptions {
+                inherit_scale: true,
+                compensate_scale: false,
+            },
+        );
+
+        assert_matrix_relative_eq!(
+            [
+                [1.0, 0.0, 0.0, 0.0],
+                [0.0, 2.0, 0.0, 0.0],
+                [0.0, 0.0, 3.0, 0.0],
+                [0.0, 0.0, 0.0, 1.0],
+            ],
+            transforms.animated_world_transforms.transforms[0]
+        );
+        assert_matrix_relative_eq!(
+            [
+                [1.0, 0.0, 0.0, 0.0],
+                [0.0, 4.0, 0.0, 0.0],
+                [0.0, 0.0, 9.0, 0.0],
+                [0.0, 0.0, 0.0, 1.0],
+            ],
+            transforms.animated_world_transforms.transforms[1]
+        );
+        assert_matrix_relative_eq!(
+            [
+                [1.0, 0.0, 0.0, 0.0],
+                [0.0, 8.0, 0.0, 0.0],
+                [0.0, 0.0, 27.0, 0.0],
+                [0.0, 0.0, 0.0, 1.0],
+            ],
+            transforms.animated_world_transforms.transforms[2]
+        );
+    }
+
+    #[test]
+    fn apply_animation_bone_chain_inherit_scale_compensate_scale() {
+        let transforms = animate_three_bone_chain(
+            [1.0, 2.0, 3.0],
+            ScaleOptions {
+                inherit_scale: true,
+                compensate_scale: true,
+            },
         );
 
         assert_matrix_relative_eq!(
@@ -1159,7 +1207,84 @@ mod tests {
             ],
             transforms.animated_world_transforms.transforms[2]
         );
-        // TODO: Test other matrices?
+    }
+
+    #[test]
+    fn apply_animation_bone_chain_no_inherit_scale_no_compensate_scale() {
+        let transforms = animate_three_bone_chain(
+            [1.0, 2.0, 3.0],
+            ScaleOptions {
+                inherit_scale: false,
+                compensate_scale: false,
+            },
+        );
+
+        assert_matrix_relative_eq!(
+            [
+                [1.0, 0.0, 0.0, 0.0],
+                [0.0, 2.0, 0.0, 0.0],
+                [0.0, 0.0, 3.0, 0.0],
+                [0.0, 0.0, 0.0, 1.0],
+            ],
+            transforms.animated_world_transforms.transforms[0]
+        );
+        assert_matrix_relative_eq!(
+            [
+                [1.0, 0.0, 0.0, 0.0],
+                [0.0, 4.0, 0.0, 0.0],
+                [0.0, 0.0, 9.0, 0.0],
+                [0.0, 0.0, 0.0, 1.0],
+            ],
+            transforms.animated_world_transforms.transforms[1]
+        );
+        assert_matrix_relative_eq!(
+            [
+                [1.0, 0.0, 0.0, 0.0],
+                [0.0, 8.0, 0.0, 0.0],
+                [0.0, 0.0, 27.0, 0.0],
+                [0.0, 0.0, 0.0, 1.0],
+            ],
+            transforms.animated_world_transforms.transforms[2]
+        );
+    }
+
+    #[test]
+    fn apply_animation_bone_chain_no_inherit_scale_compensate_scale() {
+        let transforms = animate_three_bone_chain(
+            [1.0, 2.0, 3.0],
+            ScaleOptions {
+                inherit_scale: false,
+                compensate_scale: true,
+            },
+        );
+
+        assert_matrix_relative_eq!(
+            [
+                [1.0, 0.0, 0.0, 0.0],
+                [0.0, 2.0, 0.0, 0.0],
+                [0.0, 0.0, 3.0, 0.0],
+                [0.0, 0.0, 0.0, 1.0],
+            ],
+            transforms.animated_world_transforms.transforms[0]
+        );
+        assert_matrix_relative_eq!(
+            [
+                [1.0, 0.0, 0.0, 0.0],
+                [0.0, 2.0, 0.0, 0.0],
+                [0.0, 0.0, 3.0, 0.0],
+                [0.0, 0.0, 0.0, 1.0],
+            ],
+            transforms.animated_world_transforms.transforms[1]
+        );
+        assert_matrix_relative_eq!(
+            [
+                [1.0, 0.0, 0.0, 0.0],
+                [0.0, 2.0, 0.0, 0.0],
+                [0.0, 0.0, 3.0, 0.0],
+                [0.0, 0.0, 0.0, 1.0],
+            ],
+            transforms.animated_world_transforms.transforms[2]
+        );
     }
 
     // TODO: Test additional TransformFlags combinations.
