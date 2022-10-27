@@ -270,14 +270,16 @@ fn calculate_world_transform(
         let mut current_transform = bone.animated_transform(true);
 
         // TODO: How to handle !inherit_scale && !compensate_scale?
-        if !bone.inherit_scale {
-            // Disabling scale inheritance compensates for all accumulated scale.
-            current_transform = compensate_scale(current_transform, parent_transform);
-        } else if bone.compensate_scale {
-            // Compensate scale uses the parent's non accumulated scale.
-            // TODO: Does this also compensate the parent's skel scale?
-            let immediate_parent = bones[parent_index].animated_transform(true);
-            current_transform = compensate_scale(current_transform, immediate_parent);
+        if bone.inherit_scale || bone.compensate_scale {
+            if !bone.inherit_scale {
+                // Disabling scale inheritance compensates for all accumulated scale.
+                current_transform = compensate_scale(current_transform, parent_transform);
+            } else if bone.compensate_scale {
+                // Compensate scale uses the parent's non accumulated scale.
+                // TODO: Does this also compensate the parent's skel scale?
+                let immediate_parent = bones[parent_index].animated_transform(true);
+                current_transform = compensate_scale(current_transform, immediate_parent);
+            }
         }
 
         // TODO: Create more three bone tests to check how inheritance works.
@@ -864,8 +866,7 @@ mod tests {
     }
 
     #[test]
-    fn apply_animation_bone_chain_inherit_scale() {
-        // Include parent scale up the chain until a bone disables inheritance.
+    fn apply_animation_middle_bone_no_inherit_scale_no_compensate_scale() {
         let mut transforms = AnimationTransforms::identity();
         animate_skel(
             &mut transforms,
@@ -905,6 +906,7 @@ mod tests {
                             name: "B".to_string(),
                             tracks: vec![TrackData {
                                 name: "Transform".to_string(),
+                                // TODO: This acts just like scale inheritance?
                                 scale_options: ScaleOptions {
                                     inherit_scale: false,
                                     compensate_scale: false,
@@ -954,115 +956,6 @@ mod tests {
         assert_matrix_relative_eq!(
             [
                 [1.0, 0.0, 0.0, 0.0],
-                [0.0, 2.0, 0.0, 0.0],
-                [0.0, 0.0, 3.0, 0.0],
-                [0.0, 0.0, 0.0, 1.0],
-            ],
-            transforms.animated_world_transforms.transforms[1]
-        );
-        assert_matrix_relative_eq!(
-            [
-                [1.0, 0.0, 0.0, 0.0],
-                [0.0, 4.0, 0.0, 0.0],
-                [0.0, 0.0, 9.0, 0.0],
-                [0.0, 0.0, 0.0, 1.0],
-            ],
-            transforms.animated_world_transforms.transforms[2]
-        );
-        // TODO: Test other matrices?
-    }
-
-    #[test]
-    fn apply_animation_bone_chain_no_inherit_scale() {
-        // Test if the root bone doesn't inherit scale.
-        let mut transforms = AnimationTransforms::identity();
-        animate_skel(
-            &mut transforms,
-            &SkelData {
-                major_version: 1,
-                minor_version: 0,
-                bones: vec![
-                    identity_bone("A", None),
-                    identity_bone("B", Some(0)),
-                    identity_bone("C", Some(1)),
-                ],
-            },
-            [AnimData {
-                major_version: 2,
-                minor_version: 0,
-                final_frame_index: 0.0,
-                groups: vec![GroupData {
-                    group_type: GroupType::Transform,
-                    nodes: vec![
-                        NodeData {
-                            name: "A".to_string(),
-                            tracks: vec![TrackData {
-                                name: "Transform".to_string(),
-                                scale_options: ScaleOptions {
-                                    inherit_scale: true,
-                                    compensate_scale: false,
-                                },
-                                values: TrackValues::Transform(vec![Transform {
-                                    scale: Vector3::new(1.0, 2.0, 3.0),
-                                    rotation: Vector4::new(0.0, 0.0, 0.0, 1.0),
-                                    translation: Vector3::new(0.0, 0.0, 0.0),
-                                }]),
-                                transform_flags: TransformFlags::default(),
-                            }],
-                        },
-                        NodeData {
-                            name: "B".to_string(),
-                            tracks: vec![TrackData {
-                                name: "Transform".to_string(),
-                                scale_options: ScaleOptions {
-                                    inherit_scale: true,
-                                    compensate_scale: false,
-                                },
-                                values: TrackValues::Transform(vec![Transform {
-                                    scale: Vector3::new(1.0, 2.0, 3.0),
-                                    rotation: Vector4::new(0.0, 0.0, 0.0, 1.0),
-                                    translation: Vector3::new(0.0, 0.0, 0.0),
-                                }]),
-                                transform_flags: TransformFlags::default(),
-                            }],
-                        },
-                        NodeData {
-                            name: "C".to_string(),
-                            tracks: vec![TrackData {
-                                name: "Transform".to_string(),
-                                scale_options: ScaleOptions {
-                                    inherit_scale: false,
-                                    compensate_scale: false,
-                                },
-                                values: TrackValues::Transform(vec![Transform {
-                                    scale: Vector3::new(1.0, 2.0, 3.0),
-                                    rotation: Vector4::new(0.0, 0.0, 0.0, 1.0),
-                                    translation: Vector3::new(0.0, 0.0, 0.0),
-                                }]),
-                                transform_flags: TransformFlags::default(),
-                            }],
-                        },
-                    ],
-                }],
-            }]
-            .iter(),
-            None,
-            0.0,
-            true,
-        );
-
-        assert_matrix_relative_eq!(
-            [
-                [1.0, 0.0, 0.0, 0.0],
-                [0.0, 2.0, 0.0, 0.0],
-                [0.0, 0.0, 3.0, 0.0],
-                [0.0, 0.0, 0.0, 1.0],
-            ],
-            transforms.animated_world_transforms.transforms[0]
-        );
-        assert_matrix_relative_eq!(
-            [
-                [1.0, 0.0, 0.0, 0.0],
                 [0.0, 4.0, 0.0, 0.0],
                 [0.0, 0.0, 9.0, 0.0],
                 [0.0, 0.0, 0.0, 1.0],
@@ -1072,13 +965,12 @@ mod tests {
         assert_matrix_relative_eq!(
             [
                 [1.0, 0.0, 0.0, 0.0],
-                [0.0, 2.0, 0.0, 0.0],
-                [0.0, 0.0, 3.0, 0.0],
+                [0.0, 8.0, 0.0, 0.0],
+                [0.0, 0.0, 27.0, 0.0],
                 [0.0, 0.0, 0.0, 1.0],
             ],
             transforms.animated_world_transforms.transforms[2]
         );
-        // TODO: Test other matrices?
     }
 
     fn animate_three_bone_chain(
