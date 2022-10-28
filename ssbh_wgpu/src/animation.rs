@@ -270,20 +270,15 @@ fn calculate_world_transform(
         let mut current_transform = bone.animated_transform(true);
 
         // TODO: How to handle !inherit_scale && !compensate_scale?
-        if bone.inherit_scale || bone.compensate_scale {
-            if !bone.inherit_scale {
-                // Disabling scale inheritance compensates for all accumulated scale.
-                current_transform = compensate_scale(current_transform, parent_transform);
-            } else if bone.compensate_scale {
-                // Compensate scale uses the parent's non accumulated scale.
-                // TODO: Does this also compensate the parent's skel scale?
-                let immediate_parent = bones[parent_index].animated_transform(true);
-                current_transform = compensate_scale(current_transform, immediate_parent);
-            }
+        // TODO: Double check ScaleType for CompressionFlags.
+        // The current implementation doesn't need to check inheritance, which seems odd.
+        if bone.compensate_scale {
+            // Compensate scale uses the parent's non accumulated scale.
+            // TODO: Does this also compensate the parent's skel scale?
+            let immediate_parent = bones[parent_index].animated_transform(true);
+            current_transform = compensate_scale(current_transform, immediate_parent);
         }
 
-        // TODO: Create more three bone tests to check how inheritance works.
-        // ex: inherit -> no inherit -> inherit, compensate -> no compensate -> compensate, etc.
         parent_transform * current_transform
     } else {
         // TODO: Should we always include the current bone's scale?
@@ -291,6 +286,7 @@ fn calculate_world_transform(
     }
 }
 
+// TODO: Eliminate this function since it is redundant with above.
 // TODO: Move matrix utilities to a separate module?
 fn world_transform(
     bones: &mut [AnimatedBone],
@@ -324,10 +320,7 @@ fn world_transform(
             match parent.anim_world_transform {
                 // Use an already calculated animated world transform.
                 Some(parent_anim_world) => {
-                    if !inherit_scale {
-                        // Disabling scale inheritance compensates for all accumulated scale.
-                        transform = compensate_scale(transform, parent_anim_world);
-                    } else if current.compensate_scale {
+                    if current.compensate_scale {
                         // compensate_scale only compensates for the immediate parent's scale.
                         let parent_transform = parent.animated_transform(inherit_scale);
                         transform = compensate_scale(transform, parent_transform);
@@ -344,7 +337,7 @@ fn world_transform(
                     // TODO: Test for inheritance being set.
                     // TODO: What happens if compensate_scale is true and inherit_scale is false?
                     // Only apply scale compensation if the anim is included.
-                    if current.compensate_scale && inherit_scale {
+                    if current.compensate_scale {
                         // TODO: Does this also compensate the parent's skel scale?
                         transform = compensate_scale(transform, parent_transform);
                     }
@@ -975,7 +968,7 @@ mod tests {
 
     fn animate_three_bone_chain(
         scale: [f32; 3],
-        scale_options: ScaleOptions,
+        scale_options: [ScaleOptions; 3],
     ) -> AnimationTransforms {
         let mut transforms = AnimationTransforms::identity();
         animate_skel(
@@ -1000,7 +993,7 @@ mod tests {
                             name: "A".to_string(),
                             tracks: vec![TrackData {
                                 name: "Transform".to_string(),
-                                scale_options,
+                                scale_options: scale_options[0],
                                 values: TrackValues::Transform(vec![Transform {
                                     scale: scale.into(),
                                     rotation: Vector4::new(0.0, 0.0, 0.0, 1.0),
@@ -1013,7 +1006,7 @@ mod tests {
                             name: "B".to_string(),
                             tracks: vec![TrackData {
                                 name: "Transform".to_string(),
-                                scale_options,
+                                scale_options: scale_options[1],
                                 values: TrackValues::Transform(vec![Transform {
                                     scale: scale.into(),
                                     rotation: Vector4::new(0.0, 0.0, 0.0, 1.0),
@@ -1026,7 +1019,7 @@ mod tests {
                             name: "C".to_string(),
                             tracks: vec![TrackData {
                                 name: "Transform".to_string(),
-                                scale_options,
+                                scale_options: scale_options[2],
                                 values: TrackValues::Transform(vec![Transform {
                                     scale: scale.into(),
                                     rotation: Vector4::new(0.0, 0.0, 0.0, 1.0),
@@ -1050,10 +1043,20 @@ mod tests {
     fn apply_animation_bone_chain_inherit_scale_no_compensate_scale() {
         let transforms = animate_three_bone_chain(
             [1.0, 2.0, 3.0],
-            ScaleOptions {
-                inherit_scale: true,
-                compensate_scale: false,
-            },
+            [
+                ScaleOptions {
+                    inherit_scale: true,
+                    compensate_scale: false,
+                },
+                ScaleOptions {
+                    inherit_scale: true,
+                    compensate_scale: false,
+                },
+                ScaleOptions {
+                    inherit_scale: true,
+                    compensate_scale: false,
+                },
+            ],
         );
 
         assert_matrix_relative_eq!(
@@ -1089,10 +1092,20 @@ mod tests {
     fn apply_animation_bone_chain_inherit_scale_compensate_scale() {
         let transforms = animate_three_bone_chain(
             [1.0, 2.0, 3.0],
-            ScaleOptions {
-                inherit_scale: true,
-                compensate_scale: true,
-            },
+            [
+                ScaleOptions {
+                    inherit_scale: true,
+                    compensate_scale: false,
+                },
+                ScaleOptions {
+                    inherit_scale: true,
+                    compensate_scale: false,
+                },
+                ScaleOptions {
+                    inherit_scale: true,
+                    compensate_scale: true,
+                },
+            ],
         );
 
         assert_matrix_relative_eq!(
@@ -1107,8 +1120,8 @@ mod tests {
         assert_matrix_relative_eq!(
             [
                 [1.0, 0.0, 0.0, 0.0],
-                [0.0, 2.0, 0.0, 0.0],
-                [0.0, 0.0, 3.0, 0.0],
+                [0.0, 4.0, 0.0, 0.0],
+                [0.0, 0.0, 9.0, 0.0],
                 [0.0, 0.0, 0.0, 1.0],
             ],
             transforms.animated_world_transforms.transforms[1]
@@ -1116,8 +1129,8 @@ mod tests {
         assert_matrix_relative_eq!(
             [
                 [1.0, 0.0, 0.0, 0.0],
-                [0.0, 2.0, 0.0, 0.0],
-                [0.0, 0.0, 3.0, 0.0],
+                [0.0, 4.0, 0.0, 0.0],
+                [0.0, 0.0, 9.0, 0.0],
                 [0.0, 0.0, 0.0, 1.0],
             ],
             transforms.animated_world_transforms.transforms[2]
@@ -1128,10 +1141,20 @@ mod tests {
     fn apply_animation_bone_chain_no_inherit_scale_no_compensate_scale() {
         let transforms = animate_three_bone_chain(
             [1.0, 2.0, 3.0],
-            ScaleOptions {
-                inherit_scale: false,
-                compensate_scale: false,
-            },
+            [
+                ScaleOptions {
+                    inherit_scale: true,
+                    compensate_scale: false,
+                },
+                ScaleOptions {
+                    inherit_scale: true,
+                    compensate_scale: false,
+                },
+                ScaleOptions {
+                    inherit_scale: false,
+                    compensate_scale: false,
+                },
+            ],
         );
 
         assert_matrix_relative_eq!(
@@ -1167,10 +1190,20 @@ mod tests {
     fn apply_animation_bone_chain_no_inherit_scale_compensate_scale() {
         let transforms = animate_three_bone_chain(
             [1.0, 2.0, 3.0],
-            ScaleOptions {
-                inherit_scale: false,
-                compensate_scale: true,
-            },
+            [
+                ScaleOptions {
+                    inherit_scale: true,
+                    compensate_scale: false,
+                },
+                ScaleOptions {
+                    inherit_scale: true,
+                    compensate_scale: false,
+                },
+                ScaleOptions {
+                    inherit_scale: false,
+                    compensate_scale: true,
+                },
+            ],
         );
 
         assert_matrix_relative_eq!(
@@ -1185,8 +1218,8 @@ mod tests {
         assert_matrix_relative_eq!(
             [
                 [1.0, 0.0, 0.0, 0.0],
-                [0.0, 2.0, 0.0, 0.0],
-                [0.0, 0.0, 3.0, 0.0],
+                [0.0, 4.0, 0.0, 0.0],
+                [0.0, 0.0, 9.0, 0.0],
                 [0.0, 0.0, 0.0, 1.0],
             ],
             transforms.animated_world_transforms.transforms[1]
@@ -1194,8 +1227,8 @@ mod tests {
         assert_matrix_relative_eq!(
             [
                 [1.0, 0.0, 0.0, 0.0],
-                [0.0, 2.0, 0.0, 0.0],
-                [0.0, 0.0, 3.0, 0.0],
+                [0.0, 4.0, 0.0, 0.0],
+                [0.0, 0.0, 9.0, 0.0],
                 [0.0, 0.0, 0.0, 1.0],
             ],
             transforms.animated_world_transforms.transforms[2]
