@@ -6,8 +6,9 @@ use crate::{
         create_invalid_shader_pipeline, create_selected_material_pipeline,
         create_silhouette_pipeline, create_uv_pipeline, create_wireframe_pipeline,
     },
+    swing_rendering::SwingRenderData,
     texture::{load_default_lut, uv_pattern, TextureSamplerView},
-    uniform_buffer, CameraTransforms, RenderModel, ShaderDatabase, swing_rendering::SwingRenderData,
+    uniform_buffer, CameraTransforms, RenderModel, ShaderDatabase,
 };
 use glyph_brush::DefaultSectionHasher;
 use nutexb_wgpu::NutexbFile;
@@ -561,7 +562,7 @@ impl SsbhRenderer {
                     settings: skinning_settings_buffer.as_entire_buffer_binding(),
                 },
             );
-  
+
         // TODO: Don't always assume that the camera bind groups are identical.
         let swing_camera_bind_group = crate::shader::swing::bind_groups::BindGroup0::from_bindings(
             device,
@@ -858,11 +859,7 @@ impl SsbhRenderer {
 
         // TODO: Dedicated swing module.
         for (model, skel) in render_models.iter().zip(skels) {
-            model.draw_swing(
-                &mut render_pass,
-                skel,
-                &self.swing_camera_bind_group,
-            );
+            model.draw_swing(&mut render_pass, skel, &self.swing_camera_bind_group);
         }
 
         render_pass

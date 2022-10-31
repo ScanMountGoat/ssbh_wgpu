@@ -1,6 +1,7 @@
+use ssbh_data::skel_data::SkelData;
 use wgpu::util::DeviceExt;
 
-use crate::uniform_buffer;
+use crate::{swing::Sphere, uniform_buffer};
 
 // TODO: Create a separate structs for the shared and non shared data.
 pub struct SwingRenderData {
@@ -8,18 +9,17 @@ pub struct SwingRenderData {
     pub vertex_buffer: wgpu::Buffer,
     pub index_buffer: wgpu::Buffer,
     pub bind_group1: crate::shader::swing::bind_groups::BindGroup1,
-    pub bind_group2: crate::shader::swing::bind_groups::BindGroup2,
+    // TODO: How much of the rendering code can be shared between shape types?
+    pub spheres: Vec<crate::shader::swing::bind_groups::BindGroup2>,
 }
 
-// TODO: Separate module for getting data from swing.prc.
-// spheres: cxyz, radius
-// ovals:
-// ellipsoids: cxyz, rxyz, sxyz
-// capsules: start_offset_xyz, end_offset_xyz, start_radius, end_radius
-// planes: nxyz, distance
-
 impl SwingRenderData {
-    pub fn new(device: &wgpu::Device, bone_world_transforms: &wgpu::Buffer) -> Self {
+    pub fn new(
+        device: &wgpu::Device,
+        bone_world_transforms: &wgpu::Buffer,
+        spheres: &[Sphere],
+        skel: Option<&SkelData>,
+    ) -> Self {
         // TODO: Share shape drawing code with skeleton rendering?
         let shader = crate::shader::swing::create_shader_module(device);
         let layout = crate::shader::swing::create_pipeline_layout(device);
@@ -39,7 +39,22 @@ impl SwingRenderData {
             fragment: Some(wgpu::FragmentState {
                 module: &shader,
                 entry_point: "fs_main",
-                targets: &[Some(crate::RGBA_COLOR_FORMAT.into())],
+                targets: &[Some(wgpu::ColorTargetState {
+                    format: crate::RGBA_COLOR_FORMAT.into(),
+                    blend: Some(wgpu::BlendState {
+                        color: wgpu::BlendComponent {
+                            src_factor: wgpu::BlendFactor::One,
+                            dst_factor: wgpu::BlendFactor::OneMinusSrcAlpha,
+                            operation: wgpu::BlendOperation::Add,
+                        },
+                        alpha: wgpu::BlendComponent {
+                            src_factor: wgpu::BlendFactor::One,
+                            dst_factor: wgpu::BlendFactor::One,
+                            operation: wgpu::BlendOperation::Add,
+                        },
+                    }),
+                    write_mask: wgpu::ColorWrites::ALL,
+                })],
             }),
             primitive: wgpu::PrimitiveState::default(),
             depth_stencil: None,
@@ -67,30 +82,41 @@ impl SwingRenderData {
             },
         );
 
-        // TODO: This should use the swing collision data.
-        // TODO: Can all shapes share a pipeline?
-        let buffer2 = uniform_buffer(
-            device,
-            "Swing Buffer2",
-            &[crate::shader::swing::PerBone {
-                bone_index: [12; 4],
-                transform: glam::Mat4::IDENTITY.to_cols_array_2d(),
-            }],
-        );
+        let spheres = spheres
+            .iter()
+            .map(|s| {
+                let buffer2 = uniform_buffer(
+                    device,
+                    "Swing Buffer2",
+                    &[crate::shader::swing::PerBone {
+                        bone_index: [skel
+                            .and_then(|skel| {
+                                skel.bones
+                                    .iter()
+                                    .position(|b| b.name.eq_ignore_ascii_case(&s.bone_name))
+                                    .map(|i| i as i32)
+                            })
+                            .unwrap_or(-1); 4],
+                        center: [s.cx, s.cy, s.cz, 0.0],
+                        radius: [s.radius; 4],
+                    }],
+                );
 
-        let bind_group2 = crate::shader::swing::bind_groups::BindGroup2::from_bindings(
-            device,
-            crate::shader::swing::bind_groups::BindGroupLayout2 {
-                per_bone: buffer2.as_entire_buffer_binding(),
-            },
-        );
+                crate::shader::swing::bind_groups::BindGroup2::from_bindings(
+                    device,
+                    crate::shader::swing::bind_groups::BindGroupLayout2 {
+                        per_bone: buffer2.as_entire_buffer_binding(),
+                    },
+                )
+            })
+            .collect();
 
         Self {
             pipeline,
             vertex_buffer,
             index_buffer,
             bind_group1,
-            bind_group2,
+            spheres,
         }
     }
 }

@@ -2,6 +2,7 @@ use crate::{
     animation::{animate_materials, animate_skel, animate_visibility, AnimationTransforms},
     bone_rendering::*,
     pipeline::{create_pipeline, PipelineKey},
+    swing::Sphere,
     swing_rendering::SwingRenderData,
     texture::{load_default, load_sampler, load_texture, LoadTextureError},
     uniform_buffer, uniform_buffer_readonly,
@@ -474,19 +475,23 @@ impl RenderModel {
             // TODO: Include swing information with the render model itself?
             // TODO: Create a swing shapes struct and update whenever the prc changes?
             // prc -> swing shapes -> bind groups and buffers -> drawing
-            crate::shader::swing::bind_groups::set_bind_groups(
-                render_pass,
-                crate::shader::swing::bind_groups::BindGroups::<'a> {
-                    bind_group0: swing_camera_bind_group,
-                    bind_group1: &self.swing_render_data.bind_group1,
-                    bind_group2: &self.swing_render_data.bind_group2,
-                },
-            );
-            render_pass.draw_indexed(
-                0..crate::bone_rendering::sphere_indices().len() as u32,
-                0,
-                0..1,
-            );
+
+            // TODO: Not all bind groups need to be set more than once.
+            for bind_group2 in &self.swing_render_data.spheres {
+                crate::shader::swing::bind_groups::set_bind_groups(
+                    render_pass,
+                    crate::shader::swing::bind_groups::BindGroups::<'a> {
+                        bind_group0: swing_camera_bind_group,
+                        bind_group1: &self.swing_render_data.bind_group1,
+                        bind_group2,
+                    },
+                );
+                render_pass.draw_indexed(
+                    0..crate::bone_rendering::sphere_indices().len() as u32,
+                    0,
+                    0..1,
+                );
+            }
         }
     }
 
@@ -788,7 +793,32 @@ impl<'a> RenderMeshSharedData<'a> {
             &animation_transforms.world_transforms,
         );
 
-        let swing_render_data = SwingRenderData::new(device, &world_transforms);
+        // TODO: Initialize this from the swing.prc.
+        let spheres = vec![
+            Sphere {
+                bone_name: "head".to_owned(),
+                cx: 0.0,
+                cy: 5.0,
+                cz: 0.0,
+                radius: 5.0,
+            },
+            Sphere {
+                bone_name: "head".to_owned(),
+                cx: 1.3,
+                cy: 0.0,
+                cz: -2.2,
+                radius: 2.6,
+            },
+            Sphere {
+                bone_name: "head".to_owned(),
+                cx: 1.3,
+                cy: 0.0,
+                cz: 2.2,
+                radius: 2.6,
+            },
+        ];
+        let swing_render_data =
+            SwingRenderData::new(device, &world_transforms, &spheres, self.skel);
 
         // TODO: Clean this up.
         let bone_colors = bone_colors_buffer(device, self.skel, self.hlpb);

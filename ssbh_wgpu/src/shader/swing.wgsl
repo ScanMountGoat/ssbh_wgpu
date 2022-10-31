@@ -19,7 +19,8 @@ struct WorldTransforms {
 
 struct PerBone {
     bone_index: vec4<i32>,
-    transform: mat4x4<f32>,
+    center: vec4<f32>,
+    radius: vec4<f32>,
 }
 
 @group(0) @binding(0)
@@ -36,14 +37,19 @@ var<uniform> per_bone: PerBone;
 
 @vertex
 fn vs_main(in: VertexInput) -> VertexOutput {
-    // TODO: Include the bone index in the per bone bind group?
     // TODO: Use a consistent naming convention like PerScene, PerSkel, PerObject etc.
+    // Assume the vertex buffer is centered on the origin with radius 1.0.
     var out: VertexOutput;
-    out.clip_position = camera.mvp_matrix * world_transforms.transforms[per_bone.bone_index.x] * per_bone.transform * vec4(in.position.xyz, 1.0);
+    let position = vec4(in.position.xyz * per_bone.radius.x + per_bone.center.xyz, 1.0);
+    var world_position = world_transforms.transforms[per_bone.bone_index.x] * position;
+    out.clip_position = camera.mvp_matrix * world_position;
     return out;
 }
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
-    return vec4(1.0);
+    // Premultiplied alpha.
+    let color = vec3(0.0, 1.0, 1.0);
+    let alpha = 0.25;
+    return vec4(color * alpha, alpha);
 }

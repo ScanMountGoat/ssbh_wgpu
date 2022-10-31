@@ -27,7 +27,8 @@ pub struct WorldTransforms {
 #[derive(Debug, Copy, Clone, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct PerBone {
     pub bone_index: [i32; 4],
-    pub transform: [[f32; 4]; 4],
+    pub center: [f32; 4],
+    pub radius: [f32; 4],
 }
 pub mod bind_groups {
     pub struct BindGroup0(wgpu::BindGroup);
