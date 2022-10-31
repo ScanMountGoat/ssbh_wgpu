@@ -275,7 +275,7 @@ fn pyramid_indices() -> Vec<u32> {
     ]
 }
 
-fn sphere() -> Vec<[f32; 3]> {
+pub fn sphere() -> Vec<[f32; 3]> {
     // Pos0 Nrm0 Pos1 Nrm1 ...
     vec![
         [0.000000, 0.923880, -0.382683],
@@ -405,7 +405,7 @@ fn sphere_outer() -> Vec<[f32; 3]> {
         .collect()
 }
 
-fn sphere_indices() -> Vec<u32> {
+pub fn sphere_indices() -> Vec<u32> {
     vec![
         5, 13, 6, 3, 11, 4, 1, 9, 2, 0, 35, 7, 50, 6, 13, 4, 12, 5, 2, 10, 3, 0, 8, 1, 7, 35, 14,
         50, 13, 20, 11, 19, 12, 9, 17, 10, 7, 15, 8, 12, 20, 13, 11, 17, 18, 8, 16, 9, 19, 25, 26,

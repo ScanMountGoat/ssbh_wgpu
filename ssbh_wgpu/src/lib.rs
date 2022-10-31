@@ -25,6 +25,7 @@ mod lighting;
 mod renderer;
 mod rendermesh;
 mod shader_database;
+mod swing_rendering;
 
 pub use crate::pipeline::PipelineData;
 pub use renderer::SsbhRenderer;

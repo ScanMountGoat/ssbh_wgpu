@@ -9,4 +9,5 @@ pub mod post_process;
 pub mod renormal;
 pub mod skeleton;
 pub mod skinning;
+pub mod swing;
 pub mod variance_shadow;

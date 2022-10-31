@@ -7,13 +7,13 @@ use crate::{
         create_silhouette_pipeline, create_uv_pipeline, create_wireframe_pipeline,
     },
     texture::{load_default_lut, uv_pattern, TextureSamplerView},
-    uniform_buffer, CameraTransforms, RenderModel, ShaderDatabase,
+    uniform_buffer, CameraTransforms, RenderModel, ShaderDatabase, swing_rendering::SwingRenderData,
 };
 use glyph_brush::DefaultSectionHasher;
 use nutexb_wgpu::NutexbFile;
 use ssbh_data::{anim_data::AnimData, skel_data::SkelData};
 use strum::{Display, EnumString, EnumVariantNames};
-use wgpu::{ComputePassDescriptor, ComputePipelineDescriptor};
+use wgpu::{util::DeviceExt, ComputePassDescriptor, ComputePipelineDescriptor};
 use wgpu_text::{font::FontRef, BrushBuilder, TextBrush};
 
 // Rgba16Float is widely supported.
@@ -261,6 +261,8 @@ pub struct SsbhRenderer {
     overlay_pipeline: wgpu::RenderPipeline,
     wireframe_pipeline: wgpu::RenderPipeline,
     selected_material_pipeline: wgpu::RenderPipeline,
+
+    swing_camera_bind_group: crate::shader::swing::bind_groups::BindGroup0,
 
     bone_pipelines: BonePipelines,
     bone_buffers: BoneBuffers,
@@ -531,7 +533,7 @@ impl SsbhRenderer {
             width,
             height,
             present_mode: wgpu::PresentMode::Mailbox,
-            alpha_mode:  wgpu::CompositeAlphaMode::Auto
+            alpha_mode: wgpu::CompositeAlphaMode::Auto,
         };
 
         // TODO: Log errors?
@@ -559,6 +561,14 @@ impl SsbhRenderer {
                     settings: skinning_settings_buffer.as_entire_buffer_binding(),
                 },
             );
+  
+        // TODO: Don't always assume that the camera bind groups are identical.
+        let swing_camera_bind_group = crate::shader::swing::bind_groups::BindGroup0::from_bindings(
+            device,
+            crate::shader::swing::bind_groups::BindGroupLayout0 {
+                camera: camera_buffer.as_entire_buffer_binding(),
+            },
+        );
 
         Self {
             bloom_threshold_pipeline,
@@ -598,6 +608,7 @@ impl SsbhRenderer {
             scissor_rect: [0, 0, width, height],
             skinning_settings_buffer,
             skinning_settings_bind_group,
+            swing_camera_bind_group,
         }
     }
 
@@ -767,7 +778,7 @@ impl SsbhRenderer {
         encoder: &'a mut wgpu::CommandEncoder,
         output_view: &'a wgpu::TextureView,
         render_models: &'a [RenderModel],
-        skels: impl Iterator<Item = Option<&'b SkelData>>,
+        skels: impl Iterator<Item = Option<&'b SkelData>> + Clone,
         shader_database: &ShaderDatabase,
         options: &ModelRenderOptions,
     ) -> wgpu::RenderPass<'a> {
@@ -837,13 +848,24 @@ impl SsbhRenderer {
             encoder,
             render_models.iter(),
             &self.pass_info.color_final.view,
-            skels,
+            skels.clone(),
             options.draw_bone_axes,
         );
 
         // TODO: This can be combined with post processing.
         // Composite the outlines onto the result of the debug or shaded passes.
-        self.overlay_pass(encoder, output_view)
+        let mut render_pass = self.overlay_pass(encoder, output_view);
+
+        // TODO: Dedicated swing module.
+        for (model, skel) in render_models.iter().zip(skels) {
+            model.draw_swing(
+                &mut render_pass,
+                skel,
+                &self.swing_camera_bind_group,
+            );
+        }
+
+        render_pass
     }
 
     /// Renders UVs for all of the meshes with `is_selected` set to `true`.

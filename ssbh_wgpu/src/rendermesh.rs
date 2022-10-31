@@ -2,6 +2,7 @@ use crate::{
     animation::{animate_materials, animate_skel, animate_visibility, AnimationTransforms},
     bone_rendering::*,
     pipeline::{create_pipeline, PipelineKey},
+    swing_rendering::SwingRenderData,
     texture::{load_default, load_sampler, load_texture, LoadTextureError},
     uniform_buffer, uniform_buffer_readonly,
     uniforms::{create_uniforms, create_uniforms_buffer},
@@ -49,6 +50,10 @@ pub struct RenderModel {
 
     // TODO: Use instancing instead.
     bone_bind_groups: Vec<crate::shader::skeleton::bind_groups::BindGroup2>,
+
+    // TODO: The swing pipelines should be created only once in the renderer.
+    swing_render_data: SwingRenderData,
+
     buffer_data: MeshObjectBufferData,
 
     // Used for text rendering.
@@ -448,6 +453,43 @@ impl RenderModel {
         }
     }
 
+    pub fn draw_swing<'a>(
+        &'a self,
+        render_pass: &mut wgpu::RenderPass<'a>,
+        skel: Option<&SkelData>,
+        swing_camera_bind_group: &'a crate::shader::swing::bind_groups::BindGroup0,
+    ) {
+        // TODO: Bind group2 should be created for each shape?
+        // TODO: Is it noticeably more efficient to batch shapes together?
+        if let Some(skel) = skel {
+            render_pass.set_pipeline(&self.swing_render_data.pipeline);
+            render_pass.set_index_buffer(
+                self.swing_render_data.index_buffer.slice(..),
+                wgpu::IndexFormat::Uint32,
+            );
+            render_pass.set_vertex_buffer(0, self.swing_render_data.vertex_buffer.slice(..));
+            // TODO: Create another bind group containing bone indices and transforms for each shape.
+            // TODO: Group drawing by shape (draw spheres, draw planes, etc).
+            // TODO: Most of the drawing code can be shared.
+            // TODO: Include swing information with the render model itself?
+            // TODO: Create a swing shapes struct and update whenever the prc changes?
+            // prc -> swing shapes -> bind groups and buffers -> drawing
+            crate::shader::swing::bind_groups::set_bind_groups(
+                render_pass,
+                crate::shader::swing::bind_groups::BindGroups::<'a> {
+                    bind_group0: swing_camera_bind_group,
+                    bind_group1: &self.swing_render_data.bind_group1,
+                    bind_group2: &self.swing_render_data.bind_group2,
+                },
+            );
+            render_pass.draw_indexed(
+                0..crate::bone_rendering::sphere_indices().len() as u32,
+                0,
+                0..1,
+            );
+        }
+    }
+
     fn draw_mesh<'a>(
         &'a self,
         render_pass: &mut wgpu::RenderPass<'a>,
@@ -746,6 +788,8 @@ impl<'a> RenderMeshSharedData<'a> {
             &animation_transforms.world_transforms,
         );
 
+        let swing_render_data = SwingRenderData::new(device, &world_transforms);
+
         // TODO: Clean this up.
         let bone_colors = bone_colors_buffer(device, self.skel, self.hlpb);
 
@@ -812,6 +856,7 @@ impl<'a> RenderMeshSharedData<'a> {
             bone_bind_groups,
             buffer_data,
             animation_transforms: Box::new(animation_transforms),
+            swing_render_data,
         }
     }
 
