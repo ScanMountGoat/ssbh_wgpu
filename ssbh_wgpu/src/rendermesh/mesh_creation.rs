@@ -3,10 +3,9 @@ use crate::{
     bone_rendering::*,
     pipeline::{create_pipeline, PipelineKey},
     swing_rendering::SwingRenderData,
-    uniform_buffer, uniform_buffer_readonly,
     uniforms::{create_material_uniforms_bind_group, create_uniforms, create_uniforms_buffer},
     vertex::{buffer0, buffer1, mesh_object_buffers, skin_weights, MeshObjectBufferData},
-    ModelFiles, RenderMesh, RenderModel, ShaderDatabase, SharedRenderData,
+    DeviceExt2, ModelFiles, RenderMesh, RenderModel, ShaderDatabase, SharedRenderData,
 };
 use log::{error, info};
 use nutexb_wgpu::NutexbFile;
@@ -78,14 +77,12 @@ impl<'a> RenderMeshSharedData<'a> {
             .unwrap_or_else(AnimationTransforms::identity);
 
         // Share the transforms buffer to avoid redundant updates.
-        let skinning_transforms_buffer = uniform_buffer(
-            device,
+        let skinning_transforms_buffer = device.create_uniform_buffer(
             "Bone Transforms Buffer",
             &[animation_transforms.animated_world_transforms],
         );
 
-        let world_transforms = uniform_buffer(
-            device,
+        let world_transforms = device.create_uniform_buffer(
             "World Transforms Buffer",
             &animation_transforms.world_transforms,
         );
@@ -106,10 +103,9 @@ impl<'a> RenderMeshSharedData<'a> {
             .unwrap_or_else(|| vec![glam::Mat4::IDENTITY; 512]);
 
         let joint_world_transforms =
-            uniform_buffer(device, "Joint World Transforms Buffer", &joint_transforms);
+            device.create_uniform_buffer("Joint World Transforms Buffer", &joint_transforms);
 
-        let bone_colors_outer = uniform_buffer_readonly(
-            device,
+        let bone_colors_outer = device.create_uniform_buffer_readonly(
             "Bone Colors Buffer",
             &vec![[0.0f32; 4]; crate::animation::MAX_BONE_COUNT],
         );
@@ -445,8 +441,7 @@ impl<'a> RenderMeshSharedData<'a> {
             );
 
         let parent_index = find_parent_index(mesh_object, self.skel);
-        let mesh_object_info_buffer = uniform_buffer_readonly(
-            device,
+        let mesh_object_info_buffer = device.create_uniform_buffer_readonly(
             "Mesh Object Info Buffer",
             &[crate::shader::skinning::MeshObjectInfo {
                 parent_index: [parent_index, -1, -1, -1],
@@ -618,8 +613,7 @@ fn bone_bind_groups(
             .enumerate()
             .map(|(i, bone)| {
                 // TODO: Use instancing instead.
-                let per_bone = uniform_buffer_readonly(
-                    device,
+                let per_bone = device.create_uniform_buffer_readonly(
                     "Mesh Object Info Buffer",
                     &[crate::shader::skeleton::PerBone {
                         indices: [i as i32, parent_index(bone.parent_index), -1, -1],

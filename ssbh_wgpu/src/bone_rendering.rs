@@ -1,7 +1,6 @@
+use crate::{animation::AnimationTransforms, DeviceExt2};
 use glam::Vec4Swizzles;
 use ssbh_data::{hlpb_data::HlpbData, skel_data::SkelData};
-
-use crate::{animation::AnimationTransforms, uniform_buffer_readonly};
 use wgpu::util::DeviceExt;
 
 pub struct BonePipelines {
@@ -117,7 +116,7 @@ pub fn bone_colors_buffer(
     skel: Option<&SkelData>,
     hlpb: Option<&HlpbData>,
 ) -> wgpu::Buffer {
-    uniform_buffer_readonly(device, "Bone Colors Buffer", &bone_colors(skel, hlpb))
+    device.create_uniform_buffer_readonly("Bone Colors Buffer", &bone_colors(skel, hlpb))
 }
 
 pub fn bone_vertex_buffer(device: &wgpu::Device) -> wgpu::Buffer {

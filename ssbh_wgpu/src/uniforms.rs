@@ -4,7 +4,7 @@ use crate::{
     shader::model::MaterialUniforms,
     split_param,
     texture::{load_default, load_sampler, load_texture, LoadTextureError},
-    uniform_buffer, ShaderDatabase, ShaderProgram,
+    DeviceExt2, ShaderDatabase, ShaderProgram,
 };
 use log::warn;
 use ssbh_data::matl_data::*;
@@ -110,7 +110,7 @@ pub fn create_uniforms_buffer(
     database: &ShaderDatabase,
 ) -> wgpu::Buffer {
     let uniforms = create_uniforms(material, database);
-    uniform_buffer(device, "Material Uniforms Buffer", &[uniforms])
+    device.create_uniform_buffer("Material Uniforms Buffer", &[uniforms])
 }
 
 // TODO: Test attributes, non required attributes, missing required attributes, etc.

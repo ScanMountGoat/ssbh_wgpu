@@ -357,27 +357,36 @@ pub(crate) use assert_matrix_relative_eq;
 #[cfg(test)]
 pub(crate) use assert_vector_relative_eq;
 
-// TODO: These will be cleaner as extension traits.
-pub fn uniform_buffer_readonly<T: Pod>(
-    device: &wgpu::Device,
-    label: &str,
-    data: &[T],
-) -> wgpu::Buffer {
-    device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-        label: Some(label),
-        contents: bytemuck::cast_slice(data),
-        usage: wgpu::BufferUsages::UNIFORM,
-    })
+trait DeviceExt2 {
+    fn create_uniform_buffer_readonly<T: Pod>(&self, label: &str, data: &[T]) -> wgpu::Buffer;
+
+    fn create_uniform_buffer<T: Pod>(&self, label: &str, data: &[T]) -> wgpu::Buffer;
 }
 
-pub fn uniform_buffer<T: Pod>(device: &wgpu::Device, label: &str, data: &[T]) -> wgpu::Buffer {
-    device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-        label: Some(label),
-        contents: bytemuck::cast_slice(data),
-        usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-    })
+impl DeviceExt2 for wgpu::Device {
+    fn create_uniform_buffer_readonly<T: Pod>(&self, label: &str, data: &[T]) -> wgpu::Buffer {
+        self.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some(label),
+            contents: bytemuck::cast_slice(data),
+            usage: wgpu::BufferUsages::UNIFORM,
+        })
+    }
+
+    fn create_uniform_buffer<T: Pod>(&self, label: &str, data: &[T]) -> wgpu::Buffer {
+        self.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some(label),
+            contents: bytemuck::cast_slice(data),
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        })
+    }
 }
 
-pub fn write_buffer<D: Pod>(queue: &wgpu::Queue, buffer: &wgpu::Buffer, data: &[D]) {
-    queue.write_buffer(buffer, 0, bytemuck::cast_slice(data));
+trait QueueExt {
+    fn write_data<D: Pod>(&self, buffer: &wgpu::Buffer, data: &[D]);
+}
+
+impl QueueExt for wgpu::Queue {
+    fn write_data<D: Pod>(&self, buffer: &wgpu::Buffer, data: &[D]) {
+        self.write_buffer(buffer, 0, bytemuck::cast_slice(data));
+    }
 }

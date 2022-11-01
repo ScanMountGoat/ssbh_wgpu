@@ -4,7 +4,7 @@ use crate::{
     pipeline::{create_pipeline, PipelineKey},
     swing_rendering::SwingRenderData,
     vertex::MeshObjectBufferData,
-    write_buffer, ModelFolder, ShaderDatabase, SharedRenderData,
+    ModelFolder, QueueExt, ShaderDatabase, SharedRenderData,
 };
 use glam::Vec4Swizzles;
 use log::debug;
@@ -231,21 +231,19 @@ impl RenderModel {
                 should_loop,
             );
 
-            write_buffer(
-                queue,
+            queue.write_data(
                 &self.mesh_buffers.skinning_transforms,
                 &[self.animation_transforms.animated_world_transforms],
             );
 
-            write_buffer(
-                queue,
+            queue.write_data(
                 &self.mesh_buffers.world_transforms,
                 &self.animation_transforms.world_transforms,
             );
 
             // TODO: Avoid allocating here?
             let joint_transforms = joint_transforms(skel, &self.animation_transforms);
-            write_buffer(queue, &self.joint_world_transforms, &joint_transforms);
+            queue.write_data(&self.joint_world_transforms, &joint_transforms);
         }
 
         debug!("Apply Anim: {:?}", start.elapsed());

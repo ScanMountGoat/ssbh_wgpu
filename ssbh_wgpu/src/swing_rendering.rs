@@ -1,7 +1,7 @@
 use ssbh_data::skel_data::SkelData;
 use wgpu::util::DeviceExt;
 
-use crate::{swing::Sphere, uniform_buffer};
+use crate::{swing::Sphere, DeviceExt2};
 
 // TODO: Create a separate structs for the shared and non shared data.
 pub struct SwingRenderData {
@@ -87,8 +87,7 @@ impl SwingRenderData {
         let spheres = spheres
             .iter()
             .map(|s| {
-                let buffer2 = uniform_buffer(
-                    device,
+                let buffer2 = device.create_uniform_buffer(
                     "Swing Buffer2",
                     &[crate::shader::swing::PerBone {
                         bone_index: [skel

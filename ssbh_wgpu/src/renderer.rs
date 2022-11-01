@@ -6,15 +6,14 @@ use crate::{
         create_invalid_shader_pipeline, create_selected_material_pipeline,
         create_silhouette_pipeline, create_uv_pipeline, create_wireframe_pipeline,
     },
-    swing_rendering::SwingRenderData,
     texture::{load_default_lut, uv_pattern, TextureSamplerView},
-    uniform_buffer, write_buffer, CameraTransforms, RenderModel, ShaderDatabase,
+    CameraTransforms, DeviceExt2, QueueExt, RenderModel, ShaderDatabase,
 };
 use glyph_brush::DefaultSectionHasher;
 use nutexb_wgpu::NutexbFile;
 use ssbh_data::{anim_data::AnimData, skel_data::SkelData};
 use strum::{Display, EnumString, EnumVariantNames};
-use wgpu::{util::DeviceExt, ComputePassDescriptor, ComputePipelineDescriptor};
+use wgpu::{ComputePassDescriptor, ComputePipelineDescriptor};
 use wgpu_text::{font::FontRef, BrushBuilder, TextBrush};
 
 // Rgba16Float is widely supported.
@@ -422,8 +421,7 @@ impl SsbhRenderer {
         let pass_info = PassInfo::new(device, width, height, scale_factor, &color_lut);
 
         // Assume the user will update the camera, so these values don't matter.
-        let camera_buffer = uniform_buffer(
-            device,
+        let camera_buffer = device.create_uniform_buffer(
             "Camera Buffer",
             &[crate::shader::model::CameraTransforms {
                 model_view_matrix: glam::Mat4::IDENTITY.to_cols_array_2d(),
@@ -447,8 +445,7 @@ impl SsbhRenderer {
             glam::Vec3::new(25.0, 25.0, 50.0),
         );
 
-        let light_transform_buffer = uniform_buffer(
-            device,
+        let light_transform_buffer = device.create_uniform_buffer(
             "Light Transform Buffer",
             &[crate::shader::model::LightTransforms {
                 light_transform: light_transform.to_cols_array_2d(),
@@ -467,16 +464,14 @@ impl SsbhRenderer {
         );
 
         let render_settings = RenderSettings::default();
-        let render_settings_buffer = uniform_buffer(
-            device,
+        let render_settings_buffer = device.create_uniform_buffer(
             "Render Settings Buffer",
             &[crate::shader::model::RenderSettings::from(&render_settings)],
         );
 
         // The light nuanmb should be public with conversions for quaternions, vectors, etc being private.
         // stage light nuanmb -> uniform struct -> buffer
-        let stage_uniforms_buffer = uniform_buffer(
-            device,
+        let stage_uniforms_buffer = device.create_uniform_buffer(
             "Stage Uniforms Buffer",
             &[crate::shader::model::StageUniforms::training()],
         );
@@ -548,8 +543,7 @@ impl SsbhRenderer {
         let selected_material_pipeline =
             create_selected_material_pipeline(device, RGBA_COLOR_FORMAT);
 
-        let skinning_settings_buffer = uniform_buffer(
-            device,
+        let skinning_settings_buffer = device.create_uniform_buffer(
             "Skinning Settings Buffer",
             &[crate::shader::skinning::SkinningSettings::from(
                 &SkinningSettings::default(),
@@ -656,7 +650,7 @@ impl SsbhRenderer {
     // TODO: Document that anything that takes a device reference shouldn't be called each frame.
     /// Updates the camera transforms.
     pub fn update_camera(&mut self, queue: &wgpu::Queue, transforms: CameraTransforms) {
-        write_buffer(queue, &self.camera_buffer, &[transforms]);
+        queue.write_data(&self.camera_buffer, &[transforms]);
     }
 
     /// Updates the render settings.
@@ -666,8 +660,7 @@ impl SsbhRenderer {
         render_settings: &RenderSettings,
     ) {
         self.render_settings = *render_settings;
-        write_buffer(
-            queue,
+        queue.write_data(
             &self.render_settings_buffer,
             &[crate::shader::model::RenderSettings::from(render_settings)],
         );
@@ -679,8 +672,7 @@ impl SsbhRenderer {
         queue: &wgpu::Queue,
         skinning_settings: &SkinningSettings,
     ) {
-        write_buffer(
-            queue,
+        queue.write_data(
             &self.skinning_settings_buffer,
             &[crate::shader::skinning::SkinningSettings::from(
                 skinning_settings,
@@ -693,10 +685,9 @@ impl SsbhRenderer {
         // TODO: How to animate using the current frame?
         let (stage_uniforms, light_transform) = anim_to_lights(data);
 
-        write_buffer(queue, &self.stage_uniforms_buffer, &[stage_uniforms]);
+        queue.write_data(&self.stage_uniforms_buffer, &[stage_uniforms]);
 
-        write_buffer(
-            queue,
+        queue.write_data(
             &self.light_transform_buffer,
             &[crate::shader::model::LightTransforms {
                 light_transform: light_transform.to_cols_array_2d(),
@@ -706,8 +697,7 @@ impl SsbhRenderer {
 
     /// Resets the stage uniforms and lighting to their default values.
     pub fn reset_stage_uniforms(&mut self, queue: &wgpu::Queue) {
-        write_buffer(
-            queue,
+        queue.write_data(
             &self.stage_uniforms_buffer,
             &[crate::shader::model::StageUniforms::training()],
         );
