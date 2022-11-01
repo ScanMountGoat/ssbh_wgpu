@@ -1,9 +1,108 @@
 use std::str::FromStr;
 
 use crate::{
-    shader::model::MaterialUniforms, split_param, uniform_buffer, ShaderDatabase, ShaderProgram,
+    shader::model::MaterialUniforms,
+    split_param,
+    texture::{load_default, load_sampler, load_texture, LoadTextureError},
+    uniform_buffer, ShaderDatabase, ShaderProgram,
 };
+use log::warn;
 use ssbh_data::matl_data::*;
+use wgpu::SamplerDescriptor;
+
+// TODO: Move this to textures?
+pub fn create_material_uniforms_bind_group(
+    material: Option<&ssbh_data::matl_data::MatlEntryData>,
+    device: &wgpu::Device,
+    textures: &[(String, wgpu::Texture, wgpu::TextureViewDimension)],
+    default_textures: &[(String, wgpu::Texture, wgpu::TextureViewDimension)],
+    uniforms_buffer: &wgpu::Buffer, // TODO: Just return this?
+) -> crate::shader::model::bind_groups::BindGroup1 {
+    // TODO: Do all 2D textures default to white if the path isn't correct?
+    let default_white = &default_textures
+        .iter()
+        .find(|d| d.0 == "/common/shader/sfxpbs/default_white")
+        .unwrap()
+        .1;
+
+    let default_cube = &default_textures
+        .iter()
+        .find(|d| d.0 == "#replace_cubemap")
+        .unwrap()
+        .1;
+
+    let load_texture = |texture_id, dim| {
+        material
+            .and_then(|material| {
+                // TODO: Add proper path and parameter handling.
+                // TODO: Find a way to test texture path loading.
+                // This should also handle paths like "../texture.nutexb" and "/render/shader/bin/texture.nutexb".
+                material
+                    .textures
+                    .iter()
+                    .find(|t| t.param_id == texture_id)
+                    .map(|t| t.data.as_str())
+            })
+            .and_then(|material_path| {
+                load_texture(material_path, textures, default_textures, dim).map_err(|e| {
+                    match e {
+                        LoadTextureError::PathNotFound => {
+                            warn!("Missing texture {:?} assigned to {}. Applying default texture.", material_path, texture_id)
+                        },
+                        LoadTextureError::DimensionMismatch { expected, actual } => {
+                            warn!("Texture {:?} assigned to {} has invalid dimensions. Expected {:?} but found {:?}.", 
+                                material_path, texture_id, expected, actual)
+                        },
+                    }
+                }
+                ).ok()
+            }).unwrap_or_else(|| load_default(texture_id, default_cube, default_white))
+    };
+
+    let load_sampler = |sampler_id| {
+        material
+            .and_then(|material| load_sampler(material, device, sampler_id))
+            .unwrap_or_else(|| device.create_sampler(&SamplerDescriptor::default()))
+    };
+
+    // TODO: Default texture for other cube maps?
+    crate::shader::model::bind_groups::BindGroup1::from_bindings(
+        device,
+        crate::shader::model::bind_groups::BindGroupLayout1 {
+            texture0: &load_texture(ParamId::Texture0, wgpu::TextureViewDimension::D2),
+            sampler0: &load_sampler(ParamId::Sampler0),
+            texture1: &load_texture(ParamId::Texture1, wgpu::TextureViewDimension::D2),
+            sampler1: &load_sampler(ParamId::Sampler1),
+            texture2: &load_texture(ParamId::Texture2, wgpu::TextureViewDimension::Cube),
+            sampler2: &load_sampler(ParamId::Sampler2),
+            texture3: &load_texture(ParamId::Texture3, wgpu::TextureViewDimension::D2),
+            sampler3: &load_sampler(ParamId::Sampler3),
+            texture4: &load_texture(ParamId::Texture4, wgpu::TextureViewDimension::D2),
+            sampler4: &load_sampler(ParamId::Sampler4),
+            texture5: &load_texture(ParamId::Texture5, wgpu::TextureViewDimension::D2),
+            sampler5: &load_sampler(ParamId::Sampler5),
+            texture6: &load_texture(ParamId::Texture6, wgpu::TextureViewDimension::D2),
+            sampler6: &load_sampler(ParamId::Sampler6),
+            texture7: &load_texture(ParamId::Texture7, wgpu::TextureViewDimension::Cube),
+            sampler7: &load_sampler(ParamId::Sampler7),
+            texture8: &load_texture(ParamId::Texture8, wgpu::TextureViewDimension::Cube),
+            sampler8: &load_sampler(ParamId::Sampler8),
+            texture9: &load_texture(ParamId::Texture9, wgpu::TextureViewDimension::D2),
+            sampler9: &load_sampler(ParamId::Sampler9),
+            texture10: &load_texture(ParamId::Texture10, wgpu::TextureViewDimension::D2),
+            sampler10: &load_sampler(ParamId::Sampler10),
+            texture11: &load_texture(ParamId::Texture11, wgpu::TextureViewDimension::D2),
+            sampler11: &load_sampler(ParamId::Sampler11),
+            texture12: &load_texture(ParamId::Texture12, wgpu::TextureViewDimension::D2),
+            sampler12: &load_sampler(ParamId::Sampler12),
+            texture13: &load_texture(ParamId::Texture13, wgpu::TextureViewDimension::D2),
+            sampler13: &load_sampler(ParamId::Sampler13),
+            texture14: &load_texture(ParamId::Texture14, wgpu::TextureViewDimension::D2),
+            sampler14: &load_sampler(ParamId::Sampler14),
+            uniforms: uniforms_buffer.as_entire_buffer_binding(),
+        },
+    )
+}
 
 pub fn create_uniforms_buffer(
     material: Option<&MatlEntryData>,
@@ -52,7 +151,7 @@ pub fn create_uniforms(
             if let Some(program) = database.get(&material.shader_label) {
                 for param_name in &program.material_parameters {
                     // TODO: This is redundant to split twice.
-                    let (param, _) = split_param(&param_name);
+                    let (param, _) = split_param(param_name);
                     // It's safe to assume the database has valid parameters.
                     let id = ParamId::from_str(param).unwrap();
                     if let Some(i) = texture_index(id) {
@@ -65,7 +164,7 @@ pub fn create_uniforms(
                         // Check which components are accessed by the shader binary.
                         has_vector[i] =
                             program
-                                .accessed_channels(&param_name)
+                                .accessed_channels(param_name)
                                 .map(|b| if b { 1 } else { 0 });
                     }
                 }

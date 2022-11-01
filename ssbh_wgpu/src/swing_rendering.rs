@@ -40,7 +40,7 @@ impl SwingRenderData {
                 module: &shader,
                 entry_point: "fs_main",
                 targets: &[Some(wgpu::ColorTargetState {
-                    format: crate::RGBA_COLOR_FORMAT.into(),
+                    format: crate::RGBA_COLOR_FORMAT,
                     blend: Some(wgpu::BlendState {
                         color: wgpu::BlendComponent {
                             src_factor: wgpu::BlendFactor::One,
@@ -56,7 +56,9 @@ impl SwingRenderData {
                     write_mask: wgpu::ColorWrites::ALL,
                 })],
             }),
-            primitive: wgpu::PrimitiveState::default(),
+            primitive: wgpu::PrimitiveState {
+                ..Default::default()
+            },
             depth_stencil: None,
             multisample: wgpu::MultisampleState::default(),
             multiview: None,
@@ -93,7 +95,9 @@ impl SwingRenderData {
                             .and_then(|skel| {
                                 skel.bones
                                     .iter()
-                                    .position(|b| b.name.eq_ignore_ascii_case(&s.bone_name))
+                                    .position(|b| {
+                                        prc::hash40::hash40(&b.name.to_lowercase()) == s.bonename
+                                    })
                                     .map(|i| i as i32)
                             })
                             .unwrap_or(-1); 4],

@@ -11,21 +11,20 @@ use wgpu::util::DeviceExt;
 
 pub use nutexb_wgpu::NutexbFile;
 
-mod pipeline;
-mod shader;
-mod texture;
-mod uniforms;
-mod vertex;
-
-// TODO: Should this just be it's own project to help with testing?
 pub mod animation;
 
 mod bone_rendering;
 mod lighting;
+mod pipeline;
 mod renderer;
 mod rendermesh;
+mod shader;
 mod shader_database;
+mod swing;
 mod swing_rendering;
+mod texture;
+mod uniforms;
+mod vertex;
 
 pub use crate::pipeline::PipelineData;
 pub use renderer::SsbhRenderer;
@@ -358,6 +357,7 @@ pub(crate) use assert_matrix_relative_eq;
 #[cfg(test)]
 pub(crate) use assert_vector_relative_eq;
 
+// TODO: These will be cleaner as extension traits.
 pub fn uniform_buffer_readonly<T: Pod>(
     device: &wgpu::Device,
     label: &str,
@@ -376,4 +376,8 @@ pub fn uniform_buffer<T: Pod>(device: &wgpu::Device, label: &str, data: &[T]) ->
         contents: bytemuck::cast_slice(data),
         usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
     })
+}
+
+pub fn write_buffer<D: Pod>(queue: &wgpu::Queue, buffer: &wgpu::Buffer, data: &[D]) {
+    queue.write_buffer(buffer, 0, bytemuck::cast_slice(data));
 }

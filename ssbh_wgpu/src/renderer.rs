@@ -8,7 +8,7 @@ use crate::{
     },
     swing_rendering::SwingRenderData,
     texture::{load_default_lut, uv_pattern, TextureSamplerView},
-    uniform_buffer, CameraTransforms, RenderModel, ShaderDatabase,
+    uniform_buffer, write_buffer, CameraTransforms, RenderModel, ShaderDatabase,
 };
 use glyph_brush::DefaultSectionHasher;
 use nutexb_wgpu::NutexbFile;
@@ -656,7 +656,7 @@ impl SsbhRenderer {
     // TODO: Document that anything that takes a device reference shouldn't be called each frame.
     /// Updates the camera transforms.
     pub fn update_camera(&mut self, queue: &wgpu::Queue, transforms: CameraTransforms) {
-        queue.write_buffer(&self.camera_buffer, 0, bytemuck::cast_slice(&[transforms]));
+        write_buffer(queue, &self.camera_buffer, &[transforms]);
     }
 
     /// Updates the render settings.
@@ -666,10 +666,10 @@ impl SsbhRenderer {
         render_settings: &RenderSettings,
     ) {
         self.render_settings = *render_settings;
-        queue.write_buffer(
+        write_buffer(
+            queue,
             &self.render_settings_buffer,
-            0,
-            bytemuck::cast_slice(&[crate::shader::model::RenderSettings::from(render_settings)]),
+            &[crate::shader::model::RenderSettings::from(render_settings)],
         );
     }
 
@@ -679,12 +679,12 @@ impl SsbhRenderer {
         queue: &wgpu::Queue,
         skinning_settings: &SkinningSettings,
     ) {
-        queue.write_buffer(
+        write_buffer(
+            queue,
             &self.skinning_settings_buffer,
-            0,
-            bytemuck::cast_slice(&[crate::shader::skinning::SkinningSettings::from(
+            &[crate::shader::skinning::SkinningSettings::from(
                 skinning_settings,
-            )]),
+            )],
         );
     }
 
@@ -693,27 +693,23 @@ impl SsbhRenderer {
         // TODO: How to animate using the current frame?
         let (stage_uniforms, light_transform) = anim_to_lights(data);
 
-        queue.write_buffer(
-            &self.stage_uniforms_buffer,
-            0,
-            bytemuck::cast_slice(&[stage_uniforms]),
-        );
+        write_buffer(queue, &self.stage_uniforms_buffer, &[stage_uniforms]);
 
-        queue.write_buffer(
+        write_buffer(
+            queue,
             &self.light_transform_buffer,
-            0,
-            bytemuck::cast_slice(&[crate::shader::model::LightTransforms {
+            &[crate::shader::model::LightTransforms {
                 light_transform: light_transform.to_cols_array_2d(),
-            }]),
+            }],
         );
     }
 
     /// Resets the stage uniforms and lighting to their default values.
     pub fn reset_stage_uniforms(&mut self, queue: &wgpu::Queue) {
-        queue.write_buffer(
+        write_buffer(
+            queue,
             &self.stage_uniforms_buffer,
-            0,
-            bytemuck::cast_slice(&[crate::shader::model::StageUniforms::training()]),
+            &[crate::shader::model::StageUniforms::training()],
         );
     }
 

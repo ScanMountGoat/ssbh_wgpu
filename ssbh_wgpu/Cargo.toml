@@ -18,6 +18,7 @@ log = "0.4.17"
 glyph_brush = "0.7.4" # TODO: avoid this dependency?
 arbitrary = { version = "1", optional = true, features = ["derive"] }
 image = "0.24.2"
+prc-rs = "1.5.2"
 
 [dev-dependencies]
 approx = "0.5.1"
