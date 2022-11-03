@@ -241,8 +241,8 @@ pub fn animate_skel<'a>(
             bone_inv_world[i] = bones[i].transform();
         }
     }
-    for i in 0..bones.len() {
-        bone_inv_world[i] = bone_inv_world[i].inverse();
+    for transform in &mut bone_inv_world {
+        *transform = transform.inverse();
     }
 
     for (i, bone) in bones.iter().enumerate() {
@@ -1039,6 +1039,8 @@ mod tests {
         transforms
     }
 
+    // TODO: test if the compensated scale is the scale that is inherited?
+    // This can be done by setting the final bone's scale to 1.0.
     #[test]
     fn apply_animation_bone_chain_inherit_scale_no_compensate_scale() {
         let transforms = animate_three_bone_chain(

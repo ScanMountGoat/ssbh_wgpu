@@ -12,7 +12,6 @@ use wgpu::util::DeviceExt;
 pub use nutexb_wgpu::NutexbFile;
 
 pub mod animation;
-
 mod bone_rendering;
 mod lighting;
 mod pipeline;
@@ -25,6 +24,7 @@ mod swing_rendering;
 mod texture;
 mod uniforms;
 mod vertex;
+pub mod viewport;
 
 pub use crate::pipeline::PipelineData;
 pub use renderer::SsbhRenderer;

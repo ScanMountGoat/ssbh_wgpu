@@ -4,6 +4,7 @@ use crate::{
     pipeline::{create_pipeline, PipelineKey},
     swing_rendering::SwingRenderData,
     vertex::MeshObjectBufferData,
+    viewport::world_to_screen,
     ModelFolder, QueueExt, ShaderDatabase, SharedRenderData,
 };
 use glam::Vec4Swizzles;
@@ -431,7 +432,8 @@ impl RenderModel {
     ) {
         // TODO: Bind group2 should be created for each shape?
         // TODO: Is it noticeably more efficient to batch shapes together?
-        if let Some(skel) = skel {
+        // TODO: Do we need the skel here?
+        if skel.is_some() {
             render_pass.set_pipeline(&self.swing_render_data.pipeline);
             render_pass.set_index_buffer(
                 self.swing_render_data.index_buffer.slice(..),
@@ -636,8 +638,10 @@ impl RenderModel {
                     .world_transforms
                     .get(i)
                     .unwrap_or(&glam::Mat4::IDENTITY);
+
+                let position = bone_world * glam::Vec4::new(0.0, 0.0, 0.0, 1.0);
                 let (position_x_screen, position_y_screen) =
-                    bone_screen_position(bone_world, mvp, width, height);
+                    world_to_screen(position.xyz(), mvp, width, height);
 
                 // Add a small offset to the bone position to reduce overlaps.
                 let section = Section::default()
@@ -704,22 +708,6 @@ impl RenderModel {
             }
         }
     }
-}
-
-fn bone_screen_position(
-    bone_world: glam::Mat4,
-    mvp: glam::Mat4,
-    width: u32,
-    height: u32,
-) -> (f32, f32) {
-    let position = (mvp * bone_world) * glam::Vec4::new(0.0, 0.0, 0.0, 1.0);
-    // Account for perspective correction.
-    let position_clip = position.xyz() / position.w;
-    // Convert from clip space [-1,1] to screen space [0,width] or [0,height].
-    // Flip y vertically to match wgpu conventions.
-    let position_x_screen = width as f32 * (position_clip.x * 0.5 + 0.5);
-    let position_y_screen = height as f32 * (1.0 - (position_clip.y * 0.5 + 0.5));
-    (position_x_screen, position_y_screen)
 }
 
 fn render_pass_index(tag: &str) -> isize {
