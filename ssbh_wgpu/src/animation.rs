@@ -30,7 +30,7 @@ pub struct AnimatedBone<'a> {
 }
 
 impl<'a> AnimatedBone<'a> {
-    fn animated_transform(&self, include_anim_scale: bool) -> glam::Mat4 {
+    fn animated_transform(&self, scale_compensation: glam::Vec3) -> glam::Mat4 {
         self.anim_transform
             .as_ref()
             .map(|t| {
@@ -60,7 +60,7 @@ impl<'a> AnimatedBone<'a> {
                     },
                 };
 
-                adjusted_transform.to_mat4(include_anim_scale)
+                adjusted_transform.to_mat4(scale_compensation)
             })
             .unwrap_or_else(|| glam::Mat4::from_cols_array_2d(&self.bone.transform))
     }
@@ -78,20 +78,13 @@ struct AnimTransform {
 }
 
 impl AnimTransform {
-    fn to_mat4(self, include_scale: bool) -> glam::Mat4 {
+    fn to_mat4(self, scale_compensation: glam::Vec3) -> glam::Mat4 {
         let translation = glam::Mat4::from_translation(self.translation);
-
         let rotation = glam::Mat4::from_quat(self.rotation);
-
-        let scale = if include_scale {
-            glam::Mat4::from_scale(self.scale)
-        } else {
-            glam::Mat4::IDENTITY
-        };
-
-        // The application order is scale -> rotation -> translation.
+        let scale = glam::Mat4::from_scale(self.scale);
+        // The application order is scale -> rotation -> compensation -> translation.
         // The order is reversed here since glam is column-major.
-        translation * rotation * scale
+        translation * glam::Mat4::from_scale(scale_compensation) * rotation * scale
     }
 
     fn from_bone(bone: &BoneData) -> Self {
@@ -112,6 +105,7 @@ pub struct AnimationTransforms {
     /// This is equal to `bone_world.inv() * animated_bone_world`.
     pub animated_world_transforms: AnimatedWorldTransforms,
     /// The world transform of each bone in the skeleton.
+    // TODO: This name is confusing since it's still animated rather than using the rest pose.
     pub world_transforms: [glam::Mat4; MAX_BONE_COUNT],
 }
 
@@ -264,37 +258,41 @@ fn calculate_world_transform(
     if let Some(parent_index) = bone.bone.parent_index {
         // TODO: Avoid potential indexing panics.
         let parent_transform = result.world_transforms[parent_index];
-        // TODO: Test for inheritance being set.
-        // TODO: What happens if compensate_scale is true and inherit_scale is false?
-        // TODO: Should we always include the current bone's scale?
-        let mut current_transform = bone.animated_transform(true);
 
         // TODO: How to handle !inherit_scale && !compensate_scale?
         // TODO: Double check ScaleType for CompressionFlags.
         // The current implementation doesn't need to check inheritance, which seems odd.
-        if bone.compensate_scale {
+        let scale_compensation = if bone.compensate_scale {
             // Compensate scale uses the parent's non accumulated scale.
-            // TODO: Does this also compensate the parent's skel scale?
-            let immediate_parent = bones[parent_index].animated_transform(true);
-            current_transform = compensate_scale(current_transform, immediate_parent);
-        }
+            // TODO: How to handle the case where the parent isn't animated?
+            let parent_scale = bones[parent_index]
+                .anim_transform
+                .map(|t| t.scale)
+                .unwrap_or(glam::Vec3::ONE);
+            1.0 / parent_scale
+        } else {
+            glam::Vec3::ONE
+        };
 
+        let current_transform = bone.animated_transform(scale_compensation);
         parent_transform * current_transform
     } else {
         // TODO: Should we always include the current bone's scale?
-        bone.animated_transform(true)
+        bone.animated_transform(glam::Vec3::ONE)
     }
 }
 
 // TODO: Eliminate this function since it is redundant with above.
 // TODO: Move matrix utilities to a separate module?
+// TODO: This doesn't handle scale compensation accurately.
+// TODO: Improve testing of scaling for multiple bones.
 fn world_transform(
     bones: &mut [AnimatedBone],
     bone_index: usize,
 ) -> Result<glam::Mat4, BoneTransformError> {
     // TODO: Should we always include the root bone's scale?
     let mut current = &bones[bone_index];
-    let mut transform = current.animated_transform(true);
+    let mut transform = current.animated_transform(glam::Vec3::ONE);
 
     let mut inherit_scale = current.inherit_scale;
 
@@ -320,11 +318,11 @@ fn world_transform(
             match parent.anim_world_transform {
                 // Use an already calculated animated world transform.
                 Some(parent_anim_world) => {
-                    if current.compensate_scale {
-                        // compensate_scale only compensates for the immediate parent's scale.
-                        let parent_transform = parent.animated_transform(inherit_scale);
-                        transform = compensate_scale(transform, parent_transform);
-                    }
+                    // let scale_compensation = if current.compensate_scale {
+                    //     parent.anim_transform.map(|t| t.scale).unwrap_or(glam::Vec3::ONE)
+                    // } else {
+                    //     glam::Vec3::ONE
+                    // };
 
                     transform = parent_anim_world * transform;
                     break;
@@ -332,7 +330,7 @@ fn world_transform(
                 // Fall back to accumulating transforms up the chain.
                 _ => {
                     // TODO: Does scale compensation take into account scaling in the skeleton?
-                    let parent_transform = parent.animated_transform(inherit_scale);
+                    let parent_transform = parent.animated_transform(glam::Vec3::ONE);
                     // Compensate scale only takes into account the immediate parent.
                     // TODO: Test for inheritance being set.
                     // TODO: What happens if compensate_scale is true and inherit_scale is false?
@@ -366,7 +364,7 @@ fn compensate_scale(transform: glam::Mat4, parent_transform: glam::Mat4) -> glam
     let (parent_scale, _, _) = parent_transform.to_scale_rotation_translation();
     let scale_compensation = glam::Mat4::from_scale(1.0 / parent_scale);
     // TODO: Make the tests more specific to account for this application order?
-    scale_compensation * transform
+    transform * scale_compensation
 }
 
 fn apply_transforms<'a>(
@@ -568,6 +566,25 @@ mod tests {
             parent_index,
             billboard_type: BillboardType::Disabled,
         }
+    }
+
+    #[test]
+    fn anim_transform_to_mat4_compensation() {
+        assert_matrix_relative_eq!(
+            [
+                [0.55, 0.0, 0.0, 0.0],
+                [0.0, 1.7881394e-8, 0.59999996, 0.0],
+                [0.0, -0.32499996, 3.8743018e-8, 0.0],
+                [1.0, 2.0, 3.0, 1.0]
+            ],
+            AnimTransform {
+                translation: glam::Vec3::new(1.0, 2.0, 3.0),
+                rotation: glam::Quat::from_rotation_x(90.0f32.to_radians()),
+                scale: glam::Vec3::new(1.1, 1.2, 1.3),
+            }
+            .to_mat4(glam::Vec3::new(0.5, 0.25, 0.5))
+            .to_cols_array_2d()
+        );
     }
 
     #[test]

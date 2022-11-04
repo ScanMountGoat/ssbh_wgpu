@@ -118,7 +118,7 @@ fn apply_orient_constraint(
     let (source_rot_z, source_rot_y, source_rot_x) = (source_r).to_euler(glam::EulerRot::ZYX);
 
     // Leave the target transform as is since it's already relative to the target parent.
-    let target_transform = target.animated_transform(true);
+    let target_transform = target.animated_transform(glam::Vec3::ONE);
     let (_, target_r, _) = (target_transform).to_scale_rotation_translation();
 
     let (target_rot_z, target_rot_y, target_rot_x) = target_r.to_euler(glam::EulerRot::ZYX);
