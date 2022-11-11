@@ -87,12 +87,12 @@ impl<'a> RenderMeshSharedData<'a> {
             &animation_transforms.world_transforms,
         );
 
-        // TODO: Initialize this from the swing.prc.
+        // TODO: Where to load the swing.prc file?
         let mut reader = std::io::Cursor::new(std::fs::read("swing.prc").unwrap());
-        let prc = crate::swing::SwingPrc::read_file(&mut reader).unwrap();
+        let swing_prc = crate::swing::SwingPrc::read_file(&mut reader).unwrap();
 
         let swing_render_data =
-            SwingRenderData::new(device, &world_transforms, &prc.spheres, self.skel);
+            SwingRenderData::new(device, &world_transforms, &swing_prc, self.skel);
 
         // TODO: Clean this up.
         let bone_colors = bone_colors_buffer(device, self.skel, self.hlpb);

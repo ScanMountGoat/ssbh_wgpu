@@ -1,7 +1,7 @@
 use ssbh_data::skel_data::SkelData;
 use wgpu::util::DeviceExt;
 
-use crate::{swing::Sphere, DeviceExt2};
+use crate::{swing::SwingPrc, DeviceExt2};
 
 // TODO: Create a separate structs for the shared and non shared data.
 pub struct SwingRenderData {
@@ -13,11 +13,13 @@ pub struct SwingRenderData {
     pub spheres: Vec<crate::shader::swing::bind_groups::BindGroup2>,
 }
 
+// TODO: Add rendering for other types.
+
 impl SwingRenderData {
     pub fn new(
         device: &wgpu::Device,
         bone_world_transforms: &wgpu::Buffer,
-        spheres: &[Sphere],
+        swing_prc: &SwingPrc,
         skel: Option<&SkelData>,
     ) -> Self {
         // TODO: Share shape drawing code with skeleton rendering?
@@ -84,7 +86,8 @@ impl SwingRenderData {
             },
         );
 
-        let spheres = spheres
+        let spheres = swing_prc
+            .spheres
             .iter()
             .map(|s| {
                 let buffer2 = device.create_uniform_buffer(

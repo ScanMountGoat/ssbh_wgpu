@@ -4,6 +4,10 @@ use prc::{hash40::Hash40, Prc};
 pub struct SwingPrc {
     pub swingbones: Vec<SwingBone>,
     pub spheres: Vec<Sphere>,
+    pub ovals: Vec<Oval>,
+    pub ellipsoids: Vec<Ellipsoid>,
+    pub capsules: Vec<Capsule>,
+    pub planes: Vec<Plane>,
 }
 
 #[derive(Debug, Prc)]
@@ -20,7 +24,6 @@ pub struct SwingBone {
 }
 
 #[derive(Debug, Prc)]
-
 pub struct Param {
     pub airresistance: f32,
     pub waterresistance: f32,
@@ -49,6 +52,60 @@ pub struct Sphere {
     pub cy: f32,
     pub cz: f32,
     pub radius: f32,
+}
+
+#[derive(Debug, Prc)]
+pub struct Oval {
+    pub name: Hash40,
+    pub start_bonename: Hash40,
+    pub bonename: Hash40,
+    pub radius: f32,
+    pub start_offset_x: f32,
+    pub start_offset_y: f32,
+    pub start_offset_z: f32,
+    pub end_offset_x: f32,
+    pub end_offset_y: f32,
+    pub end_offset_z: f32,
+}
+
+#[derive(Debug, Prc)]
+pub struct Ellipsoid {
+    pub name: Hash40,
+    pub bonename: Hash40,
+    pub cx: f32,
+    pub cy: f32,
+    pub cz: f32,
+    pub rx: f32,
+    pub ry: f32,
+    pub rz: f32,
+    pub sx: f32,
+    pub sy: f32,
+    pub sz: f32,
+}
+
+#[derive(Debug, Prc)]
+pub struct Capsule {
+    pub name: Hash40,
+    pub start_bonename: Hash40,
+    pub end_bonename: Hash40,
+    pub start_offset_x: f32,
+    pub start_offset_y: f32,
+    pub start_offset_z: f32,
+    pub end_offset_x: f32,
+    pub end_offset_y: f32,
+    pub end_offset_z: f32,
+    pub start_radius: f32,
+    pub end_radius: f32,
+}
+
+#[derive(Debug, Prc)]
+pub struct Plane {
+    pub name: Hash40,
+    pub bonename: Hash40,
+    pub nx: f32,
+    pub ny: f32,
+    pub nz: f32,
+    pub distance: f32,
 }
 
 // TODO: Get data from swing.prc.
