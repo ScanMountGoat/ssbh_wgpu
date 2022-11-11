@@ -2,12 +2,13 @@ use ssbh_data::{
     anim_data::{GroupType, TrackValues, TransformFlags},
     matl_data::MatlEntryData,
     prelude::*,
-    skel_data::{BoneData, BoneTransformError},
+    skel_data::BoneData,
     Vector3, Vector4,
 };
 
 use crate::{shader::skinning::AnimatedWorldTransforms, RenderMesh};
-use constraints::apply_hlpb_constraints;
+
+use self::constraints::{apply_aim_constraint, apply_orient_constraint};
 
 mod constraints;
 
@@ -16,17 +17,12 @@ pub const MAX_BONE_COUNT: usize = 512;
 
 // Animation process is Skel, Anim -> Vec<AnimatedBone> -> [Mat4; 512], [Mat4; 512] -> Buffers.
 // Evaluate the "tree" of Vec<AnimatedBone> to compute the final world transforms.
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct AnimatedBone<'a> {
     bone: &'a BoneData,
     anim_transform: Option<AnimTransform>,
     compensate_scale: bool,
-    inherit_scale: bool,
     flags: TransformFlags,
-    // TODO: Refactor constraints to avoid needing to cache this value.
-    // Record the world transform to avoid duplicate work.
-    // In the ideal case, calculating all world transforms is O(N) instead of O(N^2).
-    anim_world_transform: Option<glam::Mat4>,
 }
 
 impl<'a> AnimatedBone<'a> {
@@ -86,21 +82,10 @@ impl AnimTransform {
         // The order is reversed here since glam is column-major.
         translation * glam::Mat4::from_scale(scale_compensation) * rotation * scale
     }
-
-    fn from_bone(bone: &BoneData) -> Self {
-        let matrix = glam::Mat4::from_cols_array_2d(&bone.transform);
-        let (s, r, t) = matrix.to_scale_rotation_translation();
-
-        Self {
-            translation: t,
-            rotation: r,
-            scale: s,
-        }
-    }
 }
 
 pub struct AnimationTransforms {
-    // Box large arrays to avoid stack overflows in debug mode.
+    // TODO: Use a better name to indicate that this is relative to the resting pose.
     /// The animated world transform of each bone relative to its resting pose.
     /// This is equal to `bone_world.inv() * animated_bone_world`.
     pub animated_world_transforms: AnimatedWorldTransforms,
@@ -192,17 +177,22 @@ pub fn animate_skel<'a>(
     let mut bones: Vec<_> = skel
         .bones
         .iter()
+        .enumerate()
         .take(MAX_BONE_COUNT)
-        .map(|b| AnimatedBone {
-            bone: b,
-            compensate_scale: false,
-            inherit_scale: true,
-            anim_transform: None,
-            flags: TransformFlags::default(),
-            anim_world_transform: None,
+        .map(|(i, b)| {
+            (
+                i,
+                AnimatedBone {
+                    bone: b,
+                    compensate_scale: false,
+                    anim_transform: None,
+                    flags: TransformFlags::default(),
+                },
+            )
         })
         .collect();
 
+    // TODO: Is it faster to use a separate array for animation info?
     for anim in anims {
         // Assume final_frame_index is set to the length of the longest track.
         // Check for 0 length animations to avoid a potential NaN.
@@ -214,13 +204,40 @@ pub fn animate_skel<'a>(
         apply_transforms(&mut bones, anim, current_frame);
     }
 
-    // Constraining a bone affects the world transforms of its children.
-    // This step should initialize most of the anim world transforms if everything works.
-    // TODO: Does the order of constraints here affect the world transforms?
-    // TODO: Just assign constraints to each animated bone and evaluate them in the final loop?
-    // This would prevent needing to call world_transform again since we assume proper bone ordering.
-    if let Some(hlpb) = hlpb {
-        apply_hlpb_constraints(&mut bones, hlpb);
+    animate_skel_inner(result, &mut bones, &skel.bones, hlpb);
+}
+
+pub fn animate_skel_inner<'a>(
+    result: &mut AnimationTransforms,
+    bones: &mut Vec<(usize, AnimatedBone)>,
+    skel_bones: &[BoneData],
+    hlpb: Option<&HlpbData>,
+) {
+    // TODO: Add tests for evaluation order.
+    // The parent-child relationship determines the evaluation order.
+    // The order is partial since only a parent and child bone are comparable.
+    // We need a topological sort instead of a regular sort to enforce these dependencies.
+    // TODO: Is there a cleaner way of doing this?
+    // TODO: What is the performance impact of this?
+    let mut topo_sort = topological_sort::TopologicalSort::<usize>::new();
+    let mut evaluation_order = Vec::new();
+    for (i, bone) in bones.iter() {
+        if let Some(p) = bone.bone.parent_index {
+            topo_sort.add_dependency(p, *i);
+        } else {
+            // Root bones won't be part of the dependency graph.
+            // Add them manually to ensure all bones get evaluated.
+            evaluation_order.push(*i);
+        }
+    }
+    // TODO: Cycle checking?
+    loop {
+        let parts = topo_sort.pop_all();
+        if parts.is_empty() {
+            break;
+        }
+
+        evaluation_order.extend(parts);
     }
 
     // Assume parents always appear before their children.
@@ -228,20 +245,43 @@ pub fn animate_skel<'a>(
     // TODO: Can this be safely combined with the loop below?
     // TODO: Limit the amount of stack space this function needs.
     let mut bone_inv_world = [glam::Mat4::IDENTITY; MAX_BONE_COUNT];
-    for i in 0..bones.len() {
-        if let Some(parent_index) = bones[i].bone.parent_index {
-            bone_inv_world[i] = bone_inv_world[parent_index] * bones[i].transform();
+    for i in &evaluation_order {
+        let bone = &bones[*i];
+        if let Some(parent_index) = bone.1.bone.parent_index {
+            bone_inv_world[bone.0] = bone_inv_world[parent_index] * bone.1.transform();
         } else {
-            bone_inv_world[i] = bones[i].transform();
+            bone_inv_world[bone.0] = bone.1.transform();
         }
     }
     for transform in &mut bone_inv_world {
         *transform = transform.inverse();
     }
 
-    for (i, bone) in bones.iter().enumerate() {
-        result.world_transforms[i] = calculate_world_transform(&bones, bone, result);
+    // Evaluate the world transforms first without constraints.
+    // This solves some issues where the constraint source bone hasn't been evaluated yet.
+    // TODO: Do constraints impact the evaluation order in game?
+    // TODO: How to handle cyclic dependencies due to constraining bones to each other?
+    for i in &evaluation_order {
+        let bone = &bones[*i];
+        let (parent_world, current) = calculate_world_transform(&bones, &bone.1, result);
+        result.world_transforms[bone.0] = parent_world * current;
+    }
 
+    for i in &evaluation_order {
+        let bone = &bones[*i];
+        let (parent_world, mut current) = calculate_world_transform(&bones, &bone.1, result);
+
+        if let Some(hlpb) = hlpb {
+            apply_constraints(&mut current, hlpb, bone, result, skel_bones);
+        }
+
+        result.world_transforms[bone.0] = parent_world * current;
+    }
+
+    // TODO: Does constraining a bone affects the world transforms of its children?
+    // TODO: Can we apply constraints after world transforms and avoid updating affected children?
+    // TODO: How does the game handle circular dependencies from hlpb constraints?
+    for i in (0..bones.len()).take(MAX_BONE_COUNT) {
         let anim_transform = result.world_transforms[i] * bone_inv_world[i];
 
         result.animated_world_transforms.transforms[i] = anim_transform.to_cols_array_2d();
@@ -250,11 +290,42 @@ pub fn animate_skel<'a>(
     }
 }
 
+fn apply_constraints(
+    current: &mut glam::Mat4,
+    hlpb: &HlpbData,
+    bone: &(usize, AnimatedBone),
+    result: &AnimationTransforms,
+    bones: &[BoneData],
+) {
+    if let Some(constraint) = hlpb
+        .orient_constraints
+        .iter()
+        .find(|o| o.target_bone_name == bone.1.bone.name)
+    {
+        if let Some(new_current) =
+            apply_orient_constraint(&result.world_transforms, bones, constraint, *current)
+        {
+            *current = new_current;
+        }
+    }
+    if let Some(constraint) = hlpb
+        .aim_constraints
+        .iter()
+        .find(|a| a.target_bone_name1 == bone.1.bone.name)
+    {
+        if let Some(new_current) =
+            apply_aim_constraint(&result.world_transforms, bones, constraint, *current)
+        {
+            *current = new_current;
+        }
+    }
+}
+
 fn calculate_world_transform(
-    bones: &[AnimatedBone],
+    bones: &[(usize, AnimatedBone)],
     bone: &AnimatedBone,
     result: &AnimationTransforms,
-) -> glam::Mat4 {
+) -> (glam::Mat4, glam::Mat4) {
     if let Some(parent_index) = bone.bone.parent_index {
         // TODO: Avoid potential indexing panics.
         let parent_transform = result.world_transforms[parent_index];
@@ -266,6 +337,7 @@ fn calculate_world_transform(
             // Compensate scale uses the parent's non accumulated scale.
             // TODO: How to handle the case where the parent isn't animated?
             let parent_scale = bones[parent_index]
+                .1
                 .anim_transform
                 .map(|t| t.scale)
                 .unwrap_or(glam::Vec3::ONE);
@@ -275,100 +347,17 @@ fn calculate_world_transform(
         };
 
         let current_transform = bone.animated_transform(scale_compensation);
-        parent_transform * current_transform
+        (parent_transform, current_transform)
     } else {
-        // TODO: Should we always include the current bone's scale?
-        bone.animated_transform(glam::Vec3::ONE)
+        (
+            glam::Mat4::IDENTITY,
+            bone.animated_transform(glam::Vec3::ONE),
+        )
     }
-}
-
-// TODO: Eliminate this function since it is redundant with above.
-// TODO: Move matrix utilities to a separate module?
-// TODO: This doesn't handle scale compensation accurately.
-// TODO: Improve testing of scaling for multiple bones.
-fn world_transform(
-    bones: &mut [AnimatedBone],
-    bone_index: usize,
-) -> Result<glam::Mat4, BoneTransformError> {
-    // TODO: Should we always include the root bone's scale?
-    let mut current = &bones[bone_index];
-    let mut transform = current.animated_transform(glam::Vec3::ONE);
-
-    let mut inherit_scale = current.inherit_scale;
-
-    // Check for cycles by keeping track of previously visited locations.
-    let mut visited = [false; MAX_BONE_COUNT];
-
-    // TODO: Avoid setting a bone's world transform more than once?
-
-    // Accumulate transforms by travelling up the bone heirarchy.
-    while let Some(parent_index) = current.bone.parent_index {
-        // TODO: Validate the skel once for cycles to make this step faster?
-        if let Some(visited) = visited.get_mut(parent_index) {
-            if *visited {
-                return Err(BoneTransformError::CycleDetected {
-                    index: parent_index,
-                });
-            }
-
-            *visited = true;
-        }
-
-        if let Some(parent) = bones.get(parent_index) {
-            match parent.anim_world_transform {
-                // Use an already calculated animated world transform.
-                Some(parent_anim_world) => {
-                    // let scale_compensation = if current.compensate_scale {
-                    //     parent.anim_transform.map(|t| t.scale).unwrap_or(glam::Vec3::ONE)
-                    // } else {
-                    //     glam::Vec3::ONE
-                    // };
-
-                    transform = parent_anim_world * transform;
-                    break;
-                }
-                // Fall back to accumulating transforms up the chain.
-                _ => {
-                    // TODO: Does scale compensation take into account scaling in the skeleton?
-                    let parent_transform = parent.animated_transform(glam::Vec3::ONE);
-                    // Compensate scale only takes into account the immediate parent.
-                    // TODO: Test for inheritance being set.
-                    // TODO: What happens if compensate_scale is true and inherit_scale is false?
-                    // Only apply scale compensation if the anim is included.
-                    if current.compensate_scale {
-                        // TODO: Does this also compensate the parent's skel scale?
-                        transform = compensate_scale(transform, parent_transform);
-                    }
-
-                    // TODO: Create more three bone tests to check how inheritance works.
-                    // ex: inherit -> no inherit -> inherit, compensate -> no compensate -> compensate, etc.
-                    transform = parent_transform * transform;
-                    current = parent;
-                    // Disabling scale inheritance propogates up the bone chain.
-                    inherit_scale &= parent.inherit_scale;
-                }
-            }
-        } else {
-            // Stop after reaching a root bone with no parent.
-            break;
-        }
-    }
-
-    // Cache the transforms to improve performance.
-    bones[bone_index].anim_world_transform = Some(transform);
-    Ok(transform)
-}
-
-fn compensate_scale(transform: glam::Mat4, parent_transform: glam::Mat4) -> glam::Mat4 {
-    // TODO: Optimize this?
-    let (parent_scale, _, _) = parent_transform.to_scale_rotation_translation();
-    let scale_compensation = glam::Mat4::from_scale(1.0 / parent_scale);
-    // TODO: Make the tests more specific to account for this application order?
-    transform * scale_compensation
 }
 
 fn apply_transforms<'a>(
-    bones: &mut [AnimatedBone],
+    bones: &mut [(usize, AnimatedBone)],
     anim: &AnimData,
     frame: f32,
 ) -> Option<AnimatedBone<'a>> {
@@ -376,7 +365,7 @@ fn apply_transforms<'a>(
         if group.group_type == GroupType::Transform {
             for node in &group.nodes {
                 // TODO: Multiple nodes with the bone's name?
-                if let Some(bone) = bones.iter_mut().find(|b| b.bone.name == node.name) {
+                if let Some((_, bone)) = bones.iter_mut().find(|(_, b)| b.bone.name == node.name) {
                     // TODO: Multiple transform tracks per bone?
                     if let Some(track) = node.tracks.first() {
                         if let TrackValues::Transform(values) = &track.values {
@@ -523,9 +512,7 @@ fn create_animated_bone<'a>(
             scale: interp_vec3(&current.scale, &next.scale, factor),
         }),
         compensate_scale: track.scale_options.compensate_scale,
-        inherit_scale: track.scale_options.inherit_scale,
         flags: track.transform_flags,
-        anim_world_transform: None,
     }
 }
 
@@ -901,7 +888,6 @@ mod tests {
                             tracks: vec![TrackData {
                                 name: "Transform".to_string(),
                                 scale_options: ScaleOptions {
-                                    inherit_scale: true,
                                     compensate_scale: false,
                                 },
                                 values: TrackValues::Transform(vec![Transform {
@@ -918,7 +904,6 @@ mod tests {
                                 name: "Transform".to_string(),
                                 // TODO: This acts just like scale inheritance?
                                 scale_options: ScaleOptions {
-                                    inherit_scale: false,
                                     compensate_scale: false,
                                 },
                                 values: TrackValues::Transform(vec![Transform {
@@ -934,7 +919,6 @@ mod tests {
                             tracks: vec![TrackData {
                                 name: "Transform".to_string(),
                                 scale_options: ScaleOptions {
-                                    inherit_scale: true,
                                     compensate_scale: false,
                                 },
                                 values: TrackValues::Transform(vec![Transform {
@@ -1064,15 +1048,12 @@ mod tests {
             [1.0, 2.0, 3.0],
             [
                 ScaleOptions {
-                    inherit_scale: true,
                     compensate_scale: false,
                 },
                 ScaleOptions {
-                    inherit_scale: true,
                     compensate_scale: false,
                 },
                 ScaleOptions {
-                    inherit_scale: true,
                     compensate_scale: false,
                 },
             ],
@@ -1113,15 +1094,12 @@ mod tests {
             [1.0, 2.0, 3.0],
             [
                 ScaleOptions {
-                    inherit_scale: true,
                     compensate_scale: false,
                 },
                 ScaleOptions {
-                    inherit_scale: true,
                     compensate_scale: false,
                 },
                 ScaleOptions {
-                    inherit_scale: true,
                     compensate_scale: true,
                 },
             ],
@@ -1162,15 +1140,12 @@ mod tests {
             [1.0, 2.0, 3.0],
             [
                 ScaleOptions {
-                    inherit_scale: true,
                     compensate_scale: false,
                 },
                 ScaleOptions {
-                    inherit_scale: true,
                     compensate_scale: false,
                 },
                 ScaleOptions {
-                    inherit_scale: false,
                     compensate_scale: false,
                 },
             ],
@@ -1211,15 +1186,12 @@ mod tests {
             [1.0, 2.0, 3.0],
             [
                 ScaleOptions {
-                    inherit_scale: true,
                     compensate_scale: false,
                 },
                 ScaleOptions {
-                    inherit_scale: true,
                     compensate_scale: false,
                 },
                 ScaleOptions {
-                    inherit_scale: false,
                     compensate_scale: true,
                 },
             ],
@@ -1283,7 +1255,6 @@ mod tests {
                             tracks: vec![TrackData {
                                 name: "Transform".to_string(),
                                 scale_options: ScaleOptions {
-                                    inherit_scale: true,
                                     compensate_scale: false,
                                 },
                                 values: TrackValues::Transform(vec![Transform {
@@ -1303,7 +1274,6 @@ mod tests {
                             tracks: vec![TrackData {
                                 name: "Transform".to_string(),
                                 scale_options: ScaleOptions {
-                                    inherit_scale: true,
                                     compensate_scale: false,
                                 },
                                 values: TrackValues::Transform(vec![Transform {
@@ -1323,7 +1293,6 @@ mod tests {
                             tracks: vec![TrackData {
                                 name: "Transform".to_string(),
                                 scale_options: ScaleOptions {
-                                    inherit_scale: true,
                                     compensate_scale: false,
                                 },
                                 values: TrackValues::Transform(vec![Transform {
@@ -1417,7 +1386,6 @@ mod tests {
                             tracks: vec![TrackData {
                                 name: "Transform".to_string(),
                                 scale_options: ScaleOptions {
-                                    inherit_scale: true,
                                     compensate_scale: true,
                                 },
                                 values: TrackValues::Transform(vec![Transform {
@@ -1435,7 +1403,6 @@ mod tests {
                             tracks: vec![TrackData {
                                 name: "Transform".to_string(),
                                 scale_options: ScaleOptions {
-                                    inherit_scale: true,
                                     compensate_scale: true,
                                 },
                                 values: TrackValues::Transform(vec![Transform {
@@ -1453,7 +1420,6 @@ mod tests {
                             tracks: vec![TrackData {
                                 name: "Transform".to_string(),
                                 scale_options: ScaleOptions {
-                                    inherit_scale: true,
                                     compensate_scale: true,
                                 },
                                 values: TrackValues::Transform(vec![Transform {
@@ -1471,7 +1437,6 @@ mod tests {
                             tracks: vec![TrackData {
                                 name: "Transform".to_string(),
                                 scale_options: ScaleOptions {
-                                    inherit_scale: true,
                                     compensate_scale: true,
                                 },
                                 values: TrackValues::Transform(vec![Transform {
