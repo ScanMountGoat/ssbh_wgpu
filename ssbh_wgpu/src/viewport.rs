@@ -2,12 +2,7 @@ use glam::Vec4Swizzles;
 
 // TODO: Document what the input and output value ranges should be.
 // TODO: Add tests.
-pub fn world_to_screen(
-    point: glam::Vec3,
-    mvp: glam::Mat4,
-    width: u32,
-    height: u32,
-) -> (f32, f32) {
+pub fn world_to_screen(point: glam::Vec3, mvp: glam::Mat4, width: u32, height: u32) -> (f32, f32) {
     let position = (mvp) * glam::Vec4::new(point.x, point.y, point.z, 1.0);
     // Account for perspective correction.
     let position_clip = position.xyz() / position.w;

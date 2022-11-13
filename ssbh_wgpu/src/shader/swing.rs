@@ -25,10 +25,11 @@ pub struct WorldTransforms {
 }
 #[repr(C)]
 #[derive(Debug, Copy, Clone, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
-pub struct PerBone {
-    pub bone_index: [i32; 4],
-    pub center: [f32; 4],
-    pub radius: [f32; 4],
+pub struct PerShape {
+    pub bone_indices: [i32; 4],
+    pub start_transform: [[f32; 4]; 4],
+    pub end_transform: [[f32; 4]; 4],
+    pub color: [f32; 4],
 }
 pub mod bind_groups {
     pub struct BindGroup0(wgpu::BindGroup);
@@ -123,7 +124,7 @@ pub mod bind_groups {
     }
     pub struct BindGroup2(wgpu::BindGroup);
     pub struct BindGroupLayout2<'a> {
-        pub per_bone: wgpu::BufferBinding<'a>,
+        pub per_shape: wgpu::BufferBinding<'a>,
     }
     const LAYOUT_DESCRIPTOR2: wgpu::BindGroupLayoutDescriptor = wgpu::BindGroupLayoutDescriptor {
         label: None,
@@ -153,7 +154,7 @@ pub mod bind_groups {
                         entries: &[
                             wgpu::BindGroupEntry {
                                 binding: 0,
-                                resource: wgpu::BindingResource::Buffer(bindings.per_bone),
+                                resource: wgpu::BindingResource::Buffer(bindings.per_shape),
                             },
                         ],
                         label: None,

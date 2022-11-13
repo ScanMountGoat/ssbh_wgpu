@@ -2,6 +2,7 @@ use crate::{
     animation::AnimationTransforms,
     bone_rendering::*,
     pipeline::{create_pipeline, PipelineKey},
+    swing::SwingPrc,
     swing_rendering::SwingRenderData,
     uniforms::{create_material_uniforms_bind_group, create_uniforms, create_uniforms_buffer},
     vertex::{buffer0, buffer1, mesh_object_buffers, skin_weights, MeshObjectBufferData},
@@ -9,7 +10,6 @@ use crate::{
 };
 use log::{error, info};
 use nutexb_wgpu::NutexbFile;
-use prc::Prc;
 use ssbh_data::{
     adj_data::AdjEntryData, matl_data::MatlEntryData, mesh_data::MeshObjectData,
     meshex_data::EntryFlags, prelude::*,
@@ -60,6 +60,7 @@ pub struct RenderMeshSharedData<'a> {
     pub adj: Option<&'a AdjData>,
     pub hlpb: Option<&'a HlpbData>,
     pub nutexbs: &'a ModelFiles<NutexbFile>,
+    pub swing_prc: Option<&'a SwingPrc>,
 }
 
 impl<'a> RenderMeshSharedData<'a> {
@@ -87,12 +88,8 @@ impl<'a> RenderMeshSharedData<'a> {
             &animation_transforms.world_transforms,
         );
 
-        // TODO: Where to load the swing.prc file?
-        let mut reader = std::io::Cursor::new(std::fs::read("swing.prc").unwrap());
-        let swing_prc = crate::swing::SwingPrc::read_file(&mut reader).unwrap();
-
         let swing_render_data =
-            SwingRenderData::new(device, &world_transforms, &swing_prc, self.skel);
+            SwingRenderData::new(device, &world_transforms, self.swing_prc, self.skel);
 
         // TODO: Clean this up.
         let bone_colors = bone_colors_buffer(device, self.skel, self.hlpb);

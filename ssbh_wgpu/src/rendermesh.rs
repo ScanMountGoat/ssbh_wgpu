@@ -12,6 +12,7 @@ use log::debug;
 use mesh_creation::{
     create_material_data, MaterialData, MeshBufferAccess, MeshBuffers, RenderMeshSharedData,
 };
+use prc::Prc;
 use ssbh_data::{matl_data::MatlEntryData, meshex_data::EntryFlags, prelude::*};
 use std::collections::HashMap;
 use wgpu_text::{
@@ -90,7 +91,7 @@ impl RenderModel {
         device: &wgpu::Device,
         queue: &wgpu::Queue,
         model: &ModelFolder,
-        shared_render_data: &SharedRenderData,
+        shared_data: &SharedRenderData,
     ) -> Self {
         // TODO: Should this use the file names in the modl itself?
         // TODO: Avoid creating the render model if there is no mesh?
@@ -107,7 +108,9 @@ impl RenderModel {
                 .iter()
                 .find(|(f, _)| f == "model.nuhlpb")
                 .and_then(|(_, m)| m.as_ref().ok()),
-            shared_data: shared_render_data,
+
+            shared_data,
+            swing_prc: None,
         };
 
         shared_data.to_render_model(device, queue)
@@ -448,7 +451,7 @@ impl RenderModel {
             // prc -> swing shapes -> bind groups and buffers -> drawing
 
             // TODO: Not all bind groups need to be set more than once.
-            for bind_group2 in &self.swing_render_data.spheres {
+            for bind_group2 in &self.swing_render_data.shapes {
                 crate::shader::swing::bind_groups::set_bind_groups(
                     render_pass,
                     crate::shader::swing::bind_groups::BindGroups::<'a> {

@@ -844,9 +844,9 @@ impl SsbhRenderer {
         let mut render_pass = self.overlay_pass(encoder, output_view);
 
         // TODO: Dedicated swing module.
-        // for (model, skel) in render_models.iter().zip(skels) {
-        //     model.draw_swing(&mut render_pass, skel, &self.swing_camera_bind_group);
-        // }
+        for (model, skel) in render_models.iter().zip(skels) {
+            model.draw_swing(&mut render_pass, skel, &self.swing_camera_bind_group);
+        }
 
         render_pass
     }

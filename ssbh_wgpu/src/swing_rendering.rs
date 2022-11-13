@@ -1,3 +1,4 @@
+use prc::hash40::Hash40;
 use ssbh_data::skel_data::SkelData;
 use wgpu::util::DeviceExt;
 
@@ -9,8 +10,9 @@ pub struct SwingRenderData {
     pub vertex_buffer: wgpu::Buffer,
     pub index_buffer: wgpu::Buffer,
     pub bind_group1: crate::shader::swing::bind_groups::BindGroup1,
-    // TODO: How much of the rendering code can be shared between shape types?
-    pub spheres: Vec<crate::shader::swing::bind_groups::BindGroup2>,
+    // TODO: How to select the buffer type for each shape?
+    // TODO: Make this Vec<(ShapeType, BindGroup2)> so we can swap buffers for rendering?
+    pub shapes: Vec<crate::shader::swing::bind_groups::BindGroup2>,
 }
 
 // TODO: Add rendering for other types.
@@ -19,7 +21,7 @@ impl SwingRenderData {
     pub fn new(
         device: &wgpu::Device,
         bone_world_transforms: &wgpu::Buffer,
-        swing_prc: &SwingPrc,
+        swing_prc: Option<&SwingPrc>,
         skel: Option<&SkelData>,
     ) -> Self {
         // TODO: Share shape drawing code with skeleton rendering?
@@ -86,43 +88,111 @@ impl SwingRenderData {
             },
         );
 
-        let spheres = swing_prc
-            .spheres
-            .iter()
-            .map(|s| {
-                let buffer2 = device.create_uniform_buffer(
-                    "Swing Buffer2",
-                    &[crate::shader::swing::PerBone {
-                        bone_index: [skel
-                            .and_then(|skel| {
-                                skel.bones
-                                    .iter()
-                                    .position(|b| {
-                                        prc::hash40::hash40(&b.name.to_lowercase()) == s.bonename
-                                    })
-                                    .map(|i| i as i32)
-                            })
-                            .unwrap_or(-1); 4],
-                        center: [s.cx, s.cy, s.cz, 0.0],
-                        radius: [s.radius; 4],
-                    }],
-                );
+        // TODO: These should be split into separate vectors for each shape type.
+        // Just draw everything as spheres for now.
+        let shapes = swing_prc
+            .map(|swing_prc| {
+                swing_prc
+                    .spheres
+                    .iter()
+                    .map(|s| {
+                        let buffer2 = device.create_uniform_buffer(
+                            "Swing Buffer2",
+                            &[crate::shader::swing::PerShape {
+                                bone_indices: [bone_index(skel, s.bonename), -1, -1, -1],
+                                start_transform: (glam::Mat4::from_translation(glam::Vec3::new(
+                                    s.cx, s.cy, s.cz,
+                                )) * glam::Mat4::from_scale(glam::Vec3::splat(
+                                    s.radius,
+                                )))
+                                .to_cols_array_2d(),
+                                end_transform: glam::Mat4::IDENTITY.to_cols_array_2d(),
+                                color: [0.0, 0.0, 1.0, 1.0],
+                            }],
+                        );
 
-                crate::shader::swing::bind_groups::BindGroup2::from_bindings(
-                    device,
-                    crate::shader::swing::bind_groups::BindGroupLayout2 {
-                        per_bone: buffer2.as_entire_buffer_binding(),
-                    },
-                )
+                        crate::shader::swing::bind_groups::BindGroup2::from_bindings(
+                            device,
+                            crate::shader::swing::bind_groups::BindGroupLayout2 {
+                                per_shape: buffer2.as_entire_buffer_binding(),
+                            },
+                        )
+                    })
+                    .chain(swing_prc.capsules.iter().map(|c| {
+                        let buffer2 = device.create_uniform_buffer(
+                            "Swing Buffer2",
+                            &[crate::shader::swing::PerShape {
+                                bone_indices: [
+                                    bone_index(skel, c.start_bonename),
+                                    bone_index(skel, c.end_bonename),
+                                    -1,
+                                    -1,
+                                ],
+                                start_transform: (glam::Mat4::from_translation(glam::Vec3::new(
+                                    c.start_offset_x,
+                                    c.start_offset_y,
+                                    c.start_offset_z,
+                                )) * glam::Mat4::from_scale(glam::Vec3::splat(
+                                    c.start_radius,
+                                )))
+                                .to_cols_array_2d(),
+                                end_transform: (glam::Mat4::from_translation(glam::Vec3::new(
+                                    c.end_offset_x,
+                                    c.end_offset_y,
+                                    c.end_offset_z,
+                                )) * glam::Mat4::from_scale(glam::Vec3::splat(
+                                    c.end_radius,
+                                )))
+                                .to_cols_array_2d(),
+                                color: [1.0, 0.0, 0.0, 1.0],
+                            }],
+                        );
+
+                        crate::shader::swing::bind_groups::BindGroup2::from_bindings(
+                            device,
+                            crate::shader::swing::bind_groups::BindGroupLayout2 {
+                                per_shape: buffer2.as_entire_buffer_binding(),
+                            },
+                        )
+                    }))
+                    .chain(swing_prc.planes.iter().map(|p| {
+                        let buffer2 = device.create_uniform_buffer(
+                            "Swing Buffer2",
+                            &[crate::shader::swing::PerShape {
+                                bone_indices: [bone_index(skel, p.bonename), -1, -1, -1],
+                                start_transform: glam::Mat4::IDENTITY.to_cols_array_2d(),
+                                end_transform: glam::Mat4::IDENTITY.to_cols_array_2d(),
+                                color: [0.0, 1.0, 0.0, 1.0],
+                            }],
+                        );
+
+                        crate::shader::swing::bind_groups::BindGroup2::from_bindings(
+                            device,
+                            crate::shader::swing::bind_groups::BindGroupLayout2 {
+                                per_shape: buffer2.as_entire_buffer_binding(),
+                            },
+                        )
+                    }))
+                    .collect()
             })
-            .collect();
+            .unwrap_or_default();
 
         Self {
             pipeline,
             vertex_buffer,
             index_buffer,
             bind_group1,
-            spheres,
+            shapes,
         }
     }
+}
+
+fn bone_index(skel: Option<&SkelData>, name: Hash40) -> i32 {
+    skel.and_then(|skel| {
+        skel.bones
+            .iter()
+            .position(|b| prc::hash40::hash40(&b.name.to_lowercase()) == name)
+            .map(|i| i as i32)
+    })
+    .unwrap_or(-1)
 }
