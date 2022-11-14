@@ -1,6 +1,6 @@
 struct VertexInput {
-    @location(0) position: vec3<f32>,
-    @location(1) normal: vec3<f32>,
+    @location(0) position: vec4<f32>,
+    @location(1) normal: vec4<f32>,
 };
 
 struct VertexOutput {
@@ -43,11 +43,20 @@ fn vs_main(in: VertexInput) -> VertexOutput {
     // TODO: Use a consistent naming convention like PerScene, PerSkel, PerObject etc.
     // Assume the vertex buffer is centered on the origin with unit size.
     var out: VertexOutput;
-    let position = per_shape.start_transform * vec4(in.position.xyz, 1.0);
-    var world_position = position;
-    if (per_shape.bone_indices.x >= 0 && per_shape.bone_indices.x < 512) {
-        world_position = world_transforms.transforms[per_shape.bone_indices.x] * position;
+    var world_position = vec4(0.0);
+    // The W coordinate determines whether to use the start or end bone.
+    if in.position.w > 0.0 {
+        let position = per_shape.start_transform * vec4(in.position.xyz, 1.0);
+        if (per_shape.bone_indices.x >= 0 && per_shape.bone_indices.x < 512) {
+            world_position = world_transforms.transforms[per_shape.bone_indices.x] * position;
+        }
+    } else {
+        let position = per_shape.end_transform * vec4(in.position.xyz, 1.0);
+        if (per_shape.bone_indices.y >= 0 && per_shape.bone_indices.y < 512) {
+            world_position = world_transforms.transforms[per_shape.bone_indices.y] * position;
+        }
     }
+
     out.clip_position = camera.mvp_matrix * world_position;
     return out;
 }

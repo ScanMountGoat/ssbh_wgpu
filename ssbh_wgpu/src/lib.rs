@@ -9,6 +9,7 @@ use walkdir::WalkDir;
 use wgpu::util::DeviceExt;
 // TODO: Use rayon to speed up load times?
 
+// TODO: Rework this public API and improve docs.
 pub use nutexb_wgpu::NutexbFile;
 
 pub mod animation;
@@ -19,6 +20,7 @@ mod renderer;
 mod rendermesh;
 mod shader;
 mod shader_database;
+mod shape;
 mod swing;
 mod swing_rendering;
 mod texture;

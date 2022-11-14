@@ -1,21 +1,25 @@
 use prc::hash40::Hash40;
 use ssbh_data::skel_data::SkelData;
-use wgpu::util::DeviceExt;
 
-use crate::{swing::SwingPrc, DeviceExt2};
+use crate::{
+    shape::{capsule_mesh_buffers, plane_mesh_buffers, sphere_mesh_buffers, IndexedMeshBuffers},
+    swing::SwingPrc,
+    DeviceExt2,
+};
 
 // TODO: Create a separate structs for the shared and non shared data.
 pub struct SwingRenderData {
     pub pipeline: wgpu::RenderPipeline,
-    pub vertex_buffer: wgpu::Buffer,
-    pub index_buffer: wgpu::Buffer,
+    pub sphere_buffers: IndexedMeshBuffers,
+    pub capsule_buffers: IndexedMeshBuffers,
+    pub plane_buffers: IndexedMeshBuffers,
     pub bind_group1: crate::shader::swing::bind_groups::BindGroup1,
-    // TODO: How to select the buffer type for each shape?
-    // TODO: Make this Vec<(ShapeType, BindGroup2)> so we can swap buffers for rendering?
-    pub shapes: Vec<crate::shader::swing::bind_groups::BindGroup2>,
+    pub spheres: Vec<crate::shader::swing::bind_groups::BindGroup2>,
+    pub ovals: Vec<crate::shader::swing::bind_groups::BindGroup2>,
+    pub ellipsoids: Vec<crate::shader::swing::bind_groups::BindGroup2>,
+    pub capsules: Vec<crate::shader::swing::bind_groups::BindGroup2>,
+    pub planes: Vec<crate::shader::swing::bind_groups::BindGroup2>,
 }
-
-// TODO: Add rendering for other types.
 
 impl SwingRenderData {
     pub fn new(
@@ -35,7 +39,7 @@ impl SwingRenderData {
                 module: &shader,
                 entry_point: "vs_main",
                 buffers: &[wgpu::VertexBufferLayout {
-                    array_stride: 24,
+                    array_stride: 32,
                     step_mode: wgpu::VertexStepMode::Vertex,
                     attributes: &crate::shader::swing::VertexInput::VERTEX_ATTRIBUTES,
                 }],
@@ -68,18 +72,9 @@ impl SwingRenderData {
             multiview: None,
         });
 
-        // TODO: Dedicated module for creating shape primitives.
-        let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Swing Vertex Buffer"),
-            contents: bytemuck::cast_slice(&crate::bone_rendering::sphere()),
-            usage: wgpu::BufferUsages::VERTEX,
-        });
-
-        let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Swing Index Buffer"),
-            contents: bytemuck::cast_slice(&crate::bone_rendering::sphere_indices()),
-            usage: wgpu::BufferUsages::INDEX,
-        });
+        let sphere_buffers = sphere_mesh_buffers(device);
+        let capsule_buffers = capsule_mesh_buffers(device);
+        let plane_buffers = plane_mesh_buffers(device);
 
         let bind_group1 = crate::shader::swing::bind_groups::BindGroup1::from_bindings(
             device,
@@ -88,9 +83,8 @@ impl SwingRenderData {
             },
         );
 
-        // TODO: These should be split into separate vectors for each shape type.
-        // Just draw everything as spheres for now.
-        let shapes = swing_prc
+        // Just draw most shapes as spheres for now.
+        let spheres = swing_prc
             .map(|swing_prc| {
                 swing_prc
                     .spheres
@@ -118,7 +112,19 @@ impl SwingRenderData {
                             },
                         )
                     })
-                    .chain(swing_prc.capsules.iter().map(|c| {
+                    .collect()
+            })
+            .unwrap_or_default();
+
+        let ovals = Vec::new();
+        let ellipsoids = Vec::new();
+
+        let capsules = swing_prc
+            .map(|swing_prc| {
+                swing_prc
+                    .capsules
+                    .iter()
+                    .map(|c| {
                         let buffer2 = device.create_uniform_buffer(
                             "Swing Buffer2",
                             &[crate::shader::swing::PerShape {
@@ -154,8 +160,18 @@ impl SwingRenderData {
                                 per_shape: buffer2.as_entire_buffer_binding(),
                             },
                         )
-                    }))
-                    .chain(swing_prc.planes.iter().map(|p| {
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+
+        let planes = swing_prc
+            .map(|swing_prc| {
+                swing_prc
+                    .planes
+                    .iter()
+                    .map(|p| {
+                        // TODO: How to use the normal?
                         let buffer2 = device.create_uniform_buffer(
                             "Swing Buffer2",
                             &[crate::shader::swing::PerShape {
@@ -172,17 +188,22 @@ impl SwingRenderData {
                                 per_shape: buffer2.as_entire_buffer_binding(),
                             },
                         )
-                    }))
+                    })
                     .collect()
             })
             .unwrap_or_default();
 
         Self {
             pipeline,
-            vertex_buffer,
-            index_buffer,
+            sphere_buffers,
+            capsule_buffers,
+            plane_buffers,
             bind_group1,
-            shapes,
+            spheres,
+            ovals,
+            ellipsoids,
+            capsules,
+            planes,
         }
     }
 }
@@ -195,4 +216,77 @@ fn bone_index(skel: Option<&SkelData>, name: Hash40) -> i32 {
             .map(|i| i as i32)
     })
     .unwrap_or(-1)
+}
+
+// TODO: Is it worth making a SwingRenderer type?
+pub fn draw_swing_collisions<'a>(
+    render_data: &'a SwingRenderData,
+    pass: &mut wgpu::RenderPass<'a>,
+    swing_camera_bind_group: &'a crate::shader::swing::bind_groups::BindGroup0,
+) {
+    pass.set_pipeline(&render_data.pipeline);
+
+    // TODO: Create vertex and index buffers for each shape.
+    // TODO: Not all bind groups need to be set more than once.
+    // TODO: Allow toggling rendering of certain shapes or shape types.
+    draw_shapes(
+        pass,
+        &render_data.sphere_buffers,
+        &render_data.spheres,
+        &render_data.bind_group1,
+        swing_camera_bind_group,
+    );
+
+    draw_shapes(
+        pass,
+        &render_data.sphere_buffers,
+        &render_data.ovals,
+        &render_data.bind_group1,
+        swing_camera_bind_group,
+    );
+
+    draw_shapes(
+        pass,
+        &render_data.sphere_buffers,
+        &render_data.ellipsoids,
+        &render_data.bind_group1,
+        swing_camera_bind_group,
+    );
+
+    draw_shapes(
+        pass,
+        &render_data.capsule_buffers,
+        &render_data.capsules,
+        &render_data.bind_group1,
+        swing_camera_bind_group,
+    );
+
+    draw_shapes(
+        pass,
+        &render_data.plane_buffers,
+        &render_data.planes,
+        &render_data.bind_group1,
+        swing_camera_bind_group,
+    );
+}
+
+fn draw_shapes<'a>(
+    pass: &mut wgpu::RenderPass<'a>,
+    buffers: &'a IndexedMeshBuffers,
+    shapes: &'a [crate::shader::swing::bind_groups::BindGroup2],
+    bind_group1: &'a crate::shader::swing::bind_groups::BindGroup1,
+    swing_camera_bind_group: &'a crate::shader::swing::bind_groups::BindGroup0,
+) {
+    buffers.set(pass);
+    for bind_group2 in shapes {
+        crate::shader::swing::bind_groups::set_bind_groups(
+            pass,
+            crate::shader::swing::bind_groups::BindGroups {
+                bind_group0: swing_camera_bind_group,
+                bind_group1,
+                bind_group2,
+            },
+        );
+        pass.draw_indexed(0..buffers.index_count, 0, 0..1);
+    }
 }

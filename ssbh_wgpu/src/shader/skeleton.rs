@@ -3,8 +3,8 @@
 #[repr(C)]
 #[derive(Debug, Copy, Clone, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct VertexInput {
-    pub position: [f32; 3],
-    pub normal: [f32; 3],
+    pub position: [f32; 4],
+    pub normal: [f32; 4],
 }
 #[repr(C)]
 #[derive(Debug, Copy, Clone, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
@@ -204,7 +204,7 @@ pub mod bind_groups {
 pub mod vertex {
     impl super::VertexInput {
         pub const VERTEX_ATTRIBUTES: [wgpu::VertexAttribute; 2] = wgpu::vertex_attr_array![
-            0 => Float32x3, 1 => Float32x3
+            0 => Float32x4, 1 => Float32x4
         ];
     }
 }

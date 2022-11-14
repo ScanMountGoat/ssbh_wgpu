@@ -2,7 +2,7 @@ use crate::{
     animation::{animate_materials, animate_skel, animate_visibility, AnimationTransforms},
     bone_rendering::*,
     pipeline::{create_pipeline, PipelineKey},
-    swing_rendering::SwingRenderData,
+    swing_rendering::{draw_swing_collisions, SwingRenderData},
     vertex::MeshObjectBufferData,
     viewport::world_to_screen,
     ModelFolder, QueueExt, ShaderDatabase, SharedRenderData,
@@ -433,39 +433,14 @@ impl RenderModel {
         skel: Option<&SkelData>,
         swing_camera_bind_group: &'a crate::shader::swing::bind_groups::BindGroup0,
     ) {
-        // TODO: Bind group2 should be created for each shape?
         // TODO: Is it noticeably more efficient to batch shapes together?
         // TODO: Do we need the skel here?
         if skel.is_some() {
-            render_pass.set_pipeline(&self.swing_render_data.pipeline);
-            render_pass.set_index_buffer(
-                self.swing_render_data.index_buffer.slice(..),
-                wgpu::IndexFormat::Uint32,
+            draw_swing_collisions(
+                &self.swing_render_data,
+                render_pass,
+                swing_camera_bind_group,
             );
-            render_pass.set_vertex_buffer(0, self.swing_render_data.vertex_buffer.slice(..));
-            // TODO: Create another bind group containing bone indices and transforms for each shape.
-            // TODO: Group drawing by shape (draw spheres, draw planes, etc).
-            // TODO: Most of the drawing code can be shared.
-            // TODO: Include swing information with the render model itself?
-            // TODO: Create a swing shapes struct and update whenever the prc changes?
-            // prc -> swing shapes -> bind groups and buffers -> drawing
-
-            // TODO: Not all bind groups need to be set more than once.
-            for bind_group2 in &self.swing_render_data.shapes {
-                crate::shader::swing::bind_groups::set_bind_groups(
-                    render_pass,
-                    crate::shader::swing::bind_groups::BindGroups::<'a> {
-                        bind_group0: swing_camera_bind_group,
-                        bind_group1: &self.swing_render_data.bind_group1,
-                        bind_group2,
-                    },
-                );
-                render_pass.draw_indexed(
-                    0..crate::bone_rendering::sphere_indices().len() as u32,
-                    0,
-                    0..1,
-                );
-            }
         }
     }
 

@@ -58,7 +58,7 @@ pub struct Sphere {
 pub struct Oval {
     pub name: Hash40,
     pub start_bonename: Hash40,
-    pub bonename: Hash40,
+    pub end_bonename: Hash40,
     pub radius: f32,
     pub start_offset_x: f32,
     pub start_offset_y: f32,

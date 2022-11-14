@@ -1,6 +1,6 @@
 struct VertexInput {
-    @location(0) position: vec3<f32>,
-    @location(1) normal: vec3<f32>,
+    @location(0) position: vec4<f32>,
+    @location(1) normal: vec4<f32>,
 };
 
 struct VertexOutput {
@@ -51,9 +51,9 @@ fn vs_axes(in: VertexInput) -> VertexOutput {
     if (bone_index >= 0 && bone_index < 512) {
         let position = vec4(in.position.xyz, 1.0);
         out.clip_position = camera.mvp_matrix * world_transforms.transforms[bone_index] * position;
-        out.position = in.position;
+        out.position = in.position.xyz;
         // Use the normal as the color.
-        out.normal = in.position;
+        out.normal = in.position.xyz;
     }
 
     return out;
@@ -71,8 +71,8 @@ fn vs_bone(in: VertexInput) -> VertexOutput {
         let position = vec4(in.position.xyz * scale_factor, 1.0);
 
         out.clip_position = camera.mvp_matrix * world_transforms.transforms[per_bone.indices.x] * position;
-        out.position = in.position;
-        out.normal = (world_transforms.transforms[per_bone.indices.x] * vec4(in.normal, 0.0)).xyz;
+        out.position = in.position.xyz;
+        out.normal = (world_transforms.transforms[per_bone.indices.x] * vec4(in.normal.xyz, 0.0)).xyz;
     }
     return out;
 }
@@ -90,8 +90,8 @@ fn vs_joint(in: VertexInput) -> VertexOutput {
         let position = vec4(in.position.xyz * vec3(scale_factor, 1.0, scale_factor), 1.0);
 
         out.clip_position = camera.mvp_matrix * world_transforms.transforms[bone_index] * position;
-        out.position = in.position;
-        out.normal = (world_transforms.transforms[bone_index] * vec4(in.normal, 0.0)).xyz;
+        out.position = in.position.xyz;
+        out.normal = (world_transforms.transforms[bone_index] * vec4(in.normal.xyz, 0.0)).xyz;
     }
     return out;
 }
@@ -99,7 +99,7 @@ fn vs_joint(in: VertexInput) -> VertexOutput {
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let viewVector = normalize(camera.camera_pos.xyz - in.position.xyz);
-    let shading = mix(0.5, 1.0, dot(viewVector, normalize(in.normal)));
+    let shading = mix(0.5, 1.0, dot(viewVector, normalize(in.normal.xyz)));
     var color = vec3(0.0);
     let bone_index = per_bone.indices.x;
     if (bone_index >= 0 && bone_index < 512) {
