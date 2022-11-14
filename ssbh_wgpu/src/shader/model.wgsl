@@ -276,6 +276,10 @@ fn GetAlbedoColor(uv1: vec2<f32>, uv2: vec2<f32>, uv3: vec2<f32>, R: vec3<f32>, 
     var outRgb = vec3(0.0);
     var outAlpha = 1.0;
 
+    // TODO: Set a blend for different textures based on colorSet5.w.
+    // TODO: Multiply to also use the texture alpha?
+    var blendMask = vec4(1.0);
+
     // TODO: Do additional layers affect alpha?
     if (uniforms.has_texture[0].x == 1u) {
         let albedoColor = textureSample(texture0, sampler0, uvLayer1);
@@ -288,7 +292,9 @@ fn GetAlbedoColor(uv1: vec2<f32>, uv2: vec2<f32>, uv3: vec2<f32>, R: vec3<f32>, 
         let albedoColor2 = textureSample(texture1, sampler1, uvLayer2);
         if (uniforms.has_color_set567.x == 1u && render_settings.render_vertex_color.x == 1u) {
             // colorSet5.w is used to blend between the two col map layers.
-            outRgb = Blend(outRgb, albedoColor2 * vec4(1.0, 1.0, 1.0, colorSet5.w));
+            // TODO: Does the layer2 texture alpha matter?
+            let layer2 = vec4(albedoColor2.rgb, colorSet5.w);
+            outRgb = Blend(outRgb, layer2);
         } else {
             outRgb = Blend(outRgb, albedoColor2);
         }
@@ -386,6 +392,7 @@ fn DiffuseTerm(
     var ambientTerm = (ambientLight * ao);
 
     if (uniforms.has_texture[9].x == 1u) {
+        // TODO: Does baked lighting affect the RGB color for direct?
         let bakedLitColor = textureSample(texture9, sampler9, bake1).rgba;
         directLight = directLight * bakedLitColor.a;
         // Baked lighting maps are not affected by ambient occlusion.
@@ -648,7 +655,7 @@ fn vs_main(
     var map1_dual = TransformUv(buffer1.map1_uvset.xy, uvTransformDualNormal);
 
     // Sprite sheet params.
-    // Perform this in the fragment shader to avoid effecting debug modes.
+    // Perform this in the fragment shader to avoid affecting debug modes.
     if (uniforms.custom_boolean[9].x == 1u) {
         map1 = map1 / uniforms.custom_vector[18].xy;
     }
@@ -670,7 +677,7 @@ fn vs_main(
         out.color_set3 = buffer1.color_set3 * 2.0;
         out.color_set4 =  buffer1.color_set4 * 2.0;
         out.color_set5 = buffer1.color_set5 * 3.0;
-        out.color_set6 = buffer1.color_set5 * 3.0;
+        out.color_set6 = buffer1.color_set6 * 3.0;
         out.color_set7 = buffer1.color_set7;
     } else {
         // It can be useful to see the unmodified values for debug modes.
@@ -679,7 +686,7 @@ fn vs_main(
         out.color_set3 = buffer1.color_set3;
         out.color_set4 =  buffer1.color_set4;
         out.color_set5 = buffer1.color_set5;
-        out.color_set6 = buffer1.color_set5;
+        out.color_set6 = buffer1.color_set6;
         out.color_set7 = buffer1.color_set7;
     }
 
