@@ -3,6 +3,8 @@
 // TODO: Use separate buffers for normals and positions.
 // TODO: Create a function for each shape returning (VertexBuffer, IndexBuffer)
 
+use std::f32::consts::PI;
+
 use wgpu::util::DeviceExt;
 
 // TODO: Create a type that groups vertex, index buffers, and index count?
@@ -42,176 +44,144 @@ impl IndexedMeshBuffers {
 }
 
 pub fn sphere_mesh_buffers(device: &wgpu::Device) -> IndexedMeshBuffers {
-    IndexedMeshBuffers::from_vertices(device, &sphere_vertices(), &sphere_indices())
+    IndexedMeshBuffers::from_vertices(device, &sphere_vertices(8, 8), &sphere_indices(8, 8))
 }
 
-pub fn sphere_vertices() -> Vec<[f32; 4]> {
-    // Pos0 Nrm0 Pos1 Nrm1 ...
-    vec![
-        [0.000000, 0.923880, -0.382683, 1.0],
-        [0.000000, 0.923880, -0.382683, 1.0],
-        [0.000000, 0.707107, -0.707107, 1.0],
-        [0.000000, 0.707107, -0.707107, 1.0],
-        [0.000000, 0.382683, -0.923880, 1.0],
-        [0.000000, 0.382683, -0.923880, 1.0],
-        [0.000000, -0.000000, -1.000000, 1.0],
-        [0.000000, -0.000000, -1.000000, 1.0],
-        [0.000000, -0.382683, -0.923880, 1.0],
-        [0.000000, -0.382683, -0.923880, 1.0],
-        [0.000000, -0.707107, -0.707107, 1.0],
-        [0.000000, -0.707107, -0.707107, 1.0],
-        [0.000000, -0.923880, -0.382683, 1.0],
-        [0.000000, -0.923880, -0.382683, 1.0],
-        [0.270598, 0.923880, -0.270598, 1.0],
-        [0.270598, 0.923880, -0.270598, 1.0],
-        [0.500000, 0.707107, -0.500000, 1.0],
-        [0.500000, 0.707107, -0.500000, 1.0],
-        [0.653282, 0.382683, -0.653281, 1.0],
-        [0.653282, 0.382683, -0.653281, 1.0],
-        [0.707107, -0.000000, -0.707107, 1.0],
-        [0.707107, -0.000000, -0.707107, 1.0],
-        [0.653282, -0.382683, -0.653282, 1.0],
-        [0.653282, -0.382683, -0.653282, 1.0],
-        [0.500000, -0.707107, -0.500000, 1.0],
-        [0.500000, -0.707107, -0.500000, 1.0],
-        [0.270598, -0.923880, -0.270598, 1.0],
-        [0.270598, -0.923880, -0.270598, 1.0],
-        [0.382684, 0.923880, 0.000000, 1.0],
-        [0.382684, 0.923880, 0.000000, 1.0],
-        [0.707107, 0.707107, 0.000000, 1.0],
-        [0.707107, 0.707107, 0.000000, 1.0],
-        [0.923880, 0.382683, 0.000000, 1.0],
-        [0.923880, 0.382683, 0.000000, 1.0],
-        [1.000000, -0.000000, 0.000000, 1.0],
-        [1.000000, -0.000000, 0.000000, 1.0],
-        [0.923880, -0.382683, 0.000000, 1.0],
-        [0.923880, -0.382683, 0.000000, 1.0],
-        [0.707107, -0.707107, 0.000000, 1.0],
-        [0.707107, -0.707107, 0.000000, 1.0],
-        [0.382684, -0.923880, 0.000000, 1.0],
-        [0.382684, -0.923880, 0.000000, 1.0],
-        [0.270598, 0.923880, 0.270598, 1.0],
-        [0.270598, 0.923880, 0.270598, 1.0],
-        [0.500000, 0.707107, 0.500000, 1.0],
-        [0.500000, 0.707107, 0.500000, 1.0],
-        [0.653282, 0.382683, 0.653282, 1.0],
-        [0.653282, 0.382683, 0.653282, 1.0],
-        [0.707107, -0.000000, 0.707107, 1.0],
-        [0.707107, -0.000000, 0.707107, 1.0],
-        [0.653282, -0.382683, 0.653282, 1.0],
-        [0.653282, -0.382683, 0.653282, 1.0],
-        [0.500000, -0.707107, 0.500000, 1.0],
-        [0.500000, -0.707107, 0.500000, 1.0],
-        [0.270598, -0.923880, 0.270598, 1.0],
-        [0.270598, -0.923880, 0.270598, 1.0],
-        [0.000000, 0.923880, 0.382684, 1.0],
-        [0.000000, 0.923880, 0.382684, 1.0],
-        [0.000000, 0.707107, 0.707107, 1.0],
-        [0.000000, 0.707107, 0.707107, 1.0],
-        [0.000000, 0.382683, 0.923880, 1.0],
-        [0.000000, 0.382683, 0.923880, 1.0],
-        [0.000000, -0.000000, 1.000000, 1.0],
-        [0.000000, -0.000000, 1.000000, 1.0],
-        [0.000000, -0.382683, 0.923880, 1.0],
-        [0.000000, -0.382683, 0.923880, 1.0],
-        [0.000000, -0.707107, 0.707107, 1.0],
-        [0.000000, -0.707107, 0.707107, 1.0],
-        [0.000000, -0.923880, 0.382684, 1.0],
-        [0.000000, -0.923880, 0.382684, 1.0],
-        [-0.000000, 1.000000, 0.000000, 1.0],
-        [-0.000000, 1.000000, 0.000000, 1.0],
-        [-0.270598, 0.923880, 0.270598, 1.0],
-        [-0.270598, 0.923880, 0.270598, 1.0],
-        [-0.500000, 0.707107, 0.500000, 1.0],
-        [-0.500000, 0.707107, 0.500000, 1.0],
-        [-0.653281, 0.382683, 0.653282, 1.0],
-        [-0.653281, 0.382683, 0.653282, 1.0],
-        [-0.707107, -0.000000, 0.707107, 1.0],
-        [-0.707107, -0.000000, 0.707107, 1.0],
-        [-0.653282, -0.382683, 0.653282, 1.0],
-        [-0.653282, -0.382683, 0.653282, 1.0],
-        [-0.500000, -0.707107, 0.500000, 1.0],
-        [-0.500000, -0.707107, 0.500000, 1.0],
-        [-0.270598, -0.923880, 0.270598, 1.0],
-        [-0.270598, -0.923880, 0.270598, 1.0],
-        [-0.382684, 0.923880, 0.000000, 1.0],
-        [-0.382684, 0.923880, 0.000000, 1.0],
-        [-0.707107, 0.707107, 0.000000, 1.0],
-        [-0.707107, 0.707107, 0.000000, 1.0],
-        [-0.923879, 0.382683, 0.000000, 1.0],
-        [-0.923879, 0.382683, 0.000000, 1.0],
-        [-1.000000, -0.000000, 0.000000, 1.0],
-        [-1.000000, -0.000000, 0.000000, 1.0],
-        [-0.923880, -0.382683, 0.000000, 1.0],
-        [-0.923880, -0.382683, 0.000000, 1.0],
-        [-0.707107, -0.707107, 0.000000, 1.0],
-        [-0.707107, -0.707107, 0.000000, 1.0],
-        [-0.382684, -0.923880, 0.000000, 1.0],
-        [-0.382684, -0.923880, 0.000000, 1.0],
-        [0.000000, -1.000000, 0.000000, 1.0],
-        [0.000000, -1.000000, 0.000000, 1.0],
-        [-0.270598, 0.923880, -0.270598, 1.0],
-        [-0.270598, 0.923880, -0.270598, 1.0],
-        [-0.500000, 0.707107, -0.500000, 1.0],
-        [-0.500000, 0.707107, -0.500000, 1.0],
-        [-0.653281, 0.382683, -0.653281, 1.0],
-        [-0.653281, 0.382683, -0.653281, 1.0],
-        [-0.707107, -0.000000, -0.707107, 1.0],
-        [-0.707107, -0.000000, -0.707107, 1.0],
-        [-0.653282, -0.382683, -0.653281, 1.0],
-        [-0.653282, -0.382683, -0.653281, 1.0],
-        [-0.500000, -0.707107, -0.500000, 1.0],
-        [-0.500000, -0.707107, -0.500000, 1.0],
-        [-0.270598, -0.923880, -0.270598, 1.0],
-        [-0.270598, -0.923880, -0.270598, 1.0],
-    ]
+pub fn sphere_vertices(sector_count: u32, stack_count: u32) -> Vec<[f32; 4]> {
+    // http://www.songho.ca/opengl/gl_sphere.html
+    let mut vertices = Vec::new();
+
+    let radius = 1.0;
+    let sector_step = 2.0 * PI / sector_count as f32;
+    let stack_step = PI / stack_count as f32;
+
+    for i in 0..=sector_count {
+        let stack_angle = PI / 2.0 - i as f32 * stack_step;
+        let xy = radius * stack_angle.cos();
+        let z = radius * stack_angle.sin();
+
+        for j in 0..=sector_count {
+            let sector_angle = j as f32 * sector_step;
+
+            // Vertex position.
+            let x = xy * sector_angle.cos();
+            let y = xy * sector_angle.sin();
+            vertices.push([x, y, z, 1.0]);
+
+            // Vertex normal.
+            vertices.push([x / radius, y / radius, z / radius, 1.0])
+        }
+    }
+
+    vertices
 }
 
-pub fn sphere_indices() -> Vec<u32> {
-    vec![
-        5, 13, 6, 3, 11, 4, 1, 9, 2, 0, 35, 7, 50, 6, 13, 4, 12, 5, 2, 10, 3, 0, 8, 1, 7, 35, 14,
-        50, 13, 20, 11, 19, 12, 9, 17, 10, 7, 15, 8, 12, 20, 13, 11, 17, 18, 8, 16, 9, 19, 25, 26,
-        16, 24, 17, 14, 22, 15, 19, 27, 20, 18, 24, 25, 15, 23, 16, 14, 35, 21, 50, 20, 27, 26, 34,
-        27, 24, 32, 25, 22, 30, 23, 21, 35, 28, 50, 27, 34, 25, 33, 26, 23, 31, 24, 21, 29, 22, 31,
-        40, 32, 29, 38, 30, 28, 35, 36, 50, 34, 42, 32, 41, 33, 30, 39, 31, 28, 37, 29, 34, 41, 42,
-        50, 42, 49, 40, 48, 41, 38, 46, 39, 36, 44, 37, 42, 48, 49, 40, 46, 47, 38, 44, 45, 36, 35,
-        43, 45, 54, 46, 43, 52, 44, 48, 57, 49, 46, 55, 47, 44, 53, 45, 43, 35, 51, 50, 49, 57, 47,
-        56, 48, 56, 6, 57, 54, 4, 55, 52, 2, 53, 51, 35, 0, 50, 57, 6, 55, 5, 56, 54, 2, 3, 52, 0,
-        1, 5, 12, 13, 3, 10, 11, 1, 8, 9, 4, 11, 12, 2, 9, 10, 0, 7, 8, 11, 18, 19, 9, 16, 17, 7,
-        14, 15, 12, 19, 20, 11, 10, 17, 8, 15, 16, 19, 18, 25, 16, 23, 24, 14, 21, 22, 19, 26, 27,
-        18, 17, 24, 15, 22, 23, 26, 33, 34, 24, 31, 32, 22, 29, 30, 25, 32, 33, 23, 30, 31, 21, 28,
-        29, 31, 39, 40, 29, 37, 38, 32, 40, 41, 30, 38, 39, 28, 36, 37, 34, 33, 41, 40, 47, 48, 38,
-        45, 46, 36, 43, 44, 42, 41, 48, 40, 39, 46, 38, 37, 44, 45, 53, 54, 43, 51, 52, 48, 56, 57,
-        46, 54, 55, 44, 52, 53, 47, 55, 56, 56, 5, 6, 54, 3, 4, 52, 1, 2, 55, 4, 5, 54, 53, 2, 52,
-        51, 0,
-    ]
+pub fn sphere_indices(sector_count: u32, stack_count: u32) -> Vec<u32> {
+    // http://www.songho.ca/opengl/gl_sphere.html
+    // Generate a counterclockwise index list of sphere triangles.
+    // k1--k1+1
+    // |  / |
+    // | /  |
+    // k2--k2+1
+    let mut indices = Vec::new();
+    for i in 0..stack_count {
+        let mut k1 = i * (sector_count + 1);
+        let mut k2 = k1 + sector_count + 1;
+
+        for _ in 0..sector_count {
+            // 2 triangles per sector excluding first and last stacks
+            // k1 => k2 => k1+1
+            if i != 0 {
+                indices.push(k1);
+                indices.push(k2);
+                indices.push(k1 + 1);
+            }
+
+            // k1+1 => k2 => k2+1
+            if i != (stack_count - 1) {
+                indices.push(k1 + 1);
+                indices.push(k2);
+                indices.push(k2 + 1);
+            }
+
+            k1 += 1;
+            k2 += 1;
+        }
+    }
+
+    indices
 }
 
 pub fn capsule_mesh_buffers(device: &wgpu::Device) -> IndexedMeshBuffers {
-    IndexedMeshBuffers::from_vertices(device, &capsule_vertices(), &capsule_indices())
+    IndexedMeshBuffers::from_vertices(
+        device,
+        &cylinder_vertices(8, 1.0, 1.0),
+        &cylinder_indices(8),
+    )
 }
 
-pub fn capsule_vertices() -> Vec<[f32; 4]> {
-    // TODO: Properly handle the caps and connecting section.
-    // Give each half a different W value to support two transform matrices.
-    sphere_vertices()
-        .into_iter()
-        .map(|v| [v[0], v[1], v[2], 1.0])
-        .chain(
-            sphere_vertices()
-                .into_iter()
-                .map(|v| [v[0], v[1], v[2], 0.0]),
-        )
-        .collect()
+fn unit_circle_vertices() -> Vec<[f32; 4]> {
+    let mut vertices = Vec::new();
+    let sector_count = 8;
+    let sector_step = 2.0 * PI / sector_count as f32;
+
+    for i in 0..=sector_count {
+        let sector_angle = i as f32 * sector_step;
+        vertices.push([sector_angle.cos(), sector_angle.sin(), 0.0, 1.0])
+    }
+
+    vertices
 }
 
-pub fn capsule_indices() -> Vec<u32> {
-    // TODO: Properly handle the caps and connecting section.
-    let len1 = (sphere_vertices().len() / 2) as u32;
-    sphere_indices()
-        .into_iter()
-        .chain(sphere_indices().into_iter().map(|i| i + len1))
-        .collect()
+fn cylinder_vertices(sector_count: u32, height: f32, radius: f32) -> Vec<[f32; 4]> {
+    // http://www.songho.ca/opengl/gl_cylinder.html
+    // TODO: Add half spheres for the caps on each end.
+    let mut vertices = Vec::new();
+
+    // Unit circle on the XY plane to avoid repetitive trig functions.
+    let unit_vertices = unit_circle_vertices();
+
+    // Generate the side vertices.
+    // Omit the caps on the top and bottom of the cylinder for now.
+    for i in 0..2 {
+        let h = -height / 2.0 + i as f32 * height;
+
+        let mut k = 0;
+        for _ in 0..=sector_count {
+            let [ux, uy, uz, _] = unit_vertices[k];
+
+            // Position vector.
+            vertices.push([ux * radius, uy * radius, h, 1.0]);
+
+            // Normal vector.
+            vertices.push([ux, uy, uz, 1.0]);
+            k += 1;
+        }
+    }
+
+    vertices
+}
+
+fn cylinder_indices(sector_count: u32) -> Vec<u32> {
+    // http://www.songho.ca/opengl/gl_cylinder.html
+    let mut indices = Vec::new();
+
+    let mut k1 = 0;
+    let mut k2 = sector_count + 1;
+    // TODO: More idiomatic to use two ranges and zip?
+    for _ in 0..sector_count {
+        indices.push(k1);
+        indices.push(k1 + 1);
+        indices.push(k2);
+
+        indices.push(k2);
+        indices.push(k1 + 1);
+        indices.push(k2 + 1);
+
+        k1 += 1;
+        k2 += 1;
+    }
+    indices
 }
 
 pub fn plane_mesh_buffers(device: &wgpu::Device) -> IndexedMeshBuffers {
