@@ -405,10 +405,11 @@ impl State {
             &mut encoder,
             &output_view,
             &self.render_models,
-            self.models.iter().map(|m| m.find_skel()),
-            // std::iter::empty(),
             &self.shared_data.database(),
-            &ModelRenderOptions::default(),
+            &ModelRenderOptions {
+                draw_bones: true,
+                ..Default::default()
+            },
         );
 
         drop(final_pass);

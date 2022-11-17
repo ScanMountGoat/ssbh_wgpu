@@ -212,25 +212,15 @@ impl Default for SkinningSettings {
 ///
 /// Renders materials in a solid color for the given `mask_model_index` and
 /// `mask_material_label`. Use `""` for disabling the mask.
+#[derive(Debug, Default)]
 pub struct ModelRenderOptions {
-    // TODO: Add a draw bones parameter?
+    pub draw_bones: bool,
     pub draw_bone_axes: bool,
     // TODO: Make these Option instead?
     pub mask_model_index: usize,
     pub mask_material_label: String,
     /// Draw a wireframe on shaded when `true` for all modes except [DebugMode::Shaded].
     pub draw_wireframe: bool,
-}
-
-impl Default for ModelRenderOptions {
-    fn default() -> Self {
-        Self {
-            draw_bone_axes: false,
-            mask_model_index: 0,
-            mask_material_label: String::new(),
-            draw_wireframe: false,
-        }
-    }
 }
 
 /// A renderer for drawing a collection of [RenderModel].
@@ -765,7 +755,6 @@ impl SsbhRenderer {
         encoder: &'a mut wgpu::CommandEncoder,
         output_view: &'a wgpu::TextureView,
         render_models: &'a [RenderModel],
-        skels: impl Iterator<Item = Option<&'b SkelData>> + Clone,
         shader_database: &ShaderDatabase,
         options: &ModelRenderOptions,
     ) -> wgpu::RenderPass<'a> {
@@ -835,7 +824,7 @@ impl SsbhRenderer {
             encoder,
             render_models.iter(),
             &self.pass_info.color_final.view,
-            skels.clone(),
+            options.draw_bones,
             options.draw_bone_axes,
         );
 
@@ -843,9 +832,9 @@ impl SsbhRenderer {
         // Composite the outlines onto the result of the debug or shaded passes.
         let mut render_pass = self.overlay_pass(encoder, output_view);
 
-        // TODO: Dedicated swing module.
-        for (model, skel) in render_models.iter().zip(skels) {
-            model.draw_swing(&mut render_pass, skel, &self.swing_camera_bind_group);
+        // TODO: Add a toggle for this.
+        for model in render_models {
+            model.draw_swing(&mut render_pass, &self.swing_camera_bind_group);
         }
 
         render_pass
@@ -1208,7 +1197,7 @@ impl SsbhRenderer {
         encoder: &mut wgpu::CommandEncoder,
         render_models: impl Iterator<Item = &'a RenderModel>,
         view: &wgpu::TextureView,
-        skels: impl Iterator<Item = Option<&'b SkelData>>,
+        draw_bones: bool,
         draw_bone_axes: bool,
     ) {
         // TODO: Force having a color attachment for each fragment shader output in wgsl_to_wgpu?
@@ -1235,15 +1224,16 @@ impl SsbhRenderer {
 
         self.set_scissor(&mut pass);
 
-        for (model, skel) in render_models.into_iter().zip(skels) {
-            model.draw_skeleton(
-                skel,
-                &self.bone_buffers,
-                &mut pass,
-                &self.skeleton_camera_bind_group,
-                &self.bone_pipelines,
-                draw_bone_axes,
-            );
+        if draw_bones {
+            for model in render_models {
+                model.draw_skeleton(
+                    &self.bone_buffers,
+                    &mut pass,
+                    &self.skeleton_camera_bind_group,
+                    &self.bone_pipelines,
+                    draw_bone_axes,
+                );
+            }
         }
     }
 

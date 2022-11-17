@@ -206,7 +206,6 @@ fn render_screenshot(
         &mut encoder,
         output_view,
         render_models,
-        std::iter::empty(),
         &shared_data.database(),
         &ModelRenderOptions::default(),
     );

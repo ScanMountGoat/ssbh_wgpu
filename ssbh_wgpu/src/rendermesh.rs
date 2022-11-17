@@ -38,14 +38,7 @@ pub struct RenderModel {
     pipelines: HashMap<PipelineKey, wgpu::RenderPipeline>,
     textures: Vec<(String, wgpu::Texture, wgpu::TextureViewDimension)>,
 
-    joint_world_transforms: wgpu::Buffer,
-    bone_data: crate::shader::skeleton::bind_groups::BindGroup1,
-    bone_data_outer: crate::shader::skeleton::bind_groups::BindGroup1,
-    joint_data: crate::shader::skeleton::bind_groups::BindGroup1,
-    joint_data_outer: crate::shader::skeleton::bind_groups::BindGroup1,
-
-    // TODO: Use instancing instead.
-    bone_bind_groups: Vec<crate::shader::skeleton::bind_groups::BindGroup2>,
+    bone_render_data: BoneRenderData,
 
     // TODO: The swing pipelines should be created only once in the renderer.
     swing_render_data: SwingRenderData,
@@ -78,6 +71,16 @@ pub struct RenderMesh {
     vertex_index_count: usize,
     access: MeshBufferAccess,
     attribute_names: Vec<String>,
+}
+
+struct BoneRenderData {
+    joint_world_transforms: wgpu::Buffer,
+    bone_data: crate::shader::skeleton::bind_groups::BindGroup1,
+    bone_data_outer: crate::shader::skeleton::bind_groups::BindGroup1,
+    joint_data: crate::shader::skeleton::bind_groups::BindGroup1,
+    joint_data_outer: crate::shader::skeleton::bind_groups::BindGroup1,
+    // TODO: Use instancing instead?
+    bone_bind_groups: Vec<crate::shader::skeleton::bind_groups::BindGroup2>,
 }
 
 impl RenderMesh {
@@ -247,7 +250,10 @@ impl RenderModel {
 
             // TODO: Avoid allocating here?
             let joint_transforms = joint_transforms(skel, &self.animation_transforms);
-            queue.write_data(&self.joint_world_transforms, &joint_transforms);
+            queue.write_data(
+                &self.bone_render_data.joint_world_transforms,
+                &joint_transforms,
+            );
         }
 
         debug!("Apply Anim: {:?}", start.elapsed());
@@ -275,42 +281,36 @@ impl RenderModel {
 
     pub fn draw_skeleton<'a>(
         &'a self,
-        skel: Option<&SkelData>,
         bone_buffers: &'a BoneBuffers,
         render_pass: &mut wgpu::RenderPass<'a>,
         camera_bind_group: &'a crate::shader::skeleton::bind_groups::BindGroup0,
         bone_pipelines: &'a BonePipelines,
         draw_bone_axes: bool,
     ) {
-        if let Some(skel) = skel {
-            self.draw_joints(
+        self.draw_joints(
+            bone_buffers,
+            render_pass,
+            camera_bind_group,
+            &bone_pipelines.joint_pipeline,
+            &bone_pipelines.joint_outer_pipeline,
+        );
+
+        // Draw the bones after to cover up the geometry at the ends of the joints.
+        self.draw_bones(
+            bone_buffers,
+            render_pass,
+            camera_bind_group,
+            &bone_pipelines.bone_pipeline,
+            &bone_pipelines.bone_outer_pipeline,
+        );
+
+        if draw_bone_axes {
+            self.draw_bone_axes(
                 bone_buffers,
                 render_pass,
-                skel,
                 camera_bind_group,
-                &bone_pipelines.joint_pipeline,
-                &bone_pipelines.joint_outer_pipeline,
-            );
-
-            // Draw the bones after to cover up the geometry at the ends of the joints.
-            self.draw_bones(
-                bone_buffers,
-                render_pass,
-                skel,
-                camera_bind_group,
-                &bone_pipelines.bone_pipeline,
-                &bone_pipelines.bone_outer_pipeline,
-            );
-
-            if draw_bone_axes {
-                self.draw_bone_axes(
-                    bone_buffers,
-                    render_pass,
-                    skel,
-                    camera_bind_group,
-                    &bone_pipelines.bone_axes_pipeline,
-                )
-            }
+                &bone_pipelines.bone_axes_pipeline,
+            )
         }
     }
 
@@ -318,30 +318,27 @@ impl RenderModel {
         &'a self,
         bone_buffers: &'a BoneBuffers,
         render_pass: &mut wgpu::RenderPass<'a>,
-        skel: &SkelData,
         camera_bind_group: &'a crate::shader::skeleton::bind_groups::BindGroup0,
         skeleton_pipeline: &'a wgpu::RenderPipeline,
         skeleton_outer_pipeline: &'a wgpu::RenderPipeline,
     ) {
         self.draw_skel_inner(
             render_pass,
-            skel,
             skeleton_outer_pipeline,
             &bone_buffers.joint_vertex_buffer_outer,
             &bone_buffers.joint_index_buffer,
             camera_bind_group,
-            &self.joint_data_outer,
+            &self.bone_render_data.joint_data_outer,
             joint_index_count() as u32,
         );
 
         self.draw_skel_inner(
             render_pass,
-            skel,
             skeleton_pipeline,
             &bone_buffers.joint_vertex_buffer,
             &bone_buffers.joint_index_buffer,
             camera_bind_group,
-            &self.joint_data,
+            &self.bone_render_data.joint_data,
             joint_index_count() as u32,
         );
     }
@@ -350,7 +347,6 @@ impl RenderModel {
         &'a self,
         bone_buffers: &'a BoneBuffers,
         render_pass: &mut wgpu::RenderPass<'a>,
-        skel: &SkelData,
         camera_bind_group: &'a crate::shader::skeleton::bind_groups::BindGroup0,
         skeleton_pipeline: &'a wgpu::RenderPipeline,
         skeleton_outer_pipeline: &'a wgpu::RenderPipeline,
@@ -358,23 +354,21 @@ impl RenderModel {
         // TODO: Instancing?
         self.draw_skel_inner(
             render_pass,
-            skel,
             skeleton_outer_pipeline,
             &bone_buffers.bone_vertex_buffer_outer,
             &bone_buffers.bone_index_buffer,
             camera_bind_group,
-            &self.bone_data_outer,
+            &self.bone_render_data.bone_data_outer,
             bone_index_count() as u32,
         );
 
         self.draw_skel_inner(
             render_pass,
-            skel,
             skeleton_pipeline,
             &bone_buffers.bone_vertex_buffer,
             &bone_buffers.bone_index_buffer,
             camera_bind_group,
-            &self.bone_data,
+            &self.bone_render_data.bone_data,
             bone_index_count() as u32,
         );
     }
@@ -383,19 +377,17 @@ impl RenderModel {
         &'a self,
         bone_buffers: &'a BoneBuffers,
         render_pass: &mut wgpu::RenderPass<'a>,
-        skel: &SkelData,
         camera_bind_group: &'a crate::shader::skeleton::bind_groups::BindGroup0,
         axes_pipeline: &'a wgpu::RenderPipeline,
     ) {
         // TODO: Instancing?
         self.draw_skel_inner(
             render_pass,
-            skel,
             axes_pipeline,
             &bone_buffers.axes_vertex_buffer,
             &bone_buffers.axes_index_buffer,
             camera_bind_group,
-            &self.bone_data_outer,
+            &self.bone_render_data.bone_data_outer,
             bone_axes_index_count() as u32,
         );
     }
@@ -403,7 +395,6 @@ impl RenderModel {
     fn draw_skel_inner<'a>(
         &'a self,
         render_pass: &mut wgpu::RenderPass<'a>,
-        skel: &SkelData,
         pipeline: &'a wgpu::RenderPipeline,
         vertex_buffer: &'a wgpu::Buffer,
         index_buffer: &'a wgpu::Buffer,
@@ -414,13 +405,14 @@ impl RenderModel {
         render_pass.set_pipeline(pipeline);
         render_pass.set_index_buffer(index_buffer.slice(..), wgpu::IndexFormat::Uint32);
         render_pass.set_vertex_buffer(0, vertex_buffer.slice(..));
-        for i in 0..skel.bones.len() {
+
+        for bind_group2 in &self.bone_render_data.bone_bind_groups {
             crate::shader::skeleton::bind_groups::set_bind_groups(
                 render_pass,
                 crate::shader::skeleton::bind_groups::BindGroups::<'a> {
                     bind_group0: camera_bind_group,
                     bind_group1: bone_data_bind_group,
-                    bind_group2: &self.bone_bind_groups[i],
+                    bind_group2,
                 },
             );
             render_pass.draw_indexed(0..count, 0, 0..1);
@@ -430,18 +422,14 @@ impl RenderModel {
     pub fn draw_swing<'a>(
         &'a self,
         render_pass: &mut wgpu::RenderPass<'a>,
-        skel: Option<&SkelData>,
         swing_camera_bind_group: &'a crate::shader::swing::bind_groups::BindGroup0,
     ) {
         // TODO: Is it noticeably more efficient to batch shapes together?
-        // TODO: Do we need the skel here?
-        if skel.is_some() {
-            draw_swing_collisions(
-                &self.swing_render_data,
-                render_pass,
-                swing_camera_bind_group,
-            );
-        }
+        draw_swing_collisions(
+            &self.swing_render_data,
+            render_pass,
+            swing_camera_bind_group,
+        );
     }
 
     fn draw_mesh<'a>(

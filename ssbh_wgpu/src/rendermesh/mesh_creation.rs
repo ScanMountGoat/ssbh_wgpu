@@ -2,6 +2,7 @@ use crate::{
     animation::AnimationTransforms,
     bone_rendering::*,
     pipeline::{create_pipeline, PipelineKey},
+    rendermesh::BoneRenderData,
     swing::SwingPrc,
     swing_rendering::SwingRenderData,
     uniforms::{create_material_uniforms_bind_group, create_uniforms, create_uniforms_buffer},
@@ -91,28 +92,8 @@ impl<'a> RenderMeshSharedData<'a> {
         let swing_render_data =
             SwingRenderData::new(device, &world_transforms, self.swing_prc, self.skel);
 
-        // TODO: Clean this up.
-        let bone_colors = bone_colors_buffer(device, self.skel, self.hlpb);
-
-        let joint_transforms = self
-            .skel
-            .map(|skel| joint_transforms(skel, &animation_transforms))
-            .unwrap_or_else(|| vec![glam::Mat4::IDENTITY; 512]);
-
-        let joint_world_transforms =
-            device.create_uniform_buffer("Joint World Transforms Buffer", &joint_transforms);
-
-        let bone_colors_outer = device.create_uniform_buffer_readonly(
-            "Bone Colors Buffer",
-            &vec![[0.0f32; 4]; crate::animation::MAX_BONE_COUNT],
-        );
-
-        // TODO: How to avoid applying scale to the bone geometry?
-        let bone_data = bone_bind_group1(device, &world_transforms, &bone_colors);
-        let bone_data_outer = bone_bind_group1(device, &world_transforms, &bone_colors_outer);
-        let joint_data = bone_bind_group1(device, &joint_world_transforms, &bone_colors);
-        let joint_data_outer =
-            bone_bind_group1(device, &joint_world_transforms, &bone_colors_outer);
+        let bone_render_data =
+            self.create_bone_render_data(device, &animation_transforms, &world_transforms);
 
         let mesh_buffers = MeshBuffers {
             skinning_transforms: skinning_transforms_buffer,
@@ -128,8 +109,6 @@ impl<'a> RenderMeshSharedData<'a> {
             pipelines,
             buffer_data,
         } = self.create_render_mesh_data(device, queue, &mesh_buffers);
-
-        let bone_bind_groups = bone_bind_groups(device, self.skel);
 
         info!(
             "Create {:?} render meshe(s), {:?} material(s), {:?} pipeline(s): {:?}",
@@ -148,15 +127,50 @@ impl<'a> RenderMeshSharedData<'a> {
             default_material_data,
             textures,
             pipelines,
+            bone_render_data,
+            buffer_data,
+            animation_transforms: Box::new(animation_transforms),
+            swing_render_data,
+        }
+    }
+
+    fn create_bone_render_data(
+        &self,
+        device: &wgpu::Device,
+        animation_transforms: &AnimationTransforms,
+        world_transforms: &wgpu::Buffer,
+    ) -> BoneRenderData {
+        let bone_colors = bone_colors_buffer(device, self.skel, self.hlpb);
+
+        let joint_transforms = self
+            .skel
+            .map(|skel| joint_transforms(skel, animation_transforms))
+            .unwrap_or_else(|| vec![glam::Mat4::IDENTITY; 512]);
+
+        let joint_world_transforms =
+            device.create_uniform_buffer("Joint World Transforms Buffer", &joint_transforms);
+
+        let bone_colors_outer = device.create_uniform_buffer_readonly(
+            "Bone Colors Buffer",
+            &vec![[0.0f32; 4]; crate::animation::MAX_BONE_COUNT],
+        );
+
+        // TODO: How to avoid applying scale to the bone geometry?
+        // TODO: Use the stencil mask outline to avoid needing multiple buffers.
+        let bone_data = bone_bind_group1(device, world_transforms, &bone_colors);
+        let bone_data_outer = bone_bind_group1(device, world_transforms, &bone_colors_outer);
+        let joint_data = bone_bind_group1(device, &joint_world_transforms, &bone_colors);
+        let joint_data_outer =
+            bone_bind_group1(device, &joint_world_transforms, &bone_colors_outer);
+        let bone_bind_groups = bone_bind_groups(device, self.skel);
+
+        BoneRenderData {
             joint_world_transforms,
             bone_data,
             bone_data_outer,
             joint_data,
             joint_data_outer,
             bone_bind_groups,
-            buffer_data,
-            animation_transforms: Box::new(animation_transforms),
-            swing_render_data,
         }
     }
 
