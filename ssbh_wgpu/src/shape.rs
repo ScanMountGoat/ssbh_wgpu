@@ -113,11 +113,44 @@ pub fn sphere_indices(sector_count: u32, stack_count: u32) -> Vec<u32> {
 }
 
 pub fn capsule_mesh_buffers(device: &wgpu::Device) -> IndexedMeshBuffers {
-    IndexedMeshBuffers::from_vertices(
-        device,
-        &cylinder_vertices(8, 1.0, 1.0),
-        &cylinder_indices(8),
-    )
+    IndexedMeshBuffers::from_vertices(device, &capsule_vertices(8, 8), &capsule_indices(8, 8))
+}
+
+fn capsule_vertices(sector_count: u32, stack_count: u32) -> Vec<[f32; 4]> {
+    // Combine two spheres and a cylinder to create a capsule with height and radius 1.0.
+    // TODO: Optimize this to use hemispheres.
+    sphere_vertices(sector_count, stack_count)
+        .into_iter()
+        .map(|v| [v[0], v[1], v[2] - 0.5, 1.0])
+        .chain(
+            sphere_vertices(sector_count, stack_count)
+                .into_iter()
+                .map(|v| [v[0], v[1], v[2] + 0.5, 1.0]),
+        )
+        .chain(cylinder_vertices(sector_count, 1.0, 1.0))
+        .collect()
+}
+
+fn capsule_indices(sector_count: u32, stack_count: u32) -> Vec<u32> {
+    // Combine two spheres and a cylinder to create a capsule.
+    // TODO: Optimize this to use hemispheres.
+    // TODO: This should be more efficient if vertices and indices are generated in the same function.
+    let n1 = sphere_vertices(sector_count, stack_count).len() / 2;
+    let n2 = n1 + n1;
+
+    sphere_indices(sector_count, stack_count)
+        .into_iter()
+        .chain(
+            sphere_indices(sector_count, stack_count)
+                .into_iter()
+                .map(|i| i + n1 as u32),
+        )
+        .chain(
+            cylinder_indices(sector_count)
+                .into_iter()
+                .map(|i| i + n2 as u32),
+        )
+        .collect()
 }
 
 fn unit_circle_vertices() -> Vec<[f32; 4]> {
@@ -146,16 +179,14 @@ fn cylinder_vertices(sector_count: u32, height: f32, radius: f32) -> Vec<[f32; 4
     for i in 0..2 {
         let h = -height / 2.0 + i as f32 * height;
 
-        let mut k = 0;
-        for _ in 0..=sector_count {
-            let [ux, uy, uz, _] = unit_vertices[k];
+        for k in 0..=sector_count {
+            let [ux, uy, uz, _] = unit_vertices[k as usize];
 
             // Position vector.
             vertices.push([ux * radius, uy * radius, h, 1.0]);
 
             // Normal vector.
             vertices.push([ux, uy, uz, 1.0]);
-            k += 1;
         }
     }
 
@@ -166,10 +197,9 @@ fn cylinder_indices(sector_count: u32) -> Vec<u32> {
     // http://www.songho.ca/opengl/gl_cylinder.html
     let mut indices = Vec::new();
 
-    let mut k1 = 0;
-    let mut k2 = sector_count + 1;
-    // TODO: More idiomatic to use two ranges and zip?
-    for _ in 0..sector_count {
+    for k1 in 0..sector_count {
+        let k2 = k1 + sector_count + 1;
+
         indices.push(k1);
         indices.push(k1 + 1);
         indices.push(k2);
@@ -177,9 +207,6 @@ fn cylinder_indices(sector_count: u32) -> Vec<u32> {
         indices.push(k2);
         indices.push(k1 + 1);
         indices.push(k2 + 1);
-
-        k1 += 1;
-        k2 += 1;
     }
     indices
 }
