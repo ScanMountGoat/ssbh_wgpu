@@ -20,9 +20,8 @@ struct WorldTransforms {
 // Swing collisions can use two bones like capsules.
 // Some shapes like spheres will use only one bone.
 struct PerShape {
-    bone_indices: vec4<i32>, // start, end, -1, -1
+    bone_indices: vec4<i32>, // start, -1, -1, -1
     start_transform: mat4x4<f32>,
-    end_transform: mat4x4<f32>,
     color: vec4<f32>
 }
 

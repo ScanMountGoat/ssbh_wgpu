@@ -90,7 +90,7 @@ impl<'a> RenderMeshSharedData<'a> {
         );
 
         let swing_render_data =
-            SwingRenderData::new(device, &world_transforms, self.swing_prc, self.skel);
+            SwingRenderData::new(device, &world_transforms, self.swing_prc, self.skel, &animation_transforms.world_transforms);
 
         let bone_render_data =
             self.create_bone_render_data(device, &animation_transforms, &world_transforms);

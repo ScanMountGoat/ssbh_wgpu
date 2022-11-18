@@ -256,6 +256,8 @@ impl RenderModel {
             );
         }
 
+        self.swing_render_data.update(queue, skel, &self.animation_transforms.world_transforms);
+
         debug!("Apply Anim: {:?}", start.elapsed());
     }
 

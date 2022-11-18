@@ -23,10 +23,11 @@ impl IndexedMeshBuffers {
     }
 
     fn from_vertices(device: &wgpu::Device, vertices: &[[f32; 4]], indices: &[u32]) -> Self {
+        // Add COPY_DST so we can animate swing shapes without allocating new buffers.
         let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Vertex Buffer"),
             contents: bytemuck::cast_slice(vertices),
-            usage: wgpu::BufferUsages::VERTEX,
+            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
         });
 
         let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -150,7 +151,7 @@ pub fn capsule_mesh_buffers(
     )
 }
 
-fn capsule_vertices(
+pub fn capsule_vertices(
     sector_count: u32,
     stack_count: u32,
     height: f32,

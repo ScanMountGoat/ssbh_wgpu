@@ -28,7 +28,6 @@ pub struct WorldTransforms {
 pub struct PerShape {
     pub bone_indices: [i32; 4],
     pub start_transform: [[f32; 4]; 4],
-    pub end_transform: [[f32; 4]; 4],
     pub color: [f32; 4],
 }
 pub mod bind_groups {

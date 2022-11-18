@@ -1,6 +1,6 @@
 use prc::{hash40::Hash40, Prc};
 
-#[derive(Debug, Prc)]
+#[derive(Debug, Prc, Clone)]
 pub struct SwingPrc {
     pub swingbones: Vec<SwingBone>,
     pub spheres: Vec<Sphere>,
@@ -10,7 +10,7 @@ pub struct SwingPrc {
     pub planes: Vec<Plane>,
 }
 
-#[derive(Debug, Prc)]
+#[derive(Debug, Prc, Clone)]
 pub struct SwingBone {
     pub name: Hash40,
     pub start_bonename: Hash40,
@@ -23,7 +23,7 @@ pub struct SwingBone {
     pub unk: Option<i8>,
 }
 
-#[derive(Debug, Prc)]
+#[derive(Debug, Prc, Clone)]
 pub struct Param {
     pub airresistance: f32,
     pub waterresistance: f32,
@@ -44,7 +44,7 @@ pub struct Param {
     pub collisions: Vec<Hash40>,
 }
 
-#[derive(Debug, Prc)]
+#[derive(Debug, Prc, Clone)]
 pub struct Sphere {
     pub name: Hash40,
     pub bonename: Hash40,
@@ -54,7 +54,7 @@ pub struct Sphere {
     pub radius: f32,
 }
 
-#[derive(Debug, Prc)]
+#[derive(Debug, Prc, Clone)]
 pub struct Oval {
     pub name: Hash40,
     pub start_bonename: Hash40,
@@ -68,7 +68,7 @@ pub struct Oval {
     pub end_offset_z: f32,
 }
 
-#[derive(Debug, Prc)]
+#[derive(Debug, Prc, Clone)]
 pub struct Ellipsoid {
     pub name: Hash40,
     pub bonename: Hash40,
@@ -83,7 +83,7 @@ pub struct Ellipsoid {
     pub sz: f32,
 }
 
-#[derive(Debug, Prc)]
+#[derive(Debug, Prc, Clone)]
 pub struct Capsule {
     pub name: Hash40,
     pub start_bonename: Hash40,
@@ -98,7 +98,7 @@ pub struct Capsule {
     pub end_radius: f32,
 }
 
-#[derive(Debug, Prc)]
+#[derive(Debug, Prc, Clone)]
 pub struct Plane {
     pub name: Hash40,
     pub bonename: Hash40,
