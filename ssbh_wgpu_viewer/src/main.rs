@@ -364,7 +364,6 @@ impl State {
                 current_frame_start,
                 &self.animations,
             );
-            // self.current_frame = 17.0;
         }
         self.previous_frame_start = current_frame_start;
 
