@@ -44,10 +44,21 @@ impl IndexedMeshBuffers {
 }
 
 pub fn sphere_mesh_buffers(device: &wgpu::Device) -> IndexedMeshBuffers {
-    IndexedMeshBuffers::from_vertices(device, &sphere_vertices(8, 8), &sphere_indices(8, 8))
+    IndexedMeshBuffers::from_vertices(
+        device,
+        &sphere_vertices(8, 8, SphereRange::Full),
+        &sphere_indices(8, 8, SphereRange::Full),
+    )
 }
 
-pub fn sphere_vertices(sector_count: u32, stack_count: u32) -> Vec<[f32; 4]> {
+#[derive(PartialEq)]
+pub enum SphereRange {
+    Full,
+    TopHemisphere,
+    BottomHemisphere,
+}
+
+pub fn sphere_vertices(sector_count: u32, stack_count: u32, range: SphereRange) -> Vec<[f32; 4]> {
     // http://www.songho.ca/opengl/gl_sphere.html
     let mut vertices = Vec::new();
 
@@ -55,7 +66,13 @@ pub fn sphere_vertices(sector_count: u32, stack_count: u32) -> Vec<[f32; 4]> {
     let sector_step = 2.0 * PI / sector_count as f32;
     let stack_step = PI / stack_count as f32;
 
-    for i in 0..=sector_count {
+    let stack_range = match range {
+        SphereRange::Full => 0..=stack_count,
+        SphereRange::TopHemisphere => 0..=stack_count / 2,
+        SphereRange::BottomHemisphere => stack_count / 2..=stack_count,
+    };
+
+    for i in stack_range {
         let stack_angle = PI / 2.0 - i as f32 * stack_step;
         let xy = radius * stack_angle.cos();
         let z = radius * stack_angle.sin();
@@ -76,7 +93,7 @@ pub fn sphere_vertices(sector_count: u32, stack_count: u32) -> Vec<[f32; 4]> {
     vertices
 }
 
-pub fn sphere_indices(sector_count: u32, stack_count: u32) -> Vec<u32> {
+pub fn sphere_indices(sector_count: u32, stack_count: u32, range: SphereRange) -> Vec<u32> {
     // http://www.songho.ca/opengl/gl_sphere.html
     // Generate a counterclockwise index list of sphere triangles.
     // k1--k1+1
@@ -84,14 +101,22 @@ pub fn sphere_indices(sector_count: u32, stack_count: u32) -> Vec<u32> {
     // | /  |
     // k2--k2+1
     let mut indices = Vec::new();
-    for i in 0..stack_count {
+
+    let stack_range = match range {
+        SphereRange::Full => 0..stack_count,
+        SphereRange::TopHemisphere | SphereRange::BottomHemisphere => 0..stack_count / 2,
+    };
+
+    for i in stack_range {
         let mut k1 = i * (sector_count + 1);
         let mut k2 = k1 + sector_count + 1;
 
         for _ in 0..sector_count {
             // 2 triangles per sector excluding first and last stacks
             // k1 => k2 => k1+1
-            if i != 0 {
+            // The top sphere should still have its bottom stack.
+            // TODO: Create proper hemisphere functions.
+            if i != 0 || range == SphereRange::BottomHemisphere {
                 indices.push(k1);
                 indices.push(k2);
                 indices.push(k1 + 1);
@@ -112,22 +137,52 @@ pub fn sphere_indices(sector_count: u32, stack_count: u32) -> Vec<u32> {
     indices
 }
 
-pub fn capsule_mesh_buffers(device: &wgpu::Device) -> IndexedMeshBuffers {
-    IndexedMeshBuffers::from_vertices(device, &capsule_vertices(8, 8), &capsule_indices(8, 8))
+pub fn capsule_mesh_buffers(
+    device: &wgpu::Device,
+    height: f32,
+    radius1: f32,
+    radius2: f32,
+) -> IndexedMeshBuffers {
+    IndexedMeshBuffers::from_vertices(
+        device,
+        &capsule_vertices(8, 8, height, radius1, radius2),
+        &capsule_indices(8, 8),
+    )
 }
 
-fn capsule_vertices(sector_count: u32, stack_count: u32) -> Vec<[f32; 4]> {
-    // Combine two spheres and a cylinder to create a capsule with height and radius 1.0.
+fn capsule_vertices(
+    sector_count: u32,
+    stack_count: u32,
+    height: f32,
+    radius1: f32,
+    radius2: f32,
+) -> Vec<[f32; 4]> {
+    // Combine two spheres and a cylinder to create a capsule.
     // TODO: Optimize this to use hemispheres.
-    sphere_vertices(sector_count, stack_count)
+    // TODO: This should allow a different radius for top and bottom.
+    sphere_vertices(sector_count, stack_count, SphereRange::BottomHemisphere)
         .into_iter()
-        .map(|v| [v[0], v[1], v[2] - 0.5, 1.0])
+        .map(|v| {
+            [
+                v[0] * radius1,
+                v[1] * radius1,
+                v[2] * radius1 - height / 2.0,
+                1.0,
+            ]
+        })
         .chain(
-            sphere_vertices(sector_count, stack_count)
+            sphere_vertices(sector_count, stack_count, SphereRange::TopHemisphere)
                 .into_iter()
-                .map(|v| [v[0], v[1], v[2] + 0.5, 1.0]),
+                .map(|v| {
+                    [
+                        v[0] * radius2,
+                        v[1] * radius2,
+                        v[2] * radius2 + height / 2.0,
+                        1.0,
+                    ]
+                }),
         )
-        .chain(cylinder_vertices(sector_count, 1.0, 1.0))
+        .chain(cylinder_vertices(sector_count, height, [radius1, radius2]))
         .collect()
 }
 
@@ -135,20 +190,20 @@ fn capsule_indices(sector_count: u32, stack_count: u32) -> Vec<u32> {
     // Combine two spheres and a cylinder to create a capsule.
     // TODO: Optimize this to use hemispheres.
     // TODO: This should be more efficient if vertices and indices are generated in the same function.
-    let n1 = sphere_vertices(sector_count, stack_count).len() / 2;
-    let n2 = n1 + n1;
+    let n1 = sphere_vertices(sector_count, stack_count, SphereRange::BottomHemisphere).len() / 2;
+    let n2 = sphere_vertices(sector_count, stack_count, SphereRange::TopHemisphere).len() / 2;
 
-    sphere_indices(sector_count, stack_count)
+    sphere_indices(sector_count, stack_count, SphereRange::BottomHemisphere)
         .into_iter()
         .chain(
-            sphere_indices(sector_count, stack_count)
+            sphere_indices(sector_count, stack_count, SphereRange::TopHemisphere)
                 .into_iter()
                 .map(|i| i + n1 as u32),
         )
         .chain(
             cylinder_indices(sector_count)
                 .into_iter()
-                .map(|i| i + n2 as u32),
+                .map(|i| i + (n1 + n2) as u32),
         )
         .collect()
 }
@@ -166,7 +221,7 @@ fn unit_circle_vertices() -> Vec<[f32; 4]> {
     vertices
 }
 
-fn cylinder_vertices(sector_count: u32, height: f32, radius: f32) -> Vec<[f32; 4]> {
+fn cylinder_vertices(sector_count: u32, height: f32, radii: [f32; 2]) -> Vec<[f32; 4]> {
     // http://www.songho.ca/opengl/gl_cylinder.html
     // TODO: Add half spheres for the caps on each end.
     let mut vertices = Vec::new();
@@ -183,7 +238,7 @@ fn cylinder_vertices(sector_count: u32, height: f32, radius: f32) -> Vec<[f32; 4
             let [ux, uy, uz, _] = unit_vertices[k as usize];
 
             // Position vector.
-            vertices.push([ux * radius, uy * radius, h, 1.0]);
+            vertices.push([ux * radii[i], uy * radii[i], h, 1.0]);
 
             // Normal vector.
             vertices.push([ux, uy, uz, 1.0]);

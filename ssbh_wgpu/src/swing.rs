@@ -20,7 +20,7 @@ pub struct SwingBone {
     pub rotateorder: i32,
     pub curverotatex: i8,
     #[prc(hash = 0x0f7316a113)]
-    pub unk: i8,
+    pub unk: Option<i8>,
 }
 
 #[derive(Debug, Prc)]

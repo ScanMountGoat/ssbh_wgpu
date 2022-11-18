@@ -12,6 +12,7 @@ use crate::{
 // TODO: How to support animation for shapes with two endpoints?
 pub struct SwingRenderData {
     pub pipeline: wgpu::RenderPipeline,
+    // TODO: There may need to be new buffers for each shape?
     pub sphere_buffers: IndexedMeshBuffers,
     pub capsule_buffers: IndexedMeshBuffers,
     pub plane_buffers: IndexedMeshBuffers,
@@ -19,7 +20,7 @@ pub struct SwingRenderData {
     pub spheres: Vec<crate::shader::swing::bind_groups::BindGroup2>,
     pub ovals: Vec<crate::shader::swing::bind_groups::BindGroup2>,
     pub ellipsoids: Vec<crate::shader::swing::bind_groups::BindGroup2>,
-    pub capsules: Vec<crate::shader::swing::bind_groups::BindGroup2>,
+    pub capsules: Vec<(IndexedMeshBuffers, crate::shader::swing::bind_groups::BindGroup2)>,
     pub planes: Vec<crate::shader::swing::bind_groups::BindGroup2>,
 }
 
@@ -69,16 +70,14 @@ impl SwingRenderData {
                     write_mask: wgpu::ColorWrites::ALL,
                 })],
             }),
-            primitive: wgpu::PrimitiveState {
-                ..Default::default()
-            },
+            primitive: wgpu::PrimitiveState::default(),
             depth_stencil: None,
             multisample: wgpu::MultisampleState::default(),
             multiview: None,
         });
 
         let sphere_buffers = sphere_mesh_buffers(device);
-        let capsule_buffers = capsule_mesh_buffers(device);
+        let capsule_buffers = capsule_mesh_buffers(device, 1.0, 1.0, 1.0);
         let plane_buffers = plane_mesh_buffers(device);
 
         let bind_group1 = crate::shader::swing::bind_groups::BindGroup1::from_bindings(
@@ -96,7 +95,7 @@ impl SwingRenderData {
         let ellipsoids = Vec::new();
 
         let capsules = swing_prc
-            .map(|swing_prc| capsule_bind_groups(device, &swing_prc.capsules, skel))
+            .map(|swing_prc| capsules(device, &swing_prc.capsules, skel))
             .unwrap_or_default();
 
         let planes = swing_prc
@@ -149,15 +148,16 @@ fn sphere_bind_groups(
         .collect()
 }
 
-fn capsule_bind_groups(
+fn capsules(
     device: &wgpu::Device,
     capsules: &[Capsule],
     skel: Option<&SkelData>,
-) -> Vec<crate::shader::swing::bind_groups::BindGroup2> {
+) -> Vec<(IndexedMeshBuffers, crate::shader::swing::bind_groups::BindGroup2)> {
     capsules
         .iter()
         .map(|c| {
-            let transform = if let Some(skel) = skel {
+            // TODO: Clean this up.
+            let (height, transform) = if let Some(skel) = skel {
                 // The capsule needs to be transformed to span the two bones.
                 // TODO: Modify the vertex generation instead to avoid changing the cap shape.
                 // TODO: This needs to support animation similar to joint transforms for bone display.
@@ -185,22 +185,20 @@ fn capsule_bind_groups(
                 let _end_offset = glam::Vec3::new(c.end_offset_x, c.end_offset_y, c.end_offset_z);
 
                 // Assume the shape is along the Z-axis and has unit dimensions.
-                // 1. Scale the shape along the Z-axis to have the appropriate length.
-                // 2. Rotate the shape to point to both bones.
-                // 3. Translate the bone in between the two bones.
+                // 1. Rotate the shape to point to both bones.
+                // 2. Translate the bone in between the two bones.
                 let direction = end_bone_pos - start_bone_pos;
 
-                // TODO: Don't assume the length of the cylinder for the capsule?
                 // TODO: How to include the offsets?
-                let scale = 1.0 / direction.length();
 
                 let rotation = glam::Quat::from_rotation_arc(glam::Vec3::Z, direction.normalize());
-                glam::Mat4::from_translation((end_bone_pos + start_bone_pos) / 2.0)
-                    * glam::Mat4::from_quat(rotation)
-                    * glam::Mat4::from_scale(glam::Vec3::new(1.0, 1.0, scale))
+                (direction.length(), glam::Mat4::from_translation((end_bone_pos + start_bone_pos) / 2.0)
+                    * glam::Mat4::from_quat(rotation))
             } else {
-                glam::Mat4::IDENTITY
+                (1.0, glam::Mat4::IDENTITY)
             };
+
+            let mesh_buffers = capsule_mesh_buffers(device, height, c.start_radius, c.end_radius);
 
             // TODO: Use a single transform for each bone?
             let buffer2 = device.create_uniform_buffer(
@@ -213,12 +211,12 @@ fn capsule_bind_groups(
                 }],
             );
 
-            crate::shader::swing::bind_groups::BindGroup2::from_bindings(
+            (mesh_buffers, crate::shader::swing::bind_groups::BindGroup2::from_bindings(
                 device,
                 crate::shader::swing::bind_groups::BindGroupLayout2 {
                     per_shape: buffer2.as_entire_buffer_binding(),
                 },
-            )
+            ))
         })
         .collect()
 }
@@ -306,9 +304,8 @@ pub fn draw_swing_collisions<'a>(
         swing_camera_bind_group,
     );
 
-    draw_shapes(
+    draw_shapes_with_buffers(
         pass,
-        &render_data.capsule_buffers,
         &render_data.capsules,
         &render_data.bind_group1,
         swing_camera_bind_group,
@@ -332,6 +329,26 @@ fn draw_shapes<'a>(
 ) {
     buffers.set(pass);
     for bind_group2 in shapes {
+        crate::shader::swing::bind_groups::set_bind_groups(
+            pass,
+            crate::shader::swing::bind_groups::BindGroups {
+                bind_group0: swing_camera_bind_group,
+                bind_group1,
+                bind_group2,
+            },
+        );
+        pass.draw_indexed(0..buffers.index_count, 0, 0..1);
+    }
+}
+
+fn draw_shapes_with_buffers<'a>(
+    pass: &mut wgpu::RenderPass<'a>,
+    shapes: &'a [(IndexedMeshBuffers, crate::shader::swing::bind_groups::BindGroup2)],
+    bind_group1: &'a crate::shader::swing::bind_groups::BindGroup1,
+    swing_camera_bind_group: &'a crate::shader::swing::bind_groups::BindGroup0,
+) {
+    for (buffers, bind_group2) in shapes {
+        buffers.set(pass);
         crate::shader::swing::bind_groups::set_bind_groups(
             pass,
             crate::shader::swing::bind_groups::BindGroups {

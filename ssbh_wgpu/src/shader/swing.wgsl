@@ -43,18 +43,10 @@ fn vs_main(in: VertexInput) -> VertexOutput {
     // TODO: Use a consistent naming convention like PerScene, PerSkel, PerObject etc.
     // Assume the vertex buffer is centered on the origin with unit size.
     var out: VertexOutput;
-    var world_position = vec4(0.0);
-    // The W coordinate determines whether to use the start or end bone.
-    if in.position.w > 0.0 {
-        let position = per_shape.start_transform * vec4(in.position.xyz, 1.0);
-        if (per_shape.bone_indices.x >= 0 && per_shape.bone_indices.x < 512) {
-            world_position = world_transforms.transforms[per_shape.bone_indices.x] * position;
-        }
-    } else {
-        let position = per_shape.end_transform * vec4(in.position.xyz, 1.0);
-        if (per_shape.bone_indices.y >= 0 && per_shape.bone_indices.y < 512) {
-            world_position = world_transforms.transforms[per_shape.bone_indices.y] * position;
-        }
+
+    var world_position = per_shape.start_transform * vec4(in.position.xyz, 1.0);
+    if (per_shape.bone_indices.x >= 0 && per_shape.bone_indices.x < 512) {
+        world_position = world_transforms.transforms[per_shape.bone_indices.x] * world_position;
     }
 
     out.clip_position = camera.mvp_matrix * world_position;
@@ -64,7 +56,6 @@ fn vs_main(in: VertexInput) -> VertexOutput {
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     // Premultiplied alpha.
-    let color = vec3(0.0, 1.0, 1.0);
-    let alpha = 0.05;
+    let alpha = 0.15;
     return vec4(per_shape.color.rgb * alpha, alpha);
 }

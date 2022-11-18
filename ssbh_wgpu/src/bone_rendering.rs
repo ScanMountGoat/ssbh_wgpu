@@ -110,7 +110,7 @@ pub fn bone_axes_index_count() -> usize {
 }
 
 pub fn bone_index_count() -> usize {
-    sphere_indices(8, 8).len()
+    sphere_indices(8, 8,crate::shape::SphereRange::Full).len()
 }
 
 pub fn joint_index_count() -> usize {
@@ -128,7 +128,7 @@ pub fn bone_colors_buffer(
 pub fn bone_vertex_buffer(device: &wgpu::Device) -> wgpu::Buffer {
     device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
         label: Some("Bone Vertex Buffer"),
-        contents: bytemuck::cast_slice(&sphere_vertices(8, 8)),
+        contents: bytemuck::cast_slice(&sphere_vertices(8, 8, crate::shape::SphereRange::Full)),
         usage: wgpu::BufferUsages::VERTEX,
     })
 }
@@ -144,7 +144,7 @@ pub fn bone_vertex_buffer_outer(device: &wgpu::Device) -> wgpu::Buffer {
 pub fn bone_index_buffer(device: &wgpu::Device) -> wgpu::Buffer {
     device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
         label: Some("Bone Index Buffer"),
-        contents: bytemuck::cast_slice(&sphere_indices(8, 8)),
+        contents: bytemuck::cast_slice(&sphere_indices(8, 8, crate::shape::SphereRange::Full)),
         usage: wgpu::BufferUsages::INDEX,
     })
 }
@@ -282,7 +282,7 @@ fn pyramid_indices() -> Vec<u32> {
 
 fn sphere_outer() -> Vec<[f32; 4]> {
     let scale = 1.25;
-    sphere_vertices(8, 8)
+    sphere_vertices(8, 8, crate::shape::SphereRange::Full)
         .iter()
         .map(|v| [v[0] * scale, v[1] * scale, v[2] * scale, v[3]])
         .collect()
