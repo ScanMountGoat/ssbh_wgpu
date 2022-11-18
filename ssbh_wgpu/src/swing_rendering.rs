@@ -20,7 +20,10 @@ pub struct SwingRenderData {
     pub spheres: Vec<crate::shader::swing::bind_groups::BindGroup2>,
     pub ovals: Vec<crate::shader::swing::bind_groups::BindGroup2>,
     pub ellipsoids: Vec<crate::shader::swing::bind_groups::BindGroup2>,
-    pub capsules: Vec<(IndexedMeshBuffers, crate::shader::swing::bind_groups::BindGroup2)>,
+    pub capsules: Vec<(
+        IndexedMeshBuffers,
+        crate::shader::swing::bind_groups::BindGroup2,
+    )>,
     pub planes: Vec<crate::shader::swing::bind_groups::BindGroup2>,
 }
 
@@ -92,7 +95,10 @@ impl SwingRenderData {
             .unwrap_or_default();
 
         let ovals = Vec::new();
-        let ellipsoids = Vec::new();
+
+        let ellipsoids = swing_prc
+            .map(|swing_prc| ellipsoid_bind_groups(device, &swing_prc.ellipsoids, skel))
+            .unwrap_or_default();
 
         let capsules = swing_prc
             .map(|swing_prc| capsules(device, &swing_prc.capsules, skel))
@@ -126,7 +132,7 @@ fn sphere_bind_groups(
         .iter()
         .map(|s| {
             let buffer2 = device.create_uniform_buffer(
-                "Swing Buffer2",
+                "Sphere Swing Buffer2",
                 &[crate::shader::swing::PerShape {
                     bone_indices: [bone_index(skel, s.bonename), -1, -1, -1],
                     start_transform: (glam::Mat4::from_translation(glam::Vec3::new(
@@ -148,11 +154,48 @@ fn sphere_bind_groups(
         .collect()
 }
 
+fn ellipsoid_bind_groups(
+    device: &wgpu::Device,
+    ellipsoids: &[Ellipsoid],
+    skel: Option<&SkelData>,
+) -> Vec<crate::shader::swing::bind_groups::BindGroup2> {
+    ellipsoids
+        .iter()
+        .map(|e| {
+            // TODO: Is r rotation since it's usually 0?
+            let buffer2 = device.create_uniform_buffer(
+                "Ellipsoid Swing Buffer2",
+                &[crate::shader::swing::PerShape {
+                    bone_indices: [bone_index(skel, e.bonename), -1, -1, -1],
+                    start_transform: (glam::Mat4::from_translation(glam::Vec3::new(
+                        e.cx, e.cy, e.cz,
+                    )) * glam::Mat4::from_scale(glam::Vec3::new(
+                        e.sx, e.sy, e.sz,
+                    )))
+                    .to_cols_array_2d(),
+                    end_transform: glam::Mat4::IDENTITY.to_cols_array_2d(),
+                    color: [0.0, 1.0, 1.0, 1.0],
+                }],
+            );
+
+            crate::shader::swing::bind_groups::BindGroup2::from_bindings(
+                device,
+                crate::shader::swing::bind_groups::BindGroupLayout2 {
+                    per_shape: buffer2.as_entire_buffer_binding(),
+                },
+            )
+        })
+        .collect()
+}
+
 fn capsules(
     device: &wgpu::Device,
     capsules: &[Capsule],
     skel: Option<&SkelData>,
-) -> Vec<(IndexedMeshBuffers, crate::shader::swing::bind_groups::BindGroup2)> {
+) -> Vec<(
+    IndexedMeshBuffers,
+    crate::shader::swing::bind_groups::BindGroup2,
+)> {
     capsules
         .iter()
         .map(|c| {
@@ -192,8 +235,11 @@ fn capsules(
                 // TODO: How to include the offsets?
 
                 let rotation = glam::Quat::from_rotation_arc(glam::Vec3::Z, direction.normalize());
-                (direction.length(), glam::Mat4::from_translation((end_bone_pos + start_bone_pos) / 2.0)
-                    * glam::Mat4::from_quat(rotation))
+                (
+                    direction.length(),
+                    glam::Mat4::from_translation((end_bone_pos + start_bone_pos) / 2.0)
+                        * glam::Mat4::from_quat(rotation),
+                )
             } else {
                 (1.0, glam::Mat4::IDENTITY)
             };
@@ -202,7 +248,7 @@ fn capsules(
 
             // TODO: Use a single transform for each bone?
             let buffer2 = device.create_uniform_buffer(
-                "Swing Buffer2",
+                "Capsule Swing Buffer2",
                 &[crate::shader::swing::PerShape {
                     bone_indices: [-1; 4],
                     start_transform: transform.to_cols_array_2d(),
@@ -211,12 +257,15 @@ fn capsules(
                 }],
             );
 
-            (mesh_buffers, crate::shader::swing::bind_groups::BindGroup2::from_bindings(
-                device,
-                crate::shader::swing::bind_groups::BindGroupLayout2 {
-                    per_shape: buffer2.as_entire_buffer_binding(),
-                },
-            ))
+            (
+                mesh_buffers,
+                crate::shader::swing::bind_groups::BindGroup2::from_bindings(
+                    device,
+                    crate::shader::swing::bind_groups::BindGroupLayout2 {
+                        per_shape: buffer2.as_entire_buffer_binding(),
+                    },
+                ),
+            )
         })
         .collect()
 }
@@ -233,7 +282,7 @@ fn plane_bind_groups(
             // Rotate the plane to point in the direction (nx, ny, nz).
             // TODO: Does this correctly match the in game behavior?
             let buffer2 = device.create_uniform_buffer(
-                "Swing Buffer2",
+                "Plane Swing Buffer2",
                 &[crate::shader::swing::PerShape {
                     bone_indices: [bone_index(skel, p.bonename), -1, -1, -1],
                     start_transform: glam::Mat4::from_quat(glam::Quat::from_rotation_arc(
@@ -296,6 +345,7 @@ pub fn draw_swing_collisions<'a>(
         swing_camera_bind_group,
     );
 
+    // Ellipsoids use the sphere geometry.
     draw_shapes(
         pass,
         &render_data.sphere_buffers,
@@ -343,7 +393,10 @@ fn draw_shapes<'a>(
 
 fn draw_shapes_with_buffers<'a>(
     pass: &mut wgpu::RenderPass<'a>,
-    shapes: &'a [(IndexedMeshBuffers, crate::shader::swing::bind_groups::BindGroup2)],
+    shapes: &'a [(
+        IndexedMeshBuffers,
+        crate::shader::swing::bind_groups::BindGroup2,
+    )],
     bind_group1: &'a crate::shader::swing::bind_groups::BindGroup1,
     swing_camera_bind_group: &'a crate::shader::swing::bind_groups::BindGroup0,
 ) {
