@@ -209,9 +209,8 @@ fn capsule_indices(sector_count: u32, stack_count: u32) -> Vec<u32> {
         .collect()
 }
 
-fn unit_circle_vertices() -> Vec<[f32; 4]> {
+fn unit_circle_vertices(sector_count: u32) -> Vec<[f32; 4]> {
     let mut vertices = Vec::new();
-    let sector_count = 8;
     let sector_step = 2.0 * PI / sector_count as f32;
 
     for i in 0..=sector_count {
@@ -228,7 +227,7 @@ fn cylinder_vertices(sector_count: u32, height: f32, radii: [f32; 2]) -> Vec<[f3
     let mut vertices = Vec::new();
 
     // Unit circle on the XY plane to avoid repetitive trig functions.
-    let unit_vertices = unit_circle_vertices();
+    let unit_vertices = unit_circle_vertices(sector_count);
 
     // Generate the side vertices.
     // Omit the caps on the top and bottom of the cylinder for now.

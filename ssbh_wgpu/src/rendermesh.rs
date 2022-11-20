@@ -2,6 +2,7 @@ use crate::{
     animation::{animate_materials, animate_skel, animate_visibility, AnimationTransforms},
     bone_rendering::*,
     pipeline::{create_pipeline, PipelineKey},
+    swing::SwingPrc,
     swing_rendering::{draw_swing_collisions, SwingRenderData},
     vertex::MeshObjectBufferData,
     viewport::world_to_screen,
@@ -12,7 +13,6 @@ use log::debug;
 use mesh_creation::{
     create_material_data, MaterialData, MeshBufferAccess, MeshBuffers, RenderMeshSharedData,
 };
-use prc::Prc;
 use ssbh_data::{matl_data::MatlEntryData, meshex_data::EntryFlags, prelude::*};
 use std::collections::HashMap;
 use wgpu_text::{
@@ -113,7 +113,6 @@ impl RenderModel {
                 .and_then(|(_, m)| m.as_ref().ok()),
 
             shared_data,
-            swing_prc: None,
         };
 
         shared_data.to_render_model(device, queue)
@@ -256,9 +255,31 @@ impl RenderModel {
             );
         }
 
-        self.swing_render_data.update(queue, skel, &self.animation_transforms.world_transforms);
+        self.swing_render_data.animate_collisions(
+            queue,
+            skel,
+            &self.animation_transforms.world_transforms,
+        );
 
         debug!("Apply Anim: {:?}", start.elapsed());
+    }
+
+    /// Creates the data for rendering the collisions in `swing_prc`.
+    /// This method should be called once to initialize the swing collisions
+    /// and any time collisions in the PRC are added, edited, or removed.
+    /// Swing collisions are animated automatically in [RenderModel::apply_anim].
+    pub fn recreate_swing_collisions(
+        &mut self,
+        device: &wgpu::Device,
+        swing_prc: &SwingPrc,
+        skel: Option<&SkelData>,
+    ) {
+        self.swing_render_data.update_collisions(
+            device,
+            swing_prc,
+            skel,
+            &self.animation_transforms.world_transforms,
+        );
     }
 
     fn update_material_uniforms(

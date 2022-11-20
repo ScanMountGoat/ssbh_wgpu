@@ -17,7 +17,7 @@ pub struct SwingBone {
     pub end_bonename: Hash40,
     pub params: Vec<Param>,
     pub isskirt: i8,
-    pub rotateorder: i32,
+    pub rotateorder: i32, // TODO: can be i32 or i8
     pub curverotatex: i8,
     #[prc(hash = 0x0f7316a113)]
     pub unk: Option<i8>,

@@ -21,7 +21,7 @@ mod rendermesh;
 mod shader;
 mod shader_database;
 mod shape;
-mod swing;
+pub mod swing;
 mod swing_rendering;
 mod texture;
 mod uniforms;

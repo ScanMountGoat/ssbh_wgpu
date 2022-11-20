@@ -3,7 +3,10 @@ use prc::hash40::Hash40;
 use ssbh_data::skel_data::SkelData;
 
 use crate::{
-    shape::{capsule_mesh_buffers, plane_mesh_buffers, sphere_mesh_buffers, IndexedMeshBuffers, capsule_vertices},
+    shape::{
+        capsule_mesh_buffers, capsule_vertices, plane_mesh_buffers, sphere_mesh_buffers,
+        IndexedMeshBuffers,
+    },
     swing::*,
     DeviceExt2, QueueExt,
 };
@@ -23,23 +26,15 @@ pub struct SwingRenderData {
     pub capsules: Vec<(IndexedMeshBuffers, PerShapeBindGroup)>,
     pub planes: Vec<PerShapeBindGroup>,
 
-    pub prc_capsules: Vec<Capsule>
+    pub prc_capsules: Vec<Capsule>,
 }
 
-// TODO: Add a &[glam::Mat4] bone world transforms parameter.
-// TODO: Just recreate this every frame while animating for now.
 // TODO: Figure out which objects don't need to be recreated every frame.
 impl SwingRenderData {
-    pub fn new(
-        device: &wgpu::Device,
-        bone_world_transforms_buffer: &wgpu::Buffer,
-        swing_prc: Option<&SwingPrc>,
-        skel: Option<&SkelData>,
-        world_transforms: &[glam::Mat4],
-    ) -> Self {
-        // TODO: Share shape drawing code with skeleton rendering?
+    pub fn new(device: &wgpu::Device, bone_world_transforms_buffer: &wgpu::Buffer) -> Self {
         let shader = crate::shader::swing::create_shader_module(device);
         let layout = crate::shader::swing::create_pipeline_layout(device);
+
         // TODO: Get the stride using encase.
         let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: None,
@@ -90,45 +85,50 @@ impl SwingRenderData {
             },
         );
 
-        let spheres = swing_prc
-            .map(|swing_prc| sphere_bind_groups(device, &swing_prc.spheres, skel))
-            .unwrap_or_default();
-
-        let ovals = Vec::new();
-
-        let ellipsoids = swing_prc
-            .map(|swing_prc| ellipsoid_bind_groups(device, &swing_prc.ellipsoids, skel))
-            .unwrap_or_default();
-
-        let capsules = swing_prc
-            .map(|swing_prc| capsules(device, &swing_prc.capsules, skel, world_transforms))
-            .unwrap_or_default();
-
-        let planes = swing_prc
-            .map(|swing_prc| plane_bind_groups(device, &swing_prc.planes, skel))
-            .unwrap_or_default();
-
         Self {
             pipeline,
             sphere_buffers,
             capsule_buffers,
             plane_buffers,
             bind_group1,
-            spheres,
-            ovals,
-            ellipsoids,
-            capsules,
-            planes,
+            // TODO: Group these together into a struct?
+            spheres: Vec::new(),
+            ovals: Vec::new(),
+            ellipsoids: Vec::new(),
+            capsules: Vec::new(),
+            planes: Vec::new(),
             // TODO: Find a better way to store the prc data for animating.
-            prc_capsules: swing_prc.map(|s| s.capsules.clone()).unwrap_or_default()
+            prc_capsules: Vec::new(),
         }
     }
 
-    pub fn update(&self, queue: &wgpu::Queue, skel: Option<&SkelData>, world_transforms: &[glam::Mat4]) {
+    pub fn update_collisions(
+        &mut self,
+        device: &wgpu::Device,
+        swing_prc: &SwingPrc,
+        skel: Option<&SkelData>,
+        world_transforms: &[glam::Mat4],
+    ) {
+        self.spheres = sphere_bind_groups(device, &swing_prc.spheres, skel);
+        self.ovals = Vec::new();
+        self.ellipsoids = ellipsoid_bind_groups(device, &swing_prc.ellipsoids, skel);
+        self.capsules = capsules(device, &swing_prc.capsules, skel, world_transforms);
+        self.planes = plane_bind_groups(device, &swing_prc.planes, skel);
+
+        // TODO: Find a better way to store the prc data for animating.
+        self.prc_capsules = swing_prc.capsules.clone();
+    }
+
+    pub fn animate_collisions(
+        &self,
+        queue: &wgpu::Queue,
+        skel: Option<&SkelData>,
+        world_transforms: &[glam::Mat4],
+    ) {
         // TODO: Write to the buffer for capsules and ovals.
         // TODO: Find a better way to store the PRC collision data.
         // We need information from the PRC to regenerate vertex data while animating for some shapes.
-        for ((buffers,shape), c) in self.capsules.iter().zip(self.prc_capsules.iter()) {
+        for ((buffers, shape), c) in self.capsules.iter().zip(self.prc_capsules.iter()) {
             // TODO: Find a way to avoid specifying this logic in multiple places.
             // TODO: How to reduce repeated logic for buffer creation and writing?
             let (height, per_shape) = capsules_per_shape(skel, c, world_transforms);
@@ -138,7 +138,6 @@ impl SwingRenderData {
             // TODO: Find a way to avoid needing the swing_prc again.
             shape.update(queue, per_shape);
         }
-        
     }
 }
 

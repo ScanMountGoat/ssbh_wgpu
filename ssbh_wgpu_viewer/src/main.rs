@@ -1,4 +1,6 @@
+use prc::Prc;
 use ssbh_data::prelude::*;
+use ssbh_wgpu::swing::SwingPrc;
 use ssbh_wgpu::viewport::screen_to_world;
 use ssbh_wgpu::CameraTransforms;
 use ssbh_wgpu::DebugMode;
@@ -62,7 +64,8 @@ struct State {
     rotation_xyz: glam::Vec3,
 
     // Animations
-    animations: Vec<AnimData>,
+    animation: Option<AnimData>,
+
     // TODO: How to handle overflow if left running too long?
     current_frame: f32,
     previous_frame_start: std::time::Instant,
@@ -76,7 +79,7 @@ struct State {
 }
 
 impl State {
-    async fn new(window: &Window, folder: &Path, anim_paths: &[&Path]) -> Self {
+    async fn new(window: &Window, folder: &Path, anim: Option<&Path>, prc: Option<&Path>) -> Self {
         // TODO: How to try Vulkan and then DX12?
         // TODO: Some Windows systems don't work on vulkan for some reason.
         let instance = wgpu::Instance::new(wgpu::Backends::all());
@@ -113,15 +116,22 @@ impl State {
         surface.configure(&device, &config);
 
         // TODO: Frame bounding spheres?
-        let animations: Vec<_> = anim_paths
-            .iter()
-            .map(|anim_path| AnimData::from_file(anim_path).unwrap())
-            .collect();
+        let animation = anim.map(|anim_path| AnimData::from_file(anim_path).unwrap());
+        let swing_prc = prc
+            .map(|prc_path| std::io::BufReader::new(std::fs::File::open(prc_path).unwrap()))
+            .map(|mut f| SwingPrc::read_file(&mut f).unwrap());
 
         let shared_data = SharedRenderData::new(&device, &queue, surface_format);
 
         let models = load_model_folders(folder);
-        let render_models = load_render_models(&device, &queue, &models, &shared_data);
+        let mut render_models = load_render_models(&device, &queue, &models, &shared_data);
+
+        // Assume only one folder is loaded and apply the swing prc to every folder.
+        if let Some(swing_prc) = &swing_prc {
+            for (render_model, model) in render_models.iter_mut().zip(models.iter()) {
+                render_model.recreate_swing_collisions(&device, swing_prc, model.find_skel());
+            }
+        }
 
         let renderer = SsbhRenderer::new(
             &device,
@@ -147,7 +157,7 @@ impl State {
             is_mouse_right_clicked: false,
             translation_xyz: glam::Vec3::new(0.0, -8.0, -60.0),
             rotation_xyz: glam::Vec3::new(0.0, 0.0, 0.0),
-            animations,
+            animation,
             current_frame: 0.0,
             previous_frame_start: std::time::Instant::now(),
             shared_data,
@@ -362,7 +372,7 @@ impl State {
                 self.current_frame,
                 self.previous_frame_start,
                 current_frame_start,
-                &self.animations,
+                self.animation.as_ref(),
             );
         }
         self.previous_frame_start = current_frame_start;
@@ -387,7 +397,7 @@ impl State {
             for (i, model) in self.render_models.iter_mut().enumerate() {
                 model.apply_anim(
                     &self.queue,
-                    self.animations.iter(),
+                    self.animation.iter(),
                     self.models[i].find_skel(),
                     self.models[i].find_matl(),
                     self.models[i].find_hlpb(),
@@ -406,7 +416,7 @@ impl State {
             &self.render_models,
             &self.shared_data.database(),
             &ModelRenderOptions {
-                draw_bones: true,
+                draw_bones: false,
                 ..Default::default()
             },
         );
@@ -443,7 +453,7 @@ pub fn next_frame(
     current_frame: f32,
     previous: std::time::Instant,
     current: std::time::Instant,
-    animations: &[AnimData],
+    animations: Option<&AnimData>,
 ) -> f32 {
     // Animate at 60 fps regardless of the rendering framerate.
     // This relies on interpolation or frame skipping.
@@ -457,10 +467,7 @@ pub fn next_frame(
 
     let mut next_frame = current_frame + (delta_t_frames * playback_speed) as f32;
 
-    let max_final_frame = animations
-        .iter()
-        .map(|a| a.final_frame_index)
-        .fold(0.0, |a, b| f32::max(a, b));
+    let max_final_frame = animations.map(|a| a.final_frame_index).unwrap_or_default();
 
     if next_frame > max_final_frame {
         // Loop around since the delta might not be an integral number of frames.
@@ -480,11 +487,10 @@ fn main() {
 
     let args: Vec<_> = std::env::args().collect();
     let folder = Path::new(&args[1]);
-    // Load multiple animation files to test layering.
-    let anim_paths: Vec<_> = args
-        .get(2..)
-        .map(|p| p.iter().map(Path::new).collect())
-        .unwrap_or_default();
+    // TODO: Check the extension to support different argument orders.
+    let anim_path = args.get(2).map(Path::new);
+
+    let prc_path = args.get(3).map(Path::new);
 
     let event_loop = EventLoop::new();
     let window = WindowBuilder::new()
@@ -492,7 +498,7 @@ fn main() {
         .build(&event_loop)
         .unwrap();
 
-    let mut state = futures::executor::block_on(State::new(&window, folder, &anim_paths));
+    let mut state = futures::executor::block_on(State::new(&window, folder, anim_path, prc_path));
 
     // Initialize the camera buffer.
     state.update_camera(window.scale_factor());

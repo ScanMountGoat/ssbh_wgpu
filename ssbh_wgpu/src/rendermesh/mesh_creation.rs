@@ -3,7 +3,6 @@ use crate::{
     bone_rendering::*,
     pipeline::{create_pipeline, PipelineKey},
     rendermesh::BoneRenderData,
-    swing::SwingPrc,
     swing_rendering::SwingRenderData,
     uniforms::{create_material_uniforms_bind_group, create_uniforms, create_uniforms_buffer},
     vertex::{buffer0, buffer1, mesh_object_buffers, skin_weights, MeshObjectBufferData},
@@ -61,7 +60,6 @@ pub struct RenderMeshSharedData<'a> {
     pub adj: Option<&'a AdjData>,
     pub hlpb: Option<&'a HlpbData>,
     pub nutexbs: &'a ModelFiles<NutexbFile>,
-    pub swing_prc: Option<&'a SwingPrc>,
 }
 
 impl<'a> RenderMeshSharedData<'a> {
@@ -89,8 +87,7 @@ impl<'a> RenderMeshSharedData<'a> {
             &animation_transforms.world_transforms,
         );
 
-        let swing_render_data =
-            SwingRenderData::new(device, &world_transforms, self.swing_prc, self.skel, &animation_transforms.world_transforms);
+        let swing_render_data = SwingRenderData::new(device, &world_transforms);
 
         let bone_render_data =
             self.create_bone_render_data(device, &animation_transforms, &world_transforms);
