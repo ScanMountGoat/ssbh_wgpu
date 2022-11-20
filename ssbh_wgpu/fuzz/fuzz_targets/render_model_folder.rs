@@ -3,59 +3,59 @@ use futures::executor::block_on;
 use libfuzzer_sys::fuzz_target;
 use once_cell::sync::Lazy;
 use ssbh_wgpu::{
-    load_render_models, ModelFolder, RenderModel, ShaderDatabase, SharedRenderData, SsbhRenderer,
-    REQUIRED_FEATURES, RGBA_COLOR_FORMAT,
+    load_render_models, ModelFolder, ModelRenderOptions, RenderModel, ShaderDatabase,
+    SharedRenderData, SsbhRenderer, REQUIRED_FEATURES, RGBA_COLOR_FORMAT,
 };
 use wgpu::{
     Backends, Device, DeviceDescriptor, Extent3d, Instance, Limits, PowerPreference, Queue,
     RequestAdapterOptions, TextureDescriptor, TextureDimension, TextureUsages, TextureView,
 };
 
-static SHARED: Lazy<(Device, Queue, SharedRenderData, SsbhRenderer, TextureView)> = Lazy::new(|| {
-    // Load models in headless mode without a surface.
-    let instance = Instance::new(Backends::all());
-    let adapter = block_on(instance.request_adapter(&RequestAdapterOptions {
-        power_preference: PowerPreference::HighPerformance,
-        compatible_surface: None,
-        force_fallback_adapter: false,
-    }))
-    .unwrap();
+static SHARED: Lazy<(Device, Queue, SharedRenderData, SsbhRenderer, TextureView)> =
+    Lazy::new(|| {
+        // Load models in headless mode without a surface.
+        let instance = Instance::new(Backends::all());
+        let adapter = block_on(instance.request_adapter(&RequestAdapterOptions {
+            power_preference: PowerPreference::HighPerformance,
+            compatible_surface: None,
+            force_fallback_adapter: false,
+        }))
+        .unwrap();
 
-    let surface_format = RGBA_COLOR_FORMAT;
+        let surface_format = RGBA_COLOR_FORMAT;
 
-    let (device, queue) = block_on(adapter.request_device(
-        &DeviceDescriptor {
+        let (device, queue) = block_on(adapter.request_device(
+            &DeviceDescriptor {
+                label: None,
+                features: REQUIRED_FEATURES,
+                limits: Limits::default(),
+            },
+            None,
+        ))
+        .unwrap();
+
+        let shared_data = SharedRenderData::new(&device, &queue, surface_format);
+
+        let renderer = SsbhRenderer::new(&device, &queue, 64, 64, 1.0, [0.0; 3], &[]);
+
+        let texture_desc = TextureDescriptor {
+            size: Extent3d {
+                width: 64,
+                height: 64,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: TextureDimension::D2,
+            format: surface_format,
+            usage: TextureUsages::COPY_SRC | TextureUsages::RENDER_ATTACHMENT,
             label: None,
-            features: REQUIRED_FEATURES,
-            limits: Limits::default(),
-        },
-        None,
-    ))
-    .unwrap();
+        };
+        let output = device.create_texture(&texture_desc);
+        let output_view = output.create_view(&Default::default());
 
-    let shared_data = SharedRenderData::new(&device, &queue, surface_format);
-
-    let renderer = SsbhRenderer::new(&device, &queue, 64, 64, 1.0, [0.0; 3], &[]);
-
-    let texture_desc = TextureDescriptor {
-        size: Extent3d {
-            width: 64,
-            height: 64,
-            depth_or_array_layers: 1,
-        },
-        mip_level_count: 1,
-        sample_count: 1,
-        dimension: TextureDimension::D2,
-        format: surface_format,
-        usage: TextureUsages::COPY_SRC | TextureUsages::RENDER_ATTACHMENT,
-        label: None,
-    };
-    let output = device.create_texture(&texture_desc);
-    let output_view = output.create_view(&Default::default());
-
-    (device, queue, shared_data, renderer, output_view)
-});
-
+        (device, queue, shared_data, renderer, output_view)
+    });
 
 fn render(
     device: &Device,
@@ -69,7 +69,13 @@ fn render(
         label: Some("Render Encoder"),
     });
 
-    renderer.render_ssbh_passes(&mut encoder, &output_view, &render_models, &shader_database);
+    renderer.render_models(
+        &mut encoder,
+        &output_view,
+        &render_models,
+        &shader_database,
+        &ModelRenderOptions::default(),
+    );
 
     queue.submit([encoder.finish()]);
 }
@@ -80,7 +86,7 @@ fuzz_target!(|model: ModelFolder| {
     let shared_data = &SHARED.2;
     let renderer = &SHARED.3;
     let output_view = &SHARED.4;
-    
+
     // Check for errors when loading and rendering models.
     // This helps check for validation errors and WGPU panics.
     let render_models = load_render_models(&device, &queue, &[model], &shared_data);

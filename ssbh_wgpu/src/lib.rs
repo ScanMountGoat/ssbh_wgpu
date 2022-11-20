@@ -151,6 +151,7 @@ impl<'a> arbitrary::Arbitrary<'a> for ModelFolder {
             anims: vec![(u.arbitrary()?, Ok(u.arbitrary()?))],
             hlpbs: vec![(u.arbitrary()?, Ok(u.arbitrary()?))],
             nutexbs: vec![],
+            meshexes: vec![("model.numshexb".to_owned(), Ok(u.arbitrary()?))],
         })
     }
 }
