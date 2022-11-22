@@ -110,7 +110,7 @@ pub fn bone_axes_index_count() -> usize {
 }
 
 pub fn bone_index_count() -> usize {
-    sphere_indices(8, 8,crate::shape::SphereRange::Full).len()
+    sphere_indices(8, 8, crate::shape::SphereRange::Full).len()
 }
 
 pub fn joint_index_count() -> usize {

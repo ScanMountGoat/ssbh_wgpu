@@ -1,11 +1,12 @@
 use serde_json::Value;
 use std::collections::HashMap;
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct ShaderProgram {
     pub discard: bool,
     pub vertex_attributes: Vec<String>,
     pub material_parameters: Vec<String>,
+    pub complexity: f64,
 }
 
 impl ShaderProgram {
@@ -14,8 +15,9 @@ impl ShaderProgram {
     pub fn has_required_attributes(&self, attributes: &[String]) -> bool {
         self.vertex_attributes
             .iter()
-            .filter(|a| a.as_str() != "ink_color_set")
-            .all(|a| attributes.contains(a))
+            .map(|a| attribute_name_no_channels(a))
+            .filter(|a| *a != "ink_color_set")
+            .all(|required| attributes.iter().any(|a| a == required))
     }
 
     /// Returns the vertex attribute names required by this shader program not present in `attributes`.
@@ -23,8 +25,11 @@ impl ShaderProgram {
     pub fn missing_required_attributes(&self, attributes: &[String]) -> Vec<String> {
         self.vertex_attributes
             .iter()
-            .filter(|a| a.as_str() != "ink_color_set" && !attributes.contains(a))
-            .map(String::to_string)
+            .map(|a| attribute_name_no_channels(a))
+            .filter(|required| {
+                *required != "ink_color_set" && !attributes.iter().any(|a| a == required)
+            })
+            .map(|a| a.to_string())
             .collect()
     }
 
@@ -43,6 +48,12 @@ impl ShaderProgram {
         }
         channels
     }
+}
+
+fn attribute_name_no_channels(attribute: &str) -> &str {
+    // "map1.xy" -> "map1"
+    // "map1" -> "map1"
+    attribute.split_once('.').map(|a| a.0).unwrap_or(attribute)
 }
 
 /// Splits `param` into its parameter name and accessed components.
@@ -85,6 +96,7 @@ impl ShaderDatabase {
     pub fn new() -> Self {
         let mut programs = HashMap::with_capacity(4008);
 
+        // Unwrap is safe since we load a static JSON file.
         let v: Value = serde_json::from_str(SHADER_JSON).unwrap();
         for program in v["shaders"].as_array().unwrap() {
             programs.insert(
@@ -103,6 +115,7 @@ impl ShaderDatabase {
                         .iter()
                         .map(|v| v.as_str().unwrap().to_string())
                         .collect(),
+                    complexity: program["complexity"].as_f64().unwrap(),
                 },
             );
         }
@@ -136,9 +149,8 @@ mod tests {
     #[test]
     fn has_required_attributes_empty() {
         assert!(ShaderProgram {
-            discard: false,
             vertex_attributes: Vec::new(),
-            material_parameters: Vec::new(),
+            ..Default::default()
         }
         .has_required_attributes(&[]));
     }
@@ -146,9 +158,8 @@ mod tests {
     #[test]
     fn has_required_attributes_extras() {
         assert!(ShaderProgram {
-            discard: false,
             vertex_attributes: Vec::new(),
-            material_parameters: Vec::new(),
+            ..Default::default()
         }
         .has_required_attributes(&["abc".to_string()]));
     }
@@ -156,19 +167,18 @@ mod tests {
     #[test]
     fn has_required_attributes_missing() {
         assert!(!ShaderProgram {
-            discard: false,
             vertex_attributes: vec!["a".to_string(), "b".to_string()],
-            material_parameters: Vec::new(),
+            ..Default::default()
         }
         .has_required_attributes(&["a".to_string()]));
     }
 
     #[test]
     fn has_required_attributes() {
+        // Make sure the channel extensions are ignored.
         assert!(ShaderProgram {
-            discard: false,
-            vertex_attributes: vec!["a".to_string(), "b".to_string()],
-            material_parameters: Vec::new(),
+            vertex_attributes: vec!["a.xz".to_string(), "b.w".to_string()],
+            ..Default::default()
         }
         .has_required_attributes(&["a".to_string(), "b".to_string()]));
     }
@@ -178,9 +188,8 @@ mod tests {
         // Check that "ink_color_set" is ignored since it isn't part of the mesh
         // TODO: Investigate how this attribute is generated.
         assert!(ShaderProgram {
-            discard: false,
             vertex_attributes: vec!["ink_color_set".to_string(), "map1".to_string()],
-            material_parameters: Vec::new(),
+            ..Default::default()
         }
         .has_required_attributes(&["map1".to_string()]));
     }
@@ -190,9 +199,8 @@ mod tests {
         // Check that "ink_color_set" is ignored since it isn't part of the mesh
         // TODO: Investigate how this attribute is generated.
         assert!(ShaderProgram {
-            discard: false,
             vertex_attributes: Vec::new(),
-            material_parameters: Vec::new(),
+            ..Default::default()
         }
         .missing_required_attributes(&[])
         .is_empty());
@@ -205,9 +213,8 @@ mod tests {
         assert_eq!(
             vec!["map1".to_string()],
             ShaderProgram {
-                discard: false,
-                vertex_attributes: vec!["ink_color_set".to_string(), "map1".to_string()],
-                material_parameters: Vec::new(),
+                vertex_attributes: vec!["ink_color_set".to_string(), "map1.xy".to_string()],
+                ..Default::default()
             }
             .missing_required_attributes(&[])
         );

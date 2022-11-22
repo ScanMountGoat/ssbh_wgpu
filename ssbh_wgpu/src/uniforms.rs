@@ -579,7 +579,8 @@ mod tests {
                                 "CustomBoolean1".to_owned(),
                                 "CustomFloat2".to_owned(),
                                 "CustomVector8.xw".to_owned()
-                            ]
+                            ],
+                            complexity: 0.0
                         }
                     )]
                     .into_iter()
