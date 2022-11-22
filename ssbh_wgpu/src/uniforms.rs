@@ -171,7 +171,7 @@ pub fn create_uniforms(
             }
 
             let has_attribute = |p: &ShaderProgram, a: &str| {
-                if p.vertex_attributes.contains(&a.to_string()) {
+                if p.has_attribute(a) {
                     1
                 } else {
                     0

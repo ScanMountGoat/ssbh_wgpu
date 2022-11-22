@@ -278,9 +278,15 @@ fn GetAlbedoColor(uv1: vec2<f32>, uv2: vec2<f32>, uv3: vec2<f32>, R: vec3<f32>, 
     var outRgb = vec3(0.0);
     var outAlpha = 1.0;
 
-    // TODO: Set a blend for different textures based on colorSet5.w.
-    // TODO: Multiply to also use the texture alpha?
-    var blendMask = vec4(1.0);
+    // TODO: Research the other color channels of colorSet5.
+    // colorSet5 asks as an additional alpha mask for texture blending.
+    // TODO: Battlefield waterfalls and delfino volcano use channels differently?
+    var difLayer1Mask = 1.0;
+    var colLayer2Mask = 1.0;
+    if (uniforms.has_color_set567.x == 1u && render_settings.render_vertex_color.x == 1u) {
+        difLayer1Mask = colorSet5.x;
+        colLayer2Mask = colorSet5.w;
+    }
 
     // TODO: Do additional layers affect alpha?
     if (uniforms.has_texture[0].x == 1u) {
@@ -292,29 +298,25 @@ fn GetAlbedoColor(uv1: vec2<f32>, uv2: vec2<f32>, uv3: vec2<f32>, R: vec3<f32>, 
     // TODO: Refactor blend to take RGB and w separately?
     if (uniforms.has_texture[1].x == 1u) {
         let albedoColor2 = textureSample(texture1, sampler1, uvLayer2);
-        if (uniforms.has_color_set567.x == 1u && render_settings.render_vertex_color.x == 1u) {
-            // colorSet5.w is used to blend between the two col map layers.
-            // TODO: Does the layer2 texture alpha matter?
-            let layer2 = vec4(albedoColor2.rgb, colorSet5.w);
-            outRgb = Blend(outRgb, layer2);
-        } else {
-            outRgb = Blend(outRgb, albedoColor2);
-        }
+        outRgb = Blend(outRgb, albedoColor2 * vec4(1.0, 1.0, 1.0, colLayer2Mask));
     }
 
     // Materials won't have col and diffuse cube maps.
     if (uniforms.has_texture[8].x == 1u) {
+        // TODO: Just return early here?
         outRgb = textureSample(texture8, sampler8, R).rgb;
     }
 
     if (uniforms.has_texture[10].x == 1u) {
-        outRgb = Blend(outRgb, textureSample(texture10, sampler10, uvLayer1));
+        let diffuseColor1 = textureSample(texture10, sampler10, uvLayer1);
+        outRgb = Blend(outRgb, diffuseColor1 * vec4(1.0, 1.0, 1.0, difLayer1Mask));
     }
-    // TODO: Is the blending always additive?
     if (uniforms.has_texture[11].x == 1u) {
-        outRgb = Blend(outRgb, textureSample(texture11, sampler11, uvLayer2));
+        let diffuseColor2 = textureSample(texture11, sampler11, uvLayer2);
+        outRgb = Blend(outRgb, diffuseColor2);
     }
     if (uniforms.has_texture[12].x == 1u) {
+        // TODO: Is the blending always additive?
         outRgb = outRgb + textureSample(texture12, sampler12, uvLayer3).rgb;
     }
 
@@ -691,7 +693,6 @@ fn vs_main(
         out.color_set6 = buffer1.color_set6;
         out.color_set7 = buffer1.color_set7;
     }
-
 
     out.light_position = light.light_transform * vec4(buffer0.position0.xyz, 1.0);
     return out;

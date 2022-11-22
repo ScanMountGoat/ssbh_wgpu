@@ -3,9 +3,13 @@ use std::collections::HashMap;
 
 #[derive(Debug, Default)]
 pub struct ShaderProgram {
+    /// `true` if the code contains "discard;" and likely has alpha testing.
     pub discard: bool,
+    /// The collection of required mesh vertex attributes and their accessed channels.
     pub vertex_attributes: Vec<String>,
+    /// The collection of required material parameters and their accessed channels.
     pub material_parameters: Vec<String>,
+    /// A heuristic for shader complexity in the range `0.0` to `1.0`.
     pub complexity: f64,
 }
 
@@ -47,6 +51,14 @@ impl ShaderProgram {
             }
         }
         channels
+    }
+
+    /// Returns `true` if this program requires `attribute`.
+    pub fn has_attribute(&self, attribute: &str) -> bool {
+        self.vertex_attributes
+            .iter()
+            .map(|a| attribute_name_no_channels(a))
+            .any(|a| a == attribute)
     }
 }
 
