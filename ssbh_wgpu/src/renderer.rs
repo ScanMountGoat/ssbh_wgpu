@@ -92,6 +92,8 @@ pub enum DebugMode {
     Bitangents,
     /// The final albedo or base color after applying textures and materials.
     Albedo,
+    /// Relative shader complexity based on instruction count.
+    ShaderComplexity,
 }
 
 /// The secondary material for material transitions when using [DebugMode::Shaded].

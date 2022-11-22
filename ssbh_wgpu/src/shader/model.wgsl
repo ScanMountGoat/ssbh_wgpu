@@ -152,6 +152,7 @@ var texture14: texture_2d<f32>;
 @group(1) @binding(29)
 var sampler14: sampler;
 
+// TODO: use naming convention to indicate frequency like PerMaterial
 // Align everything to 16 bytes to avoid alignment issues.
 // Smash Ultimate's shaders also use this alignment.
 // TODO: Investigate std140/std430
@@ -168,6 +169,7 @@ struct MaterialUniforms {
     has_color_set1234: vec4<u32>,
     has_color_set567: vec4<u32>,
     is_discard: vec4<u32>,
+    shader_complexity: vec4<f32>
 };
 
 @group(1) @binding(30)
@@ -954,7 +956,7 @@ fn fs_debug(in: VertexOutput) -> @location(0) vec4<f32> {
             }
         }
         case 32u: {
-            // Basic Shading.
+            // Basic Shading
             let basic = 0.218 * max(dot(fragmentNormal, viewVector), 0.0);
             outColor = vec4(vec3(basic), 1.0);
         }
@@ -969,6 +971,11 @@ fn fs_debug(in: VertexOutput) -> @location(0) vec4<f32> {
         case 35u: {
             // Albedo
             outColor = vec4(albedoColorFinal.rgb, 1.0);
+        }
+        case 36u: {
+            // Shader Complexity
+            // TODO: Use a perceptually uniform color map like plasma.
+            outColor = vec4(pow(uniforms.shader_complexity.xxx, vec3(2.2)), 1.0);
         }
         default: { 
             outColor = vec4(1.0);

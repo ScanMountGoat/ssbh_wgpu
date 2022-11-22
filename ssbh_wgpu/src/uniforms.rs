@@ -203,6 +203,10 @@ pub fn create_uniforms(
                 .map(|program| [if program.discard { 1 } else { 0 }; 4])
                 .unwrap_or_default();
 
+            let shader_complexity = program
+                .map(|program| [program.complexity as f32; 4])
+                .unwrap_or_default();
+
             MaterialUniforms {
                 custom_vector,
                 custom_boolean,
@@ -214,6 +218,7 @@ pub fn create_uniforms(
                 has_color_set1234,
                 has_color_set567,
                 is_discard,
+                shader_complexity,
             }
         })
         .unwrap_or(
@@ -229,6 +234,7 @@ pub fn create_uniforms(
                 has_color_set1234: [0; 4],
                 has_color_set567: [0; 4],
                 is_discard: [0; 4],
+                shader_complexity: [0.0; 4],
             },
         )
 }
@@ -401,6 +407,7 @@ mod tests {
                 has_color_set1234: [0; 4],
                 has_color_set567: [0; 4],
                 is_discard: [0; 4],
+                shader_complexity: [0.0; 4]
             },
             create_uniforms(None, &ShaderDatabase::from_iter(std::iter::empty()))
         );
@@ -420,6 +427,7 @@ mod tests {
                 has_color_set1234: [0; 4],
                 has_color_set567: [0; 4],
                 is_discard: [0; 4],
+                shader_complexity: [0.0; 4]
             },
             create_uniforms(
                 Some(&MatlEntryData {
@@ -453,6 +461,7 @@ mod tests {
                 has_color_set1234: [0; 4],
                 has_color_set567: [0; 4],
                 is_discard: [0; 4],
+                shader_complexity: [0.0; 4]
             },
             create_uniforms(
                 Some(&MatlEntryData {
@@ -505,6 +514,7 @@ mod tests {
             has_color_set1234: [0; 4],
             has_color_set567: [0; 4],
             is_discard: [1; 4],
+            shader_complexity: [0.0; 4],
         };
         expected.custom_vector[0] = [1.0, 2.0, 3.0, 4.0];
         expected.custom_vector[8] = [1.0; 4];

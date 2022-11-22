@@ -313,6 +313,7 @@ impl State {
                             VirtualKeyCode::M => self.render.debug_mode = DebugMode::Normals,
                             VirtualKeyCode::Comma => self.render.debug_mode = DebugMode::Bitangents,
                             VirtualKeyCode::Period => self.render.debug_mode = DebugMode::Albedo,
+                            VirtualKeyCode::Slash => self.render.debug_mode = DebugMode::ShaderComplexity,
                             // TODO: Add more steps?
                             VirtualKeyCode::Numpad0 => self.render.transition_factor = 0.0,
                             VirtualKeyCode::Numpad1 => self.render.transition_factor = 1.0 / 3.0,

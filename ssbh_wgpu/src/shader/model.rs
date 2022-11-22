@@ -64,6 +64,7 @@ pub struct MaterialUniforms {
     pub has_color_set1234: [u32; 4],
     pub has_color_set567: [u32; 4],
     pub is_discard: [u32; 4],
+    pub shader_complexity: [f32; 4],
 }
 #[repr(C)]
 #[derive(Debug, Copy, Clone, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
