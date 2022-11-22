@@ -728,6 +728,74 @@ fn ScreenCheckerBoard(screenPosition: vec2<f32>) -> f32
     }
 }
 
+fn plasma_colormap(x: f32) -> vec3<f32> {
+    // Colormaps generated from tables provided at 
+    // https://www.kennethmoreland.com/color-advice/
+    let plasma8 = array(
+        vec3(0.05038205347059877,0.029801736499741757,0.5279751010495176),
+        vec3(0.32784692303604196,0.0066313933705768055,0.6402853293744383),
+        vec3(0.5453608398097519,0.03836817688235455,0.6472432548304646),
+        vec3(0.7246542772727967,0.1974236709187686,0.5379281037132716),
+        vec3(0.8588363515132411,0.35929521887338184,0.407891799954962),
+        vec3(0.9557564842476064,0.5338287173328614,0.2850080723374925),
+        vec3(0.9945257260387773,0.7382691276441445,0.16745985897148677),
+        vec3(0.9400151278782742,0.9751557856205376,0.131325887773911),
+    );
+
+    // Use an array to avoid adding another texture.
+    let position = x * 7.0;
+    let index = i32(position);
+    var low = plasma8[0];
+    var high = plasma8[0];
+
+    // Workaround for WGSL only allowing constant array indices.
+    switch (index) {
+        case 0: {
+            low = plasma8[0];
+            high = plasma8[1];
+            break;
+        }
+        case 1: {
+            low = plasma8[1];
+            high = plasma8[2];
+            break;
+        }
+        case 2: {
+            low = plasma8[2];
+            high = plasma8[3];
+            break;
+        }
+        case 3: {
+            low = plasma8[3];
+            high = plasma8[4];
+            break;
+        }
+        case 4: {
+            low = plasma8[4];
+            high = plasma8[5];
+            break;
+        }
+        case 5: {
+            low = plasma8[5];
+            high = plasma8[6];
+            break;
+        }
+        case 6: {
+            low = plasma8[6];
+            high = plasma8[7];
+            break;
+        }
+        default: {
+            low = plasma8[7];
+            high = plasma8[7];
+            break;
+        }
+    }
+
+    // Interpolate between the two closest elements.
+    return mix(low, high, fract(position));
+}
+
 @vertex
 fn vs_main_invalid(
     buffer0: VertexInput0,
@@ -973,9 +1041,10 @@ fn fs_debug(in: VertexOutput) -> @location(0) vec4<f32> {
             outColor = vec4(albedoColorFinal.rgb, 1.0);
         }
         case 36u: {
-            // Shader Complexity
-            // TODO: Use a perceptually uniform color map like plasma.
-            outColor = vec4(pow(uniforms.shader_complexity.xxx, vec3(2.2)), 1.0);
+            // Apply a power adjustment to make the shader complexity nonlinear.
+            // This makes more complex materials like PRM materials stand out.
+            let complexity = plasma_colormap(pow(uniforms.shader_complexity.x, 2.0));     
+            outColor = vec4(pow(complexity, vec3(2.2)), 1.0);
         }
         default: { 
             outColor = vec4(1.0);
