@@ -107,22 +107,3 @@ pub struct Plane {
     pub nz: f32,
     pub distance: f32,
 }
-
-// TODO: Get data from swing.prc.
-// spheres: cxyz, radius
-// ovals:
-// ellipsoids: cxyz, rxyz, sxyz
-// capsules: start_offset_xyz, end_offset_xyz, start_radius, end_radius
-// planes: nxyz, distance
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_prc() {
-        let mut reader = std::io::Cursor::new(std::fs::read("../swing.prc").unwrap());
-        let prc = SwingPrc::read_file(&mut reader).unwrap();
-        dbg!(prc);
-    }
-}
