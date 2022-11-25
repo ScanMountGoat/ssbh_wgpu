@@ -267,7 +267,7 @@ pub fn animate_skel_inner(
 
     for i in &evaluation_order {
         let bone = &bones[*i];
-        let (parent_world, mut current) = calculate_world_transform(&bones, &bone.1, result);
+        let (parent_world, mut current) = calculate_world_transform(bones, &bone.1, result);
 
         if let Some(hlpb) = hlpb {
             apply_constraints(&mut current, hlpb, bone, result, skel_bones);
@@ -1454,7 +1454,7 @@ mod tests {
             Some(&HlpbData {
                 major_version: 1,
                 minor_version: 0,
-                aim_constraints: Vec::new().into(),
+                aim_constraints: Vec::new(),
                 orient_constraints: vec![
                     OrientConstraintData {
                         name: "constraint1".into(),

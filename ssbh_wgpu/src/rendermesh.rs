@@ -2,6 +2,7 @@ use crate::{
     animation::{animate_materials, animate_skel, animate_visibility, AnimationTransforms},
     bone_rendering::*,
     pipeline::{create_pipeline, PipelineKey},
+    shape::IndexedMeshBuffers,
     swing::SwingPrc,
     swing_rendering::{draw_swing_collisions, SwingRenderData},
     vertex::MeshObjectBufferData,
@@ -348,21 +349,17 @@ impl RenderModel {
         self.draw_skel_inner(
             render_pass,
             skeleton_outer_pipeline,
-            &bone_buffers.joint_vertex_buffer_outer,
-            &bone_buffers.joint_index_buffer,
+            &bone_buffers.joint_outer_buffers,
             camera_bind_group,
             &self.bone_render_data.joint_data_outer,
-            joint_index_count() as u32,
         );
 
         self.draw_skel_inner(
             render_pass,
             skeleton_pipeline,
-            &bone_buffers.joint_vertex_buffer,
-            &bone_buffers.joint_index_buffer,
+            &bone_buffers.joint_buffers,
             camera_bind_group,
             &self.bone_render_data.joint_data,
-            joint_index_count() as u32,
         );
     }
 
@@ -378,21 +375,17 @@ impl RenderModel {
         self.draw_skel_inner(
             render_pass,
             skeleton_outer_pipeline,
-            &bone_buffers.bone_vertex_buffer_outer,
-            &bone_buffers.bone_index_buffer,
+            &bone_buffers.bone_outer_buffers,
             camera_bind_group,
             &self.bone_render_data.bone_data_outer,
-            bone_index_count() as u32,
         );
 
         self.draw_skel_inner(
             render_pass,
             skeleton_pipeline,
-            &bone_buffers.bone_vertex_buffer,
-            &bone_buffers.bone_index_buffer,
+            &bone_buffers.bone_buffers,
             camera_bind_group,
             &self.bone_render_data.bone_data,
-            bone_index_count() as u32,
         );
     }
 
@@ -407,11 +400,9 @@ impl RenderModel {
         self.draw_skel_inner(
             render_pass,
             axes_pipeline,
-            &bone_buffers.axes_vertex_buffer,
-            &bone_buffers.axes_index_buffer,
+            &bone_buffers.axes_buffers,
             camera_bind_group,
             &self.bone_render_data.bone_data_outer,
-            bone_axes_index_count() as u32,
         );
     }
 
@@ -419,15 +410,12 @@ impl RenderModel {
         &'a self,
         render_pass: &mut wgpu::RenderPass<'a>,
         pipeline: &'a wgpu::RenderPipeline,
-        vertex_buffer: &'a wgpu::Buffer,
-        index_buffer: &'a wgpu::Buffer,
+        buffers: &'a IndexedMeshBuffers,
         camera_bind_group: &'a crate::shader::skeleton::bind_groups::BindGroup0,
         bone_data_bind_group: &'a crate::shader::skeleton::bind_groups::BindGroup1,
-        count: u32,
     ) {
         render_pass.set_pipeline(pipeline);
-        render_pass.set_index_buffer(index_buffer.slice(..), wgpu::IndexFormat::Uint32);
-        render_pass.set_vertex_buffer(0, vertex_buffer.slice(..));
+        buffers.set(render_pass);
 
         for bind_group2 in &self.bone_render_data.bone_bind_groups {
             crate::shader::skeleton::bind_groups::set_bind_groups(
@@ -438,7 +426,7 @@ impl RenderModel {
                     bind_group2,
                 },
             );
-            render_pass.draw_indexed(0..count, 0, 0..1);
+            render_pass.draw_indexed(0..buffers.index_count, 0, 0..1);
         }
     }
 

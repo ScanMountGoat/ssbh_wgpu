@@ -433,6 +433,7 @@ mod tests {
         );
     }
 
+    // TODO: Fix this test not passing.
     #[test]
     fn orient_constraints_different_parents() {
         // Skel + Anim:
@@ -530,7 +531,7 @@ mod tests {
             Some(&HlpbData {
                 major_version: 1,
                 minor_version: 0,
-                aim_constraints: Vec::new().into(),
+                aim_constraints: Vec::new(),
                 orient_constraints: vec![OrientConstraintData {
                     name: "constraint1".into(),
                     parent_bone_name1: "Root".into(), // TODO: What to put here?

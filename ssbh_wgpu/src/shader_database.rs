@@ -96,14 +96,6 @@ static SHADER_JSON: &str = include_str!("shaders.json");
 pub struct ShaderDatabase(HashMap<String, ShaderProgram>);
 
 impl ShaderDatabase {
-    /// Creates a database with the specified shader programs.
-    pub fn from_iter<I>(programs: I) -> Self
-    where
-        I: Iterator<Item = (String, ShaderProgram)>,
-    {
-        Self(HashMap::from_iter(programs))
-    }
-
     /// Creates the shader database used for Smash Ultimate.
     pub fn new() -> Self {
         let mut programs = HashMap::with_capacity(4008);
@@ -138,6 +130,12 @@ impl ShaderDatabase {
     /// Get the shader with the specified `shader_label` while ignoring tags like `"_opaque"`.
     pub fn get(&self, shader_label: &str) -> Option<&ShaderProgram> {
         self.0.get(shader_label.get(..24).unwrap_or(""))
+    }
+}
+
+impl FromIterator<(String, ShaderProgram)> for ShaderDatabase {
+    fn from_iter<T: IntoIterator<Item = (String, ShaderProgram)>>(iter: T) -> Self {
+        Self(HashMap::from_iter(iter))
     }
 }
 

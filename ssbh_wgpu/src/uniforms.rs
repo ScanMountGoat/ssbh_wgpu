@@ -4,7 +4,7 @@ use crate::{
     shader::model::PerMaterial,
     split_param,
     texture::{load_default, load_sampler, load_texture, LoadTextureError},
-    DeviceExt2, ShaderDatabase, ShaderProgram,
+    DeviceExt2, ShaderDatabase,
 };
 use log::warn;
 use ssbh_data::matl_data::*;
@@ -135,7 +135,7 @@ pub fn create_uniforms(material: Option<&MatlEntryData>, database: &ShaderDataba
             let mut custom_boolean = [[0; 4]; 20];
             for boolean in &material.booleans {
                 if let Some(index) = boolean_index(boolean.param_id) {
-                    custom_boolean[index][0] = if boolean.data { 1 } else { 0 };
+                    custom_boolean[index][0] = boolean.data as u32;
                 }
             }
 
@@ -159,36 +159,25 @@ pub fn create_uniforms(material: Option<&MatlEntryData>, database: &ShaderDataba
                         has_float[i][0] = 1;
                     } else if let Some(i) = vector_index(id) {
                         // Check which components are accessed by the shader binary.
-                        has_vector[i] =
-                            program
-                                .accessed_channels(param_name)
-                                .map(|b| if b { 1 } else { 0 });
+                        has_vector[i] = program.accessed_channels(param_name).map(u32::from);
                     }
                 }
             }
-
-            let has_attribute = |p: &ShaderProgram, a: &str| {
-                if p.has_attribute(a) {
-                    1
-                } else {
-                    0
-                }
-            };
 
             let program = database.get(&material.shader_label);
 
             let (has_color_set1234, has_color_set567) = if let Some(program) = program {
                 (
                     [
-                        has_attribute(program, "colorSet1"),
-                        has_attribute(program, "colorSet2"),
-                        has_attribute(program, "colorSet3"),
-                        has_attribute(program, "colorSet4"),
+                        program.has_attribute("colorSet1") as u32,
+                        program.has_attribute("colorSet2") as u32,
+                        program.has_attribute("colorSet3") as u32,
+                        program.has_attribute("colorSet4") as u32,
                     ],
                     [
-                        has_attribute(program, "colorSet5"),
-                        has_attribute(program, "colorSet6"),
-                        has_attribute(program, "colorSet7"),
+                        program.has_attribute("colorSet5") as u32,
+                        program.has_attribute("colorSet6") as u32,
+                        program.has_attribute("colorSet7") as u32,
                         0,
                     ],
                 )
@@ -197,7 +186,7 @@ pub fn create_uniforms(material: Option<&MatlEntryData>, database: &ShaderDataba
             };
 
             let is_discard = program
-                .map(|program| [if program.discard { 1 } else { 0 }; 4])
+                .map(|program| [program.discard as u32; 4])
                 .unwrap_or_default();
 
             let shader_complexity = program
@@ -387,6 +376,8 @@ pub fn boolean_index(param: ParamId) -> Option<usize> {
 
 #[cfg(test)]
 mod tests {
+    use crate::ShaderProgram;
+
     use super::*;
     use ssbh_data::Vector4;
 

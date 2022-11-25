@@ -1,7 +1,7 @@
 use crate::{
     animation::AnimationTransforms,
     pipeline::depth_stencil_state,
-    shape::{sphere_indices, sphere_vertices},
+    shape::{sphere_indices, sphere_vertices, IndexedMeshBuffers},
     DeviceExt2,
 };
 use glam::Vec4Swizzles;
@@ -40,36 +40,52 @@ impl BonePipelines {
 }
 
 pub struct BoneBuffers {
-    pub bone_vertex_buffer: wgpu::Buffer,
-    pub bone_vertex_buffer_outer: wgpu::Buffer,
-    pub bone_index_buffer: wgpu::Buffer,
-    pub joint_vertex_buffer: wgpu::Buffer,
-    pub joint_vertex_buffer_outer: wgpu::Buffer,
-    pub joint_index_buffer: wgpu::Buffer,
-    pub axes_vertex_buffer: wgpu::Buffer,
-    pub axes_index_buffer: wgpu::Buffer,
+    pub bone_buffers: IndexedMeshBuffers,
+    pub bone_outer_buffers: IndexedMeshBuffers,
+    pub joint_buffers: IndexedMeshBuffers,
+    pub joint_outer_buffers: IndexedMeshBuffers,
+    pub axes_buffers: IndexedMeshBuffers,
 }
 
 impl BoneBuffers {
     pub fn new(device: &wgpu::Device) -> Self {
-        let bone_vertex_buffer = bone_vertex_buffer(device);
-        let bone_vertex_buffer_outer = bone_vertex_buffer_outer(device);
-        let bone_index_buffer = bone_index_buffer(device);
-        let joint_vertex_buffer = joint_vertex_buffer(device);
-        let joint_vertex_buffer_outer = joint_vertex_buffer_outer(device);
-        let joint_index_buffer = joint_index_buffer(device);
-        let axes_vertex_buffer = axes_vertex_buffer(device);
-        let axes_index_buffer = axes_index_buffer(device);
+        // TODO: Create these from shapes instead.
+        let bone_buffers = IndexedMeshBuffers {
+            vertex_buffer: bone_vertex_buffer(device),
+            index_buffer: bone_index_buffer(device),
+            index_count: bone_index_count() as u32,
+        };
+
+        let bone_outer_buffers = IndexedMeshBuffers {
+            vertex_buffer: bone_vertex_buffer_outer(device),
+            index_buffer: bone_index_buffer(device),
+            index_count: bone_index_count() as u32,
+        };
+
+        let joint_buffers = IndexedMeshBuffers {
+            vertex_buffer: joint_vertex_buffer(device),
+            index_buffer: joint_index_buffer(device),
+            index_count: joint_index_count() as u32,
+        };
+
+        let joint_outer_buffers = IndexedMeshBuffers {
+            vertex_buffer: joint_vertex_buffer_outer(device),
+            index_buffer: joint_index_buffer(device),
+            index_count: joint_index_count() as u32,
+        };
+
+        let axes_buffers = IndexedMeshBuffers {
+            vertex_buffer: axes_vertex_buffer(device),
+            index_buffer: axes_index_buffer(device),
+            index_count: bone_axes_index_count() as u32,
+        };
 
         Self {
-            bone_vertex_buffer,
-            bone_vertex_buffer_outer,
-            bone_index_buffer,
-            joint_vertex_buffer,
-            joint_vertex_buffer_outer,
-            joint_index_buffer,
-            axes_vertex_buffer,
-            axes_index_buffer,
+            bone_buffers,
+            bone_outer_buffers,
+            joint_buffers,
+            joint_outer_buffers,
+            axes_buffers,
         }
     }
 }

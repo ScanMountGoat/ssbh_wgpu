@@ -173,6 +173,7 @@ fn main() {
         .build(&event_loop)
         .unwrap();
 
+    // TODO: change the mipmap or layer using keyboard shortcuts.
     let mut state = block_on(State::new(&window, &image_path, layer, mipmap));
     event_loop.run(move |event, _, control_flow| match event {
         Event::WindowEvent {

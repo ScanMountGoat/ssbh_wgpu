@@ -245,8 +245,8 @@ fn capsules_per_shape(
         // TODO: This needs to support animation similar to joint transforms for bone display.
         // TODO: find a simpler way to do this.
         // TODO: Avoid unwrap.
-        let start_i = bone_position(Some(&skel), c.start_bonename).unwrap();
-        let end_i = bone_position(Some(&skel), c.end_bonename).unwrap();
+        let start_i = bone_position(Some(skel), c.start_bonename).unwrap();
+        let end_i = bone_position(Some(skel), c.end_bonename).unwrap();
 
         let start_bone_pos = world_transforms[start_i].col(3).xyz();
 

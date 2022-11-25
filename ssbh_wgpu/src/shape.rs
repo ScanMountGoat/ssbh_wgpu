@@ -231,14 +231,14 @@ fn cylinder_vertices(sector_count: u32, height: f32, radii: [f32; 2]) -> Vec<[f3
 
     // Generate the side vertices.
     // Omit the caps on the top and bottom of the cylinder for now.
-    for i in 0..2 {
+    for (i, radius) in radii.into_iter().enumerate() {
         let h = -height / 2.0 + i as f32 * height;
 
         for k in 0..=sector_count {
             let [ux, uy, uz, _] = unit_vertices[k as usize];
 
             // Position vector.
-            vertices.push([ux * radii[i], uy * radii[i], h, 1.0]);
+            vertices.push([ux * radius, uy * radius, h, 1.0]);
 
             // Normal vector.
             vertices.push([ux, uy, uz, 1.0]);

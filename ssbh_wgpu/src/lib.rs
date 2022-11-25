@@ -15,9 +15,9 @@ pub use nutexb_wgpu::NutexbFile;
 pub mod animation;
 mod bone_rendering;
 mod lighting;
-mod pipeline;
+mod pipeline; // TODO: move into rendermodel?
 mod renderer;
-mod rendermesh;
+mod rendermesh; // TODO: rename to rendermodel?
 mod shader;
 mod shader_database;
 mod shape;

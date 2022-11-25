@@ -206,7 +206,7 @@ fn render_screenshot(
         &mut encoder,
         output_view,
         render_models,
-        &shared_data.database(),
+        shared_data.database(),
         &ModelRenderOptions::default(),
     );
     encoder.copy_texture_to_buffer(

@@ -125,7 +125,7 @@ fn scene_attributes_node(node: &NodeData) -> SceneAttributesForShaderFx {
                 }
                 TrackValues::Boolean(v) => {
                     if let Some(index) = boolean_index(param) {
-                        attributes.custom_boolean[index][0] = if v[0] { 1 } else { 0 };
+                        attributes.custom_boolean[index][0] = v[0] as u32;
                     }
                 }
                 TrackValues::Vector4(v) => {

@@ -147,18 +147,18 @@ impl From<&RenderSettings> for crate::shader::model::RenderSettings {
             debug_mode: [r.debug_mode as u32; 4],
             transition_material: [r.transition_material as u32; 4],
             transition_factor: [r.transition_factor, 0.0, 0.0, 0.0],
-            render_diffuse: [if r.render_diffuse { 1 } else { 0 }; 4],
-            render_specular: [if r.render_specular { 1 } else { 0 }; 4],
-            render_emission: [if r.render_emission { 1 } else { 0 }; 4],
-            render_rim_lighting: [if r.render_rim_lighting { 1 } else { 0 }; 4],
-            render_shadows: [if r.render_shadows { 1 } else { 0 }; 4],
-            render_bloom: [if r.render_bloom { 1 } else { 0 }; 4],
-            render_vertex_color: [if r.render_vertex_color { 1 } else { 0 }; 4],
-            scale_vertex_color: [if r.scale_vertex_color { 1 } else { 0 }; 4],
+            render_diffuse: [r.render_diffuse as u32; 4],
+            render_specular: [r.render_specular as u32; 4],
+            render_emission: [r.render_emission as u32; 4],
+            render_rim_lighting: [r.render_rim_lighting as u32; 4],
+            render_shadows: [r.render_shadows as u32; 4],
+            render_bloom: [r.render_bloom as u32; 4],
+            render_vertex_color: [r.render_vertex_color as u32; 4],
+            scale_vertex_color: [r.scale_vertex_color as u32; 4],
             render_rgba: r.render_rgba.map(|b| if b { 1.0 } else { 0.0 }),
-            render_nor: r.render_nor.map(|b| if b { 1 } else { 0 }),
-            render_prm: r.render_prm.map(|b| if b { 1 } else { 0 }),
-            render_uv_pattern: [if r.use_uv_pattern { 1 } else { 0 }; 4],
+            render_nor: r.render_nor.map(|b| b as u32),
+            render_prm: r.render_prm.map(|b| b as u32),
+            render_uv_pattern: [r.use_uv_pattern as u32; 4],
         }
     }
 }
@@ -196,8 +196,8 @@ pub struct SkinningSettings {
 impl From<&SkinningSettings> for crate::shader::skinning::SkinningSettings {
     fn from(s: &SkinningSettings) -> Self {
         Self {
-            enable_parenting: [if s.enable_parenting { 1 } else { 0 }; 4],
-            enable_skinning: [if s.enable_skinning { 1 } else { 0 }; 4],
+            enable_parenting: [s.enable_parenting as u32; 4],
+            enable_skinning: [s.enable_skinning as u32; 4],
         }
     }
 }
@@ -710,7 +710,7 @@ impl SsbhRenderer {
     /// Returns the final color pass with no depth attachment.
     /// This enables adding efficient overlays.
     /// Remember to drop the pass when done using it!
-    pub fn render_models<'a, 'b>(
+    pub fn render_models<'a>(
         &'a self,
         encoder: &'a mut wgpu::CommandEncoder,
         output_view: &'a wgpu::TextureView,
