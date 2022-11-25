@@ -157,7 +157,7 @@ var sampler14: sampler;
 // Smash Ultimate's shaders also use this alignment.
 // TODO: Investigate std140/std430
 // TODO: Does wgsl/wgpu require a specific layout/alignment?
-struct MaterialUniforms {
+struct PerMaterial {
     custom_vector: array<vec4<f32>, 64>,
     // TODO: Place the has_ values in an unused vector component?
     custom_boolean: array<vec4<u32>, 20>,
@@ -173,7 +173,7 @@ struct MaterialUniforms {
 };
 
 @group(1) @binding(30)
-var<uniform> uniforms: MaterialUniforms;
+var<uniform> per_material: PerMaterial;
 
 struct VertexInput0 {
     @location(0) position0: vec4<f32>,
@@ -222,7 +222,7 @@ struct VertexOutputInvalid {
 
 fn Blend(a: vec3<f32>, b: vec4<f32>) -> vec3<f32> {
     // CustomBoolean11 toggles additive vs alpha blending.
-    if (uniforms.custom_boolean[11].x == 1u) {
+    if (per_material.custom_boolean[11].x == 1u) {
         return a.rgb + b.rgb * b.a;
     } else {
         return mix(a.rgb, b.rgb, b.a);
@@ -243,7 +243,7 @@ fn TransformUv(uv: vec2<f32>, transform: vec4<f32>) -> vec2<f32>
     // dUdV Map.
     // Remap [0,1] to [-1,1].
     // let textureOffset = textureSample(texture4, sampler4, uv * 2.0).xy * 2.0 - 1.0;
-    // result = result + textureOffset * uniforms.custom_float[4].x;
+    // result = result + textureOffset * per_material.custom_float[4].x;
 
     return result;
 }
@@ -257,11 +257,11 @@ fn TransformUv(uv: vec2<f32>, transform: vec4<f32>) -> vec2<f32>
 fn GetEmissionColor(uv1: vec2<f32>, uv2: vec2<f32>) -> vec4<f32> {
     var emissionColor = vec4(0.0, 0.0, 0.0, 1.0);
     
-    if (uniforms.has_texture[5].x == 1u) {
+    if (per_material.has_texture[5].x == 1u) {
         emissionColor = textureSample(texture5, sampler5, uv1);
     }
 
-    if (uniforms.has_texture[14].x == 1u) {
+    if (per_material.has_texture[14].x == 1u) {
         let emission2Color = textureSample(texture14, sampler14, uv2);
         return vec4(Blend(emissionColor.rgb, emission2Color), emissionColor.a);
     }
@@ -283,39 +283,39 @@ fn GetAlbedoColor(uv1: vec2<f32>, uv2: vec2<f32>, uv3: vec2<f32>, R: vec3<f32>, 
     // TODO: Battlefield waterfalls and delfino volcano use channels differently?
     var difLayer1Mask = 1.0;
     var colLayer2Mask = 1.0;
-    if (uniforms.has_color_set567.x == 1u && render_settings.render_vertex_color.x == 1u) {
+    if (per_material.has_color_set567.x == 1u && render_settings.render_vertex_color.x == 1u) {
         difLayer1Mask = colorSet5.x;
         colLayer2Mask = colorSet5.w;
     }
 
     // TODO: Do additional layers affect alpha?
-    if (uniforms.has_texture[0].x == 1u) {
+    if (per_material.has_texture[0].x == 1u) {
         let albedoColor = textureSample(texture0, sampler0, uvLayer1);
         outRgb = albedoColor.rgb;
         outAlpha = albedoColor.a;
     }
 
     // TODO: Refactor blend to take RGB and w separately?
-    if (uniforms.has_texture[1].x == 1u) {
+    if (per_material.has_texture[1].x == 1u) {
         let albedoColor2 = textureSample(texture1, sampler1, uvLayer2);
         outRgb = Blend(outRgb, albedoColor2 * vec4(1.0, 1.0, 1.0, colLayer2Mask));
     }
 
     // Materials won't have col and diffuse cube maps.
-    if (uniforms.has_texture[8].x == 1u) {
+    if (per_material.has_texture[8].x == 1u) {
         // TODO: Just return early here?
         outRgb = textureSample(texture8, sampler8, R).rgb;
     }
 
-    if (uniforms.has_texture[10].x == 1u) {
+    if (per_material.has_texture[10].x == 1u) {
         let diffuseColor1 = textureSample(texture10, sampler10, uvLayer1);
         outRgb = Blend(outRgb, diffuseColor1 * vec4(1.0, 1.0, 1.0, difLayer1Mask));
     }
-    if (uniforms.has_texture[11].x == 1u) {
+    if (per_material.has_texture[11].x == 1u) {
         let diffuseColor2 = textureSample(texture11, sampler11, uvLayer2);
         outRgb = Blend(outRgb, diffuseColor2);
     }
-    if (uniforms.has_texture[12].x == 1u) {
+    if (per_material.has_texture[12].x == 1u) {
         // TODO: Is the blending always additive?
         outRgb = outRgb + textureSample(texture12, sampler12, uvLayer3).rgb;
     }
@@ -329,13 +329,13 @@ fn GetAlbedoColorFinal(albedoColor: vec4<f32>) -> vec3<f32>
 
     // Color multiplier param.
     // TODO: Check all channels?
-    if (uniforms.has_vector[13].x == 1u) {
-        albedoColorFinal = albedoColorFinal * uniforms.custom_vector[13].rgb;
+    if (per_material.has_vector[13].x == 1u) {
+        albedoColorFinal = albedoColorFinal * per_material.custom_vector[13].rgb;
     }
 
     // TODO: Wiifit stage model color.
     // if (hasCustomVector44 == 1u) {
-    //     albedoColorFinal = uniforms.custom_vector[44].rgb + uniforms.custom_vector[45].rgb;
+    //     albedoColorFinal = per_material.custom_vector[44].rgb + per_material.custom_vector[45].rgb;
     // }
 
     return albedoColorFinal;
@@ -395,7 +395,7 @@ fn DiffuseTerm(
     var directLight = stage_uniforms.light_chr.color.rgb * directShading;
     var ambientTerm = (ambientLight * ao);
 
-    if (uniforms.has_texture[9].x == 1u) {
+    if (per_material.has_texture[9].x == 1u) {
         // TODO: Does baked lighting affect the RGB color for direct?
         let bakedLitColor = textureSample(texture9, sampler9, bake1).rgba;
         directLight = directLight * bakedLitColor.a;
@@ -409,7 +409,7 @@ fn DiffuseTerm(
     var result = directLight * shadow + ambientTerm;
 
     // Baked stage lighting.
-    if (uniforms.has_color_set1234.y == 1u && render_settings.render_vertex_color.x == 1u) {
+    if (per_material.has_color_set1234.y == 1u && render_settings.render_vertex_color.x == 1u) {
        result = result * colorSet2.rgb;
     }
 
@@ -491,8 +491,8 @@ fn SpecularBrdf(tangent: vec4<f32>, bitangent: vec3<f32>, nDotH: f32, nDotL: f32
 {
     // TODO: How to calculate tangents and bitangents for prm.a anisotropic rotation?
     // The two BRDFs look very different so don't just use anisotropic for everything.
-    if (uniforms.has_float[10].x == 1u) {
-        return GgxAnisotropic(nDotH, halfAngle, nDotL, nDotV, tangent.xyz, bitangent, roughness, uniforms.custom_float[10].x);
+    if (per_material.has_float[10].x == 1u) {
+        return GgxAnisotropic(nDotH, halfAngle, nDotL, nDotV, tangent.xyz, bitangent, roughness, per_material.custom_float[10].x);
     } else {
         return Ggx(nDotH, nDotL, nDotV, roughness);
     }
@@ -503,12 +503,12 @@ fn SpecularTerm(tangent: vec4<f32>, bitangent: vec3<f32>, nDotH: f32, nDotL: f32
 {
     var directSpecular = vec3(4.0);
     directSpecular = directSpecular * SpecularBrdf(tangent, bitangent, nDotH, nDotL, nDotV, halfAngle, roughness);
-    if (uniforms.has_boolean[3].x == 1u && uniforms.custom_boolean[3].x == 0u) {
+    if (per_material.has_boolean[3].x == 1u && per_material.custom_boolean[3].x == 0u) {
         directSpecular = vec3(0.0);
     }
 
     var indirectSpecular = specularIbl;
-    if (uniforms.has_boolean[4].x == 1u && uniforms.custom_boolean[4].x == 0u) {
+    if (per_material.has_boolean[4].x == 1u && per_material.custom_boolean[4].x == 0u) {
         indirectSpecular = vec3(0.0);
     }
 
@@ -521,8 +521,8 @@ fn EmissionTerm(emissionColor: vec4<f32>) -> vec3<f32>
 {
     var result = emissionColor.rgb;
     // TODO: Check all channels?
-    if (uniforms.has_vector[3].x == 1u) {
-        result = result * uniforms.custom_vector[3].rgb;
+    if (per_material.has_vector[3].x == 1u) {
+        result = result * per_material.custom_vector[3].rgb;
     }
 
     return result;
@@ -537,7 +537,7 @@ fn GetF0FromIor(ior: f32) -> f32
 // TODO: Does this depend on the light direction and intensity?
 fn GetRimBlend(baseColor: vec3<f32>, diffusePass: vec3<f32>, nDotV: f32, nDotL: f32, occlusion: f32, vertexAmbient: vec3<f32>) -> vec3<f32>
 {
-    var rimColor = uniforms.custom_vector[14].rgb * stage_uniforms.scene_attributes.custom_vector[8].rgb;
+    var rimColor = per_material.custom_vector[14].rgb * stage_uniforms.scene_attributes.custom_vector[8].rgb;
 
     // TODO: How is the overall intensity controlled?
     // Hardcoded shader constant.
@@ -550,10 +550,10 @@ fn GetRimBlend(baseColor: vec3<f32>, diffusePass: vec3<f32>, nDotV: f32, nDotL: 
 
     // TODO: Black edges for large blend values?
     // Edge tint.
-    rimColor = rimColor * clamp(mix(vec3(1.0), diffusePass, uniforms.custom_float[8].x), vec3(0.0), vec3(1.0));
+    rimColor = rimColor * clamp(mix(vec3(1.0), diffusePass, per_material.custom_float[8].x), vec3(0.0), vec3(1.0));
 
     let fresnel = pow(1.0 - nDotV, 5.0);
-    var rimBlend = fresnel * stage_uniforms.scene_attributes.custom_vector[8].w * uniforms.custom_vector[14].w * 0.6;
+    var rimBlend = fresnel * stage_uniforms.scene_attributes.custom_vector[8].w * per_material.custom_vector[14].w * 0.6;
     rimBlend = rimBlend * occlusion;
 
     // TODO: Rim lighting is directional?
@@ -587,7 +587,7 @@ fn GetF0FromSpecular(specular: f32) -> f32
 {
     // Specular gets remapped from [0.0,1.0] to [0.0,0.2].
     // The value is 0.16*0.2 = 0.032 if the PRM alpha is ignored.
-    if (uniforms.has_boolean[1].x == 1u && uniforms.custom_boolean[1].x == 0u) {
+    if (per_material.has_boolean[1].x == 1u && per_material.custom_boolean[1].x == 0u) {
         return 0.16 * 0.2;
     }
 
@@ -629,30 +629,30 @@ fn vs_main(
     out.position = buffer0.position0.xyz;
     out.clip_position = camera.mvp_matrix * vec4(buffer0.position0.xyz, 1.0);
     // Assume the z offset defaults to 0.0.
-    out.clip_position.z = out.clip_position.z - uniforms.custom_float[16].x;
+    out.clip_position.z = out.clip_position.z - per_material.custom_float[16].x;
     out.normal = buffer0.normal0.xyz;
     out.tangent = buffer0.tangent0;
 
     // TODO: Also apply transforms to the debug shader?
     var uvTransform1 = vec4(1.0, 1.0, 0.0, 0.0);
     // TODO: Check all channels?
-    if (uniforms.has_vector[6].x == 1u) {
-        uvTransform1 = uniforms.custom_vector[6];
+    if (per_material.has_vector[6].x == 1u) {
+        uvTransform1 = per_material.custom_vector[6];
     }
 
     var uvTransform2 = vec4(1.0, 1.0, 0.0, 0.0);
-    if (uniforms.has_vector[31].x == 1u) {
-        uvTransform2 = uniforms.custom_vector[31];
+    if (per_material.has_vector[31].x == 1u) {
+        uvTransform2 = per_material.custom_vector[31];
     }
 
     var uvTransform3 = vec4(1.0, 1.0, 0.0, 0.0);
-    if (uniforms.has_vector[32].x == 1u) {
-        uvTransform3 = uniforms.custom_vector[32];
+    if (per_material.has_vector[32].x == 1u) {
+        uvTransform3 = per_material.custom_vector[32];
     }
 
     var uvTransformDualNormal = vec4(1.0, 1.0, 0.0, 0.0);
-    if (uniforms.has_vector[34].x == 1u) {
-        uvTransformDualNormal = uniforms.custom_vector[34];
+    if (per_material.has_vector[34].x == 1u) {
+        uvTransformDualNormal = per_material.custom_vector[34];
     }
 
     var map1 = TransformUv(buffer1.map1_uvset.xy, uvTransform1);
@@ -660,8 +660,8 @@ fn vs_main(
 
     // Sprite sheet params.
     // Perform this in the fragment shader to avoid affecting debug modes.
-    if (uniforms.custom_boolean[9].x == 1u) {
-        map1 = map1 / uniforms.custom_vector[18].xy;
+    if (per_material.custom_boolean[9].x == 1u) {
+        map1 = map1 / per_material.custom_vector[18].xy;
     }
 
     let uvSet = TransformUv(buffer1.map1_uvset.zw, uvTransform2);
@@ -874,7 +874,7 @@ fn fs_debug(in: VertexOutput) -> @location(0) vec4<f32> {
 
     // TODO: Apply normal maps and convert to view space.
     var fragmentNormal = normal;
-    if (uniforms.has_texture[4].x == 1u) {
+    if (per_material.has_texture[4].x == 1u) {
         var nor = textureSample(texture4, sampler4, map1);
         // TODO: Simpler way to toggle channels?
         if (render_settings.render_nor.r == 0u) {
@@ -893,15 +893,15 @@ fn fs_debug(in: VertexOutput) -> @location(0) vec4<f32> {
     }
 
     var prm = vec4(0.0, 0.0, 1.0, 0.0);
-    if (uniforms.has_texture[6].x == 1u) {
+    if (per_material.has_texture[6].x == 1u) {
         prm = textureSample(texture6, sampler6, map1);
     }
 
     // Move fake subsurface color into GetAlbedoColorFinal?
-    let sssBlend = prm.r * uniforms.custom_vector[30].x;
+    let sssBlend = prm.r * per_material.custom_vector[30].x;
     let albedoColor = GetAlbedoColor(map1, uvSet, uvSet1, reflectionVector, colorSet5);
     var albedoColorFinal = GetAlbedoColorFinal(albedoColor);
-    albedoColorFinal = mix(albedoColorFinal, uniforms.custom_vector[11].rgb, sssBlend);
+    albedoColorFinal = mix(albedoColorFinal, per_material.custom_vector[11].rgb, sssBlend);
 
     // TODO: Some of these render modes should be gamma corrected.
     // TODO: Use more accurate gamma correction.
@@ -1044,7 +1044,7 @@ fn fs_debug(in: VertexOutput) -> @location(0) vec4<f32> {
         case 36u: {
             // Apply a power adjustment to make the shader complexity nonlinear.
             // This makes more complex materials like PRM materials stand out.
-            let complexity = plasma_colormap(pow(uniforms.shader_complexity.x, 2.0));     
+            let complexity = plasma_colormap(pow(per_material.shader_complexity.x, 2.0));     
             outColor = vec4(pow(complexity, vec3(2.2)), 1.0);
         }
         default: { 
@@ -1092,9 +1092,9 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) is_front: bool) -> @location
 
     // TODO: Mario's eyes don't render properly for the metal/gold materials.
     var nor = vec4(0.5, 0.5, 1.0, 1.0);
-    if (uniforms.has_texture[4].x == 1u) {
+    if (per_material.has_texture[4].x == 1u) {
         nor = textureSample(texture4, sampler4, map1);
-        if (uniforms.has_vector[34].x == 1u) {
+        if (per_material.has_vector[34].x == 1u) {
             // The second layer is added to the first layer.
             // TODO: These shaders use the z channel as a normal map.
             let nor1 = nor.xyz;
@@ -1167,11 +1167,11 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) is_front: bool) -> @location
         }
     }
 
-    let customVector11Final = mix(uniforms.custom_vector[11], transitionCustomVector11, render_settings.transition_factor.x);
-    let customVector30Final = mix(uniforms.custom_vector[30], transitionCustomVector30, render_settings.transition_factor.x);
+    let customVector11Final = mix(per_material.custom_vector[11], transitionCustomVector11, render_settings.transition_factor.x);
+    let customVector30Final = mix(per_material.custom_vector[30], transitionCustomVector30, render_settings.transition_factor.x);
 
     var prm = vec4(0.0, 0.0, 1.0, 0.0);
-    let hasPrm = uniforms.has_texture[6].x == 1u;
+    let hasPrm = per_material.has_texture[6].x == 1u;
     if (hasPrm) {
         prm = textureSample(texture6, sampler6, map1);
         // TODO: Simpler way to toggle channels?
@@ -1190,21 +1190,21 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) is_front: bool) -> @location
     }
     // Not all channels are used for all shaders.
     // TODO: Is there a cleaner way of writing this?
-    let vector47 = uniforms.custom_vector[47];
+    let vector47 = per_material.custom_vector[47];
     var hasVector47 = false;
-    if (uniforms.has_vector[47].x == 1u) {
+    if (per_material.has_vector[47].x == 1u) {
         prm.x = vector47.x;
         hasVector47 = true;
     }
-    if (uniforms.has_vector[47].y == 1u) {
+    if (per_material.has_vector[47].y == 1u) {
         prm.y = vector47.y;
         hasVector47 = true;
     }
-    if (uniforms.has_vector[47].z == 1u) {
+    if (per_material.has_vector[47].z == 1u) {
         prm.z = vector47.z;
         hasVector47 = true;
     }
-    if (uniforms.has_vector[47].w == 1u) {
+    if (per_material.has_vector[47].w == 1u) {
         prm.w = vector47.w;
         hasVector47 = true;
     }
@@ -1217,7 +1217,7 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) is_front: bool) -> @location
     let sssBlend = prm.r * customVector30Final.x;
 
     // Skin shaders use metalness for masking the fake SSS effect.
-    if (uniforms.has_vector[30].x == 1u) {
+    if (per_material.has_vector[30].x == 1u) {
         metalness = 0.0;
     }
 
@@ -1230,7 +1230,7 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) is_front: bool) -> @location
     let bitangent = GetBitangent(normal, tangent, in.tangent.w);
 
     var fragmentNormal = normal;
-    if (uniforms.has_texture[4].x == 1u) {
+    if (per_material.has_texture[4].x == 1u) {
         fragmentNormal = GetBumpMapNormal(normal, tangent, bitangent, nor);
     }
 
@@ -1266,10 +1266,10 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) is_front: bool) -> @location
     }
 
     var outAlpha = albedoColor.a * emissionColor.a;
-    if (uniforms.has_vector[0].x == 1u) {
-        outAlpha = max(albedoColor.a * emissionColor.a, uniforms.custom_vector[0].x);
+    if (per_material.has_vector[0].x == 1u) {
+        outAlpha = max(albedoColor.a * emissionColor.a, per_material.custom_vector[0].x);
     }
-    if (uniforms.is_discard.x == 1u && outAlpha < 0.5) {
+    if (per_material.is_discard.x == 1u && outAlpha < 0.5) {
         discard;
     }
 
@@ -1318,23 +1318,23 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) is_front: bool) -> @location
     }
 
     // TODO: Check all channels?
-    if (uniforms.has_vector[8].x == 1u) {
+    if (per_material.has_vector[8].x == 1u) {
         // TODO: Does this affect alpha?
-        outColor = outColor * uniforms.custom_vector[8].rgb;
+        outColor = outColor * per_material.custom_vector[8].rgb;
     }
 
-    if (uniforms.has_color_set1234.x == 1u && render_settings.render_vertex_color.x == 1u) {
+    if (per_material.has_color_set1234.x == 1u && render_settings.render_vertex_color.x == 1u) {
         outColor = outColor * colorSet1.rgb; 
         outAlpha = outAlpha * colorSet1.a; 
     }
 
-    if (uniforms.has_color_set1234.z == 1u && render_settings.render_vertex_color.x == 1u) {
+    if (per_material.has_color_set1234.z == 1u && render_settings.render_vertex_color.x == 1u) {
         outColor = outColor * colorSet3.rgb;
         outAlpha = outAlpha * colorSet3.a; 
     }
 
-    if (uniforms.has_float[19].x == 1u) {
-        outAlpha = GetAngleFade(nDotV, uniforms.custom_float[19].x, specularF0);
+    if (per_material.has_float[19].x == 1u) {
+        outAlpha = GetAngleFade(nDotV, per_material.custom_float[19].x, specularF0);
     }
 
     // Premultiplied alpha. 
@@ -1342,7 +1342,7 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) is_front: bool) -> @location
     outColor = outColor * outAlpha;
 
     // Alpha override.
-    if (uniforms.has_boolean[2].x == 1u && uniforms.custom_boolean[2].x == 1u) {
+    if (per_material.has_boolean[2].x == 1u && per_material.custom_boolean[2].x == 1u) {
         outAlpha = 0.0;
     }
 

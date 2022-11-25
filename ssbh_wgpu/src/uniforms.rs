@@ -1,7 +1,7 @@
 use std::str::FromStr;
 
 use crate::{
-    shader::model::MaterialUniforms,
+    shader::model::PerMaterial,
     split_param,
     texture::{load_default, load_sampler, load_texture, LoadTextureError},
     DeviceExt2, ShaderDatabase, ShaderProgram,
@@ -99,7 +99,7 @@ pub fn create_material_uniforms_bind_group(
             sampler13: &load_sampler(ParamId::Sampler13),
             texture14: &load_texture(ParamId::Texture14, wgpu::TextureViewDimension::D2),
             sampler14: &load_sampler(ParamId::Sampler14),
-            uniforms: uniforms_buffer.as_entire_buffer_binding(),
+            per_material: uniforms_buffer.as_entire_buffer_binding(),
         },
     )
 }
@@ -114,10 +114,7 @@ pub fn create_uniforms_buffer(
 }
 
 // TODO: Test attributes, non required attributes, missing required attributes, etc.
-pub fn create_uniforms(
-    material: Option<&MatlEntryData>,
-    database: &ShaderDatabase,
-) -> MaterialUniforms {
+pub fn create_uniforms(material: Option<&MatlEntryData>, database: &ShaderDatabase) -> PerMaterial {
     material
         .map(|material| {
             // Ignore invalid parameters for now to avoid an error or panic.
@@ -207,7 +204,7 @@ pub fn create_uniforms(
                 .map(|program| [program.complexity as f32; 4])
                 .unwrap_or_default();
 
-            MaterialUniforms {
+            PerMaterial {
                 custom_vector,
                 custom_boolean,
                 custom_float,
@@ -223,7 +220,7 @@ pub fn create_uniforms(
         })
         .unwrap_or(
             // Missing values are always set to zero.
-            MaterialUniforms {
+            PerMaterial {
                 custom_vector: [[0.0; 4]; 64],
                 custom_boolean: [[0; 4]; 20],
                 custom_float: [[0.0; 4]; 20],
@@ -396,7 +393,7 @@ mod tests {
     #[test]
     fn create_uniforms_no_material() {
         assert_eq!(
-            MaterialUniforms {
+            PerMaterial {
                 custom_vector: [[0.0; 4]; 64],
                 custom_boolean: [[0; 4]; 20],
                 custom_float: [[0.0; 4]; 20],
@@ -416,7 +413,7 @@ mod tests {
     #[test]
     fn create_uniforms_empty_material() {
         assert_eq!(
-            MaterialUniforms {
+            PerMaterial {
                 custom_vector: [[0.0; 4]; 64],
                 custom_boolean: [[0; 4]; 20],
                 custom_float: [[0.0; 4]; 20],
@@ -450,7 +447,7 @@ mod tests {
     fn create_uniforms_invalid_parameter_indices() {
         // Just ignore an invalid ParamId.
         assert_eq!(
-            MaterialUniforms {
+            PerMaterial {
                 custom_vector: [[0.0; 4]; 64],
                 custom_boolean: [[0; 4]; 20],
                 custom_float: [[0.0; 4]; 20],
@@ -503,7 +500,7 @@ mod tests {
 
     #[test]
     fn create_uniforms_valid_parameters() {
-        let mut expected = MaterialUniforms {
+        let mut expected = PerMaterial {
             custom_vector: [[0.0; 4]; 64],
             custom_boolean: [[0; 4]; 20],
             custom_float: [[0.0; 4]; 20],

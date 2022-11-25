@@ -1,3 +1,5 @@
+use self::constraints::{apply_aim_constraint, apply_orient_constraint};
+use crate::{shader::skinning::AnimatedWorldTransforms, RenderMesh};
 use ssbh_data::{
     anim_data::{GroupType, TrackValues, TransformFlags},
     matl_data::MatlEntryData,
@@ -5,10 +7,6 @@ use ssbh_data::{
     skel_data::BoneData,
     Vector3, Vector4,
 };
-
-use crate::{shader::skinning::AnimatedWorldTransforms, RenderMesh};
-
-use self::constraints::{apply_aim_constraint, apply_orient_constraint};
 
 mod constraints;
 
@@ -207,7 +205,7 @@ pub fn animate_skel<'a>(
     animate_skel_inner(result, &mut bones, &skel.bones, hlpb);
 }
 
-pub fn animate_skel_inner<'a>(
+pub fn animate_skel_inner(
     result: &mut AnimationTransforms,
     bones: &mut Vec<(usize, AnimatedBone)>,
     skel_bones: &[BoneData],
@@ -263,7 +261,7 @@ pub fn animate_skel_inner<'a>(
     // TODO: How to handle cyclic dependencies due to constraining bones to each other?
     for i in &evaluation_order {
         let bone = &bones[*i];
-        let (parent_world, current) = calculate_world_transform(&bones, &bone.1, result);
+        let (parent_world, current) = calculate_world_transform(bones, &bone.1, result);
         result.world_transforms[bone.0] = parent_world * current;
     }
 

@@ -22,7 +22,7 @@ pub fn screen_to_world(point: (f32, f32), mvp: glam::Mat4, width: u32, height: u
     let y_clip = 2.0 * y_pixels / height as f32 - 1.0;
     // Map to world space using the model, view, and projection matrix.
 
-    let world = mvp.inverse() * glam::Vec4::new(x_clip as f32, y_clip as f32, 0.0, 1.0);
+    let world = mvp.inverse() * glam::Vec4::new(x_clip, y_clip, 0.0, 1.0);
     let world_x = world.x * world.z;
     let world_y = world.y * world.z;
     (world_x, world_y)

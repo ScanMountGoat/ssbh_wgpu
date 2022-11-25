@@ -53,7 +53,7 @@ pub struct StageUniforms {
 }
 #[repr(C)]
 #[derive(Debug, Copy, Clone, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
-pub struct MaterialUniforms {
+pub struct PerMaterial {
     pub custom_vector: [[f32; 4]; 64],
     pub custom_boolean: [[u32; 4]; 20],
     pub custom_float: [[f32; 4]; 20],
@@ -289,7 +289,7 @@ pub mod bind_groups {
         pub sampler13: &'a wgpu::Sampler,
         pub texture14: &'a wgpu::TextureView,
         pub sampler14: &'a wgpu::Sampler,
-        pub uniforms: wgpu::BufferBinding<'a>,
+        pub per_material: wgpu::BufferBinding<'a>,
     }
     const LAYOUT_DESCRIPTOR1: wgpu::BindGroupLayoutDescriptor = wgpu::BindGroupLayoutDescriptor {
         label: None,
@@ -739,7 +739,9 @@ pub mod bind_groups {
                             },
                             wgpu::BindGroupEntry {
                                 binding: 30,
-                                resource: wgpu::BindingResource::Buffer(bindings.uniforms),
+                                resource: wgpu::BindingResource::Buffer(
+                                    bindings.per_material,
+                                ),
                             },
                         ],
                         label: None,

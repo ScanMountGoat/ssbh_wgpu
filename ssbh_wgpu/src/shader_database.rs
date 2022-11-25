@@ -43,7 +43,7 @@ impl ShaderProgram {
         if let Some(database_param) = self
             .material_parameters
             .iter()
-            .find(|p| p.starts_with(&param_name))
+            .find(|p| p.starts_with(param_name))
         {
             let (_, components) = split_param(database_param);
             for (i, c) in "xyzw".chars().enumerate() {

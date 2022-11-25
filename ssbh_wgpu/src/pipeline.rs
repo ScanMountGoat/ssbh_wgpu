@@ -98,17 +98,10 @@ pub fn create_pipeline(
             conservative: false,
             unclipped_depth: false,
         },
-        depth_stencil: Some(wgpu::DepthStencilState {
-            format: crate::renderer::DEPTH_FORMAT,
-            depth_write_enabled: pipeline_key.enable_depth_write,
-            depth_compare: if pipeline_key.enable_depth_test {
-                wgpu::CompareFunction::LessEqual
-            } else {
-                wgpu::CompareFunction::Always
-            },
-            stencil: wgpu::StencilState::default(),
-            bias: wgpu::DepthBiasState::default(),
-        }),
+        depth_stencil: Some(depth_stencil_state(
+            pipeline_key.enable_depth_write,
+            pipeline_key.enable_depth_test,
+        )),
         multisample: wgpu::MultisampleState {
             // TODO: This wont look correct without multisampling?
             alpha_to_coverage_enabled: pipeline_key.alpha_to_coverage_enabled,
@@ -138,13 +131,7 @@ pub fn create_depth_pipeline(device: &wgpu::Device) -> wgpu::RenderPipeline {
         vertex: vertex_state(&shader, "vs_depth"),
         fragment: None,
         primitive: wgpu::PrimitiveState::default(),
-        depth_stencil: Some(wgpu::DepthStencilState {
-            format: crate::renderer::DEPTH_FORMAT,
-            depth_write_enabled: true,
-            depth_compare: wgpu::CompareFunction::Less,
-            stencil: wgpu::StencilState::default(),
-            bias: wgpu::DepthBiasState::default(),
-        }),
+        depth_stencil: Some(depth_stencil_state(true, true)),
         multisample: wgpu::MultisampleState::default(),
         multiview: None,
     })
@@ -261,13 +248,7 @@ pub fn create_wireframe_pipeline(
             polygon_mode: wgpu::PolygonMode::Line,
             ..Default::default()
         },
-        depth_stencil: Some(wgpu::DepthStencilState {
-            format: crate::renderer::DEPTH_FORMAT,
-            depth_write_enabled: true,
-            depth_compare: wgpu::CompareFunction::LessEqual,
-            stencil: wgpu::StencilState::default(),
-            bias: wgpu::DepthBiasState::default(),
-        }),
+        depth_stencil: Some(depth_stencil_state(true, true)),
         multisample: wgpu::MultisampleState::default(),
         multiview: None,
     })
@@ -293,16 +274,25 @@ pub fn create_model_pipeline_from_entry(
             targets: &[Some(surface_format.into())],
         }),
         primitive: wgpu::PrimitiveState::default(),
-        depth_stencil: Some(wgpu::DepthStencilState {
-            format: crate::renderer::DEPTH_FORMAT,
-            depth_write_enabled: true,
-            depth_compare: wgpu::CompareFunction::LessEqual,
-            stencil: wgpu::StencilState::default(),
-            bias: wgpu::DepthBiasState::default(),
-        }),
+        depth_stencil: Some(depth_stencil_state(true, true)),
         multisample: wgpu::MultisampleState::default(),
         multiview: None,
     })
+}
+
+// TODO: Move this to lib.rs?
+pub fn depth_stencil_state(depth_write: bool, depth_test: bool) -> wgpu::DepthStencilState {
+    wgpu::DepthStencilState {
+        format: crate::renderer::DEPTH_FORMAT,
+        depth_write_enabled: depth_write,
+        depth_compare: if depth_test {
+            wgpu::CompareFunction::LessEqual
+        } else {
+            wgpu::CompareFunction::Always
+        },
+        stencil: wgpu::StencilState::default(),
+        bias: wgpu::DepthBiasState::default(),
+    }
 }
 
 pub fn create_uv_pipeline(
@@ -326,13 +316,7 @@ pub fn create_uv_pipeline(
             polygon_mode: wgpu::PolygonMode::Line,
             ..Default::default()
         },
-        depth_stencil: Some(wgpu::DepthStencilState {
-            format: crate::renderer::DEPTH_FORMAT,
-            depth_write_enabled: true,
-            depth_compare: wgpu::CompareFunction::LessEqual,
-            stencil: wgpu::StencilState::default(),
-            bias: wgpu::DepthBiasState::default(),
-        }),
+        depth_stencil: Some(depth_stencil_state(true, true)),
         multisample: wgpu::MultisampleState::default(),
         multiview: None,
     })

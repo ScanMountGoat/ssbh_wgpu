@@ -383,15 +383,7 @@ fn draw_shapes<'a>(
 ) {
     buffers.set(pass);
     for shape in shapes {
-        crate::shader::swing::bind_groups::set_bind_groups(
-            pass,
-            crate::shader::swing::bind_groups::BindGroups {
-                bind_group0: swing_camera_bind_group,
-                bind_group1,
-                bind_group2: &shape.bind_group,
-            },
-        );
-        pass.draw_indexed(0..buffers.index_count, 0, 0..1);
+        draw_shape(pass, swing_camera_bind_group, bind_group1, shape, buffers);
     }
 }
 
@@ -403,14 +395,24 @@ fn draw_shapes_with_buffers<'a>(
 ) {
     for (buffers, shape) in shapes {
         buffers.set(pass);
-        crate::shader::swing::bind_groups::set_bind_groups(
-            pass,
-            crate::shader::swing::bind_groups::BindGroups {
-                bind_group0: swing_camera_bind_group,
-                bind_group1,
-                bind_group2: &shape.bind_group,
-            },
-        );
-        pass.draw_indexed(0..buffers.index_count, 0, 0..1);
+        draw_shape(pass, swing_camera_bind_group, bind_group1, shape, buffers);
     }
+}
+
+fn draw_shape<'a>(
+    pass: &mut wgpu::RenderPass<'a>,
+    swing_camera_bind_group: &'a crate::shader::swing::bind_groups::BindGroup0,
+    bind_group1: &'a crate::shader::swing::bind_groups::BindGroup1,
+    shape: &'a PerShapeBindGroup,
+    buffers: &IndexedMeshBuffers,
+) {
+    crate::shader::swing::bind_groups::set_bind_groups(
+        pass,
+        crate::shader::swing::bind_groups::BindGroups {
+            bind_group0: swing_camera_bind_group,
+            bind_group1,
+            bind_group2: &shape.bind_group,
+        },
+    );
+    pass.draw_indexed(0..buffers.index_count, 0, 0..1);
 }

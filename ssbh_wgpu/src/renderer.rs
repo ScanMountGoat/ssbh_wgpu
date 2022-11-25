@@ -312,45 +312,12 @@ impl SsbhRenderer {
         let shader = crate::shader::post_process::create_shader_module(device);
         let layout = crate::shader::post_process::create_pipeline_layout(device);
         let post_process_pipeline =
-            device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-                label: Some("Post Processing Pipeline"),
-                layout: Some(&layout),
-                vertex: wgpu::VertexState {
-                    module: &shader,
-                    entry_point: "vs_main",
-                    buffers: &[],
-                },
-                fragment: Some(wgpu::FragmentState {
-                    module: &shader,
-                    entry_point: "fs_main",
-                    targets: &[Some(crate::RGBA_COLOR_FORMAT.into())],
-                }),
-                primitive: wgpu::PrimitiveState::default(),
-                depth_stencil: None,
-                multisample: wgpu::MultisampleState::default(),
-                multiview: None,
-            });
+            create_screen_pipeline(device, &shader, &layout, "fs_main", RGBA_COLOR_FORMAT);
 
         let shader = crate::shader::overlay::create_shader_module(device);
         let layout = crate::shader::overlay::create_pipeline_layout(device);
-        let overlay_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("Overlay Pipeline"),
-            layout: Some(&layout),
-            vertex: wgpu::VertexState {
-                module: &shader,
-                entry_point: "vs_main",
-                buffers: &[],
-            },
-            fragment: Some(wgpu::FragmentState {
-                module: &shader,
-                entry_point: "fs_main",
-                targets: &[Some(crate::RGBA_COLOR_FORMAT.into())],
-            }),
-            primitive: wgpu::PrimitiveState::default(),
-            depth_stencil: None,
-            multisample: wgpu::MultisampleState::default(),
-            multiview: None,
-        });
+        let overlay_pipeline =
+            create_screen_pipeline(device, &shader, &layout, "fs_main", RGBA_COLOR_FORMAT);
 
         // Shared shaders for bloom passes.
         // TODO: Should this be all screen texture shaders?
@@ -362,23 +329,13 @@ impl SsbhRenderer {
         let bloom_blur_pipeline =
             create_screen_pipeline(device, &shader, &layout, "fs_blur", BLOOM_COLOR_FORMAT);
 
-        let bloom_upscale_pipeline = create_screen_pipeline(
-            device,
-            &shader,
-            &layout,
-            "fs_upscale",
-            crate::RGBA_COLOR_FORMAT,
-        );
+        let bloom_upscale_pipeline =
+            create_screen_pipeline(device, &shader, &layout, "fs_upscale", RGBA_COLOR_FORMAT);
 
         let shader = crate::shader::bloom_combine::create_shader_module(device);
         let layout = crate::shader::bloom_combine::create_pipeline_layout(device);
-        let bloom_combine_pipeline = create_screen_pipeline(
-            device,
-            &shader,
-            &layout,
-            "fs_main",
-            crate::RGBA_COLOR_FORMAT,
-        );
+        let bloom_combine_pipeline =
+            create_screen_pipeline(device, &shader, &layout, "fs_main", RGBA_COLOR_FORMAT);
 
         let module = crate::shader::skinning::create_shader_module(device);
         let layout = crate::shader::skinning::create_pipeline_layout(device);
@@ -745,7 +702,7 @@ impl SsbhRenderer {
     // TODO: Simplify parameters?
     /// Renders the `render_meshes` to `output_view` using the standard rendering passes for Smash Ultimate.
     ///
-    /// The `output_view` should have the format [crate::RGBA_COLOR_FORMAT].
+    /// The `output_view` should have the format [RGBA_COLOR_FORMAT].
     /// The output is cleared before drawing.
     ///
     /// For disabling bone rendering, pass an empty iterator for `skels`.
@@ -860,7 +817,7 @@ impl SsbhRenderer {
 
     /// Renders the bone names for skeleton in `skels` for each model in `render_models` to `output_view`.
     ///
-    /// The `output_view` should have the format [crate::RGBA_COLOR_FORMAT].
+    /// The `output_view` should have the format [RGBA_COLOR_FORMAT].
     /// The output is not cleared before drawing.
     pub fn render_skeleton_names<'a>(
         &mut self,
@@ -1470,8 +1427,8 @@ impl PassInfo {
         let depth = create_depth(device, width, height);
         let skel_depth = create_depth(device, width, height);
 
-        let color = create_texture_sampler(device, width, height, crate::RGBA_COLOR_FORMAT);
-        let color_final = create_texture_sampler(device, width, height, crate::RGBA_COLOR_FORMAT);
+        let color = create_texture_sampler(device, width, height, RGBA_COLOR_FORMAT);
+        let color_final = create_texture_sampler(device, width, height, RGBA_COLOR_FORMAT);
 
         // Bloom uses successively smaller render targets to increase the blur.
         // Account for monitor scaling to avoid a smaller perceived radius on high DPI screens.
@@ -1506,7 +1463,7 @@ impl PassInfo {
             bloom_width / 2,
             bloom_height / 2,
             &bloom_combined,
-            crate::RGBA_COLOR_FORMAT,
+            RGBA_COLOR_FORMAT,
         );
 
         let post_process_bind_group =
@@ -1514,10 +1471,8 @@ impl PassInfo {
 
         let selected_stencil = create_depth_stencil(device, width, height);
         // TODO: Downsample these textures based on scaling for thicker outlines?
-        let selected_silhouettes =
-            create_texture_sampler(device, width, height, crate::RGBA_COLOR_FORMAT);
-        let selected_outlines =
-            create_texture_sampler(device, width, height, crate::RGBA_COLOR_FORMAT);
+        let selected_silhouettes = create_texture_sampler(device, width, height, RGBA_COLOR_FORMAT);
+        let selected_outlines = create_texture_sampler(device, width, height, RGBA_COLOR_FORMAT);
 
         let outline_bind_group = create_outline_bind_group(device, &selected_silhouettes);
 
@@ -1685,7 +1640,7 @@ fn create_bloom_combine_bind_group(
     TextureSamplerView,
     crate::shader::bloom_combine::bind_groups::BindGroup0,
 ) {
-    let texture = create_texture_sampler(device, width, height, crate::RGBA_COLOR_FORMAT);
+    let texture = create_texture_sampler(device, width, height, RGBA_COLOR_FORMAT);
 
     let bind_group = crate::shader::bloom_combine::bind_groups::BindGroup0::from_bindings(
         device,

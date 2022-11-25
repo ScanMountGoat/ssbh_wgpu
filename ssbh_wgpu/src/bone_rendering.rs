@@ -1,5 +1,6 @@
 use crate::{
     animation::AnimationTransforms,
+    pipeline::depth_stencil_state,
     shape::{sphere_indices, sphere_vertices},
     DeviceExt2,
 };
@@ -349,13 +350,7 @@ fn skeleton_pipeline(
             cull_mode: Some(cull_face),
             ..Default::default()
         }, // TODO: Just disable the depth?
-        depth_stencil: Some(wgpu::DepthStencilState {
-            format: crate::renderer::DEPTH_FORMAT,
-            depth_write_enabled: true,
-            depth_compare: wgpu::CompareFunction::LessEqual,
-            stencil: wgpu::StencilState::default(),
-            bias: wgpu::DepthBiasState::default(),
-        }),
+        depth_stencil: Some(depth_stencil_state(true, true)),
         multisample: wgpu::MultisampleState::default(),
         multiview: None,
     })
@@ -386,13 +381,7 @@ fn bone_axes_pipeline(device: &wgpu::Device) -> wgpu::RenderPipeline {
             topology: wgpu::PrimitiveTopology::LineList,
             ..Default::default()
         }, // TODO: Just disable the depth?
-        depth_stencil: Some(wgpu::DepthStencilState {
-            format: crate::renderer::DEPTH_FORMAT,
-            depth_write_enabled: true,
-            depth_compare: wgpu::CompareFunction::Always,
-            stencil: wgpu::StencilState::default(),
-            bias: wgpu::DepthBiasState::default(),
-        }),
+        depth_stencil: Some(depth_stencil_state(true, false)),
         multisample: wgpu::MultisampleState::default(),
         multiview: None,
     })
