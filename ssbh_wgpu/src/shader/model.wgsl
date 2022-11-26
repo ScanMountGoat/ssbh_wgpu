@@ -199,8 +199,8 @@ struct VertexInput1 {
 // TODO: This will need to be reworked at some point.
 struct VertexOutput {
     @builtin(position) clip_position: vec4<f32>,
-    @location(0) position: vec3<f32>,
-    @location(1) normal: vec3<f32>,
+    @location(0) position: vec4<f32>,
+    @location(1) normal: vec4<f32>,
     @location(2) tangent: vec4<f32>,
     @location(3) map1: vec4<f32>,
     @location(4) uv_set_uv_set1: vec4<f32>,
@@ -626,11 +626,11 @@ fn vs_main(
     buffer1: VertexInput1
 ) -> VertexOutput {
     var out: VertexOutput;
-    out.position = buffer0.position0.xyz;
+    out.position = buffer0.position0;
     out.clip_position = camera.mvp_matrix * vec4(buffer0.position0.xyz, 1.0);
     // Assume the z offset defaults to 0.0.
     out.clip_position.z = out.clip_position.z - per_material.custom_float[16].x;
-    out.normal = buffer0.normal0.xyz;
+    out.normal = buffer0.normal0;
     out.tangent = buffer0.tangent0;
 
     // TODO: Also apply transforms to the debug shader?

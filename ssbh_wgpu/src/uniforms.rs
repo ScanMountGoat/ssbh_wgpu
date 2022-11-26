@@ -118,21 +118,21 @@ pub fn create_uniforms(material: Option<&MatlEntryData>, database: &ShaderDataba
     material
         .map(|material| {
             // Ignore invalid parameters for now to avoid an error or panic.
-            let mut custom_vector = [[0.0; 4]; 64];
+            let mut custom_vector = [glam::Vec4::ZERO; 64];
             for vector in &material.vectors {
                 if let Some(index) = vector_index(vector.param_id) {
-                    custom_vector[index] = vector.data.to_array();
+                    custom_vector[index] = vector.data.to_array().into();
                 }
             }
 
-            let mut custom_float = [[0.0; 4]; 20];
+            let mut custom_float = [glam::Vec4::ZERO; 20];
             for float in &material.floats {
                 if let Some(index) = float_index(float.param_id) {
                     custom_float[index][0] = float.data;
                 }
             }
 
-            let mut custom_boolean = [[0; 4]; 20];
+            let mut custom_boolean = [glam::UVec4::ZERO; 20];
             for boolean in &material.booleans {
                 if let Some(index) = boolean_index(boolean.param_id) {
                     custom_boolean[index][0] = boolean.data as u32;
@@ -141,10 +141,10 @@ pub fn create_uniforms(material: Option<&MatlEntryData>, database: &ShaderDataba
 
             // The nufxlb defines what parameters are expected.
             // Not all shaders require all parameters.
-            let mut has_texture = [[0; 4]; 19];
-            let mut has_boolean = [[0; 4]; 20];
-            let mut has_float = [[0; 4]; 20];
-            let mut has_vector = [[0; 4]; 64];
+            let mut has_texture = [glam::UVec4::ZERO; 19];
+            let mut has_boolean = [glam::UVec4::ZERO; 20];
+            let mut has_float = [glam::UVec4::ZERO; 20];
+            let mut has_vector = [glam::UVec4::ZERO; 64];
             if let Some(program) = database.get(&material.shader_label) {
                 for param_name in &program.material_parameters {
                     // TODO: This is redundant to split twice.
@@ -159,7 +159,7 @@ pub fn create_uniforms(material: Option<&MatlEntryData>, database: &ShaderDataba
                         has_float[i][0] = 1;
                     } else if let Some(i) = vector_index(id) {
                         // Check which components are accessed by the shader binary.
-                        has_vector[i] = program.accessed_channels(param_name).map(u32::from);
+                        has_vector[i] = program.accessed_channels(param_name).map(u32::from).into();
                     }
                 }
             }
@@ -168,29 +168,29 @@ pub fn create_uniforms(material: Option<&MatlEntryData>, database: &ShaderDataba
 
             let (has_color_set1234, has_color_set567) = if let Some(program) = program {
                 (
-                    [
+                    glam::UVec4::new(
                         program.has_attribute("colorSet1") as u32,
                         program.has_attribute("colorSet2") as u32,
                         program.has_attribute("colorSet3") as u32,
                         program.has_attribute("colorSet4") as u32,
-                    ],
-                    [
+                    ),
+                    glam::UVec4::new(
                         program.has_attribute("colorSet5") as u32,
                         program.has_attribute("colorSet6") as u32,
                         program.has_attribute("colorSet7") as u32,
                         0,
-                    ],
+                    ),
                 )
             } else {
-                ([0; 4], [0; 4])
+                (glam::UVec4::ZERO, glam::UVec4::ZERO)
             };
 
             let is_discard = program
-                .map(|program| [program.discard as u32; 4])
+                .map(|program| glam::UVec4::splat(program.discard as u32))
                 .unwrap_or_default();
 
             let shader_complexity = program
-                .map(|program| [program.complexity as f32; 4])
+                .map(|program| glam::Vec4::splat(program.complexity as f32))
                 .unwrap_or_default();
 
             PerMaterial {
@@ -210,17 +210,17 @@ pub fn create_uniforms(material: Option<&MatlEntryData>, database: &ShaderDataba
         .unwrap_or(
             // Missing values are always set to zero.
             PerMaterial {
-                custom_vector: [[0.0; 4]; 64],
-                custom_boolean: [[0; 4]; 20],
-                custom_float: [[0.0; 4]; 20],
-                has_boolean: [[0; 4]; 20],
-                has_texture: [[0; 4]; 19],
-                has_float: [[0; 4]; 20],
-                has_vector: [[0; 4]; 64],
-                has_color_set1234: [0; 4],
-                has_color_set567: [0; 4],
-                is_discard: [0; 4],
-                shader_complexity: [0.0; 4],
+                custom_vector: [glam::Vec4::ZERO; 64],
+                custom_boolean: [glam::UVec4::ZERO; 20],
+                custom_float: [glam::Vec4::ZERO; 20],
+                has_boolean: [glam::UVec4::ZERO; 20],
+                has_texture: [glam::UVec4::ZERO; 19],
+                has_float: [glam::UVec4::ZERO; 20],
+                has_vector: [glam::UVec4::ZERO; 64],
+                has_color_set1234: glam::UVec4::ZERO,
+                has_color_set567: glam::UVec4::ZERO,
+                is_discard: glam::UVec4::ZERO,
+                shader_complexity: glam::Vec4::ZERO,
             },
         )
 }
@@ -385,17 +385,17 @@ mod tests {
     fn create_uniforms_no_material() {
         assert_eq!(
             PerMaterial {
-                custom_vector: [[0.0; 4]; 64],
-                custom_boolean: [[0; 4]; 20],
-                custom_float: [[0.0; 4]; 20],
-                has_boolean: [[0; 4]; 20],
-                has_float: [[0; 4]; 20],
-                has_texture: [[0; 4]; 19],
-                has_vector: [[0; 4]; 64],
-                has_color_set1234: [0; 4],
-                has_color_set567: [0; 4],
-                is_discard: [0; 4],
-                shader_complexity: [0.0; 4]
+                custom_vector: [glam::Vec4::ZERO; 64],
+                custom_boolean: [glam::UVec4::ZERO; 20],
+                custom_float: [glam::Vec4::ZERO; 20],
+                has_boolean: [glam::UVec4::ZERO; 20],
+                has_float: [glam::UVec4::ZERO; 20],
+                has_texture: [glam::UVec4::ZERO; 19],
+                has_vector: [glam::UVec4::ZERO; 64],
+                has_color_set1234: glam::UVec4::ZERO,
+                has_color_set567: glam::UVec4::ZERO,
+                is_discard: glam::UVec4::ZERO,
+                shader_complexity: glam::Vec4::ZERO
             },
             create_uniforms(None, &ShaderDatabase::from_iter(std::iter::empty()))
         );
@@ -405,17 +405,17 @@ mod tests {
     fn create_uniforms_empty_material() {
         assert_eq!(
             PerMaterial {
-                custom_vector: [[0.0; 4]; 64],
-                custom_boolean: [[0; 4]; 20],
-                custom_float: [[0.0; 4]; 20],
-                has_boolean: [[0; 4]; 20],
-                has_float: [[0; 4]; 20],
-                has_texture: [[0; 4]; 19],
-                has_vector: [[0; 4]; 64],
-                has_color_set1234: [0; 4],
-                has_color_set567: [0; 4],
-                is_discard: [0; 4],
-                shader_complexity: [0.0; 4]
+                custom_vector: [glam::Vec4::ZERO; 64],
+                custom_boolean: [glam::UVec4::ZERO; 20],
+                custom_float: [glam::Vec4::ZERO; 20],
+                has_boolean: [glam::UVec4::ZERO; 20],
+                has_float: [glam::UVec4::ZERO; 20],
+                has_texture: [glam::UVec4::ZERO; 19],
+                has_vector: [glam::UVec4::ZERO; 64],
+                has_color_set1234: glam::UVec4::ZERO,
+                has_color_set567: glam::UVec4::ZERO,
+                is_discard: glam::UVec4::ZERO,
+                shader_complexity: glam::Vec4::ZERO
             },
             create_uniforms(
                 Some(&MatlEntryData {
@@ -439,17 +439,17 @@ mod tests {
         // Just ignore an invalid ParamId.
         assert_eq!(
             PerMaterial {
-                custom_vector: [[0.0; 4]; 64],
-                custom_boolean: [[0; 4]; 20],
-                custom_float: [[0.0; 4]; 20],
-                has_boolean: [[0; 4]; 20],
-                has_float: [[0; 4]; 20],
-                has_texture: [[0; 4]; 19],
-                has_vector: [[0; 4]; 64],
-                has_color_set1234: [0; 4],
-                has_color_set567: [0; 4],
-                is_discard: [0; 4],
-                shader_complexity: [0.0; 4]
+                custom_vector: [glam::Vec4::ZERO; 64],
+                custom_boolean: [glam::UVec4::ZERO; 20],
+                custom_float: [glam::Vec4::ZERO; 20],
+                has_boolean: [glam::UVec4::ZERO; 20],
+                has_float: [glam::UVec4::ZERO; 20],
+                has_texture: [glam::UVec4::ZERO; 19],
+                has_vector: [glam::UVec4::ZERO; 64],
+                has_color_set1234: glam::UVec4::ZERO,
+                has_color_set567: glam::UVec4::ZERO,
+                is_discard: glam::UVec4::ZERO,
+                shader_complexity: glam::Vec4::ZERO
             },
             create_uniforms(
                 Some(&MatlEntryData {
@@ -492,27 +492,27 @@ mod tests {
     #[test]
     fn create_uniforms_valid_parameters() {
         let mut expected = PerMaterial {
-            custom_vector: [[0.0; 4]; 64],
-            custom_boolean: [[0; 4]; 20],
-            custom_float: [[0.0; 4]; 20],
-            has_boolean: [[0; 4]; 20],
-            has_float: [[0; 4]; 20],
-            has_texture: [[0; 4]; 19],
-            has_vector: [[0; 4]; 64],
-            has_color_set1234: [0; 4],
-            has_color_set567: [0; 4],
-            is_discard: [1; 4],
-            shader_complexity: [0.0; 4],
+            custom_vector: [glam::Vec4::ZERO; 64],
+            custom_boolean: [glam::UVec4::ZERO; 20],
+            custom_float: [glam::Vec4::ZERO; 20],
+            has_boolean: [glam::UVec4::ZERO; 20],
+            has_float: [glam::UVec4::ZERO; 20],
+            has_texture: [glam::UVec4::ZERO; 19],
+            has_vector: [glam::UVec4::ZERO; 64],
+            has_color_set1234: glam::UVec4::ZERO,
+            has_color_set567: glam::UVec4::ZERO,
+            is_discard: glam::UVec4::splat(1),
+            shader_complexity: glam::Vec4::ZERO,
         };
-        expected.custom_vector[0] = [1.0, 2.0, 3.0, 4.0];
-        expected.custom_vector[8] = [1.0; 4];
-        expected.custom_boolean[5] = [1, 0, 0, 0];
-        expected.custom_float[3] = [0.7, 0.0, 0.0, 0.0];
+        expected.custom_vector[0] = glam::Vec4::new(1.0, 2.0, 3.0, 4.0);
+        expected.custom_vector[8] = glam::Vec4::splat(1.0);
+        expected.custom_boolean[5] = glam::UVec4::new(1, 0, 0, 0);
+        expected.custom_float[3] = glam::Vec4::new(0.7, 0.0, 0.0, 0.0);
         // This is based on the database rather than the material.
-        expected.has_texture[0] = [1, 0, 0, 0];
-        expected.has_boolean[1] = [1, 0, 0, 0];
-        expected.has_float[2] = [1, 0, 0, 0];
-        expected.has_vector[8] = [1, 0, 0, 1];
+        expected.has_texture[0] = glam::UVec4::new(1, 0, 0, 0);
+        expected.has_boolean[1] = glam::UVec4::new(1, 0, 0, 0);
+        expected.has_float[2] = glam::UVec4::new(1, 0, 0, 0);
+        expected.has_vector[8] = glam::UVec4::new(1, 0, 0, 1);
 
         assert_eq!(
             expected,

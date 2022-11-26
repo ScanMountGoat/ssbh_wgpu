@@ -33,19 +33,18 @@ pub fn light_direction(rotation: Quat) -> Vec4 {
 
 impl StageUniforms {
     pub fn training() -> Self {
-        let custom_boolean = [[0; 4]; 20];
-        let mut custom_vector = [[0.0; 4]; 64];
-        custom_vector[8] = [1.0; 4];
-        let custom_float = [[0.0; 4]; 20];
+        let custom_boolean = [glam::UVec4::ZERO; 20];
+        let mut custom_vector = [glam::Vec4::ZERO; 64];
+        custom_vector[8] = glam::Vec4::ONE;
+        let custom_float = [glam::Vec4::ZERO; 20];
 
         // TODO: Set the scene attributes from the training nuanmb.
         Self {
             light_chr: Light {
-                color: [4.0; 4],
+                color: glam::Vec4::splat(4.0),
                 direction: light_direction(glam::Quat::from_xyzw(
                     -0.453154, -0.365998, -0.211309, 0.784886,
-                ))
-                .to_array(),
+                )),
             },
             scene_attributes: SceneAttributesForShaderFx {
                 custom_boolean,
@@ -59,8 +58,8 @@ impl StageUniforms {
 impl Default for Light {
     fn default() -> Self {
         Self {
-            color: [0.0; 4],
-            direction: [0.0; 4],
+            color: glam::Vec4::ZERO,
+            direction: glam::Vec4::ZERO,
         }
     }
 }
@@ -68,9 +67,9 @@ impl Default for Light {
 impl Default for SceneAttributesForShaderFx {
     fn default() -> Self {
         Self {
-            custom_boolean: [[0; 4]; 20],
-            custom_vector: [[0.0; 4]; 64],
-            custom_float: [[0.0; 4]; 20],
+            custom_boolean: [glam::UVec4::ZERO; 20],
+            custom_vector: [glam::Vec4::ZERO; 64],
+            custom_float: [glam::Vec4::ZERO; 20],
         }
     }
 }
@@ -130,7 +129,7 @@ fn scene_attributes_node(node: &NodeData) -> SceneAttributesForShaderFx {
                 }
                 TrackValues::Vector4(v) => {
                     if let Some(index) = vector_index(param) {
-                        attributes.custom_vector[index] = v[0].to_array();
+                        attributes.custom_vector[index] = v[0].to_array().into();
                     }
                 }
                 _ => (),
@@ -179,13 +178,8 @@ fn light_node(node: &NodeData) -> (Light, glam::Quat) {
     // TODO: Return an intermediate type instead?
     (
         Light {
-            color: [
-                vector0.x * float0,
-                vector0.y * float0,
-                vector0.z * float0,
-                vector0.w * float0,
-            ],
-            direction: light_direction(rotation).to_array(),
+            color: glam::Vec4::from_array(vector0.to_array()) * float0,
+            direction: light_direction(rotation),
         },
         rotation,
     )

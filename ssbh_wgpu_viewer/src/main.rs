@@ -350,15 +350,15 @@ impl State {
         let (camera_pos, model_view_matrix, mvp_matrix) =
             calculate_camera_pos_mvp(self.size, self.translation_xyz, self.rotation_xyz);
         let transforms = CameraTransforms {
-            model_view_matrix: model_view_matrix.to_cols_array_2d(),
-            mvp_matrix: mvp_matrix.to_cols_array_2d(),
-            camera_pos: camera_pos.to_array(),
-            screen_dimensions: [
+            model_view_matrix,
+            mvp_matrix,
+            camera_pos,
+            screen_dimensions: glam::Vec4::new(
                 self.size.width as f32,
                 self.size.height as f32,
                 scale_factor as f32,
                 0.0,
-            ],
+            ),
         };
         self.renderer.update_camera(&self.queue, transforms);
     }

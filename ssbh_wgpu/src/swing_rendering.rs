@@ -177,12 +177,11 @@ fn sphere_bind_groups(
             PerShapeBindGroup::new(
                 device,
                 crate::shader::swing::PerShape {
-                    bone_indices: [bone_index(skel, s.bonename), -1, -1, -1],
+                    bone_indices: glam::IVec4::new(bone_index(skel, s.bonename), -1, -1, -1),
                     start_transform: (glam::Mat4::from_translation(glam::Vec3::new(
                         s.cx, s.cy, s.cz,
-                    )) * glam::Mat4::from_scale(glam::Vec3::splat(s.radius)))
-                    .to_cols_array_2d(),
-                    color: [0.0, 0.0, 1.0, 1.0],
+                    )) * glam::Mat4::from_scale(glam::Vec3::splat(s.radius))),
+                    color: glam::Vec4::new(0.0, 0.0, 1.0, 1.0),
                 },
             )
         })
@@ -201,14 +200,13 @@ fn ellipsoid_bind_groups(
             PerShapeBindGroup::new(
                 device,
                 crate::shader::swing::PerShape {
-                    bone_indices: [bone_index(skel, e.bonename), -1, -1, -1],
+                    bone_indices: glam::IVec4::new(bone_index(skel, e.bonename), -1, -1, -1),
                     start_transform: (glam::Mat4::from_translation(glam::Vec3::new(
                         e.cx, e.cy, e.cz,
                     )) * glam::Mat4::from_scale(glam::Vec3::new(
                         e.sx, e.sy, e.sz,
-                    )))
-                    .to_cols_array_2d(),
-                    color: [0.0, 1.0, 1.0, 1.0],
+                    ))),
+                    color: glam::Vec4::new(0.0, 1.0, 1.0, 1.0),
                 },
             )
         })
@@ -274,9 +272,9 @@ fn capsules_per_shape(
     };
 
     let per_shape = crate::shader::swing::PerShape {
-        bone_indices: [-1; 4],
-        start_transform: transform.to_cols_array_2d(),
-        color: [1.0, 0.0, 0.0, 1.0],
+        bone_indices: glam::IVec4::splat(-1),
+        start_transform: transform,
+        color: glam::Vec4::new(1.0, 0.0, 0.0, 1.0),
     };
 
     (height, per_shape)
@@ -296,13 +294,12 @@ fn plane_bind_groups(
             PerShapeBindGroup::new(
                 device,
                 crate::shader::swing::PerShape {
-                    bone_indices: [bone_index(skel, p.bonename), -1, -1, -1],
+                    bone_indices: glam::IVec4::new(bone_index(skel, p.bonename), -1, -1, -1),
                     start_transform: glam::Mat4::from_quat(glam::Quat::from_rotation_arc(
                         glam::Vec3::Z,
                         glam::Vec3::new(p.nx, p.ny, p.nz),
-                    ))
-                    .to_cols_array_2d(),
-                    color: [0.0, 1.0, 0.0, 1.0],
+                    )),
+                    color: glam::Vec4::new(0.0, 1.0, 0.0, 1.0),
                 },
             )
         })

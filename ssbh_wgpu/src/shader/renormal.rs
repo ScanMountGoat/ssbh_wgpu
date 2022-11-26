@@ -3,9 +3,9 @@
 #[repr(C)]
 #[derive(Debug, Copy, Clone, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct VertexInput0 {
-    pub position0: [f32; 4],
-    pub normal0: [f32; 4],
-    pub tangent0: [f32; 4],
+    pub position0: glam::Vec4,
+    pub normal0: glam::Vec4,
+    pub tangent0: glam::Vec4,
 }
 pub mod bind_groups {
     pub struct BindGroup0(wgpu::BindGroup);

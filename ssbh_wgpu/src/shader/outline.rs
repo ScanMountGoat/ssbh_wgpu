@@ -3,8 +3,8 @@
 #[repr(C)]
 #[derive(Debug, Copy, Clone, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct VertexOutput {
-    pub position: [f32; 4],
-    pub uvs: [f32; 2],
+    pub position: glam::Vec4,
+    pub uvs: glam::Vec4,
 }
 pub mod bind_groups {
     pub struct BindGroup0(wgpu::BindGroup);

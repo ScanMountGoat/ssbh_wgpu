@@ -3,47 +3,47 @@
 #[repr(C)]
 #[derive(Debug, Copy, Clone, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct CameraTransforms {
-    pub model_view_matrix: [[f32; 4]; 4],
-    pub mvp_matrix: [[f32; 4]; 4],
-    pub camera_pos: [f32; 4],
-    pub screen_dimensions: [f32; 4],
+    pub model_view_matrix: glam::Mat4,
+    pub mvp_matrix: glam::Mat4,
+    pub camera_pos: glam::Vec4,
+    pub screen_dimensions: glam::Vec4,
 }
 #[repr(C)]
 #[derive(Debug, Copy, Clone, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct LightTransforms {
-    pub light_transform: [[f32; 4]; 4],
+    pub light_transform: glam::Mat4,
 }
 #[repr(C)]
 #[derive(Debug, Copy, Clone, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct RenderSettings {
-    pub debug_mode: [u32; 4],
-    pub render_uv_pattern: [u32; 4],
-    pub transition_material: [u32; 4],
-    pub transition_factor: [f32; 4],
-    pub render_diffuse: [u32; 4],
-    pub render_specular: [u32; 4],
-    pub render_emission: [u32; 4],
-    pub render_rim_lighting: [u32; 4],
-    pub render_shadows: [u32; 4],
-    pub render_bloom: [u32; 4],
-    pub render_vertex_color: [u32; 4],
-    pub scale_vertex_color: [u32; 4],
-    pub render_rgba: [f32; 4],
-    pub render_nor: [u32; 4],
-    pub render_prm: [u32; 4],
+    pub debug_mode: glam::UVec4,
+    pub render_uv_pattern: glam::UVec4,
+    pub transition_material: glam::UVec4,
+    pub transition_factor: glam::Vec4,
+    pub render_diffuse: glam::UVec4,
+    pub render_specular: glam::UVec4,
+    pub render_emission: glam::UVec4,
+    pub render_rim_lighting: glam::UVec4,
+    pub render_shadows: glam::UVec4,
+    pub render_bloom: glam::UVec4,
+    pub render_vertex_color: glam::UVec4,
+    pub scale_vertex_color: glam::UVec4,
+    pub render_rgba: glam::Vec4,
+    pub render_nor: glam::UVec4,
+    pub render_prm: glam::UVec4,
 }
 #[repr(C)]
 #[derive(Debug, Copy, Clone, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct Light {
-    pub color: [f32; 4],
-    pub direction: [f32; 4],
+    pub color: glam::Vec4,
+    pub direction: glam::Vec4,
 }
 #[repr(C)]
 #[derive(Debug, Copy, Clone, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct SceneAttributesForShaderFx {
-    pub custom_boolean: [[u32; 4]; 20],
-    pub custom_vector: [[f32; 4]; 64],
-    pub custom_float: [[f32; 4]; 20],
+    pub custom_boolean: [glam::UVec4; 20],
+    pub custom_vector: [glam::Vec4; 64],
+    pub custom_float: [glam::Vec4; 20],
 }
 #[repr(C)]
 #[derive(Debug, Copy, Clone, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
@@ -54,63 +54,63 @@ pub struct StageUniforms {
 #[repr(C)]
 #[derive(Debug, Copy, Clone, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct PerMaterial {
-    pub custom_vector: [[f32; 4]; 64],
-    pub custom_boolean: [[u32; 4]; 20],
-    pub custom_float: [[f32; 4]; 20],
-    pub has_boolean: [[u32; 4]; 20],
-    pub has_float: [[u32; 4]; 20],
-    pub has_texture: [[u32; 4]; 19],
-    pub has_vector: [[u32; 4]; 64],
-    pub has_color_set1234: [u32; 4],
-    pub has_color_set567: [u32; 4],
-    pub is_discard: [u32; 4],
-    pub shader_complexity: [f32; 4],
+    pub custom_vector: [glam::Vec4; 64],
+    pub custom_boolean: [glam::UVec4; 20],
+    pub custom_float: [glam::Vec4; 20],
+    pub has_boolean: [glam::UVec4; 20],
+    pub has_float: [glam::UVec4; 20],
+    pub has_texture: [glam::UVec4; 19],
+    pub has_vector: [glam::UVec4; 64],
+    pub has_color_set1234: glam::UVec4,
+    pub has_color_set567: glam::UVec4,
+    pub is_discard: glam::UVec4,
+    pub shader_complexity: glam::Vec4,
 }
 #[repr(C)]
 #[derive(Debug, Copy, Clone, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct VertexInput0 {
-    pub position0: [f32; 4],
-    pub normal0: [f32; 4],
-    pub tangent0: [f32; 4],
+    pub position0: glam::Vec4,
+    pub normal0: glam::Vec4,
+    pub tangent0: glam::Vec4,
 }
 #[repr(C)]
 #[derive(Debug, Copy, Clone, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct VertexInput1 {
-    pub map1_uvset: [f32; 4],
-    pub uv_set1_uv_set2: [f32; 4],
-    pub bake1: [f32; 4],
-    pub color_set1: [f32; 4],
-    pub color_set2_combined: [f32; 4],
-    pub color_set3: [f32; 4],
-    pub color_set4: [f32; 4],
-    pub color_set5: [f32; 4],
-    pub color_set6: [f32; 4],
-    pub color_set7: [f32; 4],
+    pub map1_uvset: glam::Vec4,
+    pub uv_set1_uv_set2: glam::Vec4,
+    pub bake1: glam::Vec4,
+    pub color_set1: glam::Vec4,
+    pub color_set2_combined: glam::Vec4,
+    pub color_set3: glam::Vec4,
+    pub color_set4: glam::Vec4,
+    pub color_set5: glam::Vec4,
+    pub color_set6: glam::Vec4,
+    pub color_set7: glam::Vec4,
 }
 #[repr(C)]
 #[derive(Debug, Copy, Clone, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct VertexOutput {
-    pub clip_position: [f32; 4],
-    pub position: [f32; 3],
-    pub normal: [f32; 3],
-    pub tangent: [f32; 4],
-    pub map1: [f32; 4],
-    pub uv_set_uv_set1: [f32; 4],
-    pub uv_set2_bake1: [f32; 4],
-    pub color_set1: [f32; 4],
-    pub color_set2_combined: [f32; 4],
-    pub color_set3: [f32; 4],
-    pub color_set4: [f32; 4],
-    pub color_set5: [f32; 4],
-    pub color_set6: [f32; 4],
-    pub color_set7: [f32; 4],
-    pub light_position: [f32; 4],
+    pub clip_position: glam::Vec4,
+    pub position: glam::Vec4,
+    pub normal: glam::Vec4,
+    pub tangent: glam::Vec4,
+    pub map1: glam::Vec4,
+    pub uv_set_uv_set1: glam::Vec4,
+    pub uv_set2_bake1: glam::Vec4,
+    pub color_set1: glam::Vec4,
+    pub color_set2_combined: glam::Vec4,
+    pub color_set3: glam::Vec4,
+    pub color_set4: glam::Vec4,
+    pub color_set5: glam::Vec4,
+    pub color_set6: glam::Vec4,
+    pub color_set7: glam::Vec4,
+    pub light_position: glam::Vec4,
 }
 #[repr(C)]
 #[derive(Debug, Copy, Clone, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct VertexOutputInvalid {
-    pub clip_position: [f32; 4],
-    pub position: [f32; 4],
+    pub clip_position: glam::Vec4,
+    pub position: glam::Vec4,
 }
 pub mod bind_groups {
     pub struct BindGroup0(wgpu::BindGroup);

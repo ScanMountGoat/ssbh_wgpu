@@ -1,6 +1,6 @@
 struct VertexOutput {
     @builtin(position) position: vec4<f32>,
-    @location(0) uvs: vec2<f32>,
+    @location(0) uvs: vec4<f32>,
 };
 
 @vertex
@@ -10,7 +10,7 @@ fn vs_main(@builtin(vertex_index) in_vertex_index: u32) -> VertexOutput {
     let x = f32((i32(in_vertex_index) << 1u) & 2);
     let y = f32(i32(in_vertex_index & 2u));
     out.position = vec4(x * 2.0 - 1.0, y * 2.0 - 1.0, 0.0, 1.0);
-    out.uvs = vec2(x, 1.0 - y);
+    out.uvs = vec4(x, 1.0 - y, 0.0, 0.0);
     return out;
 }
 
@@ -27,10 +27,10 @@ var bloom_sampler: sampler;
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
-    let bloom0 = textureSample(bloom0_texture, bloom_sampler, in.uvs);
-    let bloom1 = textureSample(bloom1_texture, bloom_sampler, in.uvs);
-    let bloom2 = textureSample(bloom2_texture, bloom_sampler, in.uvs);
-    let bloom3 = textureSample(bloom3_texture, bloom_sampler, in.uvs);
+    let bloom0 = textureSample(bloom0_texture, bloom_sampler, in.uvs.xy);
+    let bloom1 = textureSample(bloom1_texture, bloom_sampler, in.uvs.xy);
+    let bloom2 = textureSample(bloom2_texture, bloom_sampler, in.uvs.xy);
+    let bloom3 = textureSample(bloom3_texture, bloom_sampler, in.uvs.xy);
 
     let weights = array<f32, 4>(0.32, 0.10, 0.20, 0.25);
     let bloom_total = bloom0.rgb * weights[0] + bloom1.rgb * weights[1] + bloom2.rgb * weights[2] + bloom3.rgb * weights[3];

@@ -98,8 +98,8 @@ impl AnimationTransforms {
         // Mesh objects parented to a parent bone will likely be positioned at the origin.
         Self {
             animated_world_transforms: AnimatedWorldTransforms {
-                transforms: [glam::Mat4::IDENTITY.to_cols_array_2d(); MAX_BONE_COUNT],
-                transforms_inv_transpose: [glam::Mat4::IDENTITY.to_cols_array_2d(); MAX_BONE_COUNT],
+                transforms: [glam::Mat4::IDENTITY; MAX_BONE_COUNT],
+                transforms_inv_transpose: [glam::Mat4::IDENTITY; MAX_BONE_COUNT],
             },
             world_transforms: [glam::Mat4::IDENTITY; MAX_BONE_COUNT],
         }
@@ -124,8 +124,8 @@ impl AnimationTransforms {
 
         Self {
             animated_world_transforms: AnimatedWorldTransforms {
-                transforms: [glam::Mat4::IDENTITY.to_cols_array_2d(); MAX_BONE_COUNT],
-                transforms_inv_transpose: [glam::Mat4::IDENTITY.to_cols_array_2d(); MAX_BONE_COUNT],
+                transforms: [glam::Mat4::IDENTITY; MAX_BONE_COUNT],
+                transforms_inv_transpose: [glam::Mat4::IDENTITY; MAX_BONE_COUNT],
             },
             world_transforms,
         }
@@ -282,9 +282,9 @@ pub fn animate_skel_inner(
     for i in (0..bones.len()).take(MAX_BONE_COUNT) {
         let anim_transform = result.world_transforms[i] * bone_inv_world[i];
 
-        result.animated_world_transforms.transforms[i] = anim_transform.to_cols_array_2d();
+        result.animated_world_transforms.transforms[i] = anim_transform;
         result.animated_world_transforms.transforms_inv_transpose[i] =
-            anim_transform.inverse().transpose().to_cols_array_2d();
+            anim_transform.inverse().transpose();
     }
 }
 
@@ -711,7 +711,7 @@ mod tests {
                 [0.0, 0.0, -3.0, 0.0],
                 [4.0, 5.0, 6.0, 1.0],
             ],
-            transforms.animated_world_transforms.transforms[0]
+            transforms.animated_world_transforms.transforms[0].to_cols_array_2d()
         );
         assert_matrix_relative_eq!(
             [
@@ -723,6 +723,7 @@ mod tests {
             transforms
                 .animated_world_transforms
                 .transforms_inv_transpose[0]
+                .to_cols_array_2d()
         );
         assert_matrix_relative_eq!(
             [
@@ -838,7 +839,7 @@ mod tests {
                 [0.0, 0.0, 3.0, 0.0],
                 [0.0, 0.0, 0.0, 1.0],
             ],
-            transforms.animated_world_transforms.transforms[0]
+            transforms.animated_world_transforms.transforms[0].to_cols_array_2d()
         );
         assert_matrix_relative_eq!(
             [
@@ -847,7 +848,7 @@ mod tests {
                 [0.0, 0.0, 6.0, 0.0],
                 [0.0, 0.0, 0.0, 1.0],
             ],
-            transforms.animated_world_transforms.transforms[1]
+            transforms.animated_world_transforms.transforms[1].to_cols_array_2d()
         );
         assert_matrix_relative_eq!(
             [
@@ -856,7 +857,7 @@ mod tests {
                 [0.0, 0.0, 9.0, 0.0],
                 [0.0, 0.0, 0.0, 1.0],
             ],
-            transforms.animated_world_transforms.transforms[2]
+            transforms.animated_world_transforms.transforms[2].to_cols_array_2d()
         );
     }
 
@@ -943,7 +944,7 @@ mod tests {
                 [0.0, 0.0, 3.0, 0.0],
                 [0.0, 0.0, 0.0, 1.0],
             ],
-            transforms.animated_world_transforms.transforms[0]
+            transforms.animated_world_transforms.transforms[0].to_cols_array_2d()
         );
         assert_matrix_relative_eq!(
             [
@@ -952,7 +953,7 @@ mod tests {
                 [0.0, 0.0, 9.0, 0.0],
                 [0.0, 0.0, 0.0, 1.0],
             ],
-            transforms.animated_world_transforms.transforms[1]
+            transforms.animated_world_transforms.transforms[1].to_cols_array_2d()
         );
         assert_matrix_relative_eq!(
             [
@@ -961,7 +962,7 @@ mod tests {
                 [0.0, 0.0, 27.0, 0.0],
                 [0.0, 0.0, 0.0, 1.0],
             ],
-            transforms.animated_world_transforms.transforms[2]
+            transforms.animated_world_transforms.transforms[2].to_cols_array_2d()
         );
     }
 
@@ -1064,7 +1065,7 @@ mod tests {
                 [0.0, 0.0, 3.0, 0.0],
                 [0.0, 0.0, 0.0, 1.0],
             ],
-            transforms.animated_world_transforms.transforms[0]
+            transforms.animated_world_transforms.transforms[0].to_cols_array_2d()
         );
         assert_matrix_relative_eq!(
             [
@@ -1073,7 +1074,7 @@ mod tests {
                 [0.0, 0.0, 9.0, 0.0],
                 [0.0, 0.0, 0.0, 1.0],
             ],
-            transforms.animated_world_transforms.transforms[1]
+            transforms.animated_world_transforms.transforms[1].to_cols_array_2d()
         );
         assert_matrix_relative_eq!(
             [
@@ -1082,7 +1083,7 @@ mod tests {
                 [0.0, 0.0, 27.0, 0.0],
                 [0.0, 0.0, 0.0, 1.0],
             ],
-            transforms.animated_world_transforms.transforms[2]
+            transforms.animated_world_transforms.transforms[2].to_cols_array_2d()
         );
     }
 
@@ -1110,7 +1111,7 @@ mod tests {
                 [0.0, 0.0, 3.0, 0.0],
                 [0.0, 0.0, 0.0, 1.0],
             ],
-            transforms.animated_world_transforms.transforms[0]
+            transforms.animated_world_transforms.transforms[0].to_cols_array_2d()
         );
         assert_matrix_relative_eq!(
             [
@@ -1119,7 +1120,7 @@ mod tests {
                 [0.0, 0.0, 9.0, 0.0],
                 [0.0, 0.0, 0.0, 1.0],
             ],
-            transforms.animated_world_transforms.transforms[1]
+            transforms.animated_world_transforms.transforms[1].to_cols_array_2d()
         );
         assert_matrix_relative_eq!(
             [
@@ -1128,7 +1129,7 @@ mod tests {
                 [0.0, 0.0, 9.0, 0.0],
                 [0.0, 0.0, 0.0, 1.0],
             ],
-            transforms.animated_world_transforms.transforms[2]
+            transforms.animated_world_transforms.transforms[2].to_cols_array_2d()
         );
     }
 
@@ -1156,7 +1157,7 @@ mod tests {
                 [0.0, 0.0, 3.0, 0.0],
                 [0.0, 0.0, 0.0, 1.0],
             ],
-            transforms.animated_world_transforms.transforms[0]
+            transforms.animated_world_transforms.transforms[0].to_cols_array_2d()
         );
         assert_matrix_relative_eq!(
             [
@@ -1165,7 +1166,7 @@ mod tests {
                 [0.0, 0.0, 9.0, 0.0],
                 [0.0, 0.0, 0.0, 1.0],
             ],
-            transforms.animated_world_transforms.transforms[1]
+            transforms.animated_world_transforms.transforms[1].to_cols_array_2d()
         );
         assert_matrix_relative_eq!(
             [
@@ -1174,7 +1175,7 @@ mod tests {
                 [0.0, 0.0, 27.0, 0.0],
                 [0.0, 0.0, 0.0, 1.0],
             ],
-            transforms.animated_world_transforms.transforms[2]
+            transforms.animated_world_transforms.transforms[2].to_cols_array_2d()
         );
     }
 
@@ -1202,7 +1203,7 @@ mod tests {
                 [0.0, 0.0, 3.0, 0.0],
                 [0.0, 0.0, 0.0, 1.0],
             ],
-            transforms.animated_world_transforms.transforms[0]
+            transforms.animated_world_transforms.transforms[0].to_cols_array_2d()
         );
         assert_matrix_relative_eq!(
             [
@@ -1211,7 +1212,7 @@ mod tests {
                 [0.0, 0.0, 9.0, 0.0],
                 [0.0, 0.0, 0.0, 1.0],
             ],
-            transforms.animated_world_transforms.transforms[1]
+            transforms.animated_world_transforms.transforms[1].to_cols_array_2d()
         );
         assert_matrix_relative_eq!(
             [
@@ -1220,7 +1221,7 @@ mod tests {
                 [0.0, 0.0, 9.0, 0.0],
                 [0.0, 0.0, 0.0, 1.0],
             ],
-            transforms.animated_world_transforms.transforms[2]
+            transforms.animated_world_transforms.transforms[2].to_cols_array_2d()
         );
     }
 
@@ -1321,7 +1322,7 @@ mod tests {
                 [0.0, 0.0, 1.0, 0.0],
                 [0.0, 0.0, 0.0, 1.0],
             ],
-            transforms.animated_world_transforms.transforms[0]
+            transforms.animated_world_transforms.transforms[0].to_cols_array_2d()
         );
         assert_matrix_relative_eq!(
             [
@@ -1330,7 +1331,7 @@ mod tests {
                 [0.0, 0.0, 1.0, 0.0],
                 [0.0, 0.0, 0.0, 1.0],
             ],
-            transforms.animated_world_transforms.transforms[1]
+            transforms.animated_world_transforms.transforms[1].to_cols_array_2d()
         );
         assert_matrix_relative_eq!(
             [
@@ -1339,7 +1340,7 @@ mod tests {
                 [0.0, 0.0, 1.0, 0.0],
                 [0.0, 0.0, 0.0, 1.0],
             ],
-            transforms.animated_world_transforms.transforms[2]
+            transforms.animated_world_transforms.transforms[2].to_cols_array_2d()
         );
         // TODO: Test other matrices?
     }
@@ -1489,13 +1490,13 @@ mod tests {
         );
 
         assert_matrix_relative_eq!(
-            transforms.animated_world_transforms.transforms[0],
-            transforms.animated_world_transforms.transforms[2]
+            transforms.animated_world_transforms.transforms[0].to_cols_array_2d(),
+            transforms.animated_world_transforms.transforms[2].to_cols_array_2d()
         );
 
         assert_matrix_relative_eq!(
-            transforms.animated_world_transforms.transforms[1],
-            transforms.animated_world_transforms.transforms[3]
+            transforms.animated_world_transforms.transforms[1].to_cols_array_2d(),
+            transforms.animated_world_transforms.transforms[3].to_cols_array_2d()
         );
 
         assert_matrix_relative_eq!(

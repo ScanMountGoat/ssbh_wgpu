@@ -5,8 +5,8 @@ struct VertexInput {
 
 struct VertexOutput {
     @builtin(position) clip_position: vec4<f32>,
-    @location(0) position: vec3<f32>,
-    @location(1) normal: vec3<f32>,
+    @location(0) position: vec4<f32>,
+    @location(1) normal: vec4<f32>,
 };
 
 struct CameraTransforms {
@@ -51,9 +51,9 @@ fn vs_axes(in: VertexInput) -> VertexOutput {
     if (bone_index >= 0 && bone_index < 512) {
         let position = vec4(in.position.xyz, 1.0);
         out.clip_position = camera.mvp_matrix * world_transforms.transforms[bone_index] * position;
-        out.position = in.position.xyz;
+        out.position = vec4(in.position.xyz, 1.0);
         // Use the normal as the color.
-        out.normal = in.position.xyz;
+        out.normal = vec4(in.position.xyz, 0.0);
     }
 
     return out;
@@ -71,8 +71,8 @@ fn vs_bone(in: VertexInput) -> VertexOutput {
         let position = vec4(in.position.xyz * scale_factor, 1.0);
 
         out.clip_position = camera.mvp_matrix * world_transforms.transforms[per_bone.indices.x] * position;
-        out.position = in.position.xyz;
-        out.normal = (world_transforms.transforms[per_bone.indices.x] * vec4(in.normal.xyz, 0.0)).xyz;
+        out.position = in.position;
+        out.normal = world_transforms.transforms[per_bone.indices.x] * vec4(in.normal.xyz, 0.0);
     }
     return out;
 }
@@ -90,8 +90,8 @@ fn vs_joint(in: VertexInput) -> VertexOutput {
         let position = vec4(in.position.xyz * vec3(scale_factor, 1.0, scale_factor), 1.0);
 
         out.clip_position = camera.mvp_matrix * world_transforms.transforms[bone_index] * position;
-        out.position = in.position.xyz;
-        out.normal = (world_transforms.transforms[bone_index] * vec4(in.normal.xyz, 0.0)).xyz;
+        out.position = in.position;
+        out.normal = world_transforms.transforms[bone_index] * vec4(in.normal.xyz, 0.0);
     }
     return out;
 }

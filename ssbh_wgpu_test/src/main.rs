@@ -85,10 +85,10 @@ fn main() {
     let (camera_pos, model_view_matrix, mvp_matrix) =
         calculate_camera_pos_mvp(glam::Vec3::new(0.0, -8.0, -60.0), rotation);
     let transforms = CameraTransforms {
-        model_view_matrix: model_view_matrix.to_cols_array_2d(),
-        mvp_matrix: mvp_matrix.to_cols_array_2d(),
-        camera_pos: camera_pos.to_array(),
-        screen_dimensions: [512.0, 512.0, 1.0, 0.0],
+        model_view_matrix,
+        mvp_matrix,
+        camera_pos,
+        screen_dimensions: glam::Vec4::new(512.0, 512.0, 1.0, 0.0),
     };
     renderer.update_camera(&queue, transforms);
 

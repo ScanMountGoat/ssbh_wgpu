@@ -3,37 +3,37 @@
 #[repr(C)]
 #[derive(Debug, Copy, Clone, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct VertexInput0 {
-    pub position0: [f32; 4],
-    pub normal0: [f32; 4],
-    pub tangent0: [f32; 4],
+    pub position0: glam::Vec4,
+    pub normal0: glam::Vec4,
+    pub tangent0: glam::Vec4,
 }
 #[repr(C)]
 #[derive(Debug, Copy, Clone, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct VertexWeight {
-    pub bone_indices: [i32; 4],
-    pub weights: [f32; 4],
+    pub bone_indices: glam::IVec4,
+    pub weights: glam::Vec4,
 }
 #[repr(C)]
 #[derive(Debug, Copy, Clone, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct AnimatedWorldTransforms {
-    pub transforms: [[[f32; 4]; 4]; 512],
-    pub transforms_inv_transpose: [[[f32; 4]; 4]; 512],
+    pub transforms: [glam::Mat4; 512],
+    pub transforms_inv_transpose: [glam::Mat4; 512],
 }
 #[repr(C)]
 #[derive(Debug, Copy, Clone, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct WorldTransforms {
-    pub transforms: [[[f32; 4]; 4]; 512],
+    pub transforms: [glam::Mat4; 512],
 }
 #[repr(C)]
 #[derive(Debug, Copy, Clone, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct MeshObjectInfo {
-    pub parent_index: [i32; 4],
+    pub parent_index: glam::IVec4,
 }
 #[repr(C)]
 #[derive(Debug, Copy, Clone, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct SkinningSettings {
-    pub enable_parenting: [u32; 4],
-    pub enable_skinning: [u32; 4],
+    pub enable_parenting: glam::UVec4,
+    pub enable_skinning: glam::UVec4,
 }
 pub mod bind_groups {
     pub struct BindGroup0(wgpu::BindGroup);

@@ -10,7 +10,7 @@ fn main() {
     writeln!(&mut text, "// Changes made to this file will not be saved.").unwrap();
     let options = wgsl_to_wgpu::WriteOptions {
         derive_bytemuck: true,
-        derive_encase: false,
+        ..Default::default()
     };
     text += &wgsl_to_wgpu::create_shader_module(&wgsl_source, "shader.wgsl", options).unwrap();
 

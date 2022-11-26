@@ -452,7 +452,7 @@ impl<'a> RenderMeshSharedData<'a> {
         let mesh_object_info_buffer = device.create_uniform_buffer_readonly(
             "Mesh Object Info Buffer",
             &[crate::shader::skinning::MeshObjectInfo {
-                parent_index: [parent_index, -1, -1, -1],
+                parent_index: glam::IVec4::new(parent_index, -1, -1, -1),
             }],
         );
 
@@ -624,7 +624,12 @@ fn bone_bind_groups(
                 let per_bone = device.create_uniform_buffer_readonly(
                     "Mesh Object Info Buffer",
                     &[crate::shader::skeleton::PerBone {
-                        indices: [i as i32, parent_index(bone.parent_index), -1, -1],
+                        indices: glam::IVec4::new(
+                            i as i32,
+                            parent_index(bone.parent_index),
+                            -1,
+                            -1,
+                        ),
                     }],
                 );
 

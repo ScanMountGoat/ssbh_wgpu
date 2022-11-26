@@ -50,9 +50,9 @@ pub fn buffer0(mesh_data: &MeshObjectData) -> Result<Vec<VertexInput0>, Error> {
         .zip(tangents.into_iter())
     {
         vertices.push(VertexInput0 {
-            position0: position,
-            normal0: normal,
-            tangent0: tangent,
+            position0: position.into(),
+            normal0: normal.into(),
+            tangent0: tangent.into(),
         })
     }
 
@@ -110,16 +110,16 @@ pub fn buffer1(mesh_data: &MeshObjectData) -> Result<Vec<VertexInput1>, Error> {
     // TODO: This could be done by zeroing memory but probably isn't worth it.
     let mut vertices = vec![
         VertexInput1 {
-            map1_uvset: [0.0; 4],
-            uv_set1_uv_set2: [0.0; 4],
-            bake1: [0.0; 4],
-            color_set1: [0.0; 4],
-            color_set2_combined: [0.0; 4],
-            color_set3: [0.0; 4],
-            color_set4: [0.0; 4],
-            color_set5: [0.0; 4],
-            color_set6: [0.0; 4],
-            color_set7: [0.0; 4]
+            map1_uvset: glam::Vec4::ZERO,
+            uv_set1_uv_set2: glam::Vec4::ZERO,
+            bake1: glam::Vec4::ZERO,
+            color_set1: glam::Vec4::ZERO,
+            color_set2_combined: glam::Vec4::ZERO,
+            color_set3: glam::Vec4::ZERO,
+            color_set4: glam::Vec4::ZERO,
+            color_set5: glam::Vec4::ZERO,
+            color_set6: glam::Vec4::ZERO,
+            color_set7: glam::Vec4::ZERO
         };
         vertex_count
     ];
@@ -346,9 +346,9 @@ mod tests {
 
         assert_eq!(
             vec![VertexInput0 {
-                position0: [0.0; 4],
-                normal0: [0.0; 4],
-                tangent0: [0.0, 0.0, 0.0, 1.0]
+                position0: glam::Vec4::ZERO,
+                normal0: glam::Vec4::ZERO,
+                tangent0: glam::Vec4::new(0.0, 0.0, 0.0, 1.0)
             }],
             vertices
         );
@@ -376,9 +376,9 @@ mod tests {
 
         assert_eq!(
             vec![VertexInput0 {
-                position0: [0.0, 1.0, 2.0, 1.0],
-                normal0: [2.0, 3.0, 0.0, 1.0],
-                tangent0: [4.0, 5.0, 6.0, 1.0]
+                position0: glam::Vec4::new(0.0, 1.0, 2.0, 1.0),
+                normal0: glam::Vec4::new(2.0, 3.0, 0.0, 1.0),
+                tangent0: glam::Vec4::new(4.0, 5.0, 6.0, 1.0)
             }],
             vertices
         );

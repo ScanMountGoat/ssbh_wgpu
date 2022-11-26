@@ -3,37 +3,37 @@
 #[repr(C)]
 #[derive(Debug, Copy, Clone, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct VertexInput {
-    pub position: [f32; 4],
-    pub normal: [f32; 4],
+    pub position: glam::Vec4,
+    pub normal: glam::Vec4,
 }
 #[repr(C)]
 #[derive(Debug, Copy, Clone, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct VertexOutput {
-    pub clip_position: [f32; 4],
-    pub position: [f32; 3],
-    pub normal: [f32; 3],
+    pub clip_position: glam::Vec4,
+    pub position: glam::Vec4,
+    pub normal: glam::Vec4,
 }
 #[repr(C)]
 #[derive(Debug, Copy, Clone, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct CameraTransforms {
-    pub model_view_matrix: [[f32; 4]; 4],
-    pub mvp_matrix: [[f32; 4]; 4],
-    pub camera_pos: [f32; 4],
+    pub model_view_matrix: glam::Mat4,
+    pub mvp_matrix: glam::Mat4,
+    pub camera_pos: glam::Vec4,
 }
 #[repr(C)]
 #[derive(Debug, Copy, Clone, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct WorldTransforms {
-    pub transforms: [[[f32; 4]; 4]; 512],
+    pub transforms: [glam::Mat4; 512],
 }
 #[repr(C)]
 #[derive(Debug, Copy, Clone, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct BoneColors {
-    pub colors: [[f32; 4]; 512],
+    pub colors: [glam::Vec4; 512],
 }
 #[repr(C)]
 #[derive(Debug, Copy, Clone, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct PerBone {
-    pub indices: [i32; 4],
+    pub indices: glam::IVec4,
 }
 pub mod bind_groups {
     pub struct BindGroup0(wgpu::BindGroup);

@@ -144,21 +144,21 @@ pub struct RenderSettings {
 impl From<&RenderSettings> for crate::shader::model::RenderSettings {
     fn from(r: &RenderSettings) -> Self {
         Self {
-            debug_mode: [r.debug_mode as u32; 4],
-            transition_material: [r.transition_material as u32; 4],
-            transition_factor: [r.transition_factor, 0.0, 0.0, 0.0],
-            render_diffuse: [r.render_diffuse as u32; 4],
-            render_specular: [r.render_specular as u32; 4],
-            render_emission: [r.render_emission as u32; 4],
-            render_rim_lighting: [r.render_rim_lighting as u32; 4],
-            render_shadows: [r.render_shadows as u32; 4],
-            render_bloom: [r.render_bloom as u32; 4],
-            render_vertex_color: [r.render_vertex_color as u32; 4],
-            scale_vertex_color: [r.scale_vertex_color as u32; 4],
-            render_rgba: r.render_rgba.map(|b| if b { 1.0 } else { 0.0 }),
-            render_nor: r.render_nor.map(|b| b as u32),
-            render_prm: r.render_prm.map(|b| b as u32),
-            render_uv_pattern: [r.use_uv_pattern as u32; 4],
+            debug_mode: glam::UVec4::splat(r.debug_mode as u32),
+            transition_material: glam::UVec4::splat(r.transition_material as u32),
+            transition_factor: glam::Vec4::new(r.transition_factor, 0.0, 0.0, 0.0),
+            render_diffuse: glam::UVec4::splat(r.render_diffuse as u32),
+            render_specular: glam::UVec4::splat(r.render_specular as u32),
+            render_emission: glam::UVec4::splat(r.render_emission as u32),
+            render_rim_lighting: glam::UVec4::splat(r.render_rim_lighting as u32),
+            render_shadows: glam::UVec4::splat(r.render_shadows as u32),
+            render_bloom: glam::UVec4::splat(r.render_bloom as u32),
+            render_vertex_color: glam::UVec4::splat(r.render_vertex_color as u32),
+            scale_vertex_color: glam::UVec4::splat(r.scale_vertex_color as u32),
+            render_rgba: r.render_rgba.map(|b| if b { 1.0 } else { 0.0 }).into(),
+            render_nor: r.render_nor.map(|b| b as u32).into(),
+            render_prm: r.render_prm.map(|b| b as u32).into(),
+            render_uv_pattern: glam::UVec4::splat(r.use_uv_pattern as u32),
         }
     }
 }
@@ -196,8 +196,8 @@ pub struct SkinningSettings {
 impl From<&SkinningSettings> for crate::shader::skinning::SkinningSettings {
     fn from(s: &SkinningSettings) -> Self {
         Self {
-            enable_parenting: [s.enable_parenting as u32; 4],
-            enable_skinning: [s.enable_skinning as u32; 4],
+            enable_parenting: glam::UVec4::splat(s.enable_parenting as u32),
+            enable_skinning: glam::UVec4::splat(s.enable_skinning as u32),
         }
     }
 }
@@ -374,10 +374,10 @@ impl SsbhRenderer {
         let camera_buffer = device.create_uniform_buffer(
             "Camera Buffer",
             &[crate::shader::model::CameraTransforms {
-                model_view_matrix: glam::Mat4::IDENTITY.to_cols_array_2d(),
-                mvp_matrix: glam::Mat4::IDENTITY.to_cols_array_2d(),
-                camera_pos: [0.0, 0.0, -1.0, 1.0],
-                screen_dimensions: [1.0; 4],
+                model_view_matrix: glam::Mat4::IDENTITY,
+                mvp_matrix: glam::Mat4::IDENTITY,
+                camera_pos: glam::Vec4::new(0.0, 0.0, -1.0, 1.0),
+                screen_dimensions: glam::Vec4::new(1.0, 1.0, 1.0, 1.0),
             }],
         );
 
@@ -397,9 +397,7 @@ impl SsbhRenderer {
 
         let light_transform_buffer = device.create_uniform_buffer(
             "Light Transform Buffer",
-            &[crate::shader::model::LightTransforms {
-                light_transform: light_transform.to_cols_array_2d(),
-            }],
+            &[crate::shader::model::LightTransforms { light_transform }],
         );
 
         // Depth from the perspective of the light.
@@ -639,9 +637,7 @@ impl SsbhRenderer {
 
         queue.write_data(
             &self.light_transform_buffer,
-            &[crate::shader::model::LightTransforms {
-                light_transform: light_transform.to_cols_array_2d(),
-            }],
+            &[crate::shader::model::LightTransforms { light_transform }],
         );
     }
 
