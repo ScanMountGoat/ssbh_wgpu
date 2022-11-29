@@ -396,9 +396,11 @@ fn DiffuseTerm(
     var ambientTerm = (ambientLight * ao);
 
     if (per_material.has_texture[9].x == 1u) {
-        // TODO: Does baked lighting affect the RGB color for direct?
+        // The alpha channel masks direct lighting to act as baked shadows.
         let bakedLitColor = textureSample(texture9, sampler9, bake1).rgba;
         directLight = directLight * bakedLitColor.a;
+
+        // The RGB channels control the ambient lighting color.
         // Baked lighting maps are not affected by ambient occlusion.
         ambientTerm = ambientTerm + (bakedLitColor.rgb * 8.0);
     }
