@@ -1044,10 +1044,12 @@ fn fs_debug(in: VertexOutput) -> @location(0) vec4<f32> {
             outColor = vec4(albedoColorFinal.rgb, 1.0);
         }
         case 36u: {
-            // Apply a power adjustment to make the shader complexity nonlinear.
-            // This makes more complex materials like PRM materials stand out.
-            let complexity = plasma_colormap(pow(per_material.shader_complexity.x, 2.0));     
-            outColor = vec4(pow(complexity, vec3(2.2)), 1.0);
+            // The min complexity isn't 0.0 since shaders are all non empty.
+            // Normalize to the 0.0 to 1.0 range to use the full colormap.
+            let min = 0.10816174646489705;
+            let complexity = (per_material.shader_complexity.x - min) / (1.0 - min);
+            let color = plasma_colormap(complexity);     
+            outColor = vec4(pow(color, vec3(2.2)), 1.0);
         }
         default: { 
             outColor = vec4(1.0);
