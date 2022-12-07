@@ -1,4 +1,10 @@
-use prc::{hash40::Hash40, Prc};
+use std::io::SeekFrom;
+
+use prc::{
+    hash40::Hash40,
+    prc_trait::{ErrorKind, FileOffsets},
+    Prc,
+};
 
 #[derive(Debug, Prc, Clone)]
 pub struct SwingPrc {
@@ -17,7 +23,7 @@ pub struct SwingBone {
     pub end_bonename: Hash40,
     pub params: Vec<Param>,
     pub isskirt: i8,
-    pub rotateorder: i32, // TODO: can be i32 or i8
+    pub rotateorder: RotateOrder,
     pub curverotatex: i8,
     #[prc(hash = 0x0f7316a113)]
     pub unk: Option<i8>,
@@ -106,4 +112,45 @@ pub struct Plane {
     pub ny: f32,
     pub nz: f32,
     pub distance: f32,
+}
+
+// Some files use slightly different field types
+#[derive(Debug, Clone)]
+pub enum RotateOrder {
+    // ex: /fighter/sonic/motion/body/c00/swing.prc
+    I8(i8),
+    // ex:/fighter/bayonetta/motion/body/c00/swing.prc
+    I32(i32),
+}
+
+impl Prc for RotateOrder {
+    fn read_param<R: std::io::Read + std::io::Seek>(
+        reader: &mut R,
+        offsets: FileOffsets,
+    ) -> prc::prc_trait::Result<Self> {
+        let param_start = reader.stream_position().map_err(prc_io_error)?;
+
+        <i32 as Prc>::read_param(reader, offsets)
+            .map(RotateOrder::I32)
+            .or_else(|err| {
+                // Put the reader at the start of the param again.
+                reader
+                    .seek(SeekFrom::Start(param_start))
+                    .map_err(prc_io_error)?;
+
+                if matches!(&err.kind, ErrorKind::WrongParamNumber { .. }) {
+                    <i8 as Prc>::read_param(reader, offsets).map(RotateOrder::I8)
+                } else {
+                    Err(err)
+                }
+            })
+    }
+}
+
+fn prc_io_error(e: std::io::Error) -> prc::prc_trait::Error {
+    prc::prc_trait::Error {
+        path: Vec::new(),
+        position: Ok(0),
+        kind: prc::prc_trait::ErrorKind::Io(e),
+    }
 }
