@@ -662,8 +662,22 @@ fn vs_main(
 
     // Sprite sheet params.
     // Perform this in the fragment shader to avoid affecting debug modes.
-    if (per_material.custom_boolean[9].x == 1u) {
-        map1 = map1 / per_material.custom_vector[18].xy;
+    if (per_material.has_vector[18].x == 1u) {
+        let columnCount = round(per_material.custom_vector[18].x);
+        let rowCount = round(per_material.custom_vector[18].y);
+        let spriteCount = round(per_material.custom_vector[18].w);
+        var spriteIndex = 1.0;
+
+        if (per_material.custom_boolean[9].x == 1u) {
+            map1 /= round(per_material.custom_vector[18].xy);
+            spriteIndex = (round(per_material.custom_vector[18].z) - 1.0) % spriteCount;
+        }
+        // else {
+        //     spriteIndex = (round(per_material.custom_vector[18].z) / floor(currentFrame)) % spriteCount;
+        // }
+
+        map1.x += (1.0 / columnCount) * (spriteIndex % columnCount);
+        map1.y += (1.0 / rowCount) * floor(spriteIndex / columnCount);
     }
 
     let uvSet = TransformUv(buffer1.map1_uvset.zw, uvTransform2);
