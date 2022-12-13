@@ -713,9 +713,9 @@ pub fn dispatch_renormal<'a>(meshes: &'a [RenderMesh], compute_pass: &mut wgpu::
             },
         );
 
-        // The shader's local workgroup size is (256, 1, 1).
-        // Round up to avoid skipping vertices.
-        let workgroup_count = (mesh.vertex_count as f64 / 256.0).ceil() as u32;
+        // Round up with ceil to avoid skipping vertices.
+        let [workgroup_x, _, _] = crate::shader::renormal::compute::MAIN_WORKGROUP_SIZE;
+        let workgroup_count = (mesh.vertex_count as f64 / workgroup_x as f64).ceil() as u32;
         compute_pass.dispatch_workgroups(workgroup_count, 1, 1);
     }
 }
@@ -737,9 +737,9 @@ pub fn dispatch_skinning<'a>(
             },
         );
 
-        // The shader's local workgroup size is (256, 1, 1).
-        // Round up to avoid skipping vertices.
-        let workgroup_count = (mesh.vertex_count as f64 / 256.0).ceil() as u32;
+        // Round up with ceil to avoid skipping vertices.
+        let [workgroup_x, _, _] = crate::shader::skinning::compute::MAIN_WORKGROUP_SIZE;
+        let workgroup_count = (mesh.vertex_count as f64 / workgroup_x as f64).ceil() as u32;
         compute_pass.dispatch_workgroups(workgroup_count, 1, 1);
     }
 }

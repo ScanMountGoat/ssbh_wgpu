@@ -26,7 +26,7 @@ approx = "0.5.1"
 criterion = "0.3.5"
 
 [build-dependencies]
-wgsl_to_wgpu = { git = "https://github.com/ScanMountGoat/wgsl_to_wgpu" }
+wgsl_to_wgpu = "0.3.0"
 
 [features]
 arbitrary = ["dep:arbitrary", "ssbh_data/arbitrary"]
