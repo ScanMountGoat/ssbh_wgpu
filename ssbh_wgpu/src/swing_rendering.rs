@@ -11,21 +11,55 @@ use crate::{
     DeviceExt2, QueueExt,
 };
 
-// TODO: Create a separate structs for the shared and non shared data.
-// TODO: How to support animation for shapes with two endpoints?
+// TODO: Move the pipeline to the Renderer.
 pub struct SwingRenderData {
     pub pipeline: wgpu::RenderPipeline,
     // TODO: There may need to be new buffers for each shape?
     pub sphere_buffers: IndexedMeshBuffers,
     pub plane_buffers: IndexedMeshBuffers,
     pub bind_group1: crate::shader::swing::bind_groups::BindGroup1,
+    pub collisions: CollisionData,
+}
+
+pub struct CollisionData {
     pub spheres: Vec<PerShapeBindGroup>,
     pub ovals: Vec<PerShapeBindGroup>,
     pub ellipsoids: Vec<PerShapeBindGroup>,
     pub capsules: Vec<(IndexedMeshBuffers, PerShapeBindGroup)>,
     pub planes: Vec<PerShapeBindGroup>,
-
+    // TODO: Is there another way to store bone information?
     pub prc_capsules: Vec<Capsule>,
+}
+
+impl CollisionData {
+    pub fn new() -> Self {
+        Self {
+            spheres: Vec::new(),
+            ovals: Vec::new(),
+            ellipsoids: Vec::new(),
+            capsules: Vec::new(),
+            planes: Vec::new(),
+            // TODO: Find a better way to store the prc data for animating.
+            prc_capsules: Vec::new(),
+        }
+    }
+
+    pub fn from_swing(
+        device: &wgpu::Device,
+        swing_prc: &SwingPrc,
+        skel: Option<&SkelData>,
+        world_transforms: &[glam::Mat4],
+    ) -> Self {
+        Self {
+            spheres: sphere_bind_groups(device, &swing_prc.spheres, skel),
+            ovals: Vec::new(),
+            ellipsoids: ellipsoid_bind_groups(device, &swing_prc.ellipsoids, skel),
+            capsules: capsules(device, &swing_prc.capsules, skel, world_transforms),
+            planes: plane_bind_groups(device, &swing_prc.planes, skel),
+            // TODO: Find a better way to store the prc data for animating.
+            prc_capsules: swing_prc.capsules.clone(),
+        }
+    }
 }
 
 // TODO: Figure out which objects don't need to be recreated every frame.
@@ -92,13 +126,7 @@ impl SwingRenderData {
             plane_buffers,
             bind_group1,
             // TODO: Group these together into a struct?
-            spheres: Vec::new(),
-            ovals: Vec::new(),
-            ellipsoids: Vec::new(),
-            capsules: Vec::new(),
-            planes: Vec::new(),
-            // TODO: Find a better way to store the prc data for animating.
-            prc_capsules: Vec::new(),
+            collisions: CollisionData::new(),
         }
     }
 
@@ -109,14 +137,9 @@ impl SwingRenderData {
         skel: Option<&SkelData>,
         world_transforms: &[glam::Mat4],
     ) {
-        self.spheres = sphere_bind_groups(device, &swing_prc.spheres, skel);
-        self.ovals = Vec::new();
-        self.ellipsoids = ellipsoid_bind_groups(device, &swing_prc.ellipsoids, skel);
-        self.capsules = capsules(device, &swing_prc.capsules, skel, world_transforms);
-        self.planes = plane_bind_groups(device, &swing_prc.planes, skel);
-
-        // TODO: Find a better way to store the prc data for animating.
-        self.prc_capsules = swing_prc.capsules.clone();
+        // Only update the data related to collisions.
+        // Recreating pipelines is slow.
+        self.collisions = CollisionData::from_swing(device, swing_prc, skel, world_transforms)
     }
 
     pub fn animate_collisions(
@@ -128,7 +151,12 @@ impl SwingRenderData {
         // TODO: Write to the buffer for capsules and ovals.
         // TODO: Find a better way to store the PRC collision data.
         // We need information from the PRC to regenerate vertex data while animating for some shapes.
-        for ((buffers, shape), c) in self.capsules.iter().zip(self.prc_capsules.iter()) {
+        for ((buffers, shape), c) in self
+            .collisions
+            .capsules
+            .iter()
+            .zip(self.collisions.prc_capsules.iter())
+        {
             // TODO: Find a way to avoid specifying this logic in multiple places.
             // TODO: How to reduce repeated logic for buffer creation and writing?
             let (height, per_shape) = capsules_per_shape(skel, c, world_transforms);
@@ -333,7 +361,7 @@ pub fn draw_swing_collisions<'a>(
     draw_shapes(
         pass,
         &render_data.sphere_buffers,
-        &render_data.spheres,
+        &render_data.collisions.spheres,
         &render_data.bind_group1,
         swing_camera_bind_group,
     );
@@ -341,7 +369,7 @@ pub fn draw_swing_collisions<'a>(
     draw_shapes(
         pass,
         &render_data.sphere_buffers,
-        &render_data.ovals,
+        &render_data.collisions.ovals,
         &render_data.bind_group1,
         swing_camera_bind_group,
     );
@@ -350,14 +378,14 @@ pub fn draw_swing_collisions<'a>(
     draw_shapes(
         pass,
         &render_data.sphere_buffers,
-        &render_data.ellipsoids,
+        &render_data.collisions.ellipsoids,
         &render_data.bind_group1,
         swing_camera_bind_group,
     );
 
     draw_shapes_with_buffers(
         pass,
-        &render_data.capsules,
+        &render_data.collisions.capsules,
         &render_data.bind_group1,
         swing_camera_bind_group,
     );
@@ -365,7 +393,7 @@ pub fn draw_swing_collisions<'a>(
     draw_shapes(
         pass,
         &render_data.plane_buffers,
-        &render_data.planes,
+        &render_data.collisions.planes,
         &render_data.bind_group1,
         swing_camera_bind_group,
     );
