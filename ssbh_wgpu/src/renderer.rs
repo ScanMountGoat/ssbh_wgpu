@@ -1225,6 +1225,7 @@ impl SsbhRenderer {
                     bind_group0: &self.pass_info.outline_bind_group,
                 },
             );
+            // The stencil is cleared to 0xFF and the object is drawn with 0x00.
             // Mask out the inner black regions to keep the outline.
             pass.set_stencil_reference(0xff);
             pass.draw(0..3, 0..1);

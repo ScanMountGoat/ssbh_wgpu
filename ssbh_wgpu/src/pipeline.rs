@@ -204,7 +204,8 @@ pub fn create_silhouette_pipeline(
             format: crate::renderer::DEPTH_STENCIL_FORMAT,
             depth_write_enabled: true,
             depth_compare: wgpu::CompareFunction::LessEqual,
-            // Write a mask for selected meshes to be used later.
+            // Assume the stencil mask is cleared to 0xFF.
+            // Write zeros for the object to create an inverted mask.
             stencil: wgpu::StencilState {
                 front: wgpu::StencilFaceState {
                     compare: wgpu::CompareFunction::Always,
