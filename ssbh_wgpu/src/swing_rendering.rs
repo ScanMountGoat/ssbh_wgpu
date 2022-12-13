@@ -17,7 +17,6 @@ pub struct SwingRenderData {
     pub pipeline: wgpu::RenderPipeline,
     // TODO: There may need to be new buffers for each shape?
     pub sphere_buffers: IndexedMeshBuffers,
-    pub capsule_buffers: IndexedMeshBuffers,
     pub plane_buffers: IndexedMeshBuffers,
     pub bind_group1: crate::shader::swing::bind_groups::BindGroup1,
     pub spheres: Vec<PerShapeBindGroup>,
@@ -78,7 +77,6 @@ impl SwingRenderData {
         });
 
         let sphere_buffers = sphere_mesh_buffers(device);
-        let capsule_buffers = capsule_mesh_buffers(device, 1.0, 1.0, 1.0);
         let plane_buffers = plane_mesh_buffers(device);
 
         let bind_group1 = crate::shader::swing::bind_groups::BindGroup1::from_bindings(
@@ -91,7 +89,6 @@ impl SwingRenderData {
         Self {
             pipeline,
             sphere_buffers,
-            capsule_buffers,
             plane_buffers,
             bind_group1,
             // TODO: Group these together into a struct?
