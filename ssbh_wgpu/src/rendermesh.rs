@@ -77,9 +77,7 @@ pub struct RenderMesh {
 struct BoneRenderData {
     joint_world_transforms: wgpu::Buffer,
     bone_data: crate::shader::skeleton::bind_groups::BindGroup1,
-    bone_data_outer: crate::shader::skeleton::bind_groups::BindGroup1,
     joint_data: crate::shader::skeleton::bind_groups::BindGroup1,
-    joint_data_outer: crate::shader::skeleton::bind_groups::BindGroup1,
     // TODO: Use instancing instead?
     bone_bind_groups: Vec<crate::shader::skeleton::bind_groups::BindGroup2>,
 }
@@ -316,7 +314,6 @@ impl RenderModel {
             render_pass,
             camera_bind_group,
             &bone_pipelines.joint_pipeline,
-            &bone_pipelines.joint_outer_pipeline,
         );
 
         // Draw the bones after to cover up the geometry at the ends of the joints.
@@ -325,7 +322,6 @@ impl RenderModel {
             render_pass,
             camera_bind_group,
             &bone_pipelines.bone_pipeline,
-            &bone_pipelines.bone_outer_pipeline,
         );
 
         if draw_bone_axes {
@@ -344,16 +340,7 @@ impl RenderModel {
         render_pass: &mut wgpu::RenderPass<'a>,
         camera_bind_group: &'a crate::shader::skeleton::bind_groups::BindGroup0,
         skeleton_pipeline: &'a wgpu::RenderPipeline,
-        skeleton_outer_pipeline: &'a wgpu::RenderPipeline,
     ) {
-        self.draw_skel_inner(
-            render_pass,
-            skeleton_outer_pipeline,
-            &bone_buffers.joint_outer_buffers,
-            camera_bind_group,
-            &self.bone_render_data.joint_data_outer,
-        );
-
         self.draw_skel_inner(
             render_pass,
             skeleton_pipeline,
@@ -369,17 +356,8 @@ impl RenderModel {
         render_pass: &mut wgpu::RenderPass<'a>,
         camera_bind_group: &'a crate::shader::skeleton::bind_groups::BindGroup0,
         skeleton_pipeline: &'a wgpu::RenderPipeline,
-        skeleton_outer_pipeline: &'a wgpu::RenderPipeline,
     ) {
         // TODO: Instancing?
-        self.draw_skel_inner(
-            render_pass,
-            skeleton_outer_pipeline,
-            &bone_buffers.bone_outer_buffers,
-            camera_bind_group,
-            &self.bone_render_data.bone_data_outer,
-        );
-
         self.draw_skel_inner(
             render_pass,
             skeleton_pipeline,
@@ -402,7 +380,7 @@ impl RenderModel {
             axes_pipeline,
             &bone_buffers.axes_buffers,
             camera_bind_group,
-            &self.bone_render_data.bone_data_outer,
+            &self.bone_render_data.bone_data,
         );
     }
 

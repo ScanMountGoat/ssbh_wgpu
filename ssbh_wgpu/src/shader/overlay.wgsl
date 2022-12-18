@@ -20,16 +20,21 @@ var color_texture: texture_2d<f32>;
 var color_sampler: sampler;
 
 @group(0) @binding(2)
-var outline_texture: texture_2d<f32>;
+var outline_texture1: texture_2d<f32>;
 @group(0) @binding(3)
+var outline_texture2: texture_2d<f32>;
+@group(0) @binding(4)
 var outline_sampler: sampler;
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let color = textureSample(color_texture, color_sampler, in.uvs.xy);
-    let outline = textureSample(outline_texture, outline_sampler, in.uvs.xy).r;
+    let outline1 = textureSample(outline_texture1, outline_sampler, in.uvs.xy).r;
+    // TODO: Find a better way to handle the outline channels.
+    let outline2 = textureSample(outline_texture2, outline_sampler, in.uvs.xy).r;
+
     // TODO: Set outline color?
-    let outlineColor = vec3(0.0, 1.0, 1.0);
-    let output = vec4(mix(color.rgb, outlineColor, outline), color.a);
-    return output;
+    var output = mix(color.rgb, vec3(0.0, 1.0, 1.0), outline1);
+    output = mix(output, vec3(0.0, 0.0, 0.0), outline2);
+    return vec4(output, color.a);
 }

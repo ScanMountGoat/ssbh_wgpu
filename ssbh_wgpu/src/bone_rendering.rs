@@ -12,9 +12,7 @@ use wgpu::util::DeviceExt;
 // It's too difficult to get a fixed outline width using two meshes and culling.
 pub struct BonePipelines {
     pub bone_pipeline: wgpu::RenderPipeline,
-    pub bone_outer_pipeline: wgpu::RenderPipeline,
     pub joint_pipeline: wgpu::RenderPipeline,
-    pub joint_outer_pipeline: wgpu::RenderPipeline,
     pub bone_axes_pipeline: wgpu::RenderPipeline,
 }
 
@@ -22,18 +20,12 @@ impl BonePipelines {
     pub fn new(device: &wgpu::Device) -> Self {
         // TODO: Move this to bone rendering?
         let bone_pipeline = skeleton_pipeline(device, "vs_bone", "fs_main", wgpu::Face::Back);
-        let bone_outer_pipeline =
-            skeleton_pipeline(device, "vs_bone", "fs_main", wgpu::Face::Front);
         let joint_pipeline = skeleton_pipeline(device, "vs_joint", "fs_main", wgpu::Face::Back);
-        let joint_outer_pipeline =
-            skeleton_pipeline(device, "vs_joint", "fs_main", wgpu::Face::Front);
         let bone_axes_pipeline = bone_axes_pipeline(device);
 
         Self {
             bone_pipeline,
-            bone_outer_pipeline,
             joint_pipeline,
-            joint_outer_pipeline,
             bone_axes_pipeline,
         }
     }
@@ -41,9 +33,7 @@ impl BonePipelines {
 
 pub struct BoneBuffers {
     pub bone_buffers: IndexedMeshBuffers,
-    pub bone_outer_buffers: IndexedMeshBuffers,
     pub joint_buffers: IndexedMeshBuffers,
-    pub joint_outer_buffers: IndexedMeshBuffers,
     pub axes_buffers: IndexedMeshBuffers,
 }
 
@@ -56,20 +46,8 @@ impl BoneBuffers {
             index_count: bone_index_count() as u32,
         };
 
-        let bone_outer_buffers = IndexedMeshBuffers {
-            vertex_buffer: bone_vertex_buffer_outer(device),
-            index_buffer: bone_index_buffer(device),
-            index_count: bone_index_count() as u32,
-        };
-
         let joint_buffers = IndexedMeshBuffers {
             vertex_buffer: joint_vertex_buffer(device),
-            index_buffer: joint_index_buffer(device),
-            index_count: joint_index_count() as u32,
-        };
-
-        let joint_outer_buffers = IndexedMeshBuffers {
-            vertex_buffer: joint_vertex_buffer_outer(device),
             index_buffer: joint_index_buffer(device),
             index_count: joint_index_count() as u32,
         };
@@ -82,9 +60,7 @@ impl BoneBuffers {
 
         Self {
             bone_buffers,
-            bone_outer_buffers,
             joint_buffers,
-            joint_outer_buffers,
             axes_buffers,
         }
     }
@@ -150,14 +126,6 @@ pub fn bone_vertex_buffer(device: &wgpu::Device) -> wgpu::Buffer {
     })
 }
 
-pub fn bone_vertex_buffer_outer(device: &wgpu::Device) -> wgpu::Buffer {
-    device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-        label: Some("Bone Vertex Buffer Outer"),
-        contents: bytemuck::cast_slice(&sphere_outer()),
-        usage: wgpu::BufferUsages::VERTEX,
-    })
-}
-
 pub fn bone_index_buffer(device: &wgpu::Device) -> wgpu::Buffer {
     device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
         label: Some("Bone Index Buffer"),
@@ -170,14 +138,6 @@ pub fn joint_vertex_buffer(device: &wgpu::Device) -> wgpu::Buffer {
     device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
         label: Some("Bone Joint Vertex Buffer"),
         contents: bytemuck::cast_slice(&pyramid()),
-        usage: wgpu::BufferUsages::VERTEX,
-    })
-}
-
-pub fn joint_vertex_buffer_outer(device: &wgpu::Device) -> wgpu::Buffer {
-    device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-        label: Some("Bone Joint Vertex Buffer Outer"),
-        contents: bytemuck::cast_slice(&pyramid_outer()),
         usage: wgpu::BufferUsages::VERTEX,
     })
 }
@@ -281,28 +241,11 @@ fn pyramid() -> Vec<[f32; 4]> {
     ]
 }
 
-fn pyramid_outer() -> Vec<[f32; 4]> {
-    // TODO: Scale positions along the normal direction?
-    let scale = 1.25;
-    pyramid()
-        .iter()
-        .map(|v| [v[0] * scale, v[1], v[2] * scale, v[3]])
-        .collect()
-}
-
 fn pyramid_indices() -> Vec<u32> {
     // An inverted pyramid with a pyramid base.
     vec![
         9, 6, 12, 13, 7, 15, 10, 18, 8, 2, 19, 16, 11, 21, 20, 3, 22, 17, 0, 14, 23, 4, 1, 5,
     ]
-}
-
-fn sphere_outer() -> Vec<[f32; 4]> {
-    let scale = 1.25;
-    sphere_vertices(8, 8, crate::shape::SphereRange::Full)
-        .iter()
-        .map(|v| [v[0] * scale, v[1] * scale, v[2] * scale, v[3]])
-        .collect()
 }
 
 fn bone_colors(skel: Option<&SkelData>, hlpb: Option<&HlpbData>) -> Vec<[f32; 4]> {
@@ -336,6 +279,7 @@ fn bone_colors(skel: Option<&SkelData>, hlpb: Option<&HlpbData>) -> Vec<[f32; 4]
     colors
 }
 
+// TODO: Create a separate pipeline for the outline that sets stencil.
 fn skeleton_pipeline(
     device: &wgpu::Device,
     vertex_entry: &str,
@@ -365,8 +309,32 @@ fn skeleton_pipeline(
         primitive: wgpu::PrimitiveState {
             cull_mode: Some(cull_face),
             ..Default::default()
-        }, // TODO: Just disable the depth?
-        depth_stencil: Some(depth_stencil_state(true, true)),
+        },
+        // TODO: Create a function for this?
+        depth_stencil: Some(wgpu::DepthStencilState {
+            format: crate::renderer::DEPTH_STENCIL_FORMAT,
+            depth_write_enabled: true,
+            depth_compare: wgpu::CompareFunction::LessEqual,
+            // Assume the stencil mask is cleared to 0xFF.
+            // Write zeros for the object to create an inverted mask.
+            stencil: wgpu::StencilState {
+                front: wgpu::StencilFaceState {
+                    compare: wgpu::CompareFunction::Always,
+                    fail_op: wgpu::StencilOperation::Zero,
+                    depth_fail_op: wgpu::StencilOperation::Keep,
+                    pass_op: wgpu::StencilOperation::Zero,
+                },
+                back: wgpu::StencilFaceState {
+                    compare: wgpu::CompareFunction::Always,
+                    fail_op: wgpu::StencilOperation::Zero,
+                    depth_fail_op: wgpu::StencilOperation::Keep,
+                    pass_op: wgpu::StencilOperation::Zero,
+                },
+                read_mask: 0xff,
+                write_mask: 0xff,
+            },
+            bias: wgpu::DepthBiasState::default(),
+        }),
         multisample: wgpu::MultisampleState::default(),
         multiview: None,
     })

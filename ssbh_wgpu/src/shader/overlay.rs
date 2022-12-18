@@ -11,7 +11,8 @@ pub mod bind_groups {
     pub struct BindGroupLayout0<'a> {
         pub color_texture: &'a wgpu::TextureView,
         pub color_sampler: &'a wgpu::Sampler,
-        pub outline_texture: &'a wgpu::TextureView,
+        pub outline_texture1: &'a wgpu::TextureView,
+        pub outline_texture2: &'a wgpu::TextureView,
         pub outline_sampler: &'a wgpu::Sampler,
     }
     const LAYOUT_DESCRIPTOR0: wgpu::BindGroupLayoutDescriptor = wgpu::BindGroupLayoutDescriptor {
@@ -50,6 +51,18 @@ pub mod bind_groups {
             wgpu::BindGroupLayoutEntry {
                 binding: 3,
                 visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                ty: wgpu::BindingType::Texture {
+                    multisampled: false,
+                    view_dimension: wgpu::TextureViewDimension::D2,
+                    sample_type: wgpu::TextureSampleType::Float {
+                        filterable: true,
+                    },
+                },
+                count: None,
+            },
+            wgpu::BindGroupLayoutEntry {
+                binding: 4,
+                visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
                 ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
                 count: None,
             },
@@ -81,11 +94,17 @@ pub mod bind_groups {
                             wgpu::BindGroupEntry {
                                 binding: 2,
                                 resource: wgpu::BindingResource::TextureView(
-                                    bindings.outline_texture,
+                                    bindings.outline_texture1,
                                 ),
                             },
                             wgpu::BindGroupEntry {
                                 binding: 3,
+                                resource: wgpu::BindingResource::TextureView(
+                                    bindings.outline_texture2,
+                                ),
+                            },
+                            wgpu::BindGroupEntry {
+                                binding: 4,
                                 resource: wgpu::BindingResource::Sampler(
                                     bindings.outline_sampler,
                                 ),

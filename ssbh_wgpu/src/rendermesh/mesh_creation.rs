@@ -117,7 +117,7 @@ impl<'a> RenderMeshSharedData<'a> {
 
         RenderModel {
             is_visible: true,
-            is_selected: false,
+            is_selected: true,
             meshes,
             mesh_buffers,
             material_data_by_label,
@@ -147,26 +147,16 @@ impl<'a> RenderMeshSharedData<'a> {
         let joint_world_transforms =
             device.create_uniform_buffer("Joint World Transforms Buffer", &joint_transforms);
 
-        let bone_colors_outer = device.create_uniform_buffer_readonly(
-            "Bone Colors Buffer",
-            &vec![[0.0f32; 4]; crate::animation::MAX_BONE_COUNT],
-        );
-
         // TODO: How to avoid applying scale to the bone geometry?
         // TODO: Use the stencil mask outline to avoid needing multiple buffers.
         let bone_data = bone_bind_group1(device, world_transforms, &bone_colors);
-        let bone_data_outer = bone_bind_group1(device, world_transforms, &bone_colors_outer);
         let joint_data = bone_bind_group1(device, &joint_world_transforms, &bone_colors);
-        let joint_data_outer =
-            bone_bind_group1(device, &joint_world_transforms, &bone_colors_outer);
         let bone_bind_groups = bone_bind_groups(device, self.skel);
 
         BoneRenderData {
             joint_world_transforms,
             bone_data,
-            bone_data_outer,
             joint_data,
-            joint_data_outer,
             bone_bind_groups,
         }
     }
@@ -494,7 +484,7 @@ impl<'a> RenderMeshSharedData<'a> {
             material_label: material_label.clone(),
             shader_label,
             is_visible: true,
-            is_selected: false,
+            is_selected: true,
             meshex_flags: meshex_flags.unwrap_or(EntryFlags {
                 draw_model: true,
                 cast_shadow: true,

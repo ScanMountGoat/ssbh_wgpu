@@ -767,21 +767,50 @@ impl SsbhRenderer {
             self.post_processing_pass(encoder, &self.pass_info.color_final.view);
         }
 
-        // Draw selected meshes to silhouette texture and stencil texture.
-        // TODO: This can be combined with the model and model debug pass.
-        let rendered_silhouette = self.model_silhouette_pass(encoder, render_models.iter());
-
-        // Expand silhouettes to create outlines using stencil texture.
-        // TODO: Will this be faster as a compute shader?
-        self.outline_pass(encoder, rendered_silhouette);
-
+        // The skeleton pass needs to happen before the silhouettes.
+        // This allows reusing the depth/stencil textures.
+        // TODO: How to also use this for silhouettes?
         // TODO: Disable this pass if not needed.
+        // TODO: The stencil doesn't need to be set in both the skel and skel silhouette passes.
         self.skeleton_pass(
             encoder,
             render_models.iter(),
             &self.pass_info.color_final.view,
             options.draw_bones,
             options.draw_bone_axes,
+        );
+
+        self.skeleton_silhouette_pass(
+            encoder,
+            render_models.iter(),
+            options.draw_bones,
+            options.draw_bone_axes,
+        );
+
+        // Draw selected meshes to silhouette texture and stencil texture.
+        // TODO: This can be combined with the model and model debug pass.
+        let rendered_silhouette = self.model_silhouette_pass(encoder, render_models.iter());
+
+        let rendered_silhouette = true;
+
+        // Expand silhouettes to create outlines using stencil texture.
+        // Use the inverted stencil mask to just leave the outline.
+        // TODO: Will this be faster as a compute shader?
+        // TODO: Benchmark this on integrated graphics.
+        self.outline_pass(
+            encoder,
+            rendered_silhouette,
+            &self.pass_info.silhouette_outlines.view,
+            &self.pass_info.silhouette_stencil.view,
+            &self.pass_info.outline_bind_group,
+        );
+
+        self.outline_pass(
+            encoder,
+            rendered_silhouette,
+            &self.pass_info.skel_outlines.view,
+            &self.pass_info.skel_depth_stencil.view,
+            &self.pass_info.skel_outline_bind_group,
         );
 
         // TODO: This can be combined with post processing.
@@ -1056,7 +1085,7 @@ impl SsbhRenderer {
         let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("Model Silhouette Pass"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                view: &self.pass_info.selected_silhouettes.view,
+                view: &self.pass_info.silhouette_mask.view,
                 resolve_target: None,
                 ops: wgpu::Operations {
                     load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
@@ -1064,7 +1093,7 @@ impl SsbhRenderer {
                 },
             })],
             depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                view: &self.pass_info.selected_stencil.view,
+                view: &self.pass_info.silhouette_stencil.view,
                 depth_ops: Some(wgpu::Operations {
                     load: wgpu::LoadOp::Clear(1.0),
                     store: true,
@@ -1148,7 +1177,7 @@ impl SsbhRenderer {
         }
     }
 
-    fn skeleton_pass<'a, 'b>(
+    fn skeleton_pass<'a>(
         &self,
         encoder: &mut wgpu::CommandEncoder,
         render_models: impl Iterator<Item = &'a RenderModel>,
@@ -1168,13 +1197,17 @@ impl SsbhRenderer {
                     store: true,
                 },
             })],
+            // TODO: Make a function or constant for this since it is shared.
             depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                view: &self.pass_info.skel_depth.view,
+                view: &self.pass_info.skel_depth_stencil.view,
                 depth_ops: Some(wgpu::Operations {
                     load: wgpu::LoadOp::Clear(1.0),
                     store: true,
                 }),
-                stencil_ops: None,
+                stencil_ops: Some(wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(0xff),
+                    store: true,
+                }),
             }),
         });
 
@@ -1193,12 +1226,70 @@ impl SsbhRenderer {
         }
     }
 
-    fn outline_pass(&self, encoder: &mut wgpu::CommandEncoder, enabled: bool) {
+    fn skeleton_silhouette_pass<'a>(
+        &self,
+        encoder: &mut wgpu::CommandEncoder,
+        render_models: impl Iterator<Item = &'a RenderModel>,
+        draw_bones: bool,
+        draw_bone_axes: bool,
+    ) -> bool {
+        let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("Skeleton Silhouette Pass"),
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                // TODO: The outline pass is only considering a single texture input?
+                view: &self.pass_info.skel_mask.view,
+                resolve_target: None,
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
+                    store: true,
+                },
+            })],
+            depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                // This clears the depth, but we've already drawn the skeleton.
+                // The depth can safely be discarded.
+                view: &self.pass_info.skel_depth_stencil.view,
+                depth_ops: Some(wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(1.0),
+                    store: true,
+                }),
+                stencil_ops: Some(wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(0xff),
+                    store: true,
+                }),
+            }),
+        });
+
+        self.set_scissor(&mut pass);
+
+        if draw_bones {
+            for model in render_models {
+                model.draw_skeleton(
+                    &self.bone_buffers,
+                    &mut pass,
+                    &self.skeleton_camera_bind_group,
+                    &self.bone_pipelines,
+                    draw_bone_axes,
+                );
+            }
+        }
+
+        // TODO: Does this matter?
+        true
+    }
+
+    fn outline_pass(
+        &self,
+        encoder: &mut wgpu::CommandEncoder,
+        enabled: bool,
+        output: &wgpu::TextureView,
+        depth_stencil: &wgpu::TextureView,
+        mask_bind_group: &crate::shader::outline::bind_groups::BindGroup0,
+    ) {
         // Always clear the outlines even if nothing is selected.
         let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("Outline Pass"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                view: &self.pass_info.selected_outlines.view,
+                view: output,
                 resolve_target: None,
                 ops: wgpu::Operations {
                     load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
@@ -1206,7 +1297,7 @@ impl SsbhRenderer {
                 },
             })],
             depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                view: &self.pass_info.selected_stencil.view,
+                view: depth_stencil,
                 depth_ops: None,
                 stencil_ops: Some(wgpu::Operations {
                     load: wgpu::LoadOp::Load,
@@ -1222,7 +1313,7 @@ impl SsbhRenderer {
             crate::shader::outline::bind_groups::set_bind_groups(
                 &mut pass,
                 crate::shader::outline::bind_groups::BindGroups {
-                    bind_group0: &self.pass_info.outline_bind_group,
+                    bind_group0: mask_bind_group,
                 },
             );
             // The stencil is cleared to 0xFF and the object is drawn with 0x00.
@@ -1382,18 +1473,24 @@ fn create_color_pass<'a>(
 }
 
 struct PassInfo {
-    depth: TextureSamplerView,
-    skel_depth: TextureSamplerView,
     color: TextureSamplerView,
+    depth: TextureSamplerView,
+
+    // TODO: Most of these textures can just be cleared and reused.
+    skel_depth_stencil: TextureSamplerView,
+    skel_mask: TextureSamplerView,
+    skel_outlines: TextureSamplerView,
+    skel_outline_bind_group: crate::shader::outline::bind_groups::BindGroup0,
 
     // Final color before applying overlays
     color_final: TextureSamplerView,
 
     bloom_threshold: TextureSamplerView,
 
-    selected_stencil: TextureSamplerView,
-    selected_silhouettes: TextureSamplerView,
-    selected_outlines: TextureSamplerView,
+    silhouette_stencil: TextureSamplerView,
+    silhouette_mask: TextureSamplerView,
+    silhouette_outlines: TextureSamplerView,
+    outline_bind_group: crate::shader::outline::bind_groups::BindGroup0,
 
     bloom_threshold_bind_group: crate::shader::bloom::bind_groups::BindGroup0,
 
@@ -1410,7 +1507,6 @@ struct PassInfo {
 
     post_process_bind_group: crate::shader::post_process::bind_groups::BindGroup0,
     overlay_bind_group: crate::shader::overlay::bind_groups::BindGroup0,
-    outline_bind_group: crate::shader::outline::bind_groups::BindGroup0,
 }
 
 impl PassInfo {
@@ -1422,7 +1518,12 @@ impl PassInfo {
         color_lut: &TextureSamplerView,
     ) -> Self {
         let depth = create_depth(device, width, height);
-        let skel_depth = create_depth(device, width, height);
+
+        // TODO: Reuse textures for outlines?
+        let skel_depth_stencil = create_depth_stencil(device, width, height);
+        let skel_mask = create_texture_sampler(device, width, height, RGBA_COLOR_FORMAT);
+        let skel_outlines = create_texture_sampler(device, width, height, RGBA_COLOR_FORMAT);
+        let skel_outline_bind_group = create_outline_bind_group(device, &skel_mask);
 
         let color = create_texture_sampler(device, width, height, RGBA_COLOR_FORMAT);
         let color_final = create_texture_sampler(device, width, height, RGBA_COLOR_FORMAT);
@@ -1466,19 +1567,19 @@ impl PassInfo {
         let post_process_bind_group =
             create_post_process_bind_group(device, &color, &bloom_upscaled, color_lut);
 
-        let selected_stencil = create_depth_stencil(device, width, height);
-        // TODO: Downsample these textures based on scaling for thicker outlines?
-        let selected_silhouettes = create_texture_sampler(device, width, height, RGBA_COLOR_FORMAT);
-        let selected_outlines = create_texture_sampler(device, width, height, RGBA_COLOR_FORMAT);
-
-        let outline_bind_group = create_outline_bind_group(device, &selected_silhouettes);
+        let silhouette_stencil = create_depth_stencil(device, width, height);
+        let silhouette_mask = create_texture_sampler(device, width, height, RGBA_COLOR_FORMAT);
+        let silhouette_outlines = create_texture_sampler(device, width, height, RGBA_COLOR_FORMAT);
+        let outline_bind_group = create_outline_bind_group(device, &silhouette_mask);
 
         let overlay_bind_group =
-            create_overlay_bind_group(device, &color_final, &selected_outlines);
+            create_overlay_bind_group(device, &color_final, &silhouette_outlines, &skel_outlines);
 
         Self {
             depth,
-            skel_depth,
+            skel_depth_stencil,
+            skel_mask,
+            skel_outlines,
             color,
             color_final,
             bloom_threshold,
@@ -1489,11 +1590,12 @@ impl PassInfo {
             bloom_upscaled,
             bloom_upscale_bind_group,
             post_process_bind_group,
-            selected_stencil,
-            selected_silhouettes,
-            selected_outlines,
+            silhouette_stencil,
+            silhouette_mask,
+            silhouette_outlines,
             overlay_bind_group,
             outline_bind_group,
+            skel_outline_bind_group,
         }
     }
 }
@@ -1699,13 +1801,15 @@ fn create_overlay_bind_group(
     device: &wgpu::Device,
     color_final: &TextureSamplerView,
     outline_texture: &TextureSamplerView,
+    skel_outline_texture: &TextureSamplerView,
 ) -> crate::shader::overlay::bind_groups::BindGroup0 {
     crate::shader::overlay::bind_groups::BindGroup0::from_bindings(
         device,
         crate::shader::overlay::bind_groups::BindGroupLayout0 {
             color_texture: &color_final.view,
             color_sampler: &color_final.sampler,
-            outline_texture: &outline_texture.view,
+            outline_texture1: &outline_texture.view,
+            outline_texture2: &skel_outline_texture.view,
             outline_sampler: &outline_texture.sampler,
         },
     )
