@@ -2,7 +2,7 @@ use crate::{
     animation::AnimationTransforms,
     pipeline::depth_stencil_state,
     shape::{sphere_indices, sphere_vertices, IndexedMeshBuffers},
-    DeviceExt2,
+    DeviceExt2, renderer::INVERTED_STENCIL_MASK_STATE,
 };
 use glam::Vec4Swizzles;
 use ssbh_data::{hlpb_data::HlpbData, skel_data::SkelData};
@@ -310,31 +310,7 @@ fn skeleton_pipeline(
             cull_mode: Some(cull_face),
             ..Default::default()
         },
-        // TODO: Create a function for this?
-        depth_stencil: Some(wgpu::DepthStencilState {
-            format: crate::renderer::DEPTH_STENCIL_FORMAT,
-            depth_write_enabled: true,
-            depth_compare: wgpu::CompareFunction::LessEqual,
-            // Assume the stencil mask is cleared to 0xFF.
-            // Write zeros for the object to create an inverted mask.
-            stencil: wgpu::StencilState {
-                front: wgpu::StencilFaceState {
-                    compare: wgpu::CompareFunction::Always,
-                    fail_op: wgpu::StencilOperation::Zero,
-                    depth_fail_op: wgpu::StencilOperation::Keep,
-                    pass_op: wgpu::StencilOperation::Zero,
-                },
-                back: wgpu::StencilFaceState {
-                    compare: wgpu::CompareFunction::Always,
-                    fail_op: wgpu::StencilOperation::Zero,
-                    depth_fail_op: wgpu::StencilOperation::Keep,
-                    pass_op: wgpu::StencilOperation::Zero,
-                },
-                read_mask: 0xff,
-                write_mask: 0xff,
-            },
-            bias: wgpu::DepthBiasState::default(),
-        }),
+        depth_stencil: Some(INVERTED_STENCIL_MASK_STATE),
         multisample: wgpu::MultisampleState::default(),
         multiview: None,
     })

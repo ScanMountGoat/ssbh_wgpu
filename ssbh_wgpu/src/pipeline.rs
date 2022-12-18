@@ -1,5 +1,7 @@
 use ssbh_data::matl_data::{BlendFactor, BlendStateData, MatlEntryData};
 
+use crate::renderer::INVERTED_STENCIL_MASK_STATE;
+
 // Create some helper structs to simplify the function signatures.
 pub struct PipelineData {
     pub surface_format: wgpu::TextureFormat,
@@ -200,30 +202,7 @@ pub fn create_silhouette_pipeline(
             targets: &[Some(surface_format.into())],
         }),
         primitive: wgpu::PrimitiveState::default(),
-        depth_stencil: Some(wgpu::DepthStencilState {
-            format: crate::renderer::DEPTH_STENCIL_FORMAT,
-            depth_write_enabled: true,
-            depth_compare: wgpu::CompareFunction::LessEqual,
-            // Assume the stencil mask is cleared to 0xFF.
-            // Write zeros for the object to create an inverted mask.
-            stencil: wgpu::StencilState {
-                front: wgpu::StencilFaceState {
-                    compare: wgpu::CompareFunction::Always,
-                    fail_op: wgpu::StencilOperation::Zero,
-                    depth_fail_op: wgpu::StencilOperation::Keep,
-                    pass_op: wgpu::StencilOperation::Zero,
-                },
-                back: wgpu::StencilFaceState {
-                    compare: wgpu::CompareFunction::Always,
-                    fail_op: wgpu::StencilOperation::Zero,
-                    depth_fail_op: wgpu::StencilOperation::Keep,
-                    pass_op: wgpu::StencilOperation::Zero,
-                },
-                read_mask: 0xff,
-                write_mask: 0xff,
-            },
-            bias: wgpu::DepthBiasState::default(),
-        }),
+        depth_stencil: Some(INVERTED_STENCIL_MASK_STATE),
         multisample: wgpu::MultisampleState::default(),
         multiview: None,
     })

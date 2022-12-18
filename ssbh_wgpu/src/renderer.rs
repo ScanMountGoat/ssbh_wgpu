@@ -39,6 +39,52 @@ const SHADOW_MAP_HEIGHT: u32 = 1024;
 const VARIANCE_SHADOW_WIDTH: u32 = 512;
 const VARIANCE_SHADOW_HEIGHT: u32 = 512;
 
+pub const INVERTED_STENCIL_MASK_STATE: wgpu::DepthStencilState = wgpu::DepthStencilState {
+    format: crate::renderer::DEPTH_STENCIL_FORMAT,
+    depth_write_enabled: true,
+    depth_compare: wgpu::CompareFunction::LessEqual,
+    // Assume the stencil mask is cleared to 0xFF.
+    // Write zeros for the object to create an inverted mask.
+    stencil: wgpu::StencilState {
+        front: wgpu::StencilFaceState {
+            compare: wgpu::CompareFunction::Always,
+            fail_op: wgpu::StencilOperation::Zero,
+            depth_fail_op: wgpu::StencilOperation::Keep,
+            pass_op: wgpu::StencilOperation::Zero,
+        },
+        back: wgpu::StencilFaceState {
+            compare: wgpu::CompareFunction::Always,
+            fail_op: wgpu::StencilOperation::Zero,
+            depth_fail_op: wgpu::StencilOperation::Keep,
+            pass_op: wgpu::StencilOperation::Zero,
+        },
+        read_mask: 0xff,
+        write_mask: 0xff,
+    },
+    bias: wgpu::DepthBiasState {
+        constant: 0,
+        slope_scale: 0.0,
+        clamp: 0.0,
+    },
+};
+
+const STENCIL_COMPARE_EQUAL: wgpu::StencilState = wgpu::StencilState {
+    front: wgpu::StencilFaceState {
+        compare: wgpu::CompareFunction::Equal,
+        fail_op: wgpu::StencilOperation::Keep,
+        depth_fail_op: wgpu::StencilOperation::Keep,
+        pass_op: wgpu::StencilOperation::Keep,
+    },
+    back: wgpu::StencilFaceState {
+        compare: wgpu::CompareFunction::Equal,
+        fail_op: wgpu::StencilOperation::Keep,
+        depth_fail_op: wgpu::StencilOperation::Keep,
+        pass_op: wgpu::StencilOperation::Keep,
+    },
+    read_mask: 0xff,
+    write_mask: 0xff,
+};
+
 // TODO: Module level documention for how to use this?
 // TODO: Separate modes for selecting parameters by index (ex: Booleans[3])?
 #[derive(PartialEq, Eq, Copy, Clone, Display, EnumVariantNames, EnumString)]
@@ -1854,22 +1900,7 @@ fn create_outline_pipeline(
             depth_write_enabled: false,
             depth_compare: wgpu::CompareFunction::Always,
             // Use the mask from earlier only keep the blurred outline.
-            stencil: wgpu::StencilState {
-                front: wgpu::StencilFaceState {
-                    compare: wgpu::CompareFunction::Equal,
-                    fail_op: wgpu::StencilOperation::Keep,
-                    depth_fail_op: wgpu::StencilOperation::Keep,
-                    pass_op: wgpu::StencilOperation::Keep,
-                },
-                back: wgpu::StencilFaceState {
-                    compare: wgpu::CompareFunction::Equal,
-                    fail_op: wgpu::StencilOperation::Keep,
-                    depth_fail_op: wgpu::StencilOperation::Keep,
-                    pass_op: wgpu::StencilOperation::Keep,
-                },
-                read_mask: 0xff,
-                write_mask: 0xff,
-            },
+            stencil: STENCIL_COMPARE_EQUAL,
             bias: wgpu::DepthBiasState::default(),
         }),
         multisample: wgpu::MultisampleState::default(),
