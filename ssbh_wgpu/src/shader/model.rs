@@ -63,7 +63,7 @@ pub struct PerMaterial {
     pub has_vector: [glam::UVec4; 64],
     pub has_color_set1234: glam::UVec4,
     pub has_color_set567: glam::UVec4,
-    pub is_discard: glam::UVec4,
+    pub alpha_settings: glam::UVec4,
     pub shader_complexity: glam::Vec4,
 }
 #[repr(C)]

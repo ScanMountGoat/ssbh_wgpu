@@ -168,7 +168,7 @@ struct PerMaterial {
     has_vector: array<vec4<u32>, 64>,
     has_color_set1234: vec4<u32>,
     has_color_set567: vec4<u32>,
-    is_discard: vec4<u32>,
+    alpha_settings: vec4<u32>, // discard, premultiplied, 0, 0
     shader_complexity: vec4<f32>
 };
 
@@ -1287,7 +1287,7 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) is_front: bool) -> @location
     if (per_material.has_vector[0].x == 1u) {
         outAlpha = max(albedoColor.a * emissionColor.a, per_material.custom_vector[0].x);
     }
-    if (per_material.is_discard.x == 1u && outAlpha < 0.5) {
+    if (per_material.alpha_settings.x == 1u && outAlpha < 0.5) {
         discard;
     }
 
@@ -1356,8 +1356,9 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) is_front: bool) -> @location
     }
 
     // Premultiplied alpha. 
-    // TODO: This is only for some materials.
-    outColor = outColor * outAlpha;
+    if (per_material.alpha_settings.y == 1u) {
+        outColor = outColor * outAlpha;
+    }
 
     // Alpha override.
     if (per_material.has_boolean[2].x == 1u && per_material.custom_boolean[2].x == 1u) {

@@ -5,6 +5,8 @@ use std::collections::HashMap;
 pub struct ShaderProgram {
     /// `true` if the code contains "discard;" and likely has alpha testing.
     pub discard: bool,
+    /// `true` if the fragment RGB outputs are multiplied by the alpha output value.
+    pub premultiplied: bool,
     /// The collection of required mesh vertex attributes and their accessed channels.
     pub vertex_attributes: Vec<String>,
     /// The collection of required material parameters and their accessed channels.
@@ -107,6 +109,7 @@ impl ShaderDatabase {
                 program["name"].as_str().unwrap().to_string(),
                 ShaderProgram {
                     discard: program["discard"].as_bool().unwrap(),
+                    premultiplied: program["premultiplied"].as_bool().unwrap(),
                     vertex_attributes: program["attrs"]
                         .as_array()
                         .unwrap()
@@ -154,6 +157,29 @@ mod tests {
         );
         assert!(database.get("SFX_PBS_010000000804826b").unwrap().discard);
         assert!(database.get("SFX_PBS_010000000804830d").unwrap().discard);
+    }
+
+    #[test]
+    fn program_premultiplied() {
+        let database = ShaderDatabase::new();
+        assert!(
+            database
+                .get("SFX_PBS_3801000002018240_IGNORE_TAGS")
+                .unwrap()
+                .premultiplied
+        );
+        assert!(
+            database
+                .get("SFX_PBS_3801000002018240")
+                .unwrap()
+                .premultiplied
+        );
+        assert!(
+            !database
+                .get("SFX_PBS_0100000008008269")
+                .unwrap()
+                .premultiplied
+        );
     }
 
     #[test]

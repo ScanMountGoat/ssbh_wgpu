@@ -185,8 +185,8 @@ pub fn create_uniforms(material: Option<&MatlEntryData>, database: &ShaderDataba
                 (glam::UVec4::ZERO, glam::UVec4::ZERO)
             };
 
-            let is_discard = program
-                .map(|program| glam::UVec4::splat(program.discard as u32))
+            let alpha_settings = program
+                .map(|program| glam::UVec4::new(program.discard as u32, program.premultiplied as u32, 0, 0))
                 .unwrap_or_default();
 
             let shader_complexity = program
@@ -203,7 +203,7 @@ pub fn create_uniforms(material: Option<&MatlEntryData>, database: &ShaderDataba
                 has_vector,
                 has_color_set1234,
                 has_color_set567,
-                is_discard,
+                alpha_settings,
                 shader_complexity,
             }
         })
@@ -219,7 +219,7 @@ pub fn create_uniforms(material: Option<&MatlEntryData>, database: &ShaderDataba
                 has_vector: [glam::UVec4::ZERO; 64],
                 has_color_set1234: glam::UVec4::ZERO,
                 has_color_set567: glam::UVec4::ZERO,
-                is_discard: glam::UVec4::ZERO,
+                alpha_settings: glam::UVec4::ZERO,
                 shader_complexity: glam::Vec4::ZERO,
             },
         )
@@ -394,7 +394,7 @@ mod tests {
                 has_vector: [glam::UVec4::ZERO; 64],
                 has_color_set1234: glam::UVec4::ZERO,
                 has_color_set567: glam::UVec4::ZERO,
-                is_discard: glam::UVec4::ZERO,
+                alpha_settings: glam::UVec4::ZERO,
                 shader_complexity: glam::Vec4::ZERO
             },
             create_uniforms(None, &ShaderDatabase::from_iter(std::iter::empty()))
@@ -414,7 +414,7 @@ mod tests {
                 has_vector: [glam::UVec4::ZERO; 64],
                 has_color_set1234: glam::UVec4::ZERO,
                 has_color_set567: glam::UVec4::ZERO,
-                is_discard: glam::UVec4::ZERO,
+                alpha_settings: glam::UVec4::ZERO,
                 shader_complexity: glam::Vec4::ZERO
             },
             create_uniforms(
@@ -448,7 +448,7 @@ mod tests {
                 has_vector: [glam::UVec4::ZERO; 64],
                 has_color_set1234: glam::UVec4::ZERO,
                 has_color_set567: glam::UVec4::ZERO,
-                is_discard: glam::UVec4::ZERO,
+                alpha_settings: glam::UVec4::ZERO,
                 shader_complexity: glam::Vec4::ZERO
             },
             create_uniforms(
@@ -501,7 +501,7 @@ mod tests {
             has_vector: [glam::UVec4::ZERO; 64],
             has_color_set1234: glam::UVec4::ZERO,
             has_color_set567: glam::UVec4::ZERO,
-            is_discard: glam::UVec4::splat(1),
+            alpha_settings: glam::UVec4::new(1, 0, 0, 0),
             shader_complexity: glam::Vec4::ZERO,
         };
         expected.custom_vector[0] = glam::Vec4::new(1.0, 2.0, 3.0, 4.0);
@@ -571,6 +571,7 @@ mod tests {
                         // Check that channels are parsed properly.
                         ShaderProgram {
                             discard: true,
+                            premultiplied: false,
                             vertex_attributes: Vec::new(),
                             material_parameters: vec![
                                 "Texture0".to_owned(),

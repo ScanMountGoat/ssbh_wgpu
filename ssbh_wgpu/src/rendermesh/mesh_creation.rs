@@ -117,7 +117,7 @@ impl<'a> RenderMeshSharedData<'a> {
 
         RenderModel {
             is_visible: true,
-            is_selected: true,
+            is_selected: false,
             meshes,
             mesh_buffers,
             material_data_by_label,
@@ -484,7 +484,7 @@ impl<'a> RenderMeshSharedData<'a> {
             material_label: material_label.clone(),
             shader_label,
             is_visible: true,
-            is_selected: true,
+            is_selected: false,
             meshex_flags: meshex_flags.unwrap_or(EntryFlags {
                 draw_model: true,
                 cast_shadow: true,
