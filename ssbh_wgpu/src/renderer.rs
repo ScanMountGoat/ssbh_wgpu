@@ -826,7 +826,8 @@ impl SsbhRenderer {
             options.draw_bone_axes,
         );
 
-        self.skeleton_silhouette_pass(
+        // Check if silhouettes were rendered since the outline pass is slow.
+        let mut rendered_silhouette = self.skeleton_silhouette_pass(
             encoder,
             render_models.iter(),
             options.draw_bones,
@@ -835,9 +836,7 @@ impl SsbhRenderer {
 
         // Draw selected meshes to silhouette texture and stencil texture.
         // TODO: This can be combined with the model and model debug pass.
-        let rendered_silhouette = self.model_silhouette_pass(encoder, render_models.iter());
-
-        let rendered_silhouette = true;
+        rendered_silhouette |= self.model_silhouette_pass(encoder, render_models.iter());
 
         // Expand silhouettes to create outlines using stencil texture.
         // Use the inverted stencil mask to just leave the outline.
@@ -1319,8 +1318,7 @@ impl SsbhRenderer {
             }
         }
 
-        // TODO: Does this matter?
-        true
+        draw_bones
     }
 
     fn outline_pass(
