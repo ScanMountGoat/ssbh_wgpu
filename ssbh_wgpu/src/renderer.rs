@@ -837,6 +837,7 @@ impl SsbhRenderer {
         let mut rendered_silhouette = self.skeleton_silhouette_pass(
             encoder,
             render_models.iter(),
+            &self.pass_info.skel_mask.view,
             options.draw_bones,
             options.draw_bone_axes,
         );
@@ -1253,6 +1254,7 @@ impl SsbhRenderer {
                 },
             })],
             // TODO: Make a function or constant for this since it is shared.
+            // TODO: Avoid writing to stencil here?
             depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
                 view: &self.pass_info.skel_depth_stencil.view,
                 depth_ops: Some(wgpu::Operations {
@@ -1260,8 +1262,8 @@ impl SsbhRenderer {
                     store: true,
                 }),
                 stencil_ops: Some(wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(0xff),
-                    store: true,
+                    load: wgpu::LoadOp::Clear(0x00),
+                    store: false,
                 }),
             }),
         });
@@ -1285,23 +1287,23 @@ impl SsbhRenderer {
         &self,
         encoder: &mut wgpu::CommandEncoder,
         render_models: impl Iterator<Item = &'a RenderModel>,
+        view: &wgpu::TextureView,
         draw_bones: bool,
         draw_bone_axes: bool,
     ) -> bool {
+        // TODO: Force having a color attachment for each fragment shader output in wgsl_to_wgpu?
         let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-            label: Some("Skeleton Silhouette Pass"),
+            label: Some("Skeleton Pass"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                // TODO: The outline pass is only considering a single texture input?
-                view: &self.pass_info.skel_mask.view,
+                view,
                 resolve_target: None,
                 ops: wgpu::Operations {
                     load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
                     store: true,
                 },
             })],
+            // TODO: Make a function or constant for this since it is shared.
             depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                // This clears the depth, but we've already drawn the skeleton.
-                // The depth can safely be discarded.
                 view: &self.pass_info.skel_depth_stencil.view,
                 depth_ops: Some(wgpu::Operations {
                     load: wgpu::LoadOp::Clear(1.0),
@@ -1318,12 +1320,11 @@ impl SsbhRenderer {
 
         if draw_bones {
             for model in render_models {
-                model.draw_skeleton(
+                model.draw_skeleton_silhouette(
                     &self.bone_buffers,
                     &mut pass,
                     &self.skeleton_camera_bind_group,
                     &self.bone_pipelines,
-                    draw_bone_axes,
                 );
             }
         }

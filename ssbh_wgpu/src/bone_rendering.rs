@@ -342,7 +342,13 @@ fn bone_axes_pipeline(device: &wgpu::Device) -> wgpu::RenderPipeline {
             topology: wgpu::PrimitiveTopology::LineList,
             ..Default::default()
         }, // TODO: Just disable the depth?
-        depth_stencil: Some(depth_stencil_state(true, false)),
+        depth_stencil: Some(wgpu::DepthStencilState {
+            format: crate::renderer::DEPTH_STENCIL_FORMAT,
+            depth_write_enabled: true,
+            depth_compare: wgpu::CompareFunction::LessEqual,
+            stencil: wgpu::StencilState::default(),
+            bias: wgpu::DepthBiasState::default(),
+        }),
         multisample: wgpu::MultisampleState::default(),
         multiview: None,
     })

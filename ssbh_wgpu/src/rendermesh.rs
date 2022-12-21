@@ -334,6 +334,29 @@ impl RenderModel {
         }
     }
 
+    pub fn draw_skeleton_silhouette<'a>(
+        &'a self,
+        bone_buffers: &'a BoneBuffers,
+        render_pass: &mut wgpu::RenderPass<'a>,
+        camera_bind_group: &'a crate::shader::skeleton::bind_groups::BindGroup0,
+        bone_pipelines: &'a BonePipelines,
+    ) {
+        self.draw_joints(
+            bone_buffers,
+            render_pass,
+            camera_bind_group,
+            &bone_pipelines.joint_pipeline,
+        );
+
+        // Draw the bones after to cover up the geometry at the ends of the joints.
+        self.draw_bones(
+            bone_buffers,
+            render_pass,
+            camera_bind_group,
+            &bone_pipelines.bone_pipeline,
+        );
+    }
+
     fn draw_joints<'a>(
         &'a self,
         bone_buffers: &'a BoneBuffers,
