@@ -1,4 +1,4 @@
-use crate::shape::IndexedMeshBuffers;
+use crate::{renderer::DEPTH_FORMAT, shape::IndexedMeshBuffers};
 
 // TODO: FloorGrid?
 pub struct FloorGridRenderData {
@@ -46,7 +46,14 @@ impl FloorGridRenderData {
                 })],
             }),
             primitive: wgpu::PrimitiveState::default(),
-            depth_stencil: None,
+            // TODO: Create a constant for this?
+            depth_stencil: Some(wgpu::DepthStencilState {
+                format: DEPTH_FORMAT,
+                depth_write_enabled: true,
+                depth_compare: wgpu::CompareFunction::LessEqual,
+                stencil: wgpu::StencilState::default(),
+                bias: wgpu::DepthBiasState::default(),
+            }),
             multisample: wgpu::MultisampleState::default(),
             multiview: None,
         });

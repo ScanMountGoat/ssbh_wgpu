@@ -7,13 +7,6 @@ pub struct VertexInput {
 }
 #[repr(C)]
 #[derive(Debug, Copy, Clone, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
-pub struct VertexOutput {
-    pub clip_position: glam::Vec4,
-    pub near_point: glam::Vec4,
-    pub far_point: glam::Vec4,
-}
-#[repr(C)]
-#[derive(Debug, Copy, Clone, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct CameraTransforms {
     pub model_view_matrix: glam::Mat4,
     pub mvp_matrix: glam::Mat4,

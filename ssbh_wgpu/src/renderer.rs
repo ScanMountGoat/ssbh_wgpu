@@ -820,6 +820,8 @@ impl SsbhRenderer {
             self.post_processing_pass(encoder, &self.pass_info.color_final.view);
         }
 
+        self.grid_pass(encoder);
+
         // The skeleton pass needs to happen before the silhouettes.
         // This allows reusing the depth/stencil textures.
         // TODO: How to also use this for silhouettes?
@@ -839,7 +841,6 @@ impl SsbhRenderer {
             render_models.iter(),
             &self.pass_info.skel_mask.view,
             options.draw_bones,
-            options.draw_bone_axes,
         );
 
         // Draw selected meshes to silhouette texture and stencil texture.
@@ -875,10 +876,32 @@ impl SsbhRenderer {
             model.draw_swing(&mut render_pass, &self.swing_camera_bind_group);
         }
 
-        // TODO: Add depth testing to this.
-        self.floor_grid.draw(&mut render_pass);
-
         render_pass
+    }
+
+    fn grid_pass(&self, encoder: &mut wgpu::CommandEncoder) {
+        let mut grid_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("Grid Pass"),
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view: &self.pass_info.color_final.view,
+                resolve_target: None,
+                ops: wgpu::Operations {
+                    // TODO: Combine with another pass to avoid loading.
+                    load: wgpu::LoadOp::Load,
+                    store: true,
+                },
+            })],
+            depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                view: &self.pass_info.depth.view,
+                depth_ops: Some(wgpu::Operations {
+                    load: wgpu::LoadOp::Load,
+                    store: true,
+                }),
+                stencil_ops: None,
+            }),
+        });
+
+        self.floor_grid.draw(&mut grid_pass);
     }
 
     /// Renders UVs for all of the meshes with `is_selected` set to `true`.
@@ -1289,7 +1312,6 @@ impl SsbhRenderer {
         render_models: impl Iterator<Item = &'a RenderModel>,
         view: &wgpu::TextureView,
         draw_bones: bool,
-        draw_bone_axes: bool,
     ) -> bool {
         // TODO: Force having a color attachment for each fragment shader output in wgsl_to_wgpu?
         let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {

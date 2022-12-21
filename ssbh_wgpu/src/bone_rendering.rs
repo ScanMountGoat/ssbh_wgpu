@@ -1,6 +1,5 @@
 use crate::{
     animation::AnimationTransforms,
-    pipeline::depth_stencil_state,
     renderer::INVERTED_STENCIL_MASK_STATE,
     shape::{sphere_indices, sphere_vertices, IndexedMeshBuffers},
     DeviceExt2,

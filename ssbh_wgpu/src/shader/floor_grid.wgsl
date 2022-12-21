@@ -10,6 +10,12 @@ struct VertexOutput {
     @location(1) far_point: vec4<f32>,
 };
 
+// TODO: Investigate using encase to set the depth here.
+struct FragmentOutput {
+    @builtin(frag_depth) depth: f32,
+    @location(0) color: vec4<f32>
+};
+
 struct CameraTransforms {
     model_view_matrix: mat4x4<f32>,
     mvp_matrix: mat4x4<f32>,
@@ -37,7 +43,8 @@ fn vs_main(in: VertexInput) -> VertexOutput {
 }
 
 @fragment
-fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
+fn fs_main(in: VertexOutput) -> FragmentOutput {
+    // TODO: Can this all be moved to the vertex shader?
     let t = -in.near_point.y / (in.far_point.y - in.near_point.y);
 
     let position = in.near_point.xyz + t * (in.far_point.xyz - in.near_point.xyz);
@@ -47,12 +54,12 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     // Calculate linear depth values.
     // https://learnopengl.com/Advanced-OpenGL/Depth-Testing
     // TODO: Add these to the camera uniforms.
-    // TODO: Fix this.
     let near = 1.0;
     let far = 400000.0;
     let clip_pos = camera.mvp_matrix * vec4(position, 1.0);
-    let clip_depth = (clip_pos.z / clip_pos.w) * 2.0 - 1.0;
-    let linear_depth = (2.0 * near * far) / (far + near - clip_depth * (far - near));
+    let clip_depth = (clip_pos.z / clip_pos.w);
+    let clip_depth_remapped = clip_depth * 2.0 - 1.0;
+    let linear_depth = (2.0 * near * far) / (far + near - clip_depth_remapped * (far - near));
     let linear_depth_normalized = linear_depth / far;
 
     // TODO: Should this scale with the screen scale factor?
@@ -64,13 +71,16 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let minz = min(derivative.y, 1.0);
     let minx = min(derivative.x, 1.0);
 
-    // return vec4(vec3(linear_depth_normalized), 1.0);
+    var out: FragmentOutput;
+    out.color = vec4(0.0);
+    out.depth = clip_depth;
 
     // Restrict the grid above the XZ-plane.
     if (t > 0.0) {
-        let depth_fade = max(1.0 - linear_depth_normalized, 0.0);
-        let alpha = max(1.0 - grid_line, 0.0) * depth_fade;
-        var color = vec3(0.5);
+        // Increase the depth fade since the far clip distance is so large.
+        let depth_fade = max(1.0 - linear_depth_normalized*500.0, 0.0);
+        let alpha = max(1.0 - grid_line, 0.0) * depth_fade * 0.5;
+        var color = vec3(1.0);
 
         // x-axis
         if (position.z > -scale * minz && position.z < scale * minz) {
@@ -83,8 +93,8 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         }
 
         // Premultiplied alpha.
-        return vec4(color * alpha, alpha);
-    } else {
-        return vec4(0.0);
+        out.color = vec4(color * alpha, alpha);
     }
+
+    return out;
 }

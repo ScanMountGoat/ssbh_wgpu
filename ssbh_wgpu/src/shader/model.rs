@@ -88,31 +88,6 @@ pub struct VertexInput1 {
     pub color_set6: glam::Vec4,
     pub color_set7: glam::Vec4,
 }
-#[repr(C)]
-#[derive(Debug, Copy, Clone, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
-pub struct VertexOutput {
-    pub clip_position: glam::Vec4,
-    pub position: glam::Vec4,
-    pub normal: glam::Vec4,
-    pub tangent: glam::Vec4,
-    pub map1: glam::Vec4,
-    pub uv_set_uv_set1: glam::Vec4,
-    pub uv_set2_bake1: glam::Vec4,
-    pub color_set1: glam::Vec4,
-    pub color_set2_combined: glam::Vec4,
-    pub color_set3: glam::Vec4,
-    pub color_set4: glam::Vec4,
-    pub color_set5: glam::Vec4,
-    pub color_set6: glam::Vec4,
-    pub color_set7: glam::Vec4,
-    pub light_position: glam::Vec4,
-}
-#[repr(C)]
-#[derive(Debug, Copy, Clone, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
-pub struct VertexOutputInvalid {
-    pub clip_position: glam::Vec4,
-    pub position: glam::Vec4,
-}
 pub mod bind_groups {
     pub struct BindGroup0(wgpu::BindGroup);
     pub struct BindGroupLayout0<'a> {

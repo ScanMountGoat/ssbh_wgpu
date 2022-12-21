@@ -421,6 +421,7 @@ impl State {
             self.shared_data.database(),
             &ModelRenderOptions {
                 draw_bones: false,
+                draw_bone_axes: false,
                 ..Default::default()
             },
         );
