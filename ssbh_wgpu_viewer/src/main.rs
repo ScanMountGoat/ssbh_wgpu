@@ -422,6 +422,7 @@ impl State {
             &ModelRenderOptions {
                 draw_bones: false,
                 draw_bone_axes: false,
+                draw_floor_grid: true,
                 ..Default::default()
             },
         );

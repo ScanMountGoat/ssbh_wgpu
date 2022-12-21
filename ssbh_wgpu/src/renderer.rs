@@ -271,6 +271,8 @@ pub struct ModelRenderOptions {
     pub mask_material_label: String,
     /// Draw a wireframe on shaded when `true` for all modes except [DebugMode::Shaded].
     pub draw_wireframe: bool,
+    /// Draw an infinite grid on the XZ-axis when `true`.
+    pub draw_floor_grid: bool,
 }
 
 /// A renderer for drawing a collection of [RenderModel].
@@ -820,7 +822,9 @@ impl SsbhRenderer {
             self.post_processing_pass(encoder, &self.pass_info.color_final.view);
         }
 
-        self.grid_pass(encoder);
+        if options.draw_floor_grid {
+            self.grid_pass(encoder);
+        }
 
         // The skeleton pass needs to happen before the silhouettes.
         // This allows reusing the depth/stencil textures.
