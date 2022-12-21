@@ -1,8 +1,9 @@
 use crate::{
     animation::AnimationTransforms,
     pipeline::depth_stencil_state,
+    renderer::INVERTED_STENCIL_MASK_STATE,
     shape::{sphere_indices, sphere_vertices, IndexedMeshBuffers},
-    DeviceExt2, renderer::INVERTED_STENCIL_MASK_STATE,
+    DeviceExt2,
 };
 use glam::Vec4Swizzles;
 use ssbh_data::{hlpb_data::HlpbData, skel_data::SkelData};

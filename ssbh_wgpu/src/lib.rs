@@ -14,6 +14,7 @@ pub use nutexb_wgpu::NutexbFile;
 
 pub mod animation;
 mod bone_rendering;
+mod floor_grid;
 mod lighting;
 mod pipeline; // TODO: move into rendermodel?
 mod renderer;

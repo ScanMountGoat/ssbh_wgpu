@@ -1,5 +1,6 @@
 use crate::{
     bone_rendering::{BoneBuffers, BonePipelines},
+    floor_grid::FloorGridRenderData,
     lighting::{anim_to_lights, calculate_light_transform},
     pipeline::{
         create_debug_pipeline, create_depth_pipeline, create_invalid_attributes_pipeline,
@@ -306,6 +307,8 @@ pub struct SsbhRenderer {
     bone_pipelines: BonePipelines,
     bone_buffers: BoneBuffers,
 
+    floor_grid: FloorGridRenderData,
+
     // Store camera state for efficiently updating it later.
     // This avoids exposing shader implementations like bind groups.
     camera_buffer: wgpu::Buffer,
@@ -422,6 +425,7 @@ impl SsbhRenderer {
             &[crate::shader::model::CameraTransforms {
                 model_view_matrix: glam::Mat4::IDENTITY,
                 mvp_matrix: glam::Mat4::IDENTITY,
+                mvp_inv_matrix: glam::Mat4::IDENTITY,
                 camera_pos: glam::Vec4::new(0.0, 0.0, -1.0, 1.0),
                 screen_dimensions: glam::Vec4::new(1.0, 1.0, 1.0, 1.0),
             }],
@@ -559,6 +563,8 @@ impl SsbhRenderer {
             },
         );
 
+        let floor_grid = FloorGridRenderData::new(device, &camera_buffer);
+
         Self {
             bloom_threshold_pipeline,
             bloom_blur_pipeline,
@@ -598,6 +604,7 @@ impl SsbhRenderer {
             skinning_settings_buffer,
             skinning_settings_bind_group,
             swing_camera_bind_group,
+            floor_grid,
         }
     }
 
@@ -866,6 +873,9 @@ impl SsbhRenderer {
         for model in render_models {
             model.draw_swing(&mut render_pass, &self.swing_camera_bind_group);
         }
+
+        // TODO: Add depth testing to this.
+        self.floor_grid.draw(&mut render_pass);
 
         render_pass
     }

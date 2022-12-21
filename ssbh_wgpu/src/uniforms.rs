@@ -186,7 +186,9 @@ pub fn create_uniforms(material: Option<&MatlEntryData>, database: &ShaderDataba
             };
 
             let alpha_settings = program
-                .map(|program| glam::UVec4::new(program.discard as u32, program.premultiplied as u32, 0, 0))
+                .map(|program| {
+                    glam::UVec4::new(program.discard as u32, program.premultiplied as u32, 0, 0)
+                })
                 .unwrap_or_default();
 
             let shader_complexity = program

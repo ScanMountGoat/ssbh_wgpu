@@ -18,7 +18,9 @@ pub struct VertexOutput {
 pub struct CameraTransforms {
     pub model_view_matrix: glam::Mat4,
     pub mvp_matrix: glam::Mat4,
+    pub mvp_inv_matrix: glam::Mat4,
     pub camera_pos: glam::Vec4,
+    pub screen_dimensions: glam::Vec4,
 }
 #[repr(C)]
 #[derive(Debug, Copy, Clone, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]

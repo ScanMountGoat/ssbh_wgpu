@@ -2,6 +2,7 @@
 // Changes made to this file will not be saved.
 pub mod bloom;
 pub mod bloom_combine;
+pub mod floor_grid;
 pub mod model;
 pub mod outline;
 pub mod overlay;

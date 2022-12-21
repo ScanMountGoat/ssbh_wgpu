@@ -22,8 +22,8 @@ impl IndexedMeshBuffers {
         pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
     }
 
-    fn from_vertices(device: &wgpu::Device, vertices: &[[f32; 4]], indices: &[u32]) -> Self {
-        // Add COPY_DST so we can animate swing shapes without allocating new buffers.
+    pub fn from_vertices(device: &wgpu::Device, vertices: &[[f32; 4]], indices: &[u32]) -> Self {
+        // Add COPY_DST so we can update without allocating new buffers.
         let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Vertex Buffer"),
             contents: bytemuck::cast_slice(vertices),
