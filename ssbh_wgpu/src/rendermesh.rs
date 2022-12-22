@@ -57,10 +57,10 @@ pub struct RenderMesh {
     pub name: String,
     pub is_visible: bool,
     pub is_selected: bool,
+    pub subindex: u64,
     meshex_flags: EntryFlags, // TODO: How to update these?
     material_label: String,
     shader_label: String,
-    subindex: u64,
     sort_bias: i32,
     normals_bind_group: crate::shader::renormal::bind_groups::BindGroup0,
     skinning_bind_group: crate::shader::skinning::bind_groups::BindGroup0,
