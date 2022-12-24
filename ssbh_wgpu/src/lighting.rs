@@ -97,7 +97,7 @@ pub fn anim_to_lights(data: &AnimData) -> (StageUniforms, glam::Mat4) {
 
     // TODO: What to use for the scale?
     let light_transform =
-        calculate_light_transform(light_chr_rotation, glam::Vec3::new(25.0, 25.0, 25.0));
+        calculate_light_transform(light_chr_rotation, glam::vec3(25.0, 25.0, 25.0));
 
     (
         StageUniforms {

@@ -193,7 +193,7 @@ impl From<&RenderSettings> for crate::shader::model::RenderSettings {
         Self {
             debug_mode: glam::UVec4::splat(r.debug_mode as u32),
             transition_material: glam::UVec4::splat(r.transition_material as u32),
-            transition_factor: glam::Vec4::new(r.transition_factor, 0.0, 0.0, 0.0),
+            transition_factor: glam::vec4(r.transition_factor, 0.0, 0.0, 0.0),
             render_diffuse: glam::UVec4::splat(r.render_diffuse as u32),
             render_specular: glam::UVec4::splat(r.render_specular as u32),
             render_emission: glam::UVec4::splat(r.render_emission as u32),
@@ -428,8 +428,8 @@ impl SsbhRenderer {
                 model_view_matrix: glam::Mat4::IDENTITY,
                 mvp_matrix: glam::Mat4::IDENTITY,
                 mvp_inv_matrix: glam::Mat4::IDENTITY,
-                camera_pos: glam::Vec4::new(0.0, 0.0, -1.0, 1.0),
-                screen_dimensions: glam::Vec4::new(1.0, 1.0, 1.0, 1.0),
+                camera_pos: glam::vec4(0.0, 0.0, -1.0, 1.0),
+                screen_dimensions: glam::vec4(1.0, 1.0, 1.0, 1.0),
             }],
         );
 
@@ -444,7 +444,7 @@ impl SsbhRenderer {
 
         let light_transform = calculate_light_transform(
             glam::Quat::from_xyzw(-0.495286, -0.0751228, 0.0431234, 0.864401),
-            glam::Vec3::new(25.0, 25.0, 50.0),
+            glam::vec3(25.0, 25.0, 50.0),
         );
 
         let light_transform_buffer = device.create_uniform_buffer(

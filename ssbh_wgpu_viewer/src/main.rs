@@ -155,8 +155,8 @@ impl State {
             previous_cursor_position: PhysicalPosition { x: 0.0, y: 0.0 },
             is_mouse_left_clicked: false,
             is_mouse_right_clicked: false,
-            translation_xyz: glam::Vec3::new(0.0, -8.0, -60.0),
-            rotation_xyz: glam::Vec3::new(0.0, 0.0, 0.0),
+            translation_xyz: glam::vec3(0.0, -8.0, -60.0),
+            rotation_xyz: glam::vec3(0.0, 0.0, 0.0),
             animation,
             current_frame: 0.0,
             previous_frame_start: std::time::Instant::now(),
@@ -354,7 +354,7 @@ impl State {
             mvp_matrix,
             mvp_inv_matrix: mvp_matrix.inverse(),
             camera_pos,
-            screen_dimensions: glam::Vec4::new(
+            screen_dimensions: glam::vec4(
                 self.size.width as f32,
                 self.size.height as f32,
                 scale_factor as f32,

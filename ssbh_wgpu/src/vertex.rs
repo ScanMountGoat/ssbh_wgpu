@@ -348,7 +348,7 @@ mod tests {
             vec![VertexInput0 {
                 position0: glam::Vec4::ZERO,
                 normal0: glam::Vec4::ZERO,
-                tangent0: glam::Vec4::new(0.0, 0.0, 0.0, 1.0)
+                tangent0: glam::vec4(0.0, 0.0, 0.0, 1.0)
             }],
             vertices
         );
@@ -376,9 +376,9 @@ mod tests {
 
         assert_eq!(
             vec![VertexInput0 {
-                position0: glam::Vec4::new(0.0, 1.0, 2.0, 1.0),
-                normal0: glam::Vec4::new(2.0, 3.0, 0.0, 1.0),
-                tangent0: glam::Vec4::new(4.0, 5.0, 6.0, 1.0)
+                position0: glam::vec4(0.0, 1.0, 2.0, 1.0),
+                normal0: glam::vec4(2.0, 3.0, 0.0, 1.0),
+                tangent0: glam::vec4(4.0, 5.0, 6.0, 1.0)
             }],
             vertices
         );

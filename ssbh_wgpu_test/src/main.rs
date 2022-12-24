@@ -77,19 +77,19 @@ fn main() {
 
     let rotation = if fighter_anim {
         // Match the in game orientation.
-        glam::Vec3::new(0.0, 50.0f32.to_radians(), 0.0)
+        glam::vec3(0.0, 50.0f32.to_radians(), 0.0)
     } else {
         glam::Vec3::ZERO
     };
 
     let (camera_pos, model_view_matrix, mvp_matrix) =
-        calculate_camera_pos_mvp(glam::Vec3::new(0.0, -8.0, -60.0), rotation);
+        calculate_camera_pos_mvp(glam::vec3(0.0, -8.0, -60.0), rotation);
     let transforms = CameraTransforms {
         model_view_matrix,
         mvp_matrix,
         mvp_inv_matrix: mvp_matrix.inverse(),
         camera_pos,
-        screen_dimensions: glam::Vec4::new(512.0, 512.0, 1.0, 0.0),
+        screen_dimensions: glam::vec4(512.0, 512.0, 1.0, 0.0),
     };
     renderer.update_camera(&queue, transforms);
 

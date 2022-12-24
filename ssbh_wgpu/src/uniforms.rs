@@ -506,10 +506,10 @@ mod tests {
             alpha_settings: glam::UVec4::new(1, 0, 0, 0),
             shader_complexity: glam::Vec4::ZERO,
         };
-        expected.custom_vector[0] = glam::Vec4::new(1.0, 2.0, 3.0, 4.0);
+        expected.custom_vector[0] = glam::vec4(1.0, 2.0, 3.0, 4.0);
         expected.custom_vector[8] = glam::Vec4::splat(1.0);
         expected.custom_boolean[5] = glam::UVec4::new(1, 0, 0, 0);
-        expected.custom_float[3] = glam::Vec4::new(0.7, 0.0, 0.0, 0.0);
+        expected.custom_float[3] = glam::vec4(0.7, 0.0, 0.0, 0.0);
         // This is based on the database rather than the material.
         expected.has_texture[0] = glam::UVec4::new(1, 0, 0, 0);
         expected.has_boolean[1] = glam::UVec4::new(1, 0, 0, 0);

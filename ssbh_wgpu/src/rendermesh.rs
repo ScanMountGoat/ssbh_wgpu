@@ -617,7 +617,7 @@ impl RenderModel {
                     .get(i)
                     .unwrap_or(&glam::Mat4::IDENTITY);
 
-                let position = bone_world * glam::Vec4::new(0.0, 0.0, 0.0, 1.0);
+                let position = bone_world * glam::vec4(0.0, 0.0, 0.0, 1.0);
                 let (position_x_screen, position_y_screen) =
                     world_to_screen(position.xyz(), mvp, width, height);
 

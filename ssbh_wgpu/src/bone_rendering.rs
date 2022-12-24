@@ -91,7 +91,7 @@ pub fn joint_transforms(skel: &SkelData, anim_transforms: &AnimationTransforms) 
                 glam::Quat::from_rotation_arc(glam::Vec3::Y, (parent_pos - pos).normalize());
             glam::Mat4::from_translation(pos)
                 * glam::Mat4::from_quat(rotation)
-                * glam::Mat4::from_scale(glam::Vec3::new(1.0, scale, 1.0))
+                * glam::Mat4::from_scale(glam::vec3(1.0, scale, 1.0))
         })
         .collect();
     joint_transforms.resize(crate::animation::MAX_BONE_COUNT, glam::Mat4::IDENTITY);

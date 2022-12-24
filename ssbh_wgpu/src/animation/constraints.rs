@@ -43,7 +43,7 @@ pub fn apply_aim_constraint(
 
     // Get the local axes of the bone to constrain.
     let aim = (target_world
-        * glam::Vec4::new(constraint.aim.x, constraint.aim.y, constraint.aim.z, 0.0))
+        * glam::vec4(constraint.aim.x, constraint.aim.y, constraint.aim.z, 0.0))
     .xyz();
 
     // Get the vector pointing to the desired bone.
@@ -250,7 +250,7 @@ mod tests {
                 anim_transform: Some(AnimTransform {
                     translation: glam::Vec3::ZERO,
                     rotation: glam::Quat::from_axis_angle(
-                        glam::Vec3::new(1.0, 2.0, 3.0).normalize(),
+                        glam::vec3(1.0, 2.0, 3.0).normalize(),
                         std::f32::consts::PI / 4.0,
                     ),
                     scale: glam::Vec3::ONE,
@@ -370,7 +370,7 @@ mod tests {
             AnimatedBone {
                 bone: &skel_bones[0],
                 anim_transform: Some(AnimTransform {
-                    translation: glam::Vec3::new(0.0, 0.0, 0.0),
+                    translation: glam::vec3(0.0, 0.0, 0.0),
                     rotation: glam::Quat::from_rotation_z(0.0f32.to_radians()),
                     scale: glam::Vec3::ONE,
                 }),
@@ -380,7 +380,7 @@ mod tests {
             AnimatedBone {
                 bone: &skel_bones[1],
                 anim_transform: Some(AnimTransform {
-                    translation: glam::Vec3::new(-1.0, 0.0, 0.0),
+                    translation: glam::vec3(-1.0, 0.0, 0.0),
                     rotation: glam::Quat::from_rotation_z(90.0f32.to_radians()),
                     scale: glam::Vec3::ONE,
                 }),
@@ -390,7 +390,7 @@ mod tests {
             AnimatedBone {
                 bone: &skel_bones[2],
                 anim_transform: Some(AnimTransform {
-                    translation: glam::Vec3::new(1.0, 0.0, 0.0),
+                    translation: glam::vec3(1.0, 0.0, 0.0),
                     rotation: glam::Quat::from_rotation_z(0.0f32.to_radians()),
                     scale: glam::Vec3::ONE,
                 }),
@@ -460,7 +460,7 @@ mod tests {
             AnimatedBone {
                 bone: &skel_bones[0],
                 anim_transform: Some(AnimTransform {
-                    translation: glam::Vec3::new(-1.0, 0.0, 0.0),
+                    translation: glam::vec3(-1.0, 0.0, 0.0),
                     rotation: glam::Quat::from_rotation_z(90.0f32.to_radians()),
                     scale: glam::Vec3::ONE,
                 }),
@@ -470,7 +470,7 @@ mod tests {
             AnimatedBone {
                 bone: &skel_bones[1],
                 anim_transform: Some(AnimTransform {
-                    translation: glam::Vec3::new(0.0, 1.0, 0.0),
+                    translation: glam::vec3(0.0, 1.0, 0.0),
                     rotation: glam::Quat::from_rotation_z(-90.0f32.to_radians()),
                     scale: glam::Vec3::ONE,
                 }),
@@ -480,7 +480,7 @@ mod tests {
             AnimatedBone {
                 bone: &skel_bones[2],
                 anim_transform: Some(AnimTransform {
-                    translation: glam::Vec3::new(0.0, 1.0, 0.0),
+                    translation: glam::vec3(0.0, 1.0, 0.0),
                     rotation: glam::Quat::from_rotation_z(0.0f32.to_radians()),
                     scale: glam::Vec3::ONE,
                 }),
@@ -490,7 +490,7 @@ mod tests {
             AnimatedBone {
                 bone: &skel_bones[3],
                 anim_transform: Some(AnimTransform {
-                    translation: glam::Vec3::new(1.0, 0.0, 0.0),
+                    translation: glam::vec3(1.0, 0.0, 0.0),
                     rotation: glam::Quat::from_rotation_z(-90.0f32.to_radians()),
                     scale: glam::Vec3::ONE,
                 }),
@@ -500,7 +500,7 @@ mod tests {
             AnimatedBone {
                 bone: &skel_bones[4],
                 anim_transform: Some(AnimTransform {
-                    translation: glam::Vec3::new(0.0, 1.0, 0.0),
+                    translation: glam::vec3(0.0, 1.0, 0.0),
                     // TODO: What should this be without constraints?
                     rotation: glam::Quat::from_rotation_z(0.0f32.to_radians()),
                     scale: glam::Vec3::ONE,
@@ -511,7 +511,7 @@ mod tests {
             AnimatedBone {
                 bone: &skel_bones[5],
                 anim_transform: Some(AnimTransform {
-                    translation: glam::Vec3::new(0.0, 1.0, 0.0),
+                    translation: glam::vec3(0.0, 1.0, 0.0),
                     rotation: glam::Quat::from_rotation_z(0.0f32.to_radians()),
                     scale: glam::Vec3::ONE,
                 }),
@@ -607,7 +607,7 @@ mod tests {
             AnimatedBone {
                 bone: &skel_bones[0],
                 anim_transform: Some(AnimTransform {
-                    translation: glam::Vec3::new(0.0, 0.0, 0.0),
+                    translation: glam::vec3(0.0, 0.0, 0.0),
                     rotation: glam::Quat::IDENTITY,
                     scale: glam::Vec3::ONE,
                 }),
@@ -617,7 +617,7 @@ mod tests {
             AnimatedBone {
                 bone: &skel_bones[1],
                 anim_transform: Some(AnimTransform {
-                    translation: glam::Vec3::new(1.0, 0.0, 1.0),
+                    translation: glam::vec3(1.0, 0.0, 1.0),
                     rotation: glam::Quat::IDENTITY,
                     scale: glam::Vec3::ONE,
                 }),
@@ -685,7 +685,7 @@ mod tests {
             AnimatedBone {
                 bone: &skel_bones[0],
                 anim_transform: Some(AnimTransform {
-                    translation: glam::Vec3::new(0.0, 0.0, 0.0),
+                    translation: glam::vec3(0.0, 0.0, 0.0),
                     rotation: glam::Quat::IDENTITY,
                     scale: glam::Vec3::ONE,
                 }),
@@ -695,7 +695,7 @@ mod tests {
             AnimatedBone {
                 bone: &skel_bones[1],
                 anim_transform: Some(AnimTransform {
-                    translation: glam::Vec3::new(1.0, 0.0, 1.0),
+                    translation: glam::vec3(1.0, 0.0, 1.0),
                     rotation: glam::Quat::IDENTITY,
                     scale: glam::Vec3::ONE,
                 }),

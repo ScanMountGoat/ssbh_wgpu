@@ -11,12 +11,11 @@ use crate::{
     DeviceExt2, QueueExt,
 };
 
-// TODO: use the shorthand glam::vec4 instead.
-const SPHERE_COLOR: glam::Vec4 = glam::Vec4::new(1.0, 0.0, 0.0, 1.0);
-const OVAL_COLOR: glam::Vec4 = glam::Vec4::new(0.0, 1.0, 0.0, 1.0);
-const ELLIPSOID_COLOR: glam::Vec4 = glam::Vec4::new(0.0, 1.0, 1.0, 1.0);
-const CAPSULE_COLOR: glam::Vec4 = glam::Vec4::new(1.0, 0.0, 0.0, 1.0);
-const PLANE_COLOR: glam::Vec4 = glam::Vec4::new(1.0, 1.0, 0.0, 1.0);
+const SPHERE_COLOR: glam::Vec4 = glam::vec4(1.0, 0.0, 0.0, 1.0);
+const OVAL_COLOR: glam::Vec4 = glam::vec4(0.0, 1.0, 0.0, 1.0);
+const ELLIPSOID_COLOR: glam::Vec4 = glam::vec4(0.0, 1.0, 1.0, 1.0);
+const CAPSULE_COLOR: glam::Vec4 = glam::vec4(1.0, 0.0, 0.0, 1.0);
+const PLANE_COLOR: glam::Vec4 = glam::vec4(1.0, 1.0, 0.0, 1.0);
 
 // TODO: Move the pipeline to the Renderer.
 pub struct SwingRenderData {
@@ -169,7 +168,7 @@ impl SwingRenderData {
         {
             // TODO: Find a way to avoid specifying this logic in multiple places.
             // TODO: How to reduce repeated logic for buffer creation and writing?
-            let (height, per_shape) = capsules_per_shape(skel, c, world_transforms, OVAL_COLOR);
+            let (height, per_shape) = capsules_per_shape(skel, c, world_transforms, CAPSULE_COLOR);
             let data = capsule_vertices(8, 8, height, c.start_radius, c.end_radius);
             queue.write_data(&buffers.vertex_buffer, &data);
 
@@ -248,9 +247,8 @@ fn spheres(
                 device,
                 crate::shader::swing::PerShape {
                     bone_indices: glam::IVec4::new(bone_index(skel, s.bonename), -1, -1, -1),
-                    start_transform: (glam::Mat4::from_translation(glam::Vec3::new(
-                        s.cx, s.cy, s.cz,
-                    )) * glam::Mat4::from_scale(glam::Vec3::splat(s.radius))),
+                    start_transform: (glam::Mat4::from_translation(glam::vec3(s.cx, s.cy, s.cz))
+                        * glam::Mat4::from_scale(glam::Vec3::splat(s.radius))),
                     color: SPHERE_COLOR,
                 },
             )
@@ -271,11 +269,8 @@ fn ellipsoids(
                 device,
                 crate::shader::swing::PerShape {
                     bone_indices: glam::IVec4::new(bone_index(skel, e.bonename), -1, -1, -1),
-                    start_transform: (glam::Mat4::from_translation(glam::Vec3::new(
-                        e.cx, e.cy, e.cz,
-                    )) * glam::Mat4::from_scale(glam::Vec3::new(
-                        e.sx, e.sy, e.sz,
-                    ))),
+                    start_transform: (glam::Mat4::from_translation(glam::vec3(e.cx, e.cy, e.cz))
+                        * glam::Mat4::from_scale(glam::vec3(e.sx, e.sy, e.sz))),
                     color: ELLIPSOID_COLOR,
                 },
             )
@@ -352,11 +347,11 @@ fn capsules_per_shape(
 
         let start_bone_pos = world_transforms[start_i].col(3).xyz();
 
-        let _start_offset = glam::Vec3::new(c.start_offset_x, c.start_offset_y, c.start_offset_z);
+        let _start_offset = glam::vec3(c.start_offset_x, c.start_offset_y, c.start_offset_z);
 
         let end_bone_pos = world_transforms[end_i].col(3).xyz();
 
-        let _end_offset = glam::Vec3::new(c.end_offset_x, c.end_offset_y, c.end_offset_z);
+        let _end_offset = glam::vec3(c.end_offset_x, c.end_offset_y, c.end_offset_z);
 
         // Assume the shape is along the Z-axis and has unit dimensions.
         // 1. Rotate the shape to point to both bones.
@@ -401,7 +396,7 @@ fn planes(
                     bone_indices: glam::IVec4::new(bone_index(skel, p.bonename), -1, -1, -1),
                     start_transform: glam::Mat4::from_quat(glam::Quat::from_rotation_arc(
                         glam::Vec3::Z,
-                        glam::Vec3::new(p.nx, p.ny, p.nz),
+                        glam::vec3(p.nx, p.ny, p.nz),
                     )),
                     color: PLANE_COLOR,
                 },

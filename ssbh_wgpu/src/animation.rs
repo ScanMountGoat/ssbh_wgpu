@@ -563,11 +563,11 @@ mod tests {
                 [1.0, 2.0, 3.0, 1.0]
             ],
             AnimTransform {
-                translation: glam::Vec3::new(1.0, 2.0, 3.0),
+                translation: glam::vec3(1.0, 2.0, 3.0),
                 rotation: glam::Quat::from_rotation_x(90.0f32.to_radians()),
-                scale: glam::Vec3::new(1.1, 1.2, 1.3),
+                scale: glam::vec3(1.1, 1.2, 1.3),
             }
-            .to_mat4(glam::Vec3::new(0.5, 0.25, 0.5))
+            .to_mat4(glam::vec3(0.5, 0.25, 0.5))
             .to_cols_array_2d()
         );
     }
