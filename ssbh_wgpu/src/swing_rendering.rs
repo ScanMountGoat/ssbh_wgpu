@@ -335,40 +335,8 @@ fn capsules_per_shape(
     world_transforms: &[glam::Mat4],
     color: glam::Vec4,
 ) -> (f32, crate::shader::swing::PerShape) {
-    // TODO: Clean this up.
-    let (height, transform) = if let Some(skel) = skel {
-        // The capsule needs to be transformed to span the two bones.
-        // TODO: Modify the vertex generation instead to avoid changing the cap shape.
-        // TODO: This needs to support animation similar to joint transforms for bone display.
-        // TODO: find a simpler way to do this.
-        // TODO: Avoid unwrap.
-        let start_i = bone_position(Some(skel), c.start_bonename).unwrap();
-        let end_i = bone_position(Some(skel), c.end_bonename).unwrap();
-
-        let start_bone_pos = world_transforms[start_i].col(3).xyz();
-
-        let _start_offset = glam::vec3(c.start_offset_x, c.start_offset_y, c.start_offset_z);
-
-        let end_bone_pos = world_transforms[end_i].col(3).xyz();
-
-        let _end_offset = glam::vec3(c.end_offset_x, c.end_offset_y, c.end_offset_z);
-
-        // Assume the shape is along the Z-axis and has unit dimensions.
-        // 1. Rotate the shape to point to both bones.
-        // 2. Translate the bone in between the two bones.
-        let direction = end_bone_pos - start_bone_pos;
-
-        // TODO: How to include the offsets?
-        // Handle the case where start equals end and the direction vector is zero.
-        let rotation = glam::Quat::from_rotation_arc(glam::Vec3::Z, direction.normalize_or_zero());
-        (
-            direction.length(),
-            glam::Mat4::from_translation((end_bone_pos + start_bone_pos) / 2.0)
-                * glam::Mat4::from_quat(rotation),
-        )
-    } else {
-        (1.0, glam::Mat4::IDENTITY)
-    };
+    let (height, transform) =
+        capsule_transform(c, skel, world_transforms).unwrap_or((1.0, glam::Mat4::IDENTITY));
 
     let per_shape = crate::shader::swing::PerShape {
         bone_indices: glam::IVec4::splat(-1),
@@ -377,6 +345,38 @@ fn capsules_per_shape(
     };
 
     (height, per_shape)
+}
+
+fn capsule_transform(
+    c: &Capsule,
+    skel: Option<&SkelData>,
+    world_transforms: &[glam::Mat4],
+) -> Option<(f32, glam::Mat4)> {
+    // The capsule needs to be transformed to span the two bones.
+    let start_i = bone_position(skel, c.start_bonename)?;
+    let end_i = bone_position(skel, c.end_bonename)?;
+
+    let start_bone_pos = world_transforms.get(start_i)?.col(3).xyz();
+    let _start_offset = glam::vec3(c.start_offset_x, c.start_offset_y, c.start_offset_z);
+
+    let end_bone_pos = world_transforms.get(end_i)?.col(3).xyz();
+    let _end_offset = glam::vec3(c.end_offset_x, c.end_offset_y, c.end_offset_z);
+
+    // Assume the shape is along the Z-axis and has unit dimensions.
+    let direction = end_bone_pos - start_bone_pos;
+
+    // TODO: How to include the offsets?
+    // Rotate the shape to point to both bones.
+    // Handle the case where start equals end and the direction vector is zero.
+    let rotation = glam::Quat::from_rotation_arc(glam::Vec3::Z, direction.normalize_or_zero());
+
+    // Translate the bone in between the two bones.
+    let center = (end_bone_pos + start_bone_pos) / 2.0;
+
+    Some((
+        direction.length(),
+        glam::Mat4::from_translation(center) * glam::Mat4::from_quat(rotation),
+    ))
 }
 
 fn planes(
