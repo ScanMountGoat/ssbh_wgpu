@@ -11,6 +11,13 @@ use crate::{
     DeviceExt2, QueueExt,
 };
 
+// TODO: use the shorthand glam::vec4 instead.
+const SPHERE_COLOR: glam::Vec4 = glam::Vec4::new(1.0, 0.0, 0.0, 1.0);
+const OVAL_COLOR: glam::Vec4 = glam::Vec4::new(0.0, 1.0, 0.0, 1.0);
+const ELLIPSOID_COLOR: glam::Vec4 = glam::Vec4::new(0.0, 1.0, 1.0, 1.0);
+const CAPSULE_COLOR: glam::Vec4 = glam::Vec4::new(1.0, 0.0, 0.0, 1.0);
+const PLANE_COLOR: glam::Vec4 = glam::Vec4::new(1.0, 1.0, 0.0, 1.0);
+
 // TODO: Move the pipeline to the Renderer.
 pub struct SwingRenderData {
     pub pipeline: wgpu::RenderPipeline,
@@ -23,12 +30,13 @@ pub struct SwingRenderData {
 
 pub struct CollisionData {
     pub spheres: Vec<PerShapeBindGroup>,
-    pub ovals: Vec<PerShapeBindGroup>,
+    pub ovals: Vec<(IndexedMeshBuffers, PerShapeBindGroup)>,
     pub ellipsoids: Vec<PerShapeBindGroup>,
     pub capsules: Vec<(IndexedMeshBuffers, PerShapeBindGroup)>,
     pub planes: Vec<PerShapeBindGroup>,
     // TODO: Is there another way to store bone information?
     pub prc_capsules: Vec<Capsule>,
+    pub prc_ovals: Vec<Oval>,
 }
 
 impl CollisionData {
@@ -41,6 +49,7 @@ impl CollisionData {
             planes: Vec::new(),
             // TODO: Find a better way to store the prc data for animating.
             prc_capsules: Vec::new(),
+            prc_ovals: Vec::new(),
         }
     }
 
@@ -51,13 +60,14 @@ impl CollisionData {
         world_transforms: &[glam::Mat4],
     ) -> Self {
         Self {
-            spheres: sphere_bind_groups(device, &swing_prc.spheres, skel),
-            ovals: Vec::new(),
-            ellipsoids: ellipsoid_bind_groups(device, &swing_prc.ellipsoids, skel),
+            spheres: spheres(device, &swing_prc.spheres, skel),
+            ovals: ovals(device, &swing_prc.ovals, skel, world_transforms),
+            ellipsoids: ellipsoids(device, &swing_prc.ellipsoids, skel),
             capsules: capsules(device, &swing_prc.capsules, skel, world_transforms),
-            planes: plane_bind_groups(device, &swing_prc.planes, skel),
+            planes: planes(device, &swing_prc.planes, skel),
             // TODO: Find a better way to store the prc data for animating.
             prc_capsules: swing_prc.capsules.clone(),
+            prc_ovals: swing_prc.ovals.clone(),
         }
     }
 }
@@ -159,8 +169,40 @@ impl SwingRenderData {
         {
             // TODO: Find a way to avoid specifying this logic in multiple places.
             // TODO: How to reduce repeated logic for buffer creation and writing?
-            let (height, per_shape) = capsules_per_shape(skel, c, world_transforms);
+            let (height, per_shape) = capsules_per_shape(skel, c, world_transforms, OVAL_COLOR);
             let data = capsule_vertices(8, 8, height, c.start_radius, c.end_radius);
+            queue.write_data(&buffers.vertex_buffer, &data);
+
+            // TODO: Find a way to avoid needing the swing_prc again.
+            shape.update(queue, per_shape);
+        }
+
+        for ((buffers, shape), o) in self
+            .collisions
+            .ovals
+            .iter()
+            .zip(self.collisions.prc_ovals.iter())
+        {
+            // TODO: Find a way to avoid specifying this logic in multiple places.
+            // TODO: How to reduce repeated logic for buffer creation and writing?
+            // TODO: Implement proper oval rendering.
+            // Use capsules for now since they both use a start/end bone.
+            let capsule = Capsule {
+                name: o.name,
+                start_bonename: o.start_bonename,
+                end_bonename: o.end_bonename,
+                start_offset_x: o.start_offset_x,
+                start_offset_y: o.start_offset_y,
+                start_offset_z: o.start_offset_z,
+                end_offset_x: o.end_offset_x,
+                end_offset_y: o.end_offset_y,
+                end_offset_z: o.end_offset_z,
+                start_radius: o.radius,
+                end_radius: o.radius,
+            };
+            let (height, per_shape) =
+                capsules_per_shape(skel, &capsule, world_transforms, OVAL_COLOR);
+            let data = capsule_vertices(8, 8, height, o.radius, o.radius);
             queue.write_data(&buffers.vertex_buffer, &data);
 
             // TODO: Find a way to avoid needing the swing_prc again.
@@ -194,7 +236,7 @@ impl PerShapeBindGroup {
     }
 }
 
-fn sphere_bind_groups(
+fn spheres(
     device: &wgpu::Device,
     spheres: &[Sphere],
     skel: Option<&SkelData>,
@@ -209,14 +251,14 @@ fn sphere_bind_groups(
                     start_transform: (glam::Mat4::from_translation(glam::Vec3::new(
                         s.cx, s.cy, s.cz,
                     )) * glam::Mat4::from_scale(glam::Vec3::splat(s.radius))),
-                    color: glam::Vec4::new(0.0, 0.0, 1.0, 1.0),
+                    color: SPHERE_COLOR,
                 },
             )
         })
         .collect()
 }
 
-fn ellipsoid_bind_groups(
+fn ellipsoids(
     device: &wgpu::Device,
     ellipsoids: &[Ellipsoid],
     skel: Option<&SkelData>,
@@ -234,9 +276,42 @@ fn ellipsoid_bind_groups(
                     )) * glam::Mat4::from_scale(glam::Vec3::new(
                         e.sx, e.sy, e.sz,
                     ))),
-                    color: glam::Vec4::new(0.0, 1.0, 1.0, 1.0),
+                    color: ELLIPSOID_COLOR,
                 },
             )
+        })
+        .collect()
+}
+
+fn ovals(
+    device: &wgpu::Device,
+    ovals: &[Oval],
+    skel: Option<&SkelData>,
+    world_transforms: &[glam::Mat4],
+) -> Vec<(IndexedMeshBuffers, PerShapeBindGroup)> {
+    ovals
+        .iter()
+        .map(|o| {
+            // TODO: Implement proper oval rendering.
+            // Use capsules for now since they both use a start/end bone.
+            let capsule = Capsule {
+                name: o.name,
+                start_bonename: o.start_bonename,
+                end_bonename: o.end_bonename,
+                start_offset_x: o.start_offset_x,
+                start_offset_y: o.start_offset_y,
+                start_offset_z: o.start_offset_z,
+                end_offset_x: o.end_offset_x,
+                end_offset_y: o.end_offset_y,
+                end_offset_z: o.end_offset_z,
+                start_radius: o.radius,
+                end_radius: o.radius,
+            };
+            let (height, per_shape) =
+                capsules_per_shape(skel, &capsule, world_transforms, OVAL_COLOR);
+            let mesh_buffers = capsule_mesh_buffers(device, height, o.radius, o.radius);
+
+            (mesh_buffers, PerShapeBindGroup::new(device, per_shape))
         })
         .collect()
 }
@@ -250,7 +325,7 @@ fn capsules(
     capsules
         .iter()
         .map(|c| {
-            let (height, per_shape) = capsules_per_shape(skel, c, world_transforms);
+            let (height, per_shape) = capsules_per_shape(skel, c, world_transforms, CAPSULE_COLOR);
             // TODO: Rework this to get the vertex data to write to an existing buffer.
             let mesh_buffers = capsule_mesh_buffers(device, height, c.start_radius, c.end_radius);
 
@@ -263,6 +338,7 @@ fn capsules_per_shape(
     skel: Option<&SkelData>,
     c: &Capsule,
     world_transforms: &[glam::Mat4],
+    color: glam::Vec4,
 ) -> (f32, crate::shader::swing::PerShape) {
     // TODO: Clean this up.
     let (height, transform) = if let Some(skel) = skel {
@@ -288,8 +364,8 @@ fn capsules_per_shape(
         let direction = end_bone_pos - start_bone_pos;
 
         // TODO: How to include the offsets?
-
-        let rotation = glam::Quat::from_rotation_arc(glam::Vec3::Z, direction.normalize());
+        // Handle the case where start equals end and the direction vector is zero.
+        let rotation = glam::Quat::from_rotation_arc(glam::Vec3::Z, direction.normalize_or_zero());
         (
             direction.length(),
             glam::Mat4::from_translation((end_bone_pos + start_bone_pos) / 2.0)
@@ -302,13 +378,13 @@ fn capsules_per_shape(
     let per_shape = crate::shader::swing::PerShape {
         bone_indices: glam::IVec4::splat(-1),
         start_transform: transform,
-        color: glam::Vec4::new(1.0, 0.0, 0.0, 1.0),
+        color,
     };
 
     (height, per_shape)
 }
 
-fn plane_bind_groups(
+fn planes(
     device: &wgpu::Device,
     planes: &[Plane],
     skel: Option<&SkelData>,
@@ -327,7 +403,7 @@ fn plane_bind_groups(
                         glam::Vec3::Z,
                         glam::Vec3::new(p.nx, p.ny, p.nz),
                     )),
-                    color: glam::Vec4::new(0.0, 1.0, 0.0, 1.0),
+                    color: PLANE_COLOR,
                 },
             )
         })
@@ -366,9 +442,8 @@ pub fn draw_swing_collisions<'a>(
         swing_camera_bind_group,
     );
 
-    draw_shapes(
+    draw_shapes_with_buffers(
         pass,
-        &render_data.sphere_buffers,
         &render_data.collisions.ovals,
         &render_data.bind_group1,
         swing_camera_bind_group,
