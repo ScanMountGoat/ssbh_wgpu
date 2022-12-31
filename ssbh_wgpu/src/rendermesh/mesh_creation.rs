@@ -6,7 +6,7 @@ use crate::{
     swing_rendering::SwingRenderData,
     uniforms::{create_material_uniforms_bind_group, create_uniforms, create_uniforms_buffer},
     vertex::{buffer0, buffer1, mesh_object_buffers, skin_weights, MeshObjectBufferData},
-    DeviceExt2, ModelFiles, RenderMesh, RenderModel, ShaderDatabase, SharedRenderData,
+    DeviceBufferExt, ModelFiles, RenderMesh, RenderModel, ShaderDatabase, SharedRenderData,
 };
 use log::{error, info};
 use nutexb_wgpu::NutexbFile;
@@ -556,14 +556,14 @@ fn append_mesh_object_buffer_data(
     model_buffer0_data: &mut Vec<u8>,
     model_buffer1_data: &mut Vec<u8>,
     model_skin_weights_data: &mut Vec<u8>,
-    model_index_data: &mut Vec<u8>,
+    model_index_data: &mut Vec<u32>,
     mesh_object: &MeshObjectData,
     shared_data: &RenderMeshSharedData,
 ) -> Result<(), ssbh_data::mesh_data::error::Error> {
     let buffer0_offset = model_buffer0_data.len();
     let buffer1_offset = model_buffer1_data.len();
     let weights_offset = model_skin_weights_data.len();
-    let index_offset = model_index_data.len();
+    let index_offset = (model_index_data.len() * std::mem::size_of::<u32>()) as u64;
 
     let buffer0_vertices = buffer0(mesh_object)?;
     let buffer1_vertices = buffer1(mesh_object)?;
@@ -573,8 +573,7 @@ fn append_mesh_object_buffer_data(
     let buffer1_len = add_vertex_buffer_data(model_buffer1_data, &buffer1_vertices);
     let skin_weights_len = add_vertex_buffer_data(model_skin_weights_data, &skin_weights);
 
-    let index_data = bytemuck::cast_slice::<_, u8>(&mesh_object.vertex_indices);
-    model_index_data.extend_from_slice(index_data);
+    model_index_data.extend_from_slice(&mesh_object.vertex_indices);
 
     accesses.push(MeshBufferAccess {
         buffer0_start: buffer0_offset as u64,
@@ -583,8 +582,8 @@ fn append_mesh_object_buffer_data(
         buffer1_size: buffer1_len as u64,
         weights_start: weights_offset as u64,
         weights_size: skin_weights_len as u64,
-        indices_start: index_offset as u64,
-        indices_size: index_data.len() as u64,
+        indices_start: index_offset,
+        indices_size: (model_index_data.len() * std::mem::size_of::<u32>()) as u64,
     });
     Ok(())
 }

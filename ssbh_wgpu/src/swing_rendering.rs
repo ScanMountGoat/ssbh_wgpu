@@ -8,7 +8,7 @@ use crate::{
         IndexedMeshBuffers,
     },
     swing::*,
-    DeviceExt2, QueueExt,
+    DeviceBufferExt, QueueExt,
 };
 
 const SPHERE_COLOR: glam::Vec4 = glam::vec4(1.0, 0.0, 0.0, 1.0);
@@ -84,11 +84,9 @@ impl SwingRenderData {
             vertex: wgpu::VertexState {
                 module: &shader,
                 entry_point: "vs_main",
-                buffers: &[wgpu::VertexBufferLayout {
-                    array_stride: 32,
-                    step_mode: wgpu::VertexStepMode::Vertex,
-                    attributes: &crate::shader::swing::VertexInput::VERTEX_ATTRIBUTES,
-                }],
+                buffers: &[crate::shader::swing::VertexInput::vertex_buffer_layout(
+                    wgpu::VertexStepMode::Vertex,
+                )],
             },
             fragment: Some(wgpu::FragmentState {
                 module: &shader,

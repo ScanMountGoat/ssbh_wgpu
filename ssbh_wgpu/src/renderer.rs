@@ -8,7 +8,7 @@ use crate::{
         create_silhouette_pipeline, create_uv_pipeline, create_wireframe_pipeline,
     },
     texture::{load_default_lut, uv_pattern, TextureSamplerView},
-    CameraTransforms, DeviceExt2, QueueExt, RenderModel, ShaderDatabase,
+    CameraTransforms, DeviceBufferExt, QueueExt, RenderModel, ShaderDatabase,
 };
 use glyph_brush::DefaultSectionHasher;
 use nutexb_wgpu::NutexbFile;

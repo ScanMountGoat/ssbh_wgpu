@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-glam = { version = "0.21.3", features = ["mint", "bytemuck"] }
+glam = { version = "0.22.0", features = ["bytemuck"] }
 wgpu = "0.14.0"
 bytemuck = { version = "1.7", features = [ "derive" ] }
 ssbh_data = { git = "https://github.com/ultimate-research/ssbh_lib", features = ["strum"] }
@@ -20,6 +20,8 @@ arbitrary = { version = "1", optional = true, features = ["derive"] }
 image = "0.24.2"
 prc-rs = "1.6.1"
 topological-sort = "0.2.2"
+encase = { version = "0.4.1", features = ["glam"] }
+memoffset = "0.8.0"
 
 [dev-dependencies]
 approx = "0.5.1"

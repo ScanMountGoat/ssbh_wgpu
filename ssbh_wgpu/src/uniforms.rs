@@ -4,7 +4,7 @@ use crate::{
     shader::model::PerMaterial,
     split_param,
     texture::{load_default, load_sampler, load_texture, LoadTextureError},
-    DeviceExt2, ShaderDatabase,
+    DeviceBufferExt, ShaderDatabase,
 };
 use log::warn;
 use ssbh_data::matl_data::*;

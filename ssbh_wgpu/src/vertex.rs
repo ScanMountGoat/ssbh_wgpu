@@ -1,4 +1,7 @@
-use crate::shader::model::{VertexInput0, VertexInput1};
+use crate::{
+    shader::model::{VertexInput0, VertexInput1},
+    DeviceBufferExt,
+};
 use log::warn;
 use ssbh_data::{
     mesh_data::{error::Error, MeshObjectData},
@@ -243,7 +246,7 @@ pub fn mesh_object_buffers(
     buffer0: &[u8],
     buffer1: &[u8],
     skin_weights: &[u8],
-    vertex_indices: &[u8],
+    vertex_indices: &[u32],
 ) -> MeshObjectBufferData {
     // TODO: Clean this up.
     // TODO: Validate the vertex count and indices?
@@ -263,11 +266,7 @@ pub fn mesh_object_buffers(
         mapped_at_creation: false,
     });
 
-    let vertex_buffer1 = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-        label: Some("Vertex Buffer 1"),
-        contents: buffer1,
-        usage: wgpu::BufferUsages::VERTEX,
-    });
+    let vertex_buffer1 = device.create_vertex_buffer(&"Vertex Buffer 1", buffer1);
 
     let skinning_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
         label: Some("Skinning Buffer"),
@@ -275,11 +274,7 @@ pub fn mesh_object_buffers(
         usage: wgpu::BufferUsages::STORAGE,
     });
 
-    let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-        label: Some("Index Buffer"),
-        contents: vertex_indices,
-        usage: wgpu::BufferUsages::INDEX,
-    });
+    let index_buffer = device.create_index_buffer("Index Buffer", vertex_indices);
 
     MeshObjectBufferData {
         vertex_buffer0_source,

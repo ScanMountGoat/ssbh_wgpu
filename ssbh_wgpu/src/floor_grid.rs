@@ -19,11 +19,11 @@ impl FloorGridRenderData {
             vertex: wgpu::VertexState {
                 module: &shader,
                 entry_point: "vs_main",
-                buffers: &[wgpu::VertexBufferLayout {
-                    array_stride: 16,
-                    step_mode: wgpu::VertexStepMode::Vertex,
-                    attributes: &crate::shader::floor_grid::VertexInput::VERTEX_ATTRIBUTES,
-                }],
+                buffers: &[
+                    crate::shader::floor_grid::VertexInput::vertex_buffer_layout(
+                        wgpu::VertexStepMode::Vertex,
+                    ),
+                ],
             },
             fragment: Some(wgpu::FragmentState {
                 module: &shader,

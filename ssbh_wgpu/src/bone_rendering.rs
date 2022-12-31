@@ -2,11 +2,10 @@ use crate::{
     animation::AnimationTransforms,
     renderer::INVERTED_STENCIL_MASK_STATE,
     shape::{sphere_indices, sphere_vertices, IndexedMeshBuffers},
-    DeviceExt2,
+    DeviceBufferExt,
 };
 use glam::Vec4Swizzles;
 use ssbh_data::{hlpb_data::HlpbData, skel_data::SkelData};
-use wgpu::util::DeviceExt;
 
 // TODO: Create a shared outline renderer for outlining bones, joints, meshes, etc.
 // It's too difficult to get a fixed outline width using two meshes and culling.
@@ -119,41 +118,31 @@ pub fn bone_colors_buffer(
 }
 
 pub fn bone_vertex_buffer(device: &wgpu::Device) -> wgpu::Buffer {
-    device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-        label: Some("Bone Vertex Buffer"),
-        contents: bytemuck::cast_slice(&sphere_vertices(8, 8, crate::shape::SphereRange::Full)),
-        usage: wgpu::BufferUsages::VERTEX,
-    })
+    device.create_vertex_buffer_readonly(
+        "Bone Vertex Buffer",
+        &sphere_vertices(8, 8, crate::shape::SphereRange::Full),
+    )
 }
 
 pub fn bone_index_buffer(device: &wgpu::Device) -> wgpu::Buffer {
-    device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-        label: Some("Bone Index Buffer"),
-        contents: bytemuck::cast_slice(&sphere_indices(8, 8, crate::shape::SphereRange::Full)),
-        usage: wgpu::BufferUsages::INDEX,
-    })
+    device.create_index_buffer(
+        "Bone Index Buffer",
+        &sphere_indices(8, 8, crate::shape::SphereRange::Full),
+    )
 }
 
 pub fn joint_vertex_buffer(device: &wgpu::Device) -> wgpu::Buffer {
-    device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-        label: Some("Bone Joint Vertex Buffer"),
-        contents: bytemuck::cast_slice(&pyramid()),
-        usage: wgpu::BufferUsages::VERTEX,
-    })
+    device.create_vertex_buffer_readonly("Bone Joint Vertex Buffer", &pyramid())
 }
 
 pub fn joint_index_buffer(device: &wgpu::Device) -> wgpu::Buffer {
-    device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-        label: Some("Joint Index Buffer"),
-        contents: bytemuck::cast_slice(&pyramid_indices()),
-        usage: wgpu::BufferUsages::INDEX,
-    })
+    device.create_index_buffer("Joint Index Buffer", &pyramid_indices())
 }
 
 pub fn axes_vertex_buffer(device: &wgpu::Device) -> wgpu::Buffer {
-    device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-        label: Some("Bone Axes Vertex Buffer"),
-        contents: bytemuck::cast_slice(&[
+    device.create_vertex_buffer_readonly(
+        "Bone Axes Vertex Buffer",
+        &[
             // Use the normals to store colors.
             // X+
             [0f32, 0f32, 0f32, 1.0],
@@ -170,17 +159,12 @@ pub fn axes_vertex_buffer(device: &wgpu::Device) -> wgpu::Buffer {
             [0f32, 0f32, 1f32, 1.0],
             [0f32, 0f32, 1f32, 1.0],
             [0f32, 0f32, 1f32, 1.0],
-        ]),
-        usage: wgpu::BufferUsages::VERTEX,
-    })
+        ],
+    )
 }
 
 pub fn axes_index_buffer(device: &wgpu::Device) -> wgpu::Buffer {
-    device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-        label: Some("Bone Axes Index Buffer"),
-        contents: bytemuck::cast_slice(&bone_axes_indices()),
-        usage: wgpu::BufferUsages::INDEX,
-    })
+    device.create_index_buffer("Bone Axes Index Buffer", &bone_axes_indices())
 }
 
 fn bone_axes_indices() -> Vec<u32> {
@@ -295,11 +279,9 @@ fn skeleton_pipeline(
         vertex: wgpu::VertexState {
             module: &shader,
             entry_point: vertex_entry,
-            buffers: &[wgpu::VertexBufferLayout {
-                array_stride: 32,
-                step_mode: wgpu::VertexStepMode::Vertex,
-                attributes: &crate::shader::skeleton::VertexInput::VERTEX_ATTRIBUTES,
-            }],
+            buffers: &[crate::shader::skeleton::VertexInput::vertex_buffer_layout(
+                wgpu::VertexStepMode::Vertex,
+            )],
         },
         fragment: Some(wgpu::FragmentState {
             module: &shader,
@@ -325,11 +307,9 @@ fn bone_axes_pipeline(device: &wgpu::Device) -> wgpu::RenderPipeline {
         vertex: wgpu::VertexState {
             module: &shader,
             entry_point: "vs_axes",
-            buffers: &[wgpu::VertexBufferLayout {
-                array_stride: 32,
-                step_mode: wgpu::VertexStepMode::Vertex,
-                attributes: &crate::shader::skeleton::VertexInput::VERTEX_ATTRIBUTES,
-            }],
+            buffers: &[crate::shader::skeleton::VertexInput::vertex_buffer_layout(
+                wgpu::VertexStepMode::Vertex,
+            )],
         },
         fragment: Some(wgpu::FragmentState {
             module: &shader,

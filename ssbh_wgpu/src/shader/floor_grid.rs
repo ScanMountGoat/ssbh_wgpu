@@ -71,9 +71,22 @@ pub mod bind_groups {
 }
 pub mod vertex {
     impl super::VertexInput {
-        pub const VERTEX_ATTRIBUTES: [wgpu::VertexAttribute; 1] = wgpu::vertex_attr_array![
-            0 => Float32x4
+        pub const VERTEX_ATTRIBUTES: [wgpu::VertexAttribute; 1] = [
+            wgpu::VertexAttribute {
+                format: wgpu::VertexFormat::Float32x4,
+                offset: memoffset::offset_of!(super::VertexInput, position) as u64,
+                shader_location: 0,
+            },
         ];
+        pub fn vertex_buffer_layout(
+            step_mode: wgpu::VertexStepMode,
+        ) -> wgpu::VertexBufferLayout<'static> {
+            wgpu::VertexBufferLayout {
+                array_stride: std::mem::size_of::<super::VertexInput>() as u64,
+                step_mode,
+                attributes: &super::VertexInput::VERTEX_ATTRIBUTES,
+            }
+        }
     }
 }
 pub fn create_shader_module(device: &wgpu::Device) -> wgpu::ShaderModule {

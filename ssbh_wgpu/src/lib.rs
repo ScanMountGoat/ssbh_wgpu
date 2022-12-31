@@ -361,13 +361,21 @@ pub(crate) use assert_matrix_relative_eq;
 #[cfg(test)]
 pub(crate) use assert_vector_relative_eq;
 
-trait DeviceExt2 {
+trait DeviceBufferExt {
     fn create_uniform_buffer_readonly<T: Pod>(&self, label: &str, data: &[T]) -> wgpu::Buffer;
 
     fn create_uniform_buffer<T: Pod>(&self, label: &str, data: &[T]) -> wgpu::Buffer;
+
+    fn create_vertex_buffer_readonly<T: Pod>(&self, label: &str, data: &[T]) -> wgpu::Buffer;
+
+    fn create_vertex_buffer<T: Pod>(&self, label: &str, data: &[T]) -> wgpu::Buffer;
+
+    fn create_index_buffer(&self, label: &str, data: &[u32]) -> wgpu::Buffer;
 }
 
-impl DeviceExt2 for wgpu::Device {
+// TODO: Rework this to use encase instead of bytemuck.
+// TODO: Create a single function that uses encase and takes a usage parameter?
+impl DeviceBufferExt for wgpu::Device {
     fn create_uniform_buffer_readonly<T: Pod>(&self, label: &str, data: &[T]) -> wgpu::Buffer {
         self.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some(label),
@@ -381,6 +389,30 @@ impl DeviceExt2 for wgpu::Device {
             label: Some(label),
             contents: bytemuck::cast_slice(data),
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        })
+    }
+
+    fn create_vertex_buffer_readonly<T: Pod>(&self, label: &str, data: &[T]) -> wgpu::Buffer {
+        self.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some(label),
+            contents: bytemuck::cast_slice(data),
+            usage: wgpu::BufferUsages::VERTEX,
+        })
+    }
+
+    fn create_vertex_buffer<T: Pod>(&self, label: &str, data: &[T]) -> wgpu::Buffer {
+        self.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some(label),
+            contents: bytemuck::cast_slice(data),
+            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+        })
+    }
+
+    fn create_index_buffer(&self, label: &str, data: &[u32]) -> wgpu::Buffer {
+        self.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some(label),
+            contents: bytemuck::cast_slice(data),
+            usage: wgpu::BufferUsages::INDEX,
         })
     }
 }

@@ -1,11 +1,5 @@
-// TODO: Generate the sphere using code.
-// TODO: Make the position coordinates have a w coordinate.
-// TODO: Use separate buffers for normals and positions.
-// TODO: Create a function for each shape returning (VertexBuffer, IndexBuffer)
-
+use crate::DeviceBufferExt;
 use std::f32::consts::PI;
-
-use wgpu::util::DeviceExt;
 
 // TODO: Create a type that groups vertex, index buffers, and index count?
 // This would reduce the number of fields for shapes, RenderMesh, etc.
@@ -24,17 +18,8 @@ impl IndexedMeshBuffers {
 
     pub fn from_vertices(device: &wgpu::Device, vertices: &[[f32; 4]], indices: &[u32]) -> Self {
         // Add COPY_DST so we can update without allocating new buffers.
-        let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Vertex Buffer"),
-            contents: bytemuck::cast_slice(vertices),
-            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
-        });
-
-        let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Index Buffer"),
-            contents: bytemuck::cast_slice(indices),
-            usage: wgpu::BufferUsages::INDEX,
-        });
+        let vertex_buffer = device.create_vertex_buffer("Vertex Buffer", vertices);
+        let index_buffer = device.create_index_buffer("Index Buffer", indices);
 
         IndexedMeshBuffers {
             vertex_buffer,
