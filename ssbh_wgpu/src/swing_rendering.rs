@@ -216,7 +216,11 @@ pub struct PerShapeBindGroup {
 
 impl PerShapeBindGroup {
     pub fn new(device: &wgpu::Device, per_shape: crate::shader::swing::PerShape) -> Self {
-        let buffer = device.create_uniform_buffer("Swing Buffer2", &[per_shape]);
+        let buffer = device.create_buffer_from_data(
+            "Swing Buffer2",
+            &[per_shape],
+            wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        );
 
         let bind_group = crate::shader::swing::bind_groups::BindGroup2::from_bindings(
             device,

@@ -8,6 +8,7 @@ use crate::{
     vertex::{buffer0, buffer1, mesh_object_buffers, skin_weights, MeshObjectBufferData},
     DeviceBufferExt, ModelFiles, RenderMesh, RenderModel, ShaderDatabase, SharedRenderData,
 };
+use encase::{DynamicStorageBuffer, ShaderType};
 use log::{error, info};
 use nutexb_wgpu::NutexbFile;
 use ssbh_data::{
@@ -15,7 +16,7 @@ use ssbh_data::{
     meshex_data::EntryFlags, prelude::*,
 };
 use std::{collections::HashMap, error::Error, num::NonZeroU64};
-use wgpu::util::DeviceExt;
+
 pub struct MaterialData {
     pub material_uniforms_bind_group: crate::shader::model::bind_groups::BindGroup1,
     pub uniforms_buffer: wgpu::Buffer,
@@ -77,14 +78,16 @@ impl<'a> RenderMeshSharedData<'a> {
             .unwrap_or_else(AnimationTransforms::identity);
 
         // Share the transforms buffer to avoid redundant updates.
-        let skinning_transforms_buffer = device.create_uniform_buffer(
+        let skinning_transforms_buffer = device.create_buffer_from_data(
             "Bone Transforms Buffer",
             &[animation_transforms.animated_world_transforms],
+            wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         );
 
-        let world_transforms = device.create_uniform_buffer(
+        let world_transforms = device.create_buffer_from_data(
             "World Transforms Buffer",
             &animation_transforms.world_transforms,
+            wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         );
 
         let swing_render_data = SwingRenderData::new(device, &world_transforms);
@@ -144,8 +147,11 @@ impl<'a> RenderMeshSharedData<'a> {
             .map(|skel| joint_transforms(skel, animation_transforms))
             .unwrap_or_else(|| vec![glam::Mat4::IDENTITY; 512]);
 
-        let joint_world_transforms =
-            device.create_uniform_buffer("Joint World Transforms Buffer", &joint_transforms);
+        let joint_world_transforms = device.create_buffer_from_data(
+            "Joint World Transforms Buffer",
+            &joint_transforms,
+            wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        );
 
         // TODO: How to avoid applying scale to the bone geometry?
         // TODO: Use the stencil mask outline to avoid needing multiple buffers.
@@ -176,39 +182,46 @@ impl<'a> RenderMeshSharedData<'a> {
         // Materials can be shared between mesh objects.
         let material_data_by_label = self.create_materials(device, &textures);
 
-        // TODO: Find a way to have fewer function parameters?
-        let mut model_buffer0_data = Vec::new();
-        let mut model_buffer1_data = Vec::new();
-        let mut model_skin_weights_data = Vec::new();
-        let mut model_index_data = Vec::new();
+        // DynamicStorageBuffer ensures mesh object offsets are properly aligned.
+        let mut model_buffer0_data = DynamicStorageBuffer::new(Vec::new());
+        let mut model_buffer1_data = DynamicStorageBuffer::new(Vec::new());
+        let mut model_skin_weights_data = DynamicStorageBuffer::new(Vec::new());
+
+        let mut model_indices = Vec::new();
 
         let mut accesses = Vec::new();
 
+        // TODO: Refactor this to use iterators.
         if let Some(mesh) = self.mesh.as_ref() {
             for mesh_object in &mesh.objects {
-                if let Err(e) = append_mesh_object_buffer_data(
-                    &mut accesses,
+                // TODO: Find a way to have fewer function parameters?
+                match append_mesh_object_buffer_data(
                     &mut model_buffer0_data,
                     &mut model_buffer1_data,
                     &mut model_skin_weights_data,
-                    &mut model_index_data,
+                    &mut model_indices,
                     mesh_object,
                     self,
                 ) {
-                    error!(
-                        "Error accessing vertex data for mesh {}: {}",
-                        mesh_object.name, e
-                    );
+                    Ok(access) => {
+                        accesses.push(access);
+                    }
+                    Err(e) => {
+                        error!(
+                            "Error accessing vertex data for mesh {}: {}",
+                            mesh_object.name, e
+                        );
+                    }
                 }
             }
         }
 
         let buffer_data = mesh_object_buffers(
             device,
-            &model_buffer0_data,
-            &model_buffer1_data,
-            &model_skin_weights_data,
-            &model_index_data,
+            &model_buffer0_data.into_inner(),
+            &model_buffer1_data.into_inner(),
+            &model_skin_weights_data.into_inner(),
+            &model_indices,
         );
 
         // Mesh objects control the depth state of the pipeline.
@@ -383,11 +396,11 @@ impl<'a> RenderMeshSharedData<'a> {
         let adjacency = adj_entry
             .map(|e| e.vertex_adjacency.iter().map(|i| *i as i32).collect())
             .unwrap_or_else(|| vec![-1i32; vertex_count * 18]);
-        let adj_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("vertex buffer 0"),
-            contents: bytemuck::cast_slice(&adjacency),
-            usage: wgpu::BufferUsages::STORAGE,
-        });
+        let adj_buffer = device.create_buffer_from_data(
+            "Adjacency Buffer",
+            &adjacency,
+            wgpu::BufferUsages::STORAGE,
+        );
 
         // This is applied after skinning, so the source and destination buffer are the same.
         // TODO: Can this be done in a single dispatch for the entire model?
@@ -400,6 +413,7 @@ impl<'a> RenderMeshSharedData<'a> {
             size: Some(NonZeroU64::new(access.buffer0_size).ok_or(message)?),
         };
 
+        // TODO: Automate creating the buffer bindings?
         let buffer0_source_binding = wgpu::BufferBinding {
             buffer: &buffer_data.vertex_buffer0_source,
             offset: access.buffer0_start,
@@ -439,11 +453,12 @@ impl<'a> RenderMeshSharedData<'a> {
             );
 
         let parent_index = find_parent_index(mesh_object, self.skel);
-        let mesh_object_info_buffer = device.create_uniform_buffer_readonly(
+        let mesh_object_info_buffer = device.create_buffer_from_data(
             "Mesh Object Info Buffer",
             &[crate::shader::skinning::MeshObjectInfo {
                 parent_index: glam::IVec4::new(parent_index, -1, -1, -1),
             }],
+            wgpu::BufferUsages::UNIFORM,
         );
 
         let mesh_object_info_bind_group =
@@ -552,52 +567,37 @@ pub struct MeshBufferAccess {
 }
 
 fn append_mesh_object_buffer_data(
-    accesses: &mut Vec<MeshBufferAccess>,
-    model_buffer0_data: &mut Vec<u8>,
-    model_buffer1_data: &mut Vec<u8>,
-    model_skin_weights_data: &mut Vec<u8>,
+    model_buffer0_data: &mut DynamicStorageBuffer<Vec<u8>>,
+    model_buffer1_data: &mut DynamicStorageBuffer<Vec<u8>>,
+    model_skin_weights_data: &mut DynamicStorageBuffer<Vec<u8>>,
     model_index_data: &mut Vec<u32>,
     mesh_object: &MeshObjectData,
     shared_data: &RenderMeshSharedData,
-) -> Result<(), ssbh_data::mesh_data::error::Error> {
-    let buffer0_offset = model_buffer0_data.len();
-    let buffer1_offset = model_buffer1_data.len();
-    let weights_offset = model_skin_weights_data.len();
-    let index_offset = (model_index_data.len() * std::mem::size_of::<u32>()) as u64;
-
+) -> Result<MeshBufferAccess, ssbh_data::mesh_data::error::Error> {
+    // DynamicStorageBuffer enforces the offset alignment for each mesh.
     let buffer0_vertices = buffer0(mesh_object)?;
+    let buffer0_offset = model_buffer0_data.write(&buffer0_vertices).unwrap();
+
     let buffer1_vertices = buffer1(mesh_object)?;
+    let buffer1_offset = model_buffer1_data.write(&buffer1_vertices).unwrap();
+
     let skin_weights = skin_weights(mesh_object, shared_data.skel)?;
+    let weights_offset = model_skin_weights_data.write(&skin_weights).unwrap();
 
-    let buffer0_len = add_vertex_buffer_data(model_buffer0_data, &buffer0_vertices);
-    let buffer1_len = add_vertex_buffer_data(model_buffer1_data, &buffer1_vertices);
-    let skin_weights_len = add_vertex_buffer_data(model_skin_weights_data, &skin_weights);
-
+    // Only the index buffer is tightly packed.
+    let index_offset = (model_index_data.len() * std::mem::size_of::<u32>()) as u64;
     model_index_data.extend_from_slice(&mesh_object.vertex_indices);
 
-    accesses.push(MeshBufferAccess {
-        buffer0_start: buffer0_offset as u64,
-        buffer0_size: buffer0_len as u64,
-        buffer1_start: buffer1_offset as u64,
-        buffer1_size: buffer1_len as u64,
-        weights_start: weights_offset as u64,
-        weights_size: skin_weights_len as u64,
+    Ok(MeshBufferAccess {
+        buffer0_start: buffer0_offset,
+        buffer0_size: buffer0_vertices.size().get(),
+        buffer1_start: buffer1_offset,
+        buffer1_size: buffer1_vertices.size().get(),
+        weights_start: weights_offset,
+        weights_size: skin_weights.size().get(),
         indices_start: index_offset,
         indices_size: (model_index_data.len() * std::mem::size_of::<u32>()) as u64,
-    });
-    Ok(())
-}
-
-fn add_vertex_buffer_data<T: bytemuck::Pod>(model_data: &mut Vec<u8>, vertices: &[T]) -> usize {
-    let data = bytemuck::cast_slice::<_, u8>(vertices);
-    model_data.extend_from_slice(data);
-
-    // Enforce storage buffer alignment requirements between meshes.
-    let n = wgpu::Limits::default().min_storage_buffer_offset_alignment as usize;
-    let align = |x| ((x + n - 1) / n) * n;
-    model_data.resize(align(model_data.len()), 0u8);
-
-    data.len()
+    })
 }
 
 fn bone_bind_groups(
@@ -610,7 +610,7 @@ fn bone_bind_groups(
             .enumerate()
             .map(|(i, bone)| {
                 // TODO: Use instancing instead.
-                let per_bone = device.create_uniform_buffer_readonly(
+                let per_bone = device.create_buffer_from_data(
                     "Mesh Object Info Buffer",
                     &[crate::shader::skeleton::PerBone {
                         indices: glam::IVec4::new(
@@ -620,6 +620,7 @@ fn bone_bind_groups(
                             -1,
                         ),
                     }],
+                    wgpu::BufferUsages::UNIFORM,
                 );
 
                 crate::shader::skeleton::bind_groups::BindGroup2::from_bindings(

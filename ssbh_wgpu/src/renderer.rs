@@ -422,7 +422,7 @@ impl SsbhRenderer {
         let pass_info = PassInfo::new(device, width, height, scale_factor, &color_lut);
 
         // Assume the user will update the camera, so these values don't matter.
-        let camera_buffer = device.create_uniform_buffer(
+        let camera_buffer = device.create_buffer_from_data(
             "Camera Buffer",
             &[crate::shader::model::CameraTransforms {
                 model_view_matrix: glam::Mat4::IDENTITY,
@@ -431,6 +431,7 @@ impl SsbhRenderer {
                 camera_pos: glam::vec4(0.0, 0.0, -1.0, 1.0),
                 screen_dimensions: glam::vec4(1.0, 1.0, 1.0, 1.0),
             }],
+            wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         );
 
         // TODO: Don't always assume that the camera bind groups are identical.
@@ -447,9 +448,10 @@ impl SsbhRenderer {
             glam::vec3(25.0, 25.0, 50.0),
         );
 
-        let light_transform_buffer = device.create_uniform_buffer(
+        let light_transform_buffer = device.create_buffer_from_data(
             "Light Transform Buffer",
             &[crate::shader::model::LightTransforms { light_transform }],
+            wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         );
 
         // Depth from the perspective of the light.
@@ -464,16 +466,18 @@ impl SsbhRenderer {
         );
 
         let render_settings = RenderSettings::default();
-        let render_settings_buffer = device.create_uniform_buffer(
+        let render_settings_buffer = device.create_buffer_from_data(
             "Render Settings Buffer",
             &[crate::shader::model::RenderSettings::from(&render_settings)],
+            wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         );
 
         // The light nuanmb should be public with conversions for quaternions, vectors, etc being private.
         // stage light nuanmb -> uniform struct -> buffer
-        let stage_uniforms_buffer = device.create_uniform_buffer(
+        let stage_uniforms_buffer = device.create_buffer_from_data(
             "Stage Uniforms Buffer",
             &[crate::shader::model::StageUniforms::training()],
+            wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         );
 
         let uv_pattern = uv_pattern(device, queue);
@@ -543,11 +547,12 @@ impl SsbhRenderer {
         let selected_material_pipeline =
             create_selected_material_pipeline(device, RGBA_COLOR_FORMAT);
 
-        let skinning_settings_buffer = device.create_uniform_buffer(
+        let skinning_settings_buffer = device.create_buffer_from_data(
             "Skinning Settings Buffer",
             &[crate::shader::skinning::SkinningSettings::from(
                 &SkinningSettings::default(),
             )],
+            wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         );
         let skinning_settings_bind_group =
             crate::shader::skinning::bind_groups::BindGroup3::from_bindings(

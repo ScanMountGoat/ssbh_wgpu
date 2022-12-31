@@ -114,13 +114,18 @@ pub fn bone_colors_buffer(
     skel: Option<&SkelData>,
     hlpb: Option<&HlpbData>,
 ) -> wgpu::Buffer {
-    device.create_uniform_buffer_readonly("Bone Colors Buffer", &bone_colors(skel, hlpb))
+    device.create_buffer_from_data(
+        "Bone Colors Buffer",
+        &bone_colors(skel, hlpb),
+        wgpu::BufferUsages::UNIFORM,
+    )
 }
 
 pub fn bone_vertex_buffer(device: &wgpu::Device) -> wgpu::Buffer {
-    device.create_vertex_buffer_readonly(
+    device.create_buffer_from_data(
         "Bone Vertex Buffer",
         &sphere_vertices(8, 8, crate::shape::SphereRange::Full),
+        wgpu::BufferUsages::VERTEX,
     )
 }
 
@@ -132,7 +137,11 @@ pub fn bone_index_buffer(device: &wgpu::Device) -> wgpu::Buffer {
 }
 
 pub fn joint_vertex_buffer(device: &wgpu::Device) -> wgpu::Buffer {
-    device.create_vertex_buffer_readonly("Bone Joint Vertex Buffer", &pyramid())
+    device.create_buffer_from_data(
+        "Bone Joint Vertex Buffer",
+        &pyramid(),
+        wgpu::BufferUsages::VERTEX,
+    )
 }
 
 pub fn joint_index_buffer(device: &wgpu::Device) -> wgpu::Buffer {
@@ -140,7 +149,7 @@ pub fn joint_index_buffer(device: &wgpu::Device) -> wgpu::Buffer {
 }
 
 pub fn axes_vertex_buffer(device: &wgpu::Device) -> wgpu::Buffer {
-    device.create_vertex_buffer_readonly(
+    device.create_buffer_from_data(
         "Bone Axes Vertex Buffer",
         &[
             // Use the normals to store colors.
@@ -160,6 +169,7 @@ pub fn axes_vertex_buffer(device: &wgpu::Device) -> wgpu::Buffer {
             [0f32, 0f32, 1f32, 1.0],
             [0f32, 0f32, 1f32, 1.0],
         ],
+        wgpu::BufferUsages::VERTEX,
     )
 }
 

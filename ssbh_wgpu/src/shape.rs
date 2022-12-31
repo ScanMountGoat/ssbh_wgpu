@@ -18,7 +18,11 @@ impl IndexedMeshBuffers {
 
     pub fn from_vertices(device: &wgpu::Device, vertices: &[[f32; 4]], indices: &[u32]) -> Self {
         // Add COPY_DST so we can update without allocating new buffers.
-        let vertex_buffer = device.create_vertex_buffer("Vertex Buffer", vertices);
+        let vertex_buffer = device.create_buffer_from_data(
+            "Vertex Buffer",
+            vertices,
+            wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+        );
         let index_buffer = device.create_index_buffer("Index Buffer", indices);
 
         IndexedMeshBuffers {

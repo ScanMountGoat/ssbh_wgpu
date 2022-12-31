@@ -1,4 +1,5 @@
 use bytemuck::Pod;
+use encase::{internal::WriteInto, ShaderSize, ShaderType, StorageBuffer};
 use log::{error, info};
 use ssbh_data::prelude::*;
 use std::{
@@ -362,53 +363,59 @@ pub(crate) use assert_matrix_relative_eq;
 pub(crate) use assert_vector_relative_eq;
 
 trait DeviceBufferExt {
-    fn create_uniform_buffer_readonly<T: Pod>(&self, label: &str, data: &[T]) -> wgpu::Buffer;
+    fn create_buffer_from_data<T: ShaderType + WriteInto + ShaderSize>(
+        &self,
+        label: &str,
+        contents: &[T],
+        usage: wgpu::BufferUsages,
+    ) -> wgpu::Buffer;
 
-    fn create_uniform_buffer<T: Pod>(&self, label: &str, data: &[T]) -> wgpu::Buffer;
+    fn create_index_buffer(&self, label: &str, contents: &[u32]) -> wgpu::Buffer;
 
-    fn create_vertex_buffer_readonly<T: Pod>(&self, label: &str, data: &[T]) -> wgpu::Buffer;
-
-    fn create_vertex_buffer<T: Pod>(&self, label: &str, data: &[T]) -> wgpu::Buffer;
-
-    fn create_index_buffer(&self, label: &str, data: &[u32]) -> wgpu::Buffer;
+    fn create_buffer_from_bytes(
+        &self,
+        label: &str,
+        contents: &[u8],
+        usage: wgpu::BufferUsages,
+    ) -> wgpu::Buffer;
 }
 
 // TODO: Rework this to use encase instead of bytemuck.
 // TODO: Create a single function that uses encase and takes a usage parameter?
 impl DeviceBufferExt for wgpu::Device {
-    fn create_uniform_buffer_readonly<T: Pod>(&self, label: &str, data: &[T]) -> wgpu::Buffer {
+    fn create_buffer_from_data<T: ShaderType + WriteInto + ShaderSize>(
+        &self,
+        label: &str,
+        data: &[T],
+        usage: wgpu::BufferUsages,
+    ) -> wgpu::Buffer {
+        // Storage buffers also satisfy uniform buffer alignment requirements.
+        // TODO: Check field offset calculations for vertex attribute in vertex buffers.
+        let mut buffer = StorageBuffer::new(Vec::new());
+        buffer.write(&data).unwrap();
+
         self.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some(label),
-            contents: bytemuck::cast_slice(data),
-            usage: wgpu::BufferUsages::UNIFORM,
+            contents: &buffer.into_inner(),
+            usage,
         })
     }
 
-    fn create_uniform_buffer<T: Pod>(&self, label: &str, data: &[T]) -> wgpu::Buffer {
+    fn create_buffer_from_bytes(
+        &self,
+        label: &str,
+        contents: &[u8],
+        usage: wgpu::BufferUsages,
+    ) -> wgpu::Buffer {
         self.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some(label),
-            contents: bytemuck::cast_slice(data),
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-        })
-    }
-
-    fn create_vertex_buffer_readonly<T: Pod>(&self, label: &str, data: &[T]) -> wgpu::Buffer {
-        self.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some(label),
-            contents: bytemuck::cast_slice(data),
-            usage: wgpu::BufferUsages::VERTEX,
-        })
-    }
-
-    fn create_vertex_buffer<T: Pod>(&self, label: &str, data: &[T]) -> wgpu::Buffer {
-        self.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some(label),
-            contents: bytemuck::cast_slice(data),
-            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+            contents,
+            usage,
         })
     }
 
     fn create_index_buffer(&self, label: &str, data: &[u32]) -> wgpu::Buffer {
+        // Vertex indices should be tightly packed and don't need encase.
         self.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some(label),
             contents: bytemuck::cast_slice(data),

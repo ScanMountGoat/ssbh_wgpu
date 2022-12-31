@@ -1,5 +1,8 @@
 use crate::{
-    shader::model::{VertexInput0, VertexInput1},
+    shader::{
+        model::{VertexInput0, VertexInput1},
+        skinning::VertexWeight,
+    },
     DeviceBufferExt,
 };
 use log::warn;
@@ -7,7 +10,7 @@ use ssbh_data::{
     mesh_data::{error::Error, MeshObjectData},
     skel_data::SkelData,
 };
-use wgpu::{util::DeviceExt, Device};
+use wgpu::Device;
 
 // TODO: Create a function and tests that groups attributes into two buffers
 pub fn buffer0(mesh_data: &MeshObjectData) -> Result<Vec<VertexInput0>, Error> {
@@ -155,13 +158,6 @@ pub fn buffer1(mesh_data: &MeshObjectData) -> Result<Vec<VertexInput1>, Error> {
     Ok(vertices)
 }
 
-#[repr(C)]
-#[derive(Debug, Copy, Clone, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
-pub struct VertexWeight {
-    bone_indices: [i32; 4],
-    weights: [f32; 4],
-}
-
 impl VertexWeight {
     fn add_weight(&mut self, index: i32, weight: f32) -> bool {
         // Assume unitialized indices have an index of -1.
@@ -181,8 +177,8 @@ impl VertexWeight {
 impl Default for VertexWeight {
     fn default() -> Self {
         Self {
-            bone_indices: [-1; 4],
-            weights: [0.0; 4],
+            bone_indices: glam::IVec4::splat(-1),
+            weights: glam::Vec4::ZERO,
         }
     }
 }
@@ -250,29 +246,27 @@ pub fn mesh_object_buffers(
 ) -> MeshObjectBufferData {
     // TODO: Clean this up.
     // TODO: Validate the vertex count and indices?
-    // The buffer0 is skinned in a compute shader later, so it must support STORAGE.
     // Keep a separate copy of the non transformed data.
-    let vertex_buffer0_source = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-        label: Some("vertex buffer 0"),
-        contents: buffer0,
-        usage: wgpu::BufferUsages::STORAGE,
-    });
+    let vertex_buffer0_source =
+        device.create_buffer_from_bytes("Vertex Buffer 0", buffer0, wgpu::BufferUsages::STORAGE);
 
     // This buffer will be filled by the compute shader later.
+    // The buffer is transformed in a compute shader later, so it must support STORAGE.
     let vertex_buffer0 = device.create_buffer(&wgpu::BufferDescriptor {
-        label: Some("Vertex Buffer 0"),
-        size: buffer0.len() as u64,
+        label: Some("Vertex Storage Buffer 0"),
+        size: (buffer0.len() * std::mem::size_of::<VertexInput0>()) as u64,
         usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::STORAGE,
         mapped_at_creation: false,
     });
 
-    let vertex_buffer1 = device.create_vertex_buffer(&"Vertex Buffer 1", buffer1);
+    let vertex_buffer1 =
+        device.create_buffer_from_bytes(&"Vertex Buffer 1", buffer1, wgpu::BufferUsages::VERTEX);
 
-    let skinning_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-        label: Some("Skinning Buffer"),
-        contents: skin_weights,
-        usage: wgpu::BufferUsages::STORAGE,
-    });
+    let skinning_buffer = device.create_buffer_from_bytes(
+        "Skinning Buffer",
+        skin_weights,
+        wgpu::BufferUsages::STORAGE,
+    );
 
     let index_buffer = device.create_index_buffer("Index Buffer", vertex_indices);
 
@@ -394,8 +388,8 @@ mod tests {
         // The final weight should be ignored.
         assert!(!weight.add_weight(5, 5.0));
 
-        assert_eq!([1, 2, 3, 4], weight.bone_indices);
-        assert_eq!([1.0, 2.0, 3.0, 4.0], weight.weights);
+        assert_eq!([1, 2, 3, 4], weight.bone_indices.to_array());
+        assert_eq!([1.0, 2.0, 3.0, 4.0], weight.weights.to_array());
     }
 
     #[test]
@@ -433,13 +427,7 @@ mod tests {
         )
         .unwrap();
 
-        assert_eq!(
-            vec![VertexWeight {
-                bone_indices: [-1; 4],
-                weights: [0.0; 4]
-            }],
-            weights
-        );
+        assert_eq!(vec![VertexWeight::default()], weights);
     }
 
     #[test]
@@ -477,8 +465,8 @@ mod tests {
         // TODO: Does in game keep the first or last four influences?
         assert_eq!(
             vec![VertexWeight {
-                bone_indices: [0, 1, 2, 3],
-                weights: [1.0, 0.75, 0.5, 0.25]
+                bone_indices: glam::ivec4(0, 1, 2, 3),
+                weights: glam::vec4(1.0, 0.75, 0.5, 0.25)
             }],
             weights
         );
@@ -503,13 +491,7 @@ mod tests {
         )
         .unwrap();
 
-        assert_eq!(
-            vec![VertexWeight {
-                bone_indices: [-1; 4],
-                weights: [0.0; 4]
-            }],
-            weights
-        );
+        assert_eq!(vec![VertexWeight::default()], weights);
     }
 
     #[test]
@@ -531,12 +513,6 @@ mod tests {
         )
         .unwrap();
 
-        assert_eq!(
-            vec![VertexWeight {
-                bone_indices: [-1; 4],
-                weights: [0.0; 4]
-            }],
-            weights
-        );
+        assert_eq!(vec![VertexWeight::default()], weights);
     }
 }

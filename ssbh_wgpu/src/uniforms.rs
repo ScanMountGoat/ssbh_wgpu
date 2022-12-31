@@ -110,7 +110,11 @@ pub fn create_uniforms_buffer(
     database: &ShaderDatabase,
 ) -> wgpu::Buffer {
     let uniforms = create_uniforms(material, database);
-    device.create_uniform_buffer("Material Uniforms Buffer", &[uniforms])
+    device.create_buffer_from_data(
+        "Material Uniforms Buffer",
+        &[uniforms],
+        wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+    )
 }
 
 // TODO: Test attributes, non required attributes, missing required attributes, etc.
