@@ -100,32 +100,35 @@ pub struct ShaderDatabase(HashMap<String, ShaderProgram>);
 impl ShaderDatabase {
     /// Creates the shader database used for Smash Ultimate.
     pub fn new() -> Self {
-        let mut programs = HashMap::with_capacity(4008);
-
         // Unwrap is safe since we load a static JSON file.
         let v: Value = serde_json::from_str(SHADER_JSON).unwrap();
-        for program in v["shaders"].as_array().unwrap() {
-            programs.insert(
-                program["name"].as_str().unwrap().to_string(),
-                ShaderProgram {
-                    discard: program["discard"].as_bool().unwrap(),
-                    premultiplied: program["premultiplied"].as_bool().unwrap(),
-                    vertex_attributes: program["attrs"]
-                        .as_array()
-                        .unwrap()
-                        .iter()
-                        .map(|v| v.as_str().unwrap().to_string())
-                        .collect(),
-                    material_parameters: program["params"]
-                        .as_array()
-                        .unwrap()
-                        .iter()
-                        .map(|v| v.as_str().unwrap().to_string())
-                        .collect(),
-                    complexity: program["complexity"].as_f64().unwrap(),
-                },
-            );
-        }
+        let programs = v["shaders"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|program| {
+                (
+                    program["name"].as_str().unwrap().to_string(),
+                    ShaderProgram {
+                        discard: program["discard"].as_bool().unwrap(),
+                        premultiplied: program["premultiplied"].as_bool().unwrap(),
+                        vertex_attributes: program["attrs"]
+                            .as_array()
+                            .unwrap()
+                            .iter()
+                            .map(|v| v.as_str().unwrap().to_string())
+                            .collect(),
+                        material_parameters: program["params"]
+                            .as_array()
+                            .unwrap()
+                            .iter()
+                            .map(|v| v.as_str().unwrap().to_string())
+                            .collect(),
+                        complexity: program["complexity"].as_f64().unwrap(),
+                    },
+                )
+            })
+            .collect();
 
         ShaderDatabase(programs)
     }
@@ -133,6 +136,12 @@ impl ShaderDatabase {
     /// Get the shader with the specified `shader_label` while ignoring tags like `"_opaque"`.
     pub fn get(&self, shader_label: &str) -> Option<&ShaderProgram> {
         self.0.get(shader_label.get(..24).unwrap_or(""))
+    }
+}
+
+impl Default for ShaderDatabase {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

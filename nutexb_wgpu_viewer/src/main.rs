@@ -202,7 +202,7 @@ fn main() {
             Ok(_) => {}
             Err(wgpu::SurfaceError::Lost) => state.resize(state.size),
             Err(wgpu::SurfaceError::OutOfMemory) => *control_flow = ControlFlow::Exit,
-            Err(e) => eprintln!("{:?}", e),
+            Err(e) => eprintln!("{e:?}"),
         },
         Event::MainEventsCleared => {
             window.request_redraw();

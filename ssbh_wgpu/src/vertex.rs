@@ -260,7 +260,7 @@ pub fn mesh_object_buffers(
     });
 
     let vertex_buffer1 =
-        device.create_buffer_from_bytes(&"Vertex Buffer 1", buffer1, wgpu::BufferUsages::VERTEX);
+        device.create_buffer_from_bytes("Vertex Buffer 1", buffer1, wgpu::BufferUsages::VERTEX);
 
     let skinning_buffer = device.create_buffer_from_bytes(
         "Skinning Buffer",

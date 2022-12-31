@@ -51,7 +51,7 @@ fn main() {
             .to_string_lossy()
             .to_string();
 
-        writeln!(&mut f, "pub mod {};", shader_name).unwrap();
+        writeln!(&mut f, "pub mod {shader_name};").unwrap();
         write_shader_module(&shader_path, &output_path, &include_path);
     }
 
