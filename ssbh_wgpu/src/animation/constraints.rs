@@ -433,7 +433,6 @@ mod tests {
         );
     }
 
-    // TODO: Fix this test not passing.
     #[test]
     fn orient_constraints_different_parents() {
         // Skel + Anim:
@@ -553,7 +552,7 @@ mod tests {
             relative_rotation(&result, &skel_bones, 0).to_array()
         );
         assert_vector_relative_eq!(
-            [0.0, 0.0, -0.7071, 0.7071],
+            [0.0, 0.0, 0.7071, -0.7071],
             relative_rotation(&result, &skel_bones, 1).to_array()
         );
         assert_vector_relative_eq!(
@@ -561,7 +560,7 @@ mod tests {
             relative_rotation(&result, &skel_bones, 2).to_array()
         );
         assert_vector_relative_eq!(
-            [0.0, 0.0, -0.7071, 0.7071],
+            [0.0, 0.0, 0.7071, -0.7071],
             relative_rotation(&result, &skel_bones, 3).to_array()
         );
         assert_vector_relative_eq!(
