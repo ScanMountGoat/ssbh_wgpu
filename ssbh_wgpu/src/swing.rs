@@ -1,10 +1,9 @@
-use std::io::SeekFrom;
-
 use prc::{
     hash40::Hash40,
     prc_trait::{ErrorKind, FileOffsets},
     Prc,
 };
+use std::{io::SeekFrom, path::Path};
 
 #[derive(Debug, Prc, Clone)]
 pub struct SwingPrc {
@@ -152,5 +151,13 @@ fn prc_io_error(e: std::io::Error) -> prc::prc_trait::Error {
         path: Vec::new(),
         position: Ok(0),
         kind: prc::prc_trait::ErrorKind::Io(e),
+    }
+}
+
+impl SwingPrc {
+    // TODO: Replace with Result once prc-rs has better error types.
+    pub fn from_file<P: AsRef<Path>>(path: P) -> Option<Self> {
+        let mut reader = std::io::BufReader::new(std::fs::File::open(path).ok()?);
+        SwingPrc::read_file(&mut reader).ok()
     }
 }

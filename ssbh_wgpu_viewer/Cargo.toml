@@ -12,4 +12,3 @@ simple_logger = "2.1.0"
 glam = { version = "0.22.0", features = ["bytemuck"] }
 ssbh_wgpu = { path = "../ssbh_wgpu" }
 ssbh_data = { git = "https://github.com/ultimate-research/ssbh_lib", features = ["strum"] }
-prc-rs = "1.6.1"

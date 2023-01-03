@@ -1,4 +1,3 @@
-use prc::Prc;
 use ssbh_data::prelude::*;
 use ssbh_wgpu::swing::SwingPrc;
 use ssbh_wgpu::viewport::screen_to_world;
@@ -117,9 +116,7 @@ impl State {
 
         // TODO: Frame bounding spheres?
         let animation = anim.map(|anim_path| AnimData::from_file(anim_path).unwrap());
-        let swing_prc = prc
-            .map(|prc_path| std::io::BufReader::new(std::fs::File::open(prc_path).unwrap()))
-            .map(|mut f| SwingPrc::read_file(&mut f).unwrap());
+        let swing_prc = prc.and_then(|prc_path| SwingPrc::from_file(prc_path));
 
         let shared_data = SharedRenderData::new(&device, &queue, surface_format);
 
