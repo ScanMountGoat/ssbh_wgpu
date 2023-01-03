@@ -509,7 +509,7 @@ fn create_animated_bone<'a>(
             rotation: interp_quat(&current.rotation, &next.rotation, factor),
             scale: interp_vec3(&current.scale, &next.scale, factor),
         }),
-        compensate_scale: track.scale_options.compensate_scale,
+        compensate_scale: track.compensate_scale, // TODO: override compensate scale?
         flags: track.transform_flags,
     }
 }
@@ -529,7 +529,7 @@ fn frame_values(frame: f32, track: &ssbh_data::anim_data::TrackData) -> (usize, 
 #[cfg(test)]
 mod tests {
     use ssbh_data::{
-        anim_data::{GroupData, NodeData, ScaleOptions, TrackData, Transform, TransformFlags},
+        anim_data::{GroupData, NodeData, TrackData, Transform, TransformFlags},
         hlpb_data::OrientConstraintData,
         skel_data::{BillboardType, BoneData},
     };
@@ -686,7 +686,7 @@ mod tests {
                         name: "A".to_string(),
                         tracks: vec![TrackData {
                             name: "Transform".to_string(),
-                            scale_options: ScaleOptions::default(),
+                            compensate_scale: false,
                             values: TrackValues::Transform(vec![Transform {
                                 scale: Vector3::new(1.0, 2.0, 3.0),
                                 rotation: Vector4::new(1.0, 0.0, 0.0, 0.0),
@@ -763,7 +763,7 @@ mod tests {
                                 name: "A".to_string(),
                                 tracks: vec![TrackData {
                                     name: "Transform".to_string(),
-                                    scale_options: ScaleOptions::default(),
+                                    compensate_scale: false,
                                     values: TrackValues::Transform(vec![Transform {
                                         scale: Vector3::new(1.0, 2.0, 3.0),
                                         rotation: Vector4::new(0.0, 0.0, 0.0, 1.0),
@@ -776,7 +776,7 @@ mod tests {
                                 name: "B".to_string(),
                                 tracks: vec![TrackData {
                                     name: "Transform".to_string(),
-                                    scale_options: ScaleOptions::default(),
+                                    compensate_scale: false,
                                     values: TrackValues::Transform(vec![Transform {
                                         scale: Vector3::new(4.0, 5.0, 6.0),
                                         rotation: Vector4::new(0.0, 0.0, 0.0, 1.0),
@@ -799,7 +799,7 @@ mod tests {
                                 name: "B".to_string(),
                                 tracks: vec![TrackData {
                                     name: "Transform".to_string(),
-                                    scale_options: ScaleOptions::default(),
+                                    compensate_scale: false,
                                     values: TrackValues::Transform(vec![Transform {
                                         scale: Vector3::new(4.0, 5.0, 6.0),
                                         rotation: Vector4::new(0.0, 0.0, 0.0, 1.0),
@@ -812,7 +812,7 @@ mod tests {
                                 name: "C".to_string(),
                                 tracks: vec![TrackData {
                                     name: "Transform".to_string(),
-                                    scale_options: ScaleOptions::default(),
+                                    compensate_scale: false,
                                     values: TrackValues::Transform(vec![Transform {
                                         scale: Vector3::new(7.0, 8.0, 9.0),
                                         rotation: Vector4::new(0.0, 0.0, 0.0, 1.0),
@@ -886,9 +886,7 @@ mod tests {
                             name: "A".to_string(),
                             tracks: vec![TrackData {
                                 name: "Transform".to_string(),
-                                scale_options: ScaleOptions {
-                                    compensate_scale: false,
-                                },
+                                compensate_scale: false,
                                 values: TrackValues::Transform(vec![Transform {
                                     scale: Vector3::new(1.0, 2.0, 3.0),
                                     rotation: Vector4::new(0.0, 0.0, 0.0, 1.0),
@@ -902,9 +900,7 @@ mod tests {
                             tracks: vec![TrackData {
                                 name: "Transform".to_string(),
                                 // TODO: This acts just like scale inheritance?
-                                scale_options: ScaleOptions {
-                                    compensate_scale: false,
-                                },
+                                compensate_scale: false,
                                 values: TrackValues::Transform(vec![Transform {
                                     scale: Vector3::new(1.0, 2.0, 3.0),
                                     rotation: Vector4::new(0.0, 0.0, 0.0, 1.0),
@@ -917,9 +913,7 @@ mod tests {
                             name: "C".to_string(),
                             tracks: vec![TrackData {
                                 name: "Transform".to_string(),
-                                scale_options: ScaleOptions {
-                                    compensate_scale: false,
-                                },
+                                compensate_scale: false,
                                 values: TrackValues::Transform(vec![Transform {
                                     scale: Vector3::new(1.0, 2.0, 3.0),
                                     rotation: Vector4::new(0.0, 0.0, 0.0, 1.0),
@@ -968,7 +962,7 @@ mod tests {
 
     fn animate_three_bone_chain(
         scale: [f32; 3],
-        scale_options: [ScaleOptions; 3],
+        compensate_scales: [bool; 3],
     ) -> AnimationTransforms {
         let mut transforms = AnimationTransforms::identity();
         animate_skel(
@@ -993,7 +987,7 @@ mod tests {
                             name: "A".to_string(),
                             tracks: vec![TrackData {
                                 name: "Transform".to_string(),
-                                scale_options: scale_options[0],
+                                compensate_scale: compensate_scales[0],
                                 values: TrackValues::Transform(vec![Transform {
                                     scale: scale.into(),
                                     rotation: Vector4::new(0.0, 0.0, 0.0, 1.0),
@@ -1006,7 +1000,7 @@ mod tests {
                             name: "B".to_string(),
                             tracks: vec![TrackData {
                                 name: "Transform".to_string(),
-                                scale_options: scale_options[1],
+                                compensate_scale: compensate_scales[1],
                                 values: TrackValues::Transform(vec![Transform {
                                     scale: scale.into(),
                                     rotation: Vector4::new(0.0, 0.0, 0.0, 1.0),
@@ -1019,7 +1013,7 @@ mod tests {
                             name: "C".to_string(),
                             tracks: vec![TrackData {
                                 name: "Transform".to_string(),
-                                scale_options: scale_options[2],
+                                compensate_scale: compensate_scales[2],
                                 values: TrackValues::Transform(vec![Transform {
                                     scale: scale.into(),
                                     rotation: Vector4::new(0.0, 0.0, 0.0, 1.0),
@@ -1043,20 +1037,7 @@ mod tests {
     // This can be done by setting the final bone's scale to 1.0.
     #[test]
     fn apply_animation_bone_chain_inherit_scale_no_compensate_scale() {
-        let transforms = animate_three_bone_chain(
-            [1.0, 2.0, 3.0],
-            [
-                ScaleOptions {
-                    compensate_scale: false,
-                },
-                ScaleOptions {
-                    compensate_scale: false,
-                },
-                ScaleOptions {
-                    compensate_scale: false,
-                },
-            ],
-        );
+        let transforms = animate_three_bone_chain([1.0, 2.0, 3.0], [false, false, false]);
 
         assert_matrix_relative_eq!(
             [
@@ -1089,20 +1070,7 @@ mod tests {
 
     #[test]
     fn apply_animation_bone_chain_inherit_scale_compensate_scale() {
-        let transforms = animate_three_bone_chain(
-            [1.0, 2.0, 3.0],
-            [
-                ScaleOptions {
-                    compensate_scale: false,
-                },
-                ScaleOptions {
-                    compensate_scale: false,
-                },
-                ScaleOptions {
-                    compensate_scale: true,
-                },
-            ],
-        );
+        let transforms = animate_three_bone_chain([1.0, 2.0, 3.0], [false, false, true]);
 
         assert_matrix_relative_eq!(
             [
@@ -1135,20 +1103,7 @@ mod tests {
 
     #[test]
     fn apply_animation_bone_chain_no_inherit_scale_no_compensate_scale() {
-        let transforms = animate_three_bone_chain(
-            [1.0, 2.0, 3.0],
-            [
-                ScaleOptions {
-                    compensate_scale: false,
-                },
-                ScaleOptions {
-                    compensate_scale: false,
-                },
-                ScaleOptions {
-                    compensate_scale: false,
-                },
-            ],
-        );
+        let transforms = animate_three_bone_chain([1.0, 2.0, 3.0], [false, false, false]);
 
         assert_matrix_relative_eq!(
             [
@@ -1181,20 +1136,7 @@ mod tests {
 
     #[test]
     fn apply_animation_bone_chain_no_inherit_scale_compensate_scale() {
-        let transforms = animate_three_bone_chain(
-            [1.0, 2.0, 3.0],
-            [
-                ScaleOptions {
-                    compensate_scale: false,
-                },
-                ScaleOptions {
-                    compensate_scale: false,
-                },
-                ScaleOptions {
-                    compensate_scale: true,
-                },
-            ],
-        );
+        let transforms = animate_three_bone_chain([1.0, 2.0, 3.0], [false, false, true]);
 
         assert_matrix_relative_eq!(
             [
@@ -1253,9 +1195,7 @@ mod tests {
                             name: "A".to_string(),
                             tracks: vec![TrackData {
                                 name: "Transform".to_string(),
-                                scale_options: ScaleOptions {
-                                    compensate_scale: false,
-                                },
+                                compensate_scale: false,
                                 values: TrackValues::Transform(vec![Transform {
                                     scale: Vector3::new(2.0, 2.0, 2.0),
                                     rotation: Vector4::new(1.0, 0.0, 0.0, 0.0),
@@ -1265,6 +1205,7 @@ mod tests {
                                     override_translation: true,
                                     override_rotation: true,
                                     override_scale: true,
+                                    override_compensate_scale: true,
                                 },
                             }],
                         },
@@ -1272,9 +1213,7 @@ mod tests {
                             name: "B".to_string(),
                             tracks: vec![TrackData {
                                 name: "Transform".to_string(),
-                                scale_options: ScaleOptions {
-                                    compensate_scale: false,
-                                },
+                                compensate_scale: false,
                                 values: TrackValues::Transform(vec![Transform {
                                     scale: Vector3::new(2.0, 2.0, 2.0),
                                     rotation: Vector4::new(1.0, 0.0, 0.0, 0.0),
@@ -1284,6 +1223,7 @@ mod tests {
                                     override_translation: true,
                                     override_rotation: true,
                                     override_scale: true,
+                                    override_compensate_scale: true,
                                 },
                             }],
                         },
@@ -1291,9 +1231,7 @@ mod tests {
                             name: "C".to_string(),
                             tracks: vec![TrackData {
                                 name: "Transform".to_string(),
-                                scale_options: ScaleOptions {
-                                    compensate_scale: false,
-                                },
+                                compensate_scale: false,
                                 values: TrackValues::Transform(vec![Transform {
                                     scale: Vector3::new(2.0, 2.0, 2.0),
                                     rotation: Vector4::new(1.0, 0.0, 0.0, 0.0),
@@ -1303,6 +1241,7 @@ mod tests {
                                     override_translation: true,
                                     override_rotation: true,
                                     override_scale: true,
+                                    override_compensate_scale: true,
                                 },
                             }],
                         },
@@ -1384,9 +1323,7 @@ mod tests {
                             name: "L0".to_string(),
                             tracks: vec![TrackData {
                                 name: "Transform".to_string(),
-                                scale_options: ScaleOptions {
-                                    compensate_scale: true,
-                                },
+                                compensate_scale: true,
                                 values: TrackValues::Transform(vec![Transform {
                                     scale: Vector3::new(1.0, 1.0, 1.0),
                                     rotation: glam::Quat::from_rotation_z(0.0f32.to_radians())
@@ -1401,9 +1338,7 @@ mod tests {
                             name: "L1".to_string(),
                             tracks: vec![TrackData {
                                 name: "Transform".to_string(),
-                                scale_options: ScaleOptions {
-                                    compensate_scale: true,
-                                },
+                                compensate_scale: true,
                                 values: TrackValues::Transform(vec![Transform {
                                     scale: Vector3::new(1.0, 1.0, 1.0),
                                     rotation: glam::Quat::from_rotation_z(0.0f32.to_radians())
@@ -1418,9 +1353,7 @@ mod tests {
                             name: "R0".to_string(),
                             tracks: vec![TrackData {
                                 name: "Transform".to_string(),
-                                scale_options: ScaleOptions {
-                                    compensate_scale: true,
-                                },
+                                compensate_scale: true,
                                 values: TrackValues::Transform(vec![Transform {
                                     scale: Vector3::new(1.0, 1.0, 1.0),
                                     rotation: glam::Quat::from_rotation_z(90.0f32.to_radians())
@@ -1435,9 +1368,7 @@ mod tests {
                             name: "R1".to_string(),
                             tracks: vec![TrackData {
                                 name: "Transform".to_string(),
-                                scale_options: ScaleOptions {
-                                    compensate_scale: true,
-                                },
+                                compensate_scale: true,
                                 values: TrackValues::Transform(vec![Transform {
                                     scale: Vector3::new(1.0, 1.0, 1.0),
                                     rotation: glam::Quat::from_rotation_z(0.0f32.to_radians())
@@ -1531,7 +1462,7 @@ mod tests {
                             name: "A".to_string(),
                             tracks: vec![TrackData {
                                 name: "Visibility".to_string(),
-                                scale_options: ScaleOptions::default(),
+                                compensate_scale: false,
                                 values: TrackValues::Boolean(vec![true, false, true]),
                                 transform_flags: TransformFlags::default(),
                             }],
@@ -1540,7 +1471,7 @@ mod tests {
                             name: "B".to_string(),
                             tracks: vec![TrackData {
                                 name: "Visibility".to_string(),
-                                scale_options: ScaleOptions::default(),
+                                compensate_scale: false,
                                 values: TrackValues::Boolean(vec![false, true, false]),
                                 transform_flags: TransformFlags::default(),
                             }],

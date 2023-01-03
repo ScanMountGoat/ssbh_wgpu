@@ -547,6 +547,8 @@ mod tests {
             }),
         );
 
+        // TODO: Create a proper quaternion comparison.
+        // This will avoid issues with SIMD vs scalar results.
         assert_vector_relative_eq!(
             [0.0, 0.0, 0.7071, 0.7071],
             relative_rotation(&result, &skel_bones, 0).to_array()
