@@ -273,6 +273,8 @@ pub struct ModelRenderOptions {
     pub draw_wireframe: bool,
     /// Draw an infinite grid on the XZ-axis when `true`.
     pub draw_floor_grid: bool,
+    /// Draw collision shapes for the swing.prc when `true`.
+    pub draw_swing: bool,
 }
 
 /// A renderer for drawing a collection of [RenderModel].
@@ -880,9 +882,10 @@ impl SsbhRenderer {
         // Composite the outlines onto the result of the debug or shaded passes.
         let mut render_pass = self.overlay_pass(encoder, output_view);
 
-        // TODO: Add a toggle for this.
-        for model in render_models {
-            model.draw_swing(&mut render_pass, &self.swing_camera_bind_group);
+        if options.draw_swing {
+            for model in render_models {
+                model.draw_swing(&mut render_pass, &self.swing_camera_bind_group);
+            }
         }
 
         render_pass

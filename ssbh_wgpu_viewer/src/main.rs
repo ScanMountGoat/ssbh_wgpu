@@ -420,6 +420,7 @@ impl State {
                 draw_bones: false,
                 draw_bone_axes: false,
                 draw_floor_grid: true,
+                draw_swing: true,
                 ..Default::default()
             },
         );
