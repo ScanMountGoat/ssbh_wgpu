@@ -18,6 +18,7 @@ mod bone_rendering;
 mod floor_grid;
 mod lighting;
 mod pipeline; // TODO: move into rendermodel?
+mod render_settings;
 mod renderer;
 mod rendermesh; // TODO: rename to rendermodel?
 mod shader;
@@ -31,11 +32,11 @@ mod vertex;
 pub mod viewport;
 
 pub use crate::pipeline::PipelineData;
-pub use renderer::SsbhRenderer;
-pub use renderer::{
+pub use render_settings::{
     DebugMode, ModelRenderOptions, RenderSettings, SkinningSettings, TransitionMaterial,
-    RGBA_COLOR_FORMAT,
 };
+pub use renderer::SsbhRenderer;
+pub use renderer::RGBA_COLOR_FORMAT;
 pub use rendermesh::{RenderMesh, RenderModel};
 pub use shader::model::CameraTransforms;
 pub use shader_database::{split_param, ShaderDatabase, ShaderProgram};
@@ -125,7 +126,11 @@ pub type ModelFiles<T> = Vec<(String, Result<T, Box<dyn Error>>)>;
 // Applications can instantiate this struct directly instead of using the filesystem.
 #[derive(Debug)]
 pub struct ModelFolder {
-    pub folder_name: String,
+    // TODO: Move this out of the struct since it's unused by ssbh_wgpu?
+    // The loading functions could just return (String, ModelFolder) or (PathBuf, ModelFolder)
+    /// The path containing this folder's files.
+    /// Some applications may expect this to be an absolute path.
+    pub folder_path: String,
     // TODO: Will a hashmap be faster for this many items?
     pub meshes: ModelFiles<MeshData>,
     pub meshexes: ModelFiles<MeshExData>,
@@ -160,13 +165,13 @@ impl<'a> arbitrary::Arbitrary<'a> for ModelFolder {
 
 impl ModelFolder {
     pub fn load_folder<P: AsRef<Path>>(folder: P) -> Self {
-        let folder_name = folder.as_ref().to_string_lossy().to_string();
+        let folder_path = folder.as_ref().to_string_lossy().to_string();
         let files: Vec<_> = std::fs::read_dir(folder)
             .map(|dir| dir.filter_map(|p| p.ok().map(|p| p.path())).collect())
             .unwrap_or_default();
 
         Self {
-            folder_name,
+            folder_path,
             meshes: read_files(&files, "numshb", MeshData::from_file),
             meshexes: read_files(&files, "numshexb", MeshExData::from_file),
             skels: read_files(&files, "nusktb", SkelData::from_file),

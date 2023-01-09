@@ -135,7 +135,7 @@ fn main() {
         }
     }) {
         // Convert fighter/mario/model/body/c00 to mario_model_body_c00.
-        let output_path = Path::new(&model.folder_name)
+        let output_path = Path::new(&model.folder_path)
             .strip_prefix(source_folder)
             .unwrap()
             .components()
@@ -152,7 +152,7 @@ fn main() {
         if fighter_anim {
             // Try and load an idle animation if possible.
             // TODO: Make this an optional argument.
-            let anim_folder = PathBuf::from(models[0].folder_name.replace("model", "motion"));
+            let anim_folder = PathBuf::from(models[0].folder_path.replace("model", "motion"));
             if let Ok(anim) = AnimData::from_file(anim_folder.join("a00wait2.nuanmb"))
                 .or_else(|_| AnimData::from_file(anim_folder.join("a00wait3.nuanmb")))
             {
