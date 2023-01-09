@@ -470,12 +470,12 @@ pub fn next_frame(
         if should_loop {
             // Wrap around to loop the animation.
             // This may not be seamless if the animations have different lengths.
-            // next_frame = if final_frame_index > 0.0 {
-            next_frame = next_frame.rem_euclid(final_frame_index)
-            // } else {
-            // Use 0.0 instead of NaN for empty animations.
-            // 0.0
-            // };
+            next_frame = if final_frame_index > 0.0 {
+                next_frame.rem_euclid(final_frame_index)
+            } else {
+                // Use 0.0 instead of NaN for empty animations.
+                0.0
+            };
         } else {
             // Reduce chances of overflow.
             next_frame = final_frame_index;
@@ -492,6 +492,30 @@ mod tests {
 
     #[test]
     fn next_frame_loop_zero_final_frame() {
-        assert_eq!(0.0, next_frame(0.0, Duration::new(0, 0), 0.0, 1.0, true));
+        assert_eq!(0.0, next_frame(1.0, Duration::from_secs(0), 0.0, 1.0, true));
+    }
+
+    #[test]
+    fn next_frame_loop_no_wrapping() {
+        assert_eq!(
+            60.0,
+            next_frame(0.0, Duration::from_secs(1), 61.0, 1.0, true)
+        );
+    }
+
+    #[test]
+    fn next_frame_loop_wrap_around() {
+        assert_eq!(
+            1.0,
+            next_frame(0.0, Duration::from_secs(1), 59.0, 1.0, true)
+        );
+    }
+
+    #[test]
+    fn next_frame_no_loop() {
+        assert_eq!(
+            59.0,
+            next_frame(0.0, Duration::from_secs(1), 59.0, 1.0, false)
+        );
     }
 }
