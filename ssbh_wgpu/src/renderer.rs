@@ -883,6 +883,9 @@ impl SsbhRenderer {
         let mut render_pass = self.overlay_pass(encoder, output_view);
 
         if options.draw_swing {
+            // TODO: Pass in per model visibility toggles for collisions?
+            // Pass in &[HashSet<u64>]?
+            // TODO: Separate the swing renderer to make this the user's responsibility?
             for model in render_models {
                 model.draw_swing(&mut render_pass, &self.swing_camera_bind_group);
             }
@@ -940,8 +943,7 @@ impl SsbhRenderer {
         device: &wgpu::Device,
         queue: &wgpu::Queue,
         output_view: &wgpu::TextureView,
-        render_models: impl Iterator<Item = &'a RenderModel>,
-        skels: impl Iterator<Item = Option<&'a SkelData>>,
+        models: impl Iterator<Item = (&'a RenderModel, &'a SkelData)>,
         width: u32,
         height: u32,
         mvp: glam::Mat4,
@@ -950,7 +952,7 @@ impl SsbhRenderer {
         let brush = self.brush.as_mut()?;
 
         // TODO: Optimize this?
-        for (model, skel) in render_models.into_iter().zip(skels) {
+        for (model, skel) in models.into_iter() {
             model.queue_bone_names(skel, brush, width, height, mvp, font_size);
         }
 

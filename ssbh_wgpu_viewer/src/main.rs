@@ -409,8 +409,6 @@ impl State {
             }
         }
 
-        let skels = self.models.iter().map(|m| m.find_skel());
-
         let final_pass = self.renderer.render_models(
             &mut encoder,
             &output_view,
@@ -434,8 +432,10 @@ impl State {
             &self.device,
             &self.queue,
             &output_view,
-            self.render_models.iter(),
-            skels,
+            self.render_models
+                .iter()
+                .zip(self.models.iter().map(|m| m.find_skel()))
+                .filter_map(|(m, s)| Some((m, s?))),
             self.size.width,
             self.size.height,
             mvp,

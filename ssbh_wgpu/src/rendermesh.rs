@@ -599,47 +599,44 @@ impl RenderModel {
         }
     }
 
-    // TODO: Move this to bone_rendering?
     pub fn queue_bone_names(
         &self,
-        skel: Option<&SkelData>,
+        skel: &SkelData,
         brush: &mut TextBrush<FontRef>,
         width: u32,
         height: u32,
         mvp: glam::Mat4,
         font_size: f32,
     ) {
-        if let Some(skel) = skel {
-            for (i, bone) in skel.bones.iter().enumerate() {
-                let bone_world = *self
-                    .animation_transforms
-                    .world_transforms
-                    .get(i)
-                    .unwrap_or(&glam::Mat4::IDENTITY);
+        for (i, bone) in skel.bones.iter().enumerate() {
+            let bone_world = *self
+                .animation_transforms
+                .world_transforms
+                .get(i)
+                .unwrap_or(&glam::Mat4::IDENTITY);
 
-                let position = bone_world * glam::vec4(0.0, 0.0, 0.0, 1.0);
-                let (position_x_screen, position_y_screen) =
-                    world_to_screen(position.xyz(), mvp, width, height);
+            let position = bone_world * glam::vec4(0.0, 0.0, 0.0, 1.0);
+            let (position_x_screen, position_y_screen) =
+                world_to_screen(position.xyz(), mvp, width, height);
 
-                // Add a small offset to the bone position to reduce overlaps.
-                let section = Section::default()
-                    .add_text(
-                        (Text::new(&bone.name))
-                            // TODO: Use the window's scale factor?
-                            .with_scale(font_size)
-                            .with_color([1.0, 1.0, 1.0, 1.0]),
-                    )
-                    .with_bounds((width as f32, height as f32))
-                    .with_layout(
-                        Layout::default()
-                            .v_align(VerticalAlign::Center)
-                            .line_breaker(BuiltInLineBreaker::AnyCharLineBreaker),
-                    )
-                    .with_screen_position((position_x_screen + 10.0, position_y_screen))
-                    .to_owned();
+            // Add a small offset to the bone position to reduce overlaps.
+            let section = Section::default()
+                .add_text(
+                    (Text::new(&bone.name))
+                        // TODO: Use the window's scale factor?
+                        .with_scale(font_size)
+                        .with_color([1.0, 1.0, 1.0, 1.0]),
+                )
+                .with_bounds((width as f32, height as f32))
+                .with_layout(
+                    Layout::default()
+                        .v_align(VerticalAlign::Center)
+                        .line_breaker(BuiltInLineBreaker::AnyCharLineBreaker),
+                )
+                .with_screen_position((position_x_screen + 10.0, position_y_screen))
+                .to_owned();
 
-                brush.queue(&section);
-            }
+            brush.queue(&section);
         }
     }
 
