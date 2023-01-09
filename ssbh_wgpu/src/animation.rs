@@ -167,8 +167,7 @@ pub fn animate_skel<'a>(
     skel: &SkelData,
     anims: impl Iterator<Item = &'a AnimData>,
     hlpb: Option<&HlpbData>,
-    frame: f32,
-    should_loop: bool,
+    current_frame: f32,
 ) {
     // TODO: Avoid allocating here?
     // TODO: Just take the bones or groups directly?
@@ -192,13 +191,6 @@ pub fn animate_skel<'a>(
 
     // TODO: Is it faster to use a separate array for animation info?
     for anim in anims {
-        // Assume final_frame_index is set to the length of the longest track.
-        // Check for 0 length animations to avoid a potential NaN.
-        let current_frame = if should_loop && anim.final_frame_index > 0.0 {
-            frame.rem_euclid(anim.final_frame_index)
-        } else {
-            frame
-        };
         apply_transforms(&mut bones, anim, current_frame);
     }
 
@@ -615,7 +607,6 @@ mod tests {
             .iter(),
             None,
             0.0,
-            true,
         );
     }
 
@@ -638,7 +629,6 @@ mod tests {
             .iter(),
             None,
             0.0,
-            true,
         );
     }
 
@@ -660,7 +650,6 @@ mod tests {
             .iter(),
             None,
             0.0,
-            true,
         );
     }
 
@@ -700,7 +689,6 @@ mod tests {
             .iter(),
             None,
             0.0,
-            true,
         );
 
         // TODO: Test the unused indices?
@@ -828,7 +816,6 @@ mod tests {
             .iter(),
             None,
             0.0,
-            true,
         );
 
         // TODO: Test the unused indices?
@@ -928,7 +915,6 @@ mod tests {
             .iter(),
             None,
             0.0,
-            true,
         );
 
         assert_matrix_relative_eq!(
@@ -1028,7 +1014,6 @@ mod tests {
             .iter(),
             None,
             0.0,
-            true,
         );
         transforms
     }
@@ -1251,7 +1236,6 @@ mod tests {
             .iter(),
             None,
             0.0,
-            true,
         );
 
         assert_matrix_relative_eq!(
@@ -1417,7 +1401,6 @@ mod tests {
                 ],
             }),
             0.0,
-            true,
         );
 
         assert_matrix_relative_eq!(

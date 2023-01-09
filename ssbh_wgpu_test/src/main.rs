@@ -157,7 +157,7 @@ fn main() {
                 .or_else(|_| AnimData::from_file(anim_folder.join("a00wait3.nuanmb")))
             {
                 for render_model in &mut render_models {
-                    render_model.apply_anim(
+                    render_model.apply_anims(
                         &queue,
                         std::iter::once(&anim),
                         models[0].find_skel(),
@@ -165,7 +165,6 @@ fn main() {
                         models[0].find_hlpb(),
                         &shared_data,
                         0.0,
-                        false,
                     );
                 }
             }

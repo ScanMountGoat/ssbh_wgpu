@@ -6,6 +6,7 @@ use ssbh_data::prelude::*;
 use std::{
     error::Error,
     path::{Path, PathBuf},
+    time::Duration,
 };
 use walkdir::WalkDir;
 use wgpu::util::DeviceExt;
@@ -120,9 +121,10 @@ impl SharedRenderData {
 
 pub type ModelFiles<T> = Vec<(String, Result<T, Box<dyn Error>>)>;
 
-// Store the file data for a single folder.
-// This helps ensure files are loaded exactly once.
-// Applications can instantiate this struct directly instead of using the filesystem.
+/// A collection of supported rendering related files in a model or animation folder.
+///
+/// A [ModelFolder] can be instantiated directly or from the file system using [ModelFolder::load_folder].
+/// Convert to a renderable model using [load_render_models] or [RenderModel::from_folder].
 #[derive(Debug)]
 pub struct ModelFolder {
     // TODO: Move this out of the struct since it's unused by ssbh_wgpu?
@@ -435,5 +437,61 @@ trait QueueExt {
 impl QueueExt for wgpu::Queue {
     fn write_data<D: Pod>(&self, buffer: &wgpu::Buffer, data: &[D]) {
         self.write_buffer(buffer, 0, bytemuck::cast_slice(data));
+    }
+}
+
+/// Calculate the next frame given `time_since_last_frame` to ensure 60 fps animations play at full speed.
+///
+/// A `playback_speed` of `1.0` assumes an animation frame rate of 60 fps.
+///
+/// Non integral return values are possible if the elapsed time is not a multiple of `1 / (60 * playback_speed)` seconds.
+/// ssbh_wgpu handles non integral frame values using interpolation where appropriate.
+///
+/// The return value may be more than `1.0` frames if `time_since_last_frame` is sufficiently large.
+/// This is often called "frame skipping" and ssbh_wgpu will not render all animation frames.
+pub fn next_frame(
+    current_frame: f32,
+    time_since_last_frame: Duration,
+    final_frame_index: f32,
+    playback_speed: f32,
+    should_loop: bool,
+) -> f32 {
+    // Convert elapsed time to a delta in frames.
+    // This relies on interpolation or frame skipping.
+    // TODO: How robust is this implementation?
+
+    // TODO: Ensure 60hz monitors always advanced by exactly one frame per refresh?
+    let millis_per_frame = 1000.0f64 / 60.0f64;
+    let delta_t_frames = time_since_last_frame.as_millis() as f64 / millis_per_frame;
+
+    let mut next_frame = current_frame + (delta_t_frames as f32 * playback_speed);
+
+    if next_frame > final_frame_index {
+        if should_loop {
+            // Wrap around to loop the animation.
+            // This may not be seamless if the animations have different lengths.
+            // next_frame = if final_frame_index > 0.0 {
+            next_frame = next_frame.rem_euclid(final_frame_index)
+            // } else {
+            // Use 0.0 instead of NaN for empty animations.
+            // 0.0
+            // };
+        } else {
+            // Reduce chances of overflow.
+            next_frame = final_frame_index;
+        }
+    }
+
+    next_frame
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::Duration;
+
+    #[test]
+    fn next_frame_loop_zero_final_frame() {
+        assert_eq!(0.0, next_frame(0.0, Duration::new(0, 0), 0.0, 1.0, true));
     }
 }

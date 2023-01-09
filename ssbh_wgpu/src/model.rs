@@ -197,7 +197,7 @@ impl RenderModel {
     ///
     /// If `should_loop` is true, `frame` values less than `0.0`
     /// or greater than the max frame count for each animation will wrap around.
-    pub fn apply_anim<'a>(
+    pub fn apply_anims<'a>(
         &mut self,
         queue: &wgpu::Queue,
         anims: impl Iterator<Item = &'a AnimData> + Clone,
@@ -205,8 +205,7 @@ impl RenderModel {
         matl: Option<&MatlData>,
         hlpb: Option<&HlpbData>,
         shared_data: &SharedRenderData,
-        frame: f32,
-        should_loop: bool,
+        current_frame: f32,
     ) {
         // Update the buffers associated with each skel.
         // This avoids updating per mesh object and allocating new buffers.
@@ -215,11 +214,6 @@ impl RenderModel {
         // TODO: Restructure this to iterate the animations only once?
         for anim in anims.clone() {
             // Assume final_frame_index is set to the length of the longest track.
-            let current_frame = if should_loop {
-                frame.rem_euclid(anim.final_frame_index)
-            } else {
-                frame
-            };
             animate_visibility(anim, current_frame, &mut self.meshes);
 
             if let Some(matl) = matl {
@@ -233,8 +227,7 @@ impl RenderModel {
                 skel,
                 anims,
                 hlpb,
-                frame,
-                should_loop,
+                current_frame,
             );
 
             queue.write_data(
@@ -267,7 +260,7 @@ impl RenderModel {
     /// Creates the data for rendering the collisions in `swing_prc`.
     /// This method should be called once to initialize the swing collisions
     /// and any time collisions in the PRC are added, edited, or removed.
-    /// Swing collisions are animated automatically in [RenderModel::apply_anim].
+    /// Swing collisions are animated automatically in [RenderModel::apply_anims].
     pub fn recreate_swing_collisions(
         &mut self,
         device: &wgpu::Device,

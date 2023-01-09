@@ -20,6 +20,7 @@ const BLOOM_COLOR_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba16Float
 // Bgra8Unorm and Bgra8UnormSrgb should always be supported.
 // We'll use SRGB since it's more compatible with less color format aware applications.
 // This simplifies integrating with GUIs and image formats like PNG.
+/// The color format for the render pass returned by [SsbhRenderer::render_models].
 pub const RGBA_COLOR_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Bgra8UnormSrgb;
 
 pub const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;

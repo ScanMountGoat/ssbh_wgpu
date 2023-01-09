@@ -1,4 +1,5 @@
 use ssbh_data::prelude::*;
+use ssbh_wgpu::next_frame;
 use ssbh_wgpu::swing::SwingPrc;
 use ssbh_wgpu::viewport::screen_to_world;
 use ssbh_wgpu::CameraTransforms;
@@ -371,9 +372,13 @@ impl State {
         if self.is_playing {
             self.current_frame = next_frame(
                 self.current_frame,
-                self.previous_frame_start,
-                current_frame_start,
-                self.animation.as_ref(),
+                current_frame_start.duration_since(self.previous_frame_start),
+                self.animation
+                    .as_ref()
+                    .map(|a| a.final_frame_index)
+                    .unwrap_or_default(),
+                1.0,
+                true,
             );
         }
         self.previous_frame_start = current_frame_start;
@@ -396,7 +401,7 @@ impl State {
         if self.is_playing {
             // TODO: Combine these into one list?
             for (i, model) in self.render_models.iter_mut().enumerate() {
-                model.apply_anim(
+                model.apply_anims(
                     &self.queue,
                     self.animation.iter(),
                     self.models[i].find_skel(),
@@ -404,7 +409,6 @@ impl State {
                     self.models[i].find_hlpb(),
                     &self.shared_data,
                     self.current_frame,
-                    true,
                 );
             }
         }
@@ -451,34 +455,6 @@ impl State {
 
         Ok(())
     }
-}
-
-pub fn next_frame(
-    current_frame: f32,
-    previous: std::time::Instant,
-    current: std::time::Instant,
-    animations: Option<&AnimData>,
-) -> f32 {
-    // Animate at 60 fps regardless of the rendering framerate.
-    // This relies on interpolation or frame skipping.
-    // TODO: How robust is this timing implementation?
-    // TODO: Create a module/tests for this?
-    let delta_t = current.duration_since(previous);
-
-    let millis_per_frame = 1000.0f64 / 60.0f64;
-    let delta_t_frames = delta_t.as_millis() as f64 / millis_per_frame;
-    let playback_speed = 1.0;
-
-    let mut next_frame = current_frame + (delta_t_frames * playback_speed) as f32;
-
-    let max_final_frame = animations.map(|a| a.final_frame_index).unwrap_or_default();
-
-    if next_frame > max_final_frame {
-        // Loop around since the delta might not be an integral number of frames.
-        next_frame = next_frame.rem_euclid(max_final_frame);
-    }
-
-    next_frame
 }
 
 fn main() {

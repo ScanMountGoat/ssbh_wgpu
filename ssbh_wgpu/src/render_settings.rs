@@ -70,7 +70,7 @@ pub enum TransitionMaterial {
     Ditto,
 }
 
-/// Settings for configuring the rendered output of an [SsbhRenderer].
+/// Settings for configuring the rendered output of an [crate::SsbhRenderer].
 /// These settings modify internal WGPU state and should only be updated as needed.
 #[derive(PartialEq, Clone, Copy)]
 pub struct RenderSettings {
