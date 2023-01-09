@@ -127,11 +127,6 @@ pub type ModelFiles<T> = Vec<(String, Result<T, Box<dyn Error>>)>;
 /// Convert to a renderable model using [load_render_models] or [RenderModel::from_folder].
 #[derive(Debug)]
 pub struct ModelFolder {
-    // TODO: Move this out of the struct since it's unused by ssbh_wgpu?
-    // The loading functions could just return (String, ModelFolder) or (PathBuf, ModelFolder)
-    /// The path containing this folder's files.
-    /// Some applications may expect this to be an absolute path.
-    pub folder_path: String,
     // TODO: Will a hashmap be faster for this many items?
     pub meshes: ModelFiles<MeshData>,
     pub meshexes: ModelFiles<MeshExData>,
@@ -166,13 +161,11 @@ impl<'a> arbitrary::Arbitrary<'a> for ModelFolder {
 
 impl ModelFolder {
     pub fn load_folder<P: AsRef<Path>>(folder: P) -> Self {
-        let folder_path = folder.as_ref().to_string_lossy().to_string();
         let files: Vec<_> = std::fs::read_dir(folder)
             .map(|dir| dir.filter_map(|p| p.ok().map(|p| p.path())).collect())
             .unwrap_or_default();
 
         Self {
-            folder_path,
             meshes: read_files(&files, "numshb", MeshData::from_file),
             meshexes: read_files(&files, "numshexb", MeshExData::from_file),
             skels: read_files(&files, "nusktb", SkelData::from_file),

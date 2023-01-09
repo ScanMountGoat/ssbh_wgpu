@@ -125,17 +125,17 @@ fn main() {
         .filter_map(Result::ok);
 
     let start = std::time::Instant::now();
-    for model in model_paths.into_iter().filter_map(|p| {
+    for (folder_path, model) in model_paths.into_iter().filter_map(|p| {
         let parent = p.path().parent()?;
         if fighter_anim && !parent.components().any(|c| c.as_os_str() == "body") {
             // Only folders like /fighter/mario/body/c00 will have a wait animation.
             None
         } else {
-            Some(ModelFolder::load_folder(parent))
+            Some((parent.to_owned(), ModelFolder::load_folder(parent)))
         }
     }) {
         // Convert fighter/mario/model/body/c00 to mario_model_body_c00.
-        let output_path = Path::new(&model.folder_path)
+        let output_path = folder_path
             .strip_prefix(source_folder)
             .unwrap()
             .components()
@@ -152,7 +152,8 @@ fn main() {
         if fighter_anim {
             // Try and load an idle animation if possible.
             // TODO: Make this an optional argument.
-            let anim_folder = PathBuf::from(models[0].folder_path.replace("model", "motion"));
+            let anim_folder =
+                PathBuf::from(folder_path.to_string_lossy().replace("model", "motion"));
             if let Ok(anim) = AnimData::from_file(anim_folder.join("a00wait2.nuanmb"))
                 .or_else(|_| AnimData::from_file(anim_folder.join("a00wait3.nuanmb")))
             {
