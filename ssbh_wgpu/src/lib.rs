@@ -278,13 +278,13 @@ pub fn load_render_models<'a>(
     render_models
 }
 
-/// Recursively load folders from `root` with a max recursion depth of 4.
+/// Recursively load folders and their paths from `root` with a max recursion depth of 4.
 ///
 /// The recursion depth starts at 0 from `root`,
 /// `"/fighter/mario"` will load model folders like "/fighter/mario/model/body/c00".
 /// "/fighter" will exceed the maximum recursion depth and not load any model folders.
 /// For applications using very deeply nested folders, call [ModelFolder::load_folder] directly.
-pub fn load_model_folders<P: AsRef<Path>>(root: P) -> Vec<ModelFolder> {
+pub fn load_model_folders<P: AsRef<Path>>(root: P) -> Vec<(PathBuf, ModelFolder)> {
     let start = std::time::Instant::now();
 
     // The ARC paths only need a max depth of 4 for model files.
@@ -295,7 +295,7 @@ pub fn load_model_folders<P: AsRef<Path>>(root: P) -> Vec<ModelFolder> {
         .into_iter()
         .filter_map(|e| e.ok())
         .filter(|e| e.file_type().is_dir())
-        .map(|e| ModelFolder::load_folder(e.path()))
+        .map(|e| (e.path().to_owned(), ModelFolder::load_folder(e.path())))
         .collect();
 
     info!(

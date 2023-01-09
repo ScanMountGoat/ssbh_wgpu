@@ -13,6 +13,7 @@ use ssbh_wgpu::TransitionMaterial;
 use ssbh_wgpu::REQUIRED_FEATURES;
 use ssbh_wgpu::{load_model_folders, load_render_models, SsbhRenderer};
 use std::path::Path;
+use std::path::PathBuf;
 use winit::{
     dpi::PhysicalPosition,
     event::*,
@@ -48,7 +49,7 @@ struct State {
     config: wgpu::SurfaceConfiguration,
 
     // Parallel lists for models and renderable models.
-    models: Vec<ModelFolder>,
+    models: Vec<(PathBuf, ModelFolder)>,
     render_models: Vec<RenderModel>,
 
     renderer: SsbhRenderer,
@@ -122,11 +123,12 @@ impl State {
         let shared_data = SharedRenderData::new(&device, &queue, surface_format);
 
         let models = load_model_folders(folder);
-        let mut render_models = load_render_models(&device, &queue, &models, &shared_data);
+        let mut render_models =
+            load_render_models(&device, &queue, models.iter().map(|(_, m)| m), &shared_data);
 
         // Assume only one folder is loaded and apply the swing prc to every folder.
         if let Some(swing_prc) = &swing_prc {
-            for (render_model, model) in render_models.iter_mut().zip(models.iter()) {
+            for (render_model, (_, model)) in render_models.iter_mut().zip(models.iter()) {
                 render_model.recreate_swing_collisions(&device, swing_prc, model.find_skel());
             }
         }
@@ -404,9 +406,9 @@ impl State {
                 model.apply_anims(
                     &self.queue,
                     self.animation.iter(),
-                    self.models[i].find_skel(),
-                    self.models[i].find_matl(),
-                    self.models[i].find_hlpb(),
+                    self.models[i].1.find_skel(),
+                    self.models[i].1.find_matl(),
+                    self.models[i].1.find_hlpb(),
                     &self.shared_data,
                     self.current_frame,
                 );
@@ -438,7 +440,7 @@ impl State {
             &output_view,
             self.render_models
                 .iter()
-                .zip(self.models.iter().map(|m| m.find_skel()))
+                .zip(self.models.iter().map(|(_, m)| m.find_skel()))
                 .filter_map(|(m, s)| Some((m, s?))),
             self.size.width,
             self.size.height,
