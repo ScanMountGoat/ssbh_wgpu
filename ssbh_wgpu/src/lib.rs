@@ -1,6 +1,7 @@
 use bytemuck::Pod;
 use encase::{internal::WriteInto, ShaderSize, ShaderType, StorageBuffer};
 use log::{error, info};
+use model::pipeline::PipelineData;
 use ssbh_data::prelude::*;
 use std::{
     error::Error,
@@ -17,10 +18,9 @@ pub mod animation;
 mod bone_rendering;
 mod floor_grid;
 mod lighting;
-mod pipeline; // TODO: move into rendermodel?
+mod model;
 mod render_settings;
 mod renderer;
-mod rendermesh; // TODO: rename to rendermodel?
 mod shader;
 mod shader_database;
 mod shape;
@@ -31,13 +31,12 @@ mod uniforms;
 mod vertex;
 pub mod viewport;
 
-pub use crate::pipeline::PipelineData;
+pub use model::{RenderMesh, RenderModel};
 pub use render_settings::{
     DebugMode, ModelRenderOptions, RenderSettings, SkinningSettings, TransitionMaterial,
 };
 pub use renderer::SsbhRenderer;
 pub use renderer::RGBA_COLOR_FORMAT;
-pub use rendermesh::{RenderMesh, RenderModel};
 pub use shader::model::CameraTransforms;
 pub use shader_database::{split_param, ShaderDatabase, ShaderProgram};
 pub use texture::{create_default_textures, load_default_spec_cube};

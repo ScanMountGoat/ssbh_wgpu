@@ -69,7 +69,7 @@ impl PipelineKey {
     }
 }
 
-pub fn create_pipeline(
+pub fn pipeline(
     device: &wgpu::Device,
     pipeline_data: &PipelineData,
     pipeline_key: &PipelineKey,
@@ -124,7 +124,7 @@ pub fn create_pipeline(
     })
 }
 
-pub fn create_depth_pipeline(device: &wgpu::Device) -> wgpu::RenderPipeline {
+pub fn depth_pipeline(device: &wgpu::Device) -> wgpu::RenderPipeline {
     let shader = crate::shader::model::create_shader_module(device);
 
     // We only need the per frame light transforms.
@@ -161,11 +161,11 @@ pub fn create_depth_pipeline(device: &wgpu::Device) -> wgpu::RenderPipeline {
     })
 }
 
-pub fn create_invalid_shader_pipeline(
+pub fn invalid_shader_pipeline(
     device: &wgpu::Device,
     surface_format: wgpu::TextureFormat,
 ) -> wgpu::RenderPipeline {
-    create_model_pipeline_from_entry(
+    model_pipeline_from_entry(
         device,
         surface_format,
         "vs_main_invalid",
@@ -174,11 +174,11 @@ pub fn create_invalid_shader_pipeline(
     )
 }
 
-pub fn create_selected_material_pipeline(
+pub fn selected_material_pipeline(
     device: &wgpu::Device,
     surface_format: wgpu::TextureFormat,
 ) -> wgpu::RenderPipeline {
-    create_model_pipeline_from_entry(
+    model_pipeline_from_entry(
         device,
         surface_format,
         "vs_main",
@@ -187,11 +187,11 @@ pub fn create_selected_material_pipeline(
     )
 }
 
-pub fn create_invalid_attributes_pipeline(
+pub fn invalid_attributes_pipeline(
     device: &wgpu::Device,
     surface_format: wgpu::TextureFormat,
 ) -> wgpu::RenderPipeline {
-    create_model_pipeline_from_entry(
+    model_pipeline_from_entry(
         device,
         surface_format,
         "vs_main_invalid",
@@ -200,14 +200,14 @@ pub fn create_invalid_attributes_pipeline(
     )
 }
 
-pub fn create_debug_pipeline(
+pub fn debug_pipeline(
     device: &wgpu::Device,
     surface_format: wgpu::TextureFormat,
 ) -> wgpu::RenderPipeline {
-    create_model_pipeline_from_entry(device, surface_format, "vs_main", "fs_debug", "Model Debug")
+    model_pipeline_from_entry(device, surface_format, "vs_main", "fs_debug", "Model Debug")
 }
 
-pub fn create_silhouette_pipeline(
+pub fn silhouette_pipeline(
     device: &wgpu::Device,
     surface_format: wgpu::TextureFormat,
 ) -> wgpu::RenderPipeline {
@@ -241,7 +241,7 @@ pub fn create_silhouette_pipeline(
     })
 }
 
-pub fn create_wireframe_pipeline(
+pub fn wireframe_pipeline(
     device: &wgpu::Device,
     surface_format: wgpu::TextureFormat,
 ) -> wgpu::RenderPipeline {
@@ -278,7 +278,7 @@ pub fn create_wireframe_pipeline(
     })
 }
 
-pub fn create_model_pipeline_from_entry(
+pub fn model_pipeline_from_entry(
     device: &wgpu::Device,
     surface_format: wgpu::TextureFormat,
     vertex_entry: &str,
@@ -330,7 +330,7 @@ pub fn depth_stencil_state(depth_write: bool, depth_test: bool) -> wgpu::DepthSt
     }
 }
 
-pub fn create_uv_pipeline(
+pub fn uv_pipeline(
     device: &wgpu::Device,
     surface_format: wgpu::TextureFormat,
 ) -> wgpu::RenderPipeline {
@@ -399,7 +399,3 @@ fn blend_factor(factor: BlendFactor) -> wgpu::BlendFactor {
         BlendFactor::SourceAlphaSaturate => wgpu::BlendFactor::SrcAlphaSaturated,
     }
 }
-
-// TODO: Add some tests?
-#[cfg(test)]
-mod tests {}

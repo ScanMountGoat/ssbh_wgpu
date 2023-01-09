@@ -2,7 +2,7 @@ use crate::{
     bone_rendering::{BoneBuffers, BonePipelines},
     floor_grid::FloorGridRenderData,
     lighting::{anim_to_lights, calculate_light_transform},
-    pipeline::*,
+    model::pipeline::*,
     render_settings::*,
     texture::{load_default_lut, uv_pattern, TextureSamplerView},
     CameraTransforms, DeviceBufferExt, QueueExt, RenderModel, ShaderDatabase,
@@ -215,7 +215,7 @@ impl SsbhRenderer {
             entry_point: "main",
         });
 
-        let shadow_pipeline = create_depth_pipeline(device);
+        let shadow_pipeline = depth_pipeline(device);
 
         let shader = crate::shader::variance_shadow::create_shader_module(device);
         let layout = crate::shader::variance_shadow::create_pipeline_layout(device);
@@ -324,14 +324,13 @@ impl SsbhRenderer {
                 },
             );
 
-        let invalid_shader_pipeline = create_invalid_shader_pipeline(device, RGBA_COLOR_FORMAT);
-        let invalid_attributes_pipeline =
-            create_invalid_attributes_pipeline(device, RGBA_COLOR_FORMAT);
-        let debug_pipeline = create_debug_pipeline(device, RGBA_COLOR_FORMAT);
-        let silhouette_pipeline = create_silhouette_pipeline(device, RGBA_COLOR_FORMAT);
+        let invalid_shader_pipeline = invalid_shader_pipeline(device, RGBA_COLOR_FORMAT);
+        let invalid_attributes_pipeline = invalid_attributes_pipeline(device, RGBA_COLOR_FORMAT);
+        let debug_pipeline = debug_pipeline(device, RGBA_COLOR_FORMAT);
+        let silhouette_pipeline = silhouette_pipeline(device, RGBA_COLOR_FORMAT);
         let outline_pipeline = create_outline_pipeline(device, RGBA_COLOR_FORMAT);
-        let uv_pipeline = create_uv_pipeline(device, RGBA_COLOR_FORMAT);
-        let wireframe_pipeline = create_wireframe_pipeline(device, RGBA_COLOR_FORMAT);
+        let uv_pipeline = uv_pipeline(device, RGBA_COLOR_FORMAT);
+        let wireframe_pipeline = wireframe_pipeline(device, RGBA_COLOR_FORMAT);
 
         // TODO: Does this need to match the initial config?
         let config = wgpu::SurfaceConfiguration {
@@ -351,8 +350,7 @@ impl SsbhRenderer {
         let bone_pipelines = BonePipelines::new(device);
         let bone_buffers = BoneBuffers::new(device);
 
-        let selected_material_pipeline =
-            create_selected_material_pipeline(device, RGBA_COLOR_FORMAT);
+        let selected_material_pipeline = selected_material_pipeline(device, RGBA_COLOR_FORMAT);
 
         let skinning_settings_buffer = device.create_buffer_from_data(
             "Skinning Settings Buffer",
@@ -757,7 +755,7 @@ impl SsbhRenderer {
         let brush = self.brush.as_mut()?;
 
         // TODO: Optimize this?
-        for (model, skel) in models.into_iter() {
+        for (model, skel) in models {
             model.queue_bone_names(skel, brush, width, height, mvp, font_size);
         }
 
@@ -885,7 +883,7 @@ impl SsbhRenderer {
         skinning_pass.set_pipeline(&self.skinning_pipeline);
 
         for model in render_models {
-            crate::rendermesh::dispatch_skinning(
+            crate::model::dispatch_skinning(
                 &model.meshes,
                 &mut skinning_pass,
                 &self.skinning_settings_bind_group,
@@ -905,7 +903,7 @@ impl SsbhRenderer {
         });
         renormal_pass.set_pipeline(&self.renormal_pipeline);
         for model in render_models {
-            crate::rendermesh::dispatch_renormal(&model.meshes, &mut renormal_pass);
+            crate::model::dispatch_renormal(&model.meshes, &mut renormal_pass);
         }
     }
 

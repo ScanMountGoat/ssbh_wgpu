@@ -1,7 +1,6 @@
 use crate::{
     animation::{animate_materials, animate_skel, animate_visibility, AnimationTransforms},
     bone_rendering::*,
-    pipeline::{create_pipeline, PipelineKey},
     shape::IndexedMeshBuffers,
     swing::SwingPrc,
     swing_rendering::{draw_swing_collisions, SwingRenderData},
@@ -14,6 +13,7 @@ use log::debug;
 use mesh_creation::{
     create_material_data, MaterialData, MeshBufferAccess, MeshBuffers, RenderMeshSharedData,
 };
+use pipeline::{pipeline, PipelineKey};
 use ssbh_data::{matl_data::MatlEntryData, meshex_data::EntryFlags, prelude::*};
 use std::collections::HashMap;
 use wgpu_text::{
@@ -23,6 +23,7 @@ use wgpu_text::{
 };
 
 mod mesh_creation;
+pub mod pipeline;
 
 // Group resources shared between mesh objects.
 // Shared resources can be updated once per model instead of per mesh.
@@ -178,7 +179,7 @@ impl RenderModel {
                 {
                     let pipeline_key = mesh.pipeline_key.with_material(Some(material));
                     self.pipelines.entry(pipeline_key).or_insert_with(|| {
-                        create_pipeline(device, &shared_data.pipeline_data, &pipeline_key)
+                        pipeline(device, &shared_data.pipeline_data, &pipeline_key)
                     });
 
                     // Update the pipeline key for associated RenderMeshes.

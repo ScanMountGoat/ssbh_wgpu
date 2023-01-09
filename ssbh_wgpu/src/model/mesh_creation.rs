@@ -1,8 +1,8 @@
+use super::pipeline::{pipeline, PipelineKey};
 use crate::{
     animation::AnimationTransforms,
     bone_rendering::*,
-    pipeline::{create_pipeline, PipelineKey},
-    rendermesh::BoneRenderData,
+    model::BoneRenderData,
     swing_rendering::SwingRenderData,
     uniforms::{create_material_uniforms_bind_group, create_uniforms, create_uniforms_buffer},
     vertex::{buffer0, buffer1, mesh_object_buffers, skin_weights, MeshObjectBufferData},
@@ -386,9 +386,9 @@ impl<'a> RenderMeshSharedData<'a> {
             material,
         );
 
-        pipelines.entry(pipeline_key).or_insert_with(|| {
-            create_pipeline(device, &self.shared_data.pipeline_data, &pipeline_key)
-        });
+        pipelines
+            .entry(pipeline_key)
+            .or_insert_with(|| pipeline(device, &self.shared_data.pipeline_data, &pipeline_key));
 
         let vertex_count = mesh_object.vertex_count()?;
 
