@@ -705,7 +705,7 @@ impl SsbhRenderer {
                 view: &self.pass_info.depth.view,
                 depth_ops: Some(wgpu::Operations {
                     load: wgpu::LoadOp::Load,
-                    store: true,
+                    store: false,
                 }),
                 stencil_ops: None,
             }),
