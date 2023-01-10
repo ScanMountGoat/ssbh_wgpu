@@ -186,6 +186,4 @@ pub struct ModelRenderOptions {
     pub draw_wireframe: bool,
     /// Draw an infinite grid on the XZ-axis when `true`.
     pub draw_floor_grid: bool,
-    /// Draw collision shapes for the swing.prc when `true`.
-    pub draw_swing: bool,
 }

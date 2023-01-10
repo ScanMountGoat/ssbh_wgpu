@@ -12,6 +12,7 @@ use ssbh_wgpu::SharedRenderData;
 use ssbh_wgpu::TransitionMaterial;
 use ssbh_wgpu::REQUIRED_FEATURES;
 use ssbh_wgpu::{load_model_folders, load_render_models, SsbhRenderer};
+use std::collections::HashSet;
 use std::path::Path;
 use std::path::PathBuf;
 use winit::{
@@ -415,7 +416,7 @@ impl State {
             }
         }
 
-        let final_pass = self.renderer.render_models(
+        let mut final_pass = self.renderer.render_models(
             &mut encoder,
             &output_view,
             &self.render_models,
@@ -424,10 +425,15 @@ impl State {
                 draw_bones: false,
                 draw_bone_axes: false,
                 draw_floor_grid: true,
-                draw_swing: true,
                 ..Default::default()
             },
         );
+
+        for model in &self.render_models {
+            // Use an empty set to show all collisions.
+            self.renderer
+                .render_swing(&mut final_pass, model, &HashSet::new());
+        }
 
         drop(final_pass);
 

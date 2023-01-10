@@ -15,7 +15,7 @@ use mesh_creation::{
 };
 use pipeline::{pipeline, PipelineKey};
 use ssbh_data::{matl_data::MatlEntryData, meshex_data::EntryFlags, prelude::*};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use wgpu_text::{
     font::FontRef,
     section::{BuiltInLineBreaker, Layout, Section, Text, VerticalAlign},
@@ -429,12 +429,14 @@ impl RenderModel {
         &'a self,
         render_pass: &mut wgpu::RenderPass<'a>,
         swing_camera_bind_group: &'a crate::shader::swing::bind_groups::BindGroup0,
+        hidden_collisions: &HashSet<u64>,
     ) {
         // TODO: Is it noticeably more efficient to batch shapes together?
         draw_swing_collisions(
             &self.swing_render_data,
             render_pass,
             swing_camera_bind_group,
+            hidden_collisions,
         );
     }
 

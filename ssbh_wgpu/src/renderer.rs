@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use crate::{
     bone_rendering::{BoneBuffers, BonePipelines},
     floor_grid::FloorGridRenderData,
@@ -682,20 +684,9 @@ impl SsbhRenderer {
             &self.pass_info.skel_outline_bind_group,
         );
 
-        // TODO: This can be combined with post processing.
+        // TODO: This can be combined with post processing?
         // Composite the outlines onto the result of the debug or shaded passes.
-        let mut render_pass = self.overlay_pass(encoder, output_view);
-
-        if options.draw_swing {
-            // TODO: Pass in per model visibility toggles for collisions?
-            // Pass in &[HashSet<u64>]?
-            // TODO: Separate the swing renderer to make this the user's responsibility?
-            for model in render_models {
-                model.draw_swing(&mut render_pass, &self.swing_camera_bind_group);
-            }
-        }
-
-        render_pass
+        self.overlay_pass(encoder, output_view)
     }
 
     fn grid_pass(&self, encoder: &mut wgpu::CommandEncoder) {
@@ -736,6 +727,23 @@ impl SsbhRenderer {
         for model in render_models {
             model.draw_meshes_uv(render_pass, &self.per_frame_bind_group);
         }
+    }
+
+    /// Render the collision shapes for `render_model` with hashes not in `hidden_collisions`.
+    ///
+    /// Collision data should be initialized first using [RenderModel::recreate_swing_collisions].
+    /// Pass an empty set to show all collisions.
+    pub fn render_swing<'a>(
+        &'a self,
+        render_pass: &mut wgpu::RenderPass<'a>,
+        render_model: &'a RenderModel,
+        hidden_collisions: &HashSet<u64>,
+    ) {
+        render_model.draw_swing(
+            render_pass,
+            &self.swing_camera_bind_group,
+            hidden_collisions,
+        );
     }
 
     /// Renders the bone names for skeleton in `skels` for each model in `render_models` to `output_view`.

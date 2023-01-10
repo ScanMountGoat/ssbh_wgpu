@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use glam::Vec4Swizzles;
 use prc::hash40::Hash40;
 use ssbh_data::skel_data::SkelData;
@@ -28,11 +30,11 @@ pub struct SwingRenderData {
 }
 
 pub struct CollisionData {
-    pub spheres: Vec<PerShapeBindGroup>,
-    pub ovals: Vec<(IndexedMeshBuffers, PerShapeBindGroup)>,
-    pub ellipsoids: Vec<PerShapeBindGroup>,
-    pub capsules: Vec<(IndexedMeshBuffers, PerShapeBindGroup)>,
-    pub planes: Vec<PerShapeBindGroup>,
+    pub spheres: Vec<ShapeRenderData>,
+    pub ovals: Vec<(IndexedMeshBuffers, ShapeRenderData)>,
+    pub ellipsoids: Vec<ShapeRenderData>,
+    pub capsules: Vec<(IndexedMeshBuffers, ShapeRenderData)>,
+    pub planes: Vec<ShapeRenderData>,
     // TODO: Is there another way to store bone information?
     pub prc_capsules: Vec<Capsule>,
     pub prc_ovals: Vec<Oval>,
@@ -208,14 +210,19 @@ impl SwingRenderData {
     }
 }
 
-pub struct PerShapeBindGroup {
+pub struct ShapeRenderData {
+    hash: u64,
     // Store the buffer for updating shapes without allocating new bind groups.
     buffer: wgpu::Buffer,
     bind_group: crate::shader::swing::bind_groups::BindGroup2,
 }
 
-impl PerShapeBindGroup {
-    pub fn new(device: &wgpu::Device, per_shape: crate::shader::swing::PerShape) -> Self {
+impl ShapeRenderData {
+    pub fn new(
+        device: &wgpu::Device,
+        hash: u64,
+        per_shape: crate::shader::swing::PerShape,
+    ) -> Self {
         let buffer = device.create_buffer_from_data(
             "Swing Buffer2",
             &[per_shape],
@@ -229,7 +236,11 @@ impl PerShapeBindGroup {
             },
         );
 
-        Self { buffer, bind_group }
+        Self {
+            hash,
+            buffer,
+            bind_group,
+        }
     }
 
     pub fn update(&self, queue: &wgpu::Queue, per_shape: crate::shader::swing::PerShape) {
@@ -241,12 +252,13 @@ fn spheres(
     device: &wgpu::Device,
     spheres: &[Sphere],
     skel: Option<&SkelData>,
-) -> Vec<PerShapeBindGroup> {
+) -> Vec<ShapeRenderData> {
     spheres
         .iter()
         .map(|s| {
-            PerShapeBindGroup::new(
+            ShapeRenderData::new(
                 device,
+                s.name.0,
                 crate::shader::swing::PerShape {
                     bone_indices: glam::IVec4::new(bone_index(skel, s.bonename), -1, -1, -1),
                     start_transform: (glam::Mat4::from_translation(glam::vec3(s.cx, s.cy, s.cz))
@@ -262,13 +274,14 @@ fn ellipsoids(
     device: &wgpu::Device,
     ellipsoids: &[Ellipsoid],
     skel: Option<&SkelData>,
-) -> Vec<PerShapeBindGroup> {
+) -> Vec<ShapeRenderData> {
     ellipsoids
         .iter()
         .map(|e| {
             // TODO: Is r rotation since it's usually 0?
-            PerShapeBindGroup::new(
+            ShapeRenderData::new(
                 device,
+                e.name.0,
                 crate::shader::swing::PerShape {
                     bone_indices: glam::IVec4::new(bone_index(skel, e.bonename), -1, -1, -1),
                     start_transform: (glam::Mat4::from_translation(glam::vec3(e.cx, e.cy, e.cz))
@@ -285,7 +298,7 @@ fn ovals(
     ovals: &[Oval],
     skel: Option<&SkelData>,
     world_transforms: &[glam::Mat4],
-) -> Vec<(IndexedMeshBuffers, PerShapeBindGroup)> {
+) -> Vec<(IndexedMeshBuffers, ShapeRenderData)> {
     ovals
         .iter()
         .map(|o| {
@@ -308,7 +321,10 @@ fn ovals(
                 capsules_per_shape(skel, &capsule, world_transforms, OVAL_COLOR);
             let mesh_buffers = capsule_mesh_buffers(device, height, o.radius, o.radius);
 
-            (mesh_buffers, PerShapeBindGroup::new(device, per_shape))
+            (
+                mesh_buffers,
+                ShapeRenderData::new(device, o.name.0, per_shape),
+            )
         })
         .collect()
 }
@@ -318,7 +334,7 @@ fn capsules(
     capsules: &[Capsule],
     skel: Option<&SkelData>,
     world_transforms: &[glam::Mat4],
-) -> Vec<(IndexedMeshBuffers, PerShapeBindGroup)> {
+) -> Vec<(IndexedMeshBuffers, ShapeRenderData)> {
     capsules
         .iter()
         .map(|c| {
@@ -326,7 +342,10 @@ fn capsules(
             // TODO: Rework this to get the vertex data to write to an existing buffer.
             let mesh_buffers = capsule_mesh_buffers(device, height, c.start_radius, c.end_radius);
 
-            (mesh_buffers, PerShapeBindGroup::new(device, per_shape))
+            (
+                mesh_buffers,
+                ShapeRenderData::new(device, c.name.0, per_shape),
+            )
         })
         .collect()
 }
@@ -385,15 +404,16 @@ fn planes(
     device: &wgpu::Device,
     planes: &[Plane],
     skel: Option<&SkelData>,
-) -> Vec<PerShapeBindGroup> {
+) -> Vec<ShapeRenderData> {
     planes
         .iter()
         .map(|p| {
             // Assume the plane points in the direction of the positive Z-axis.
             // Rotate the plane to point in the direction (nx, ny, nz).
             // TODO: Does this correctly match the in game behavior?
-            PerShapeBindGroup::new(
+            ShapeRenderData::new(
                 device,
+                p.name.0,
                 crate::shader::swing::PerShape {
                     bone_indices: glam::IVec4::new(bone_index(skel, p.bonename), -1, -1, -1),
                     start_transform: glam::Mat4::from_quat(glam::Quat::from_rotation_arc(
@@ -424,6 +444,7 @@ pub fn draw_swing_collisions<'a>(
     render_data: &'a SwingRenderData,
     pass: &mut wgpu::RenderPass<'a>,
     swing_camera_bind_group: &'a crate::shader::swing::bind_groups::BindGroup0,
+    hidden_collisions: &HashSet<u64>,
 ) {
     pass.set_pipeline(&render_data.pipeline);
 
@@ -437,6 +458,7 @@ pub fn draw_swing_collisions<'a>(
         &render_data.collisions.spheres,
         &render_data.bind_group1,
         swing_camera_bind_group,
+        hidden_collisions,
     );
 
     draw_shapes_with_buffers(
@@ -444,6 +466,7 @@ pub fn draw_swing_collisions<'a>(
         &render_data.collisions.ovals,
         &render_data.bind_group1,
         swing_camera_bind_group,
+        hidden_collisions,
     );
 
     // Ellipsoids use the sphere geometry.
@@ -453,6 +476,7 @@ pub fn draw_swing_collisions<'a>(
         &render_data.collisions.ellipsoids,
         &render_data.bind_group1,
         swing_camera_bind_group,
+        hidden_collisions,
     );
 
     draw_shapes_with_buffers(
@@ -460,6 +484,7 @@ pub fn draw_swing_collisions<'a>(
         &render_data.collisions.capsules,
         &render_data.bind_group1,
         swing_camera_bind_group,
+        hidden_collisions,
     );
 
     draw_shapes(
@@ -468,29 +493,38 @@ pub fn draw_swing_collisions<'a>(
         &render_data.collisions.planes,
         &render_data.bind_group1,
         swing_camera_bind_group,
+        hidden_collisions,
     );
 }
 
 fn draw_shapes<'a>(
     pass: &mut wgpu::RenderPass<'a>,
     buffers: &'a IndexedMeshBuffers,
-    shapes: &'a [PerShapeBindGroup],
+    shapes: &'a [ShapeRenderData],
     bind_group1: &'a crate::shader::swing::bind_groups::BindGroup1,
     swing_camera_bind_group: &'a crate::shader::swing::bind_groups::BindGroup0,
+    hidden_collisions: &HashSet<u64>,
 ) {
     buffers.set(pass);
-    for shape in shapes {
+    for shape in shapes
+        .iter()
+        .filter(|s| !hidden_collisions.contains(&s.hash))
+    {
         draw_shape(pass, swing_camera_bind_group, bind_group1, shape, buffers);
     }
 }
 
 fn draw_shapes_with_buffers<'a>(
     pass: &mut wgpu::RenderPass<'a>,
-    shapes: &'a [(IndexedMeshBuffers, PerShapeBindGroup)],
+    shapes: &'a [(IndexedMeshBuffers, ShapeRenderData)],
     bind_group1: &'a crate::shader::swing::bind_groups::BindGroup1,
     swing_camera_bind_group: &'a crate::shader::swing::bind_groups::BindGroup0,
+    hidden_collisions: &HashSet<u64>,
 ) {
-    for (buffers, shape) in shapes {
+    for (buffers, shape) in shapes
+        .iter()
+        .filter(|s| !hidden_collisions.contains(&s.1.hash))
+    {
         buffers.set(pass);
         draw_shape(pass, swing_camera_bind_group, bind_group1, shape, buffers);
     }
@@ -500,7 +534,7 @@ fn draw_shape<'a>(
     pass: &mut wgpu::RenderPass<'a>,
     swing_camera_bind_group: &'a crate::shader::swing::bind_groups::BindGroup0,
     bind_group1: &'a crate::shader::swing::bind_groups::BindGroup1,
-    shape: &'a PerShapeBindGroup,
+    shape: &'a ShapeRenderData,
     buffers: &IndexedMeshBuffers,
 ) {
     crate::shader::swing::bind_groups::set_bind_groups(
