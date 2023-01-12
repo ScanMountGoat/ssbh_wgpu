@@ -74,8 +74,9 @@ pub fn pipeline(
     pipeline_data: &PipelineData,
     pipeline_key: &PipelineKey,
 ) -> wgpu::RenderPipeline {
-    // TODO: Some of these values should come from wgsl_to_wgpu
-    // TODO: Get entry points from wgsl shader.
+    // Each model pipeline uses the same WGSL code.
+    // Use the shader from the pipeline_data to ensure it's only compiled once.
+    // This greatly speeds up pipeline creation.
     device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
         label: Some("Render Pipeline"),
         layout: Some(&pipeline_data.layout),

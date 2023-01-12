@@ -225,9 +225,8 @@ impl<'a> RenderMeshSharedData<'a> {
         );
 
         // Mesh objects control the depth state of the pipeline.
-        // In practice, each (shader,mesh) pair may need a unique pipeline.
+        // Each (shader, mesh) pair may need a unique pipeline.
         // Cache materials separately since materials may share a pipeline.
-        // TODO: How to test these optimizations?
         let mut pipelines = HashMap::new();
 
         let meshes = self
