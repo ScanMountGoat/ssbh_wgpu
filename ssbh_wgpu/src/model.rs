@@ -436,6 +436,7 @@ impl RenderModel {
     pub fn draw_swing<'a>(
         &'a self,
         render_pass: &mut wgpu::RenderPass<'a>,
+        swing_pipeline: &'a wgpu::RenderPipeline,
         swing_camera_bind_group: &'a crate::shader::swing::bind_groups::BindGroup0,
         hidden_collisions: &HashSet<u64>,
     ) {
@@ -443,6 +444,7 @@ impl RenderModel {
         draw_swing_collisions(
             &self.swing_render_data,
             render_pass,
+            swing_pipeline,
             swing_camera_bind_group,
             hidden_collisions,
         );

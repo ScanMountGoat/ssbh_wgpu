@@ -19,10 +19,8 @@ const ELLIPSOID_COLOR: glam::Vec4 = glam::vec4(0.0, 1.0, 1.0, 1.0);
 const CAPSULE_COLOR: glam::Vec4 = glam::vec4(1.0, 0.0, 0.0, 1.0);
 const PLANE_COLOR: glam::Vec4 = glam::vec4(1.0, 1.0, 0.0, 1.0);
 
-// TODO: Move the pipeline to the Renderer.
 pub struct SwingRenderData {
-    pub pipeline: wgpu::RenderPipeline,
-    // TODO: There may need to be new buffers for each shape?
+    // Spheres and planes all share the same vertex data.
     pub sphere_buffers: IndexedMeshBuffers,
     pub plane_buffers: IndexedMeshBuffers,
     pub bind_group1: crate::shader::swing::bind_groups::BindGroup1,
@@ -76,49 +74,6 @@ impl CollisionData {
 // TODO: Figure out which objects don't need to be recreated every frame.
 impl SwingRenderData {
     pub fn new(device: &wgpu::Device, bone_world_transforms_buffer: &wgpu::Buffer) -> Self {
-        let shader = crate::shader::swing::create_shader_module(device);
-        let layout = crate::shader::swing::create_pipeline_layout(device);
-
-        // TODO: Get the stride using encase.
-        let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: None,
-            layout: Some(&layout),
-            vertex: wgpu::VertexState {
-                module: &shader,
-                entry_point: "vs_main",
-                buffers: &[crate::shader::swing::VertexInput::vertex_buffer_layout(
-                    wgpu::VertexStepMode::Vertex,
-                )],
-            },
-            fragment: Some(wgpu::FragmentState {
-                module: &shader,
-                entry_point: "fs_main",
-                targets: &[Some(wgpu::ColorTargetState {
-                    format: crate::RGBA_COLOR_FORMAT,
-                    blend: Some(wgpu::BlendState {
-                        color: wgpu::BlendComponent {
-                            src_factor: wgpu::BlendFactor::One,
-                            dst_factor: wgpu::BlendFactor::OneMinusSrcAlpha,
-                            operation: wgpu::BlendOperation::Add,
-                        },
-                        alpha: wgpu::BlendComponent {
-                            src_factor: wgpu::BlendFactor::One,
-                            dst_factor: wgpu::BlendFactor::One,
-                            operation: wgpu::BlendOperation::Add,
-                        },
-                    }),
-                    write_mask: wgpu::ColorWrites::ALL,
-                })],
-            }),
-            primitive: wgpu::PrimitiveState {
-                cull_mode: Some(wgpu::Face::Back),
-                ..Default::default()
-            },
-            depth_stencil: None,
-            multisample: wgpu::MultisampleState::default(),
-            multiview: None,
-        });
-
         let sphere_buffers = sphere_mesh_buffers(device);
         let plane_buffers = plane_mesh_buffers(device);
 
@@ -130,7 +85,6 @@ impl SwingRenderData {
         );
 
         Self {
-            pipeline,
             sphere_buffers,
             plane_buffers,
             bind_group1,
@@ -443,10 +397,11 @@ fn bone_index(skel: Option<&SkelData>, name: Hash40) -> i32 {
 pub fn draw_swing_collisions<'a>(
     render_data: &'a SwingRenderData,
     pass: &mut wgpu::RenderPass<'a>,
+    swing_pipeline: &'a wgpu::RenderPipeline,
     swing_camera_bind_group: &'a crate::shader::swing::bind_groups::BindGroup0,
     hidden_collisions: &HashSet<u64>,
 ) {
-    pass.set_pipeline(&render_data.pipeline);
+    pass.set_pipeline(swing_pipeline);
 
     // Just draw most shapes as spheres for now.
     // TODO: Create vertex and index buffers for each shape.
@@ -546,4 +501,49 @@ fn draw_shape<'a>(
         },
     );
     pass.draw_indexed(0..buffers.index_count, 0, 0..1);
+}
+
+pub fn swing_pipeline(device: &wgpu::Device) -> wgpu::RenderPipeline {
+    let shader = crate::shader::swing::create_shader_module(device);
+    let layout = crate::shader::swing::create_pipeline_layout(device);
+
+    // TODO: Get the stride using encase.
+    device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+        label: None,
+        layout: Some(&layout),
+        vertex: wgpu::VertexState {
+            module: &shader,
+            entry_point: "vs_main",
+            buffers: &[crate::shader::swing::VertexInput::vertex_buffer_layout(
+                wgpu::VertexStepMode::Vertex,
+            )],
+        },
+        fragment: Some(wgpu::FragmentState {
+            module: &shader,
+            entry_point: "fs_main",
+            targets: &[Some(wgpu::ColorTargetState {
+                format: crate::RGBA_COLOR_FORMAT,
+                blend: Some(wgpu::BlendState {
+                    color: wgpu::BlendComponent {
+                        src_factor: wgpu::BlendFactor::One,
+                        dst_factor: wgpu::BlendFactor::OneMinusSrcAlpha,
+                        operation: wgpu::BlendOperation::Add,
+                    },
+                    alpha: wgpu::BlendComponent {
+                        src_factor: wgpu::BlendFactor::One,
+                        dst_factor: wgpu::BlendFactor::One,
+                        operation: wgpu::BlendOperation::Add,
+                    },
+                }),
+                write_mask: wgpu::ColorWrites::ALL,
+            })],
+        }),
+        primitive: wgpu::PrimitiveState {
+            cull_mode: Some(wgpu::Face::Back),
+            ..Default::default()
+        },
+        depth_stencil: None,
+        multisample: wgpu::MultisampleState::default(),
+        multiview: None,
+    })
 }

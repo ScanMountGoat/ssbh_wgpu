@@ -6,6 +6,7 @@ use crate::{
     lighting::{anim_to_lights, calculate_light_transform},
     model::pipeline::*,
     render_settings::*,
+    swing_rendering::swing_pipeline,
     texture::{load_default_lut, uv_pattern, TextureSamplerView},
     CameraTransforms, DeviceBufferExt, QueueExt, RenderModel, ShaderDatabase,
 };
@@ -115,6 +116,7 @@ pub struct SsbhRenderer {
     selected_material_pipeline: wgpu::RenderPipeline,
 
     swing_camera_bind_group: crate::shader::swing::bind_groups::BindGroup0,
+    swing_pipeline: wgpu::RenderPipeline,
 
     bone_pipelines: BonePipelines,
     bone_buffers: BoneBuffers,
@@ -380,6 +382,8 @@ impl SsbhRenderer {
 
         let floor_grid = FloorGridRenderData::new(device, &camera_buffer);
 
+        let swing_pipeline = swing_pipeline(device);
+
         Self {
             bloom_threshold_pipeline,
             bloom_blur_pipeline,
@@ -419,6 +423,7 @@ impl SsbhRenderer {
             skinning_settings_buffer,
             skinning_settings_bind_group,
             swing_camera_bind_group,
+            swing_pipeline,
             floor_grid,
         }
     }
@@ -741,6 +746,7 @@ impl SsbhRenderer {
     ) {
         render_model.draw_swing(
             render_pass,
+            &self.swing_pipeline,
             &self.swing_camera_bind_group,
             hidden_collisions,
         );
