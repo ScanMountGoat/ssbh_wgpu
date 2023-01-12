@@ -1,6 +1,7 @@
 use strum::{Display, EnumString, EnumVariantNames};
 
 // TODO: Separate modes for selecting parameters by index (ex: Booleans[3])?
+/// Model rendering modes supported by [SsbhRenderer](crate::SsbhRenderer).
 #[derive(PartialEq, Eq, Copy, Clone, Display, EnumVariantNames, EnumString)]
 pub enum DebugMode {
     /// The default shaded mode supporting lighting and post processing.
@@ -60,13 +61,13 @@ pub enum DebugMode {
 /// The secondary material for material transitions when using [DebugMode::Shaded].
 #[derive(PartialEq, Eq, Copy, Clone, Display, EnumVariantNames, EnumString)]
 pub enum TransitionMaterial {
-    /// The colored material of Inkling's ink.
+    /// The colored material applied by Inkling's ink.
     Ink,
-    /// The metallic material of the metal box item.
+    /// The metallic material applied by the metal box item.
     MetalBox,
-    /// The gold material of the Xerneas Pokemon summon.
+    /// The gold material applied by the Xerneas Pokemon summon.
     Gold,
-    /// The purple material of the Ditto Pokemon summon.
+    /// The purple material applied by the Ditto Pokemon summon.
     Ditto,
 }
 

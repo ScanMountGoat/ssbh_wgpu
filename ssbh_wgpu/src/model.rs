@@ -25,14 +25,17 @@ use wgpu_text::{
 mod mesh_creation;
 pub mod pipeline;
 
-// Group resources shared between mesh objects.
-// Shared resources can be updated once per model instead of per mesh.
-// Keep most fields private since the buffer layout is an implementation detail.
-// Assume render data is only shared within a folder.
+/// A renderable version of a [ModelFolder].
+///
+/// This encapsulates data shared between [RenderMesh] like materials, bones, and textures.
+/// Grouping shared state reduces redundant state changes for faster creation and updating.
+/// Most methods affecting a mesh are only available from the parent [RenderModel] for this reason.
 // TODO: Is it worth allowing models to reference textures from other folders?
 pub struct RenderModel {
     pub meshes: Vec<RenderMesh>,
+    /// Render the visible meshes in this model when `true`.
     pub is_visible: bool,
+    /// Outline all the meshes in this model when `true` regardless of which meshes are selected.
     pub is_selected: bool,
     mesh_buffers: MeshBuffers,
     material_data_by_label: HashMap<String, MaterialData>,
@@ -51,14 +54,19 @@ pub struct RenderModel {
     animation_transforms: Box<AnimationTransforms>,
 }
 
-// A RenderMesh is view over a portion of the RenderModel data.
+/// A view over the data for a single mesh object in the parent [RenderModel].
+///
+/// Each RenderMesh corresponds to the data for a single draw call.
 // TODO: All the render data should be owned by the RenderModel.
-// Each RenderMesh corresponds to the data for a single draw call.
 pub struct RenderMesh {
+    /// The name of the mesh object.
     pub name: String,
-    pub is_visible: bool,
-    pub is_selected: bool,
+    /// The subindex of the mesh object if names are repeated.
     pub subindex: u64,
+    /// Render this mesh when `true`.
+    pub is_visible: bool,
+    /// Outline this mesh when `true`.
+    pub is_selected: bool,
     meshex_flags: EntryFlags, // TODO: How to update these?
     material_label: String,
     shader_label: String,
