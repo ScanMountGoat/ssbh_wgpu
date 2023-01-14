@@ -309,7 +309,11 @@ pub fn model_pipeline_from_entry(
             entry_point,
             targets: &[Some(surface_format.into())],
         }),
-        primitive: wgpu::PrimitiveState::default(),
+        primitive: wgpu::PrimitiveState {
+            // Force culling to prevent z-fighting on some double sided mehes.
+            cull_mode: Some(wgpu::Face::Back),
+            ..Default::default()
+        },
         depth_stencil: Some(depth_stencil_state(true, true)),
         multisample: wgpu::MultisampleState::default(),
         multiview: None,
