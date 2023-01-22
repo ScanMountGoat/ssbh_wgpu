@@ -252,9 +252,10 @@ pub fn mesh_object_buffers(
 
     // This buffer will be filled by the compute shader later.
     // The buffer is transformed in a compute shader later, so it must support STORAGE.
+    // Assume buffer0 is already padded/aligned to the requirements of a storage buffer.
     let vertex_buffer0 = device.create_buffer(&wgpu::BufferDescriptor {
         label: Some("Vertex Storage Buffer 0"),
-        size: (buffer0.len() * std::mem::size_of::<VertexInput0>()) as u64,
+        size: buffer0.len() as u64,
         usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::STORAGE,
         mapped_at_creation: false,
     });
