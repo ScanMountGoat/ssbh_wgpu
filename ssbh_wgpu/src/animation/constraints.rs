@@ -139,7 +139,7 @@ mod tests {
 
     use crate::{
         animation::{animate_skel_inner, AnimTransform, AnimatedBone, AnimationTransforms},
-        assert_vector_relative_eq,
+        assert_quat_relative_eq, assert_vector_relative_eq,
     };
     use ssbh_data::{
         anim_data::TransformFlags,
@@ -294,7 +294,7 @@ mod tests {
             }),
         );
 
-        assert_vector_relative_eq!(
+        assert_quat_relative_eq!(
             relative_rotation(&result, &skel_bones, 0).to_array(),
             relative_rotation(&result, &skel_bones, 1).to_array()
         );
@@ -352,7 +352,7 @@ mod tests {
             }),
         );
 
-        assert_vector_relative_eq!(
+        assert_quat_relative_eq!(
             glam::Quat::from_euler(glam::EulerRot::ZYX, 0.15, 0.1, 0.05).to_array(),
             relative_rotation(&result, &skel_bones, 1).to_array()
         );
@@ -427,7 +427,7 @@ mod tests {
             }),
         );
 
-        assert_vector_relative_eq!(
+        assert_quat_relative_eq!(
             relative_rotation(&result, &skel_bones, 1).to_array(),
             relative_rotation(&result, &skel_bones, 2).to_array()
         );
@@ -547,29 +547,27 @@ mod tests {
             }),
         );
 
-        // TODO: Create a proper quaternion comparison.
-        // This will avoid issues with SIMD vs scalar results.
-        assert_vector_relative_eq!(
+        assert_quat_relative_eq!(
             [0.0, 0.0, 0.7071, 0.7071],
             relative_rotation(&result, &skel_bones, 0).to_array()
         );
-        assert_vector_relative_eq!(
+        assert_quat_relative_eq!(
             [0.0, 0.0, 0.7071, -0.7071],
             relative_rotation(&result, &skel_bones, 1).to_array()
         );
-        assert_vector_relative_eq!(
+        assert_quat_relative_eq!(
             [0.0, 0.0, 0.0, 1.0],
             relative_rotation(&result, &skel_bones, 2).to_array()
         );
-        assert_vector_relative_eq!(
+        assert_quat_relative_eq!(
             [0.0, 0.0, 0.7071, -0.7071],
             relative_rotation(&result, &skel_bones, 3).to_array()
         );
-        assert_vector_relative_eq!(
+        assert_quat_relative_eq!(
             [0.0, 0.0, 0.7071, 0.7071],
             relative_rotation(&result, &skel_bones, 4).to_array()
         );
-        assert_vector_relative_eq!(
+        assert_quat_relative_eq!(
             [0.0, 0.0, 0.0, 1.0],
             relative_rotation(&result, &skel_bones, 5).to_array()
         );
@@ -662,7 +660,7 @@ mod tests {
             [0.0, 0.0, 0.0],
             relative_translation(&result, &skel_bones, 0).to_array()
         );
-        assert_vector_relative_eq!(
+        assert_quat_relative_eq!(
             glam::Quat::from_rotation_y(-45.0f32.to_radians()).to_array(),
             relative_rotation(&result, &skel_bones, 0).to_array()
         );
@@ -672,7 +670,7 @@ mod tests {
             [1.0, 0.0, 1.0],
             relative_translation(&result, &skel_bones, 1).to_array()
         );
-        assert_vector_relative_eq!(
+        assert_quat_relative_eq!(
             [0.0, 0.0, 0.0, 1.0],
             relative_rotation(&result, &skel_bones, 1).to_array()
         );

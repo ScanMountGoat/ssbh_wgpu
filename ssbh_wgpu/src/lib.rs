@@ -341,6 +341,24 @@ macro_rules! assert_vector_relative_eq {
 }
 
 #[cfg(test)]
+macro_rules! assert_quat_relative_eq {
+    ($a:expr, $b:expr) => {
+        // Negating the axis and angle gives the same quaternion.
+        // Always choose the angle to be positive for comparisons.
+        // This helps avoid differences with SIMD vs scalar results.
+        assert!(
+            $a.iter()
+                .map(|v| v * f32::signum($a[3]))
+                .zip($b.iter().map(|v| v * f32::signum($b[3])))
+                .all(|(a, b)| approx::relative_eq!(a, b, epsilon = 0.0001f32)),
+            "Quaternions not equal to within 0.0001.\nleft = {:?}\nright = {:?}",
+            $a,
+            $b
+        )
+    };
+}
+
+#[cfg(test)]
 macro_rules! assert_matrix_relative_eq {
     ($a:expr, $b:expr) => {
         assert!(
@@ -360,6 +378,9 @@ pub(crate) use assert_matrix_relative_eq;
 
 #[cfg(test)]
 pub(crate) use assert_vector_relative_eq;
+
+#[cfg(test)]
+pub(crate) use assert_quat_relative_eq;
 
 trait DeviceBufferExt {
     fn create_buffer_from_data<T: ShaderType + WriteInto + ShaderSize>(
