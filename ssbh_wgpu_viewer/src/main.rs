@@ -1,4 +1,6 @@
+use pico_args::Arguments;
 use ssbh_data::prelude::*;
+use ssbh_wgpu::animation::camera::animate_camera;
 use ssbh_wgpu::next_frame;
 use ssbh_wgpu::swing::SwingPrc;
 use ssbh_wgpu::viewport::screen_to_world;
@@ -13,7 +15,6 @@ use ssbh_wgpu::TransitionMaterial;
 use ssbh_wgpu::REQUIRED_FEATURES;
 use ssbh_wgpu::{load_model_folders, load_render_models, SsbhRenderer};
 use std::collections::HashSet;
-use std::path::Path;
 use std::path::PathBuf;
 use winit::{
     dpi::PhysicalPosition,
@@ -67,6 +68,7 @@ struct State {
 
     // Animations
     animation: Option<AnimData>,
+    camera_animation: Option<AnimData>,
 
     // TODO: How to handle overflow if left running too long?
     current_frame: f32,
@@ -81,7 +83,13 @@ struct State {
 }
 
 impl State {
-    async fn new(window: &Window, folder: &Path, anim: Option<&Path>, prc: Option<&Path>) -> Self {
+    async fn new(
+        window: &Window,
+        folder: PathBuf,
+        anim: Option<PathBuf>,
+        prc: Option<PathBuf>,
+        camera_anim: Option<PathBuf>,
+    ) -> Self {
         // TODO: How to try Vulkan and then DX12?
         // TODO: Some Windows systems don't work on vulkan for some reason.
         let instance = wgpu::Instance::new(wgpu::Backends::all());
@@ -120,6 +128,8 @@ impl State {
         // TODO: Frame bounding spheres?
         let animation = anim.map(|anim_path| AnimData::from_file(anim_path).unwrap());
         let swing_prc = prc.and_then(|prc_path| SwingPrc::from_file(prc_path));
+        let camera_animation =
+            camera_anim.map(|camera_anim_path| AnimData::from_file(camera_anim_path).unwrap());
 
         let shared_data = SharedRenderData::new(&device, &queue, surface_format);
 
@@ -159,6 +169,7 @@ impl State {
             translation_xyz: glam::vec3(0.0, -8.0, -60.0),
             rotation_xyz: glam::vec3(0.0, 0.0, 0.0),
             animation,
+            camera_animation,
             current_frame: 0.0,
             previous_frame_start: std::time::Instant::now(),
             shared_data,
@@ -370,7 +381,7 @@ impl State {
             .update_render_settings(&self.queue, &self.render);
     }
 
-    fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
+    fn render(&mut self, scale_factor: f64) -> Result<(), wgpu::SurfaceError> {
         let current_frame_start = std::time::Instant::now();
         if self.is_playing {
             self.current_frame = next_frame(
@@ -379,7 +390,13 @@ impl State {
                 self.animation
                     .as_ref()
                     .map(|a| a.final_frame_index)
-                    .unwrap_or_default(),
+                    .unwrap_or_default()
+                    .max(
+                        self.camera_animation
+                            .as_ref()
+                            .map(|a| a.final_frame_index)
+                            .unwrap_or_default(),
+                    ),
                 1.0,
                 true,
             );
@@ -413,6 +430,22 @@ impl State {
                     &self.shared_data,
                     self.current_frame,
                 );
+            }
+
+            if let Some(anim) = &self.camera_animation {
+                let aspect = self.size.width as f32 / self.size.height as f32;
+                let screen_dimensions = glam::vec4(
+                    self.size.width as f32,
+                    self.size.height as f32,
+                    scale_factor as f32,
+                    0.0,
+                );
+
+                if let Some(transforms) =
+                    animate_camera(anim, self.current_frame, aspect, screen_dimensions)
+                {
+                    self.renderer.update_camera(&self.queue, transforms);
+                }
             }
         }
 
@@ -473,12 +506,12 @@ fn main() {
         .init()
         .unwrap();
 
-    let args: Vec<_> = std::env::args().collect();
-    let folder = Path::new(&args[1]);
-    // TODO: Check the extension to support different argument orders.
-    let anim_path = args.get(2).map(Path::new);
-
-    let prc_path = args.get(3).map(Path::new);
+    let mut args = Arguments::from_env();
+    // TODO: Support loading multiple folders.
+    let folder: PathBuf = args.free_from_str().unwrap();
+    let anim_path: Option<PathBuf> = args.opt_value_from_str("--anim").unwrap();
+    let prc_path: Option<PathBuf> = args.opt_value_from_str("--swing").unwrap();
+    let camera_anim_path: Option<PathBuf> = args.opt_value_from_str("--camera-anim").unwrap();
 
     let event_loop = EventLoop::new();
     let window = WindowBuilder::new()
@@ -486,7 +519,13 @@ fn main() {
         .build(&event_loop)
         .unwrap();
 
-    let mut state = futures::executor::block_on(State::new(&window, folder, anim_path, prc_path));
+    let mut state = futures::executor::block_on(State::new(
+        &window,
+        folder,
+        anim_path,
+        prc_path,
+        camera_anim_path,
+    ));
 
     // Initialize the camera buffer.
     state.update_camera(window.scale_factor());
@@ -528,7 +567,7 @@ fn main() {
                 }
             }
             Event::RedrawRequested(_) => {
-                match state.render() {
+                match state.render(window.scale_factor()) {
                     Ok(_) => {}
                     // Recreate the swap_chain if lost
                     Err(wgpu::SurfaceError::Lost) => {

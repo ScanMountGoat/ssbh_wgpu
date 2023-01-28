@@ -673,6 +673,7 @@ impl SsbhRenderer {
         // Use the inverted stencil mask to just leave the outline.
         // TODO: Will this be faster as a compute shader?
         // TODO: Benchmark this on integrated graphics.
+        // TODO: Only run this pass if needed.
         self.outline_pass(
             encoder,
             rendered_silhouette,
