@@ -23,6 +23,10 @@ use winit::{
     window::{Window, WindowBuilder},
 };
 
+const DEFAULT_FOV: f32 = 0.5;
+const DEFAULT_NEAR_CLIP: f32 = 1.0;
+const DEFAULT_FAR_CLIP: f32 = 400000.0;
+
 fn calculate_camera_pos_mvp(
     size: winit::dpi::PhysicalSize<u32>,
     translation: glam::Vec3,
@@ -33,7 +37,8 @@ fn calculate_camera_pos_mvp(
         * glam::Mat4::from_rotation_x(rotation.x)
         * glam::Mat4::from_rotation_y(rotation.y);
     // Use a large far clip distance to include stage skyboxes.
-    let perspective_matrix = glam::Mat4::perspective_rh(0.5, aspect, 1.0, 400000.0);
+    let perspective_matrix =
+        glam::Mat4::perspective_rh(DEFAULT_FOV, aspect, DEFAULT_NEAR_CLIP, DEFAULT_FAR_CLIP);
 
     let camera_pos = model_view_matrix.inverse().col(3);
 
@@ -441,9 +446,15 @@ impl State {
                     0.0,
                 );
 
-                if let Some(transforms) =
-                    animate_camera(anim, self.current_frame, aspect, screen_dimensions)
-                {
+                if let Some(transforms) = animate_camera(
+                    anim,
+                    self.current_frame,
+                    aspect,
+                    screen_dimensions,
+                    DEFAULT_FOV,
+                    DEFAULT_NEAR_CLIP,
+                    DEFAULT_FAR_CLIP,
+                ) {
                     self.renderer.update_camera(&self.queue, transforms);
                 }
             }
@@ -562,7 +573,9 @@ fn main() {
                 }
 
                 if state.handle_input(event) {
+                    // TODO: Avoid overriding the camera values when pausing?
                     state.update_camera(window.scale_factor());
+
                     state.update_render_settings();
                 }
             }

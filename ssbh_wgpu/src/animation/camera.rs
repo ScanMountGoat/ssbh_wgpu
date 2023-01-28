@@ -8,18 +8,21 @@ pub fn animate_camera(
     frame: f32,
     aspect_ratio: f32,
     screen_dimensions: glam::Vec4,
+    default_fov: f32,
+    default_near_clip: f32,
+    default_far_clip: f32,
 ) -> Option<CameraTransforms> {
     // TODO: Do all camera animations have this structure?
     // TODO: Are all these values required?
-    let transform_track = anim
+    let transform_node = anim
         .groups
         .iter()
         .find(|g| g.group_type == GroupType::Transform)?
         .nodes
         .iter()
-        .find(|n| n.name == "gya_camera")?
-        .tracks
-        .first()?;
+        .find(|n| n.name == "gya_camera" || n.name == "camera_stage")?;
+
+    let transform_track = transform_node.tracks.first()?;
 
     let transform = match &transform_track.values {
         TrackValues::Transform(values) => {
@@ -29,43 +32,50 @@ pub fn animate_camera(
         _ => None,
     }?;
 
+    // TODO: What happens with animations that don't include this node?
     let camera_node = anim
         .groups
         .iter()
-        .find(|g| g.group_type == GroupType::Camera)?
-        .nodes
-        .iter()
-        .find(|n| n.name == "gya_cameraShape")?;
+        .find(|g| g.group_type == GroupType::Camera)
+        .and_then(|group| {
+            group
+                .nodes
+                .iter()
+                .find(|n| n.name == "gya_cameraShape" || n.name == "camera_stageShape")
+        });
 
-    let near_clip_track = camera_node.tracks.iter().find(|t| t.name == "NearClip")?;
-    let near_clip = match &near_clip_track.values {
-        TrackValues::Float(values) => {
-            let (current, next, factor) = frame_values(frame, values);
-            Some(interpolate_f32(*current, *next, factor))
-        }
-        _ => None,
-    }?;
+    let near_clip = camera_node
+        .and_then(|node| node.tracks.iter().find(|t| t.name == "NearClip"))
+        .and_then(|track| match &track.values {
+            TrackValues::Float(values) => {
+                let (current, next, factor) = frame_values(frame, values);
+                Some(interpolate_f32(*current, *next, factor))
+            }
+            _ => None,
+        })
+        .unwrap_or(default_near_clip);
 
-    let far_clip_track = camera_node.tracks.iter().find(|t| t.name == "FarClip")?;
-    let far_clip = match &far_clip_track.values {
-        TrackValues::Float(values) => {
-            let (current, next, factor) = frame_values(frame, values);
-            Some(interpolate_f32(*current, *next, factor))
-        }
-        _ => None,
-    }?;
+    let far_clip = camera_node
+        .and_then(|node| node.tracks.iter().find(|t| t.name == "FarClip"))
+        .and_then(|track| match &track.values {
+            TrackValues::Float(values) => {
+                let (current, next, factor) = frame_values(frame, values);
+                Some(interpolate_f32(*current, *next, factor))
+            }
+            _ => None,
+        })
+        .unwrap_or(default_far_clip);
 
-    let fov_track = camera_node
-        .tracks
-        .iter()
-        .find(|t| t.name == "FieldOfView")?;
-    let fov = match &fov_track.values {
-        TrackValues::Float(values) => {
-            let (current, next, factor) = frame_values(frame, values);
-            Some(interpolate_f32(*current, *next, factor))
-        }
-        _ => None,
-    }?;
+    let fov = camera_node
+        .and_then(|node| node.tracks.iter().find(|t| t.name == "FieldOfView"))
+        .and_then(|track| match &track.values {
+            TrackValues::Float(values) => {
+                let (current, next, factor) = frame_values(frame, values);
+                Some(interpolate_f32(*current, *next, factor))
+            }
+            _ => None,
+        })
+        .unwrap_or(default_fov);
 
     // TODO: Why do we negate the translation?
     let translation = glam::Mat4::from_translation(-transform.translation);
@@ -105,6 +115,7 @@ mod tests {
 
     // TODO: Test missing how missing data and capitalization is handled in game.
     // TODO: Test if transform scale has any impact in game.
+    // TODO: Test handling of stage and camera folder structures and missing nodes.
 
     #[test]
     fn test() {
@@ -160,7 +171,8 @@ mod tests {
         };
 
         let screen_dimensions = glam::vec4(1920.0, 1080.0, 1.0, 0.0);
-        let transform = animate_camera(&anim, 0.0, 1.0, screen_dimensions).unwrap();
+        let transform =
+            animate_camera(&anim, 0.0, 1.0, screen_dimensions, 0.5, 0.1, 1000.0).unwrap();
 
         // The matrix output after comparing the viewport with in game screenshots.
         // TODO: Investigate why this works differently than skel transforms.
