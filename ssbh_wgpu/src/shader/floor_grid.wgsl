@@ -82,6 +82,9 @@ fn fs_main(in: VertexOutput) -> FragmentOutput {
         let alpha = max(1.0 - grid_line, 0.0) * depth_fade * 0.5;
         var color = vec3(1.0);
 
+        // Remove a bright line at the horizon when t approaches 1.0.
+        let alpha = alpha * (1.0 - abs(t));
+
         // x-axis
         if (position.z > -scale * minz && position.z < scale * minz) {
             color = vec3(1.0, 0.0, 0.0);
