@@ -1,12 +1,13 @@
 use std::str::FromStr;
 
 use crate::{
+    model::SamplerCache,
     shader::model::PerMaterial,
     split_param,
     texture::{create_sampler, load_default, load_texture, LoadTextureError},
     DeviceBufferExt, ShaderDatabase,
 };
-use log::{info, warn};
+use log::warn;
 use ssbh_data::matl_data::*;
 use wgpu::SamplerDescriptor;
 
@@ -17,6 +18,7 @@ pub fn material_uniforms_bind_group(
     textures: &[(String, wgpu::Texture, wgpu::TextureViewDimension)],
     default_textures: &[(String, wgpu::Texture, wgpu::TextureViewDimension)],
     uniforms_buffer: &wgpu::Buffer, // TODO: Just return this?
+    sampler_by_data: &mut SamplerCache,
 ) -> crate::shader::model::bind_groups::BindGroup1 {
     // TODO: Do all 2D textures default to white if the path isn't correct?
     let default_white = &default_textures
@@ -55,13 +57,7 @@ pub fn material_uniforms_bind_group(
             }).unwrap_or_else(|| load_default(texture_id, default_cube, default_white))
     };
 
-    // Some devices only support up to 4000 sampler allocations.
-    // Avoid creating duplicate samplers with the same settings.
-    // Samplers are immutable and can be safely cached.
-    // TODO: This should be shared over all materials in the matl.
-    let mut sampler_by_data = Vec::new();
-    update_sampler_cache(device, material, &mut sampler_by_data);
-    info!("Created {} samplers", sampler_by_data.len());
+    update_sampler_cache(device, material, sampler_by_data);
 
     // TODO: This could be combined with above if we only cache for each material?
     let default_sampler = device.create_sampler(&SamplerDescriptor::default());
@@ -181,7 +177,7 @@ pub fn default_material_uniforms_bind_group(
 fn update_sampler_cache(
     device: &wgpu::Device,
     material: &MatlEntryData,
-    sampler_by_data: &mut Vec<(SamplerData, wgpu::Sampler)>,
+    sampler_by_data: &mut SamplerCache,
 ) {
     for param in &material.samplers {
         if !sampler_by_data.iter().any(|(d, _)| d == &param.data) {

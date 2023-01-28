@@ -9,12 +9,16 @@ use crate::{
     ModelFolder, QueueExt, ShaderDatabase, SharedRenderData,
 };
 use glam::Vec4Swizzles;
-use log::debug;
+use log::{debug, info};
 use mesh_creation::{
     material_data, MaterialData, MeshBufferAccess, MeshBuffers, RenderMeshSharedData,
 };
 use pipeline::{pipeline, PipelineKey};
-use ssbh_data::{matl_data::MatlEntryData, meshex_data::EntryFlags, prelude::*};
+use ssbh_data::{
+    matl_data::{MatlEntryData, SamplerData},
+    meshex_data::EntryFlags,
+    prelude::*,
+};
 use std::collections::{HashMap, HashSet};
 use wgpu_text::{
     font::FontRef,
@@ -24,6 +28,8 @@ use wgpu_text::{
 
 mod mesh_creation;
 pub mod pipeline;
+
+pub type SamplerCache = Vec<(SamplerData, wgpu::Sampler)>;
 
 /// A renderable version of a [ModelFolder].
 ///
@@ -91,12 +97,6 @@ struct BoneRenderData {
     bone_bind_groups: Vec<crate::shader::skeleton::bind_groups::BindGroup2>,
 }
 
-impl RenderMesh {
-    pub fn render_order(&self) -> isize {
-        render_pass_index(self.shader_label.get(25..).unwrap_or("")) + self.sort_bias as isize
-    }
-}
-
 impl RenderModel {
     pub fn from_folder(
         device: &wgpu::Device,
@@ -104,6 +104,7 @@ impl RenderModel {
         model: &ModelFolder,
         shared_data: &SharedRenderData,
     ) -> Self {
+        info!("Creating render model.");
         // TODO: Should this use the file names in the modl itself?
         // TODO: Avoid creating the render model if there is no mesh?
         let shared_data = RenderMeshSharedData {
@@ -173,6 +174,7 @@ impl RenderModel {
         device: &wgpu::Device,
         materials: &[MatlEntryData],
         shared_data: &SharedRenderData,
+        sampler_by_data: &mut SamplerCache,
     ) {
         self.material_data_by_label = materials
             .iter()
@@ -194,7 +196,13 @@ impl RenderModel {
                     mesh.pipeline_key = pipeline_key;
                 }
 
-                let data = material_data(device, material, &self.textures, shared_data);
+                let data = material_data(
+                    device,
+                    material,
+                    &self.textures,
+                    shared_data,
+                    sampler_by_data,
+                );
                 (material.material_label.clone(), data)
             })
             .collect();
@@ -302,7 +310,7 @@ impl RenderModel {
         }
     }
 
-    pub fn draw_skeleton<'a>(
+    pub(crate) fn draw_skeleton<'a>(
         &'a self,
         bone_buffers: &'a BoneBuffers,
         render_pass: &mut wgpu::RenderPass<'a>,
@@ -335,7 +343,7 @@ impl RenderModel {
         }
     }
 
-    pub fn draw_skeleton_silhouette<'a>(
+    pub(crate) fn draw_skeleton_silhouette<'a>(
         &'a self,
         bone_buffers: &'a BoneBuffers,
         render_pass: &mut wgpu::RenderPass<'a>,
@@ -432,7 +440,7 @@ impl RenderModel {
         }
     }
 
-    pub fn draw_swing<'a>(
+    pub(crate) fn draw_swing<'a>(
         &'a self,
         render_pass: &mut wgpu::RenderPass<'a>,
         swing_pipeline: &'a wgpu::RenderPipeline,
@@ -472,7 +480,7 @@ impl RenderModel {
         }
     }
 
-    pub fn draw_meshes<'a>(
+    pub(crate) fn draw_meshes<'a>(
         &'a self,
         render_pass: &mut wgpu::RenderPass<'a>,
         per_frame_bind_group: &'a crate::shader::model::bind_groups::BindGroup0,
@@ -518,7 +526,7 @@ impl RenderModel {
         }
     }
 
-    pub fn draw_meshes_material_mask<'a>(
+    pub(crate) fn draw_meshes_material_mask<'a>(
         &'a self,
         render_pass: &mut wgpu::RenderPass<'a>,
         per_frame_bind_group: &'a crate::shader::model::bind_groups::BindGroup0,
@@ -541,7 +549,7 @@ impl RenderModel {
         }
     }
 
-    pub fn draw_meshes_debug<'a>(
+    pub(crate) fn draw_meshes_debug<'a>(
         &'a self,
         render_pass: &mut wgpu::RenderPass<'a>,
         per_frame_bind_group: &'a crate::shader::model::bind_groups::BindGroup0,
@@ -563,7 +571,7 @@ impl RenderModel {
         }
     }
 
-    pub fn draw_meshes_silhouettes<'a>(
+    pub(crate) fn draw_meshes_silhouettes<'a>(
         &'a self,
         render_pass: &mut wgpu::RenderPass<'a>,
         per_frame_bind_group: &'a crate::shader::model::bind_groups::BindGroup0,
@@ -588,7 +596,7 @@ impl RenderModel {
         active
     }
 
-    pub fn draw_meshes_uv<'a>(
+    pub(crate) fn draw_meshes_uv<'a>(
         &'a self,
         render_pass: &mut wgpu::RenderPass<'a>,
         per_frame_bind_group: &'a crate::shader::model::bind_groups::BindGroup0,
@@ -604,7 +612,7 @@ impl RenderModel {
         }
     }
 
-    pub fn queue_bone_names(
+    pub(crate) fn queue_bone_names(
         &self,
         skel: &SkelData,
         brush: &mut TextBrush<FontRef>,
@@ -666,7 +674,7 @@ impl RenderModel {
         );
     }
 
-    pub fn draw_meshes_depth<'a>(
+    pub(crate) fn draw_meshes_depth<'a>(
         &'a self,
         render_pass: &mut wgpu::RenderPass<'a>,
         camera_bind_group: &'a crate::shader::model::bind_groups::BindGroup0,
@@ -687,16 +695,6 @@ impl RenderModel {
                 render_pass.draw_indexed(0..mesh.vertex_index_count as u32, 0, 0..1);
             }
         }
-    }
-}
-
-fn render_pass_index(tag: &str) -> isize {
-    match tag {
-        "opaque" => 0,
-        "far" => 1,
-        "sort" => 2,
-        "near" => 3,
-        _ => 0, // TODO: How to handle invalid tags?
     }
 }
 

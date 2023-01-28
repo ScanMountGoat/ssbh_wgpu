@@ -2,7 +2,7 @@ use super::pipeline::{pipeline, PipelineKey};
 use crate::{
     animation::AnimationTransforms,
     bone_rendering::*,
-    model::BoneRenderData,
+    model::{BoneRenderData, SamplerCache},
     swing_rendering::SwingRenderData,
     uniforms::{
         default_material_uniforms_bind_group, default_uniforms_buffer,
@@ -330,18 +330,34 @@ impl<'a> RenderMeshSharedData<'a> {
         device: &wgpu::Device,
         textures: &[(String, wgpu::Texture, wgpu::TextureViewDimension)],
     ) -> HashMap<String, MaterialData> {
+        // Some devices only support up to 4000 sampler allocations.
+        // Models use very few unique sampler settings in practice.
+        // Samplers are immutable and can be safely cached.
+        let mut sampler_by_data = SamplerCache::new();
+
         // TODO: Split into PerMaterial, PerObject, etc in the shaders?
-        self.matl
+        let materials = self
+            .matl
             .map(|matl| {
                 matl.entries
                     .iter()
                     .map(|entry| {
-                        let data = material_data(device, entry, textures, self.shared_data);
+                        let data = material_data(
+                            device,
+                            entry,
+                            textures,
+                            self.shared_data,
+                            &mut sampler_by_data,
+                        );
                         (entry.material_label.clone(), data)
                     })
                     .collect()
             })
-            .unwrap_or_default()
+            .unwrap_or_default();
+
+        info!("Created {} samplers", sampler_by_data.len());
+
+        materials
     }
 
     // TODO: Group these parameters?
@@ -539,6 +555,7 @@ pub fn material_data(
     material: &MatlEntryData,
     textures: &[(String, wgpu::Texture, wgpu::TextureViewDimension)],
     shared_data: &SharedRenderData,
+    sampler_by_data: &mut SamplerCache,
 ) -> MaterialData {
     let uniforms_buffer = uniforms_buffer(material, device, &shared_data.database);
     let material_uniforms_bind_group = material_uniforms_bind_group(
@@ -547,6 +564,7 @@ pub fn material_data(
         textures,
         &shared_data.default_textures,
         &uniforms_buffer,
+        sampler_by_data,
     );
 
     MaterialData {
