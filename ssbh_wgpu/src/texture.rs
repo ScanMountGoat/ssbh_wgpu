@@ -1,7 +1,5 @@
 use image::EncodableLayout;
-use ssbh_data::matl_data::{
-    MagFilter, MatlEntryData, MinFilter, ParamId, SamplerData, SamplerParam, WrapMode,
-};
+use ssbh_data::matl_data::{MagFilter, MinFilter, ParamId, SamplerData, WrapMode};
 use std::{num::NonZeroU8, path::Path};
 use wgpu::{
     util::DeviceExt, Device, Queue, Sampler, SamplerDescriptor, Texture, TextureDescriptor,

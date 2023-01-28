@@ -11,7 +11,7 @@ use crate::{
 use glam::Vec4Swizzles;
 use log::debug;
 use mesh_creation::{
-    create_material_data, MaterialData, MeshBufferAccess, MeshBuffers, RenderMeshSharedData,
+    material_data, MaterialData, MeshBufferAccess, MeshBuffers, RenderMeshSharedData,
 };
 use pipeline::{pipeline, PipelineKey};
 use ssbh_data::{matl_data::MatlEntryData, meshex_data::EntryFlags, prelude::*};
@@ -194,8 +194,7 @@ impl RenderModel {
                     mesh.pipeline_key = pipeline_key;
                 }
 
-                let data =
-                    create_material_data(device, Some(material), &self.textures, shared_data);
+                let data = material_data(device, material, &self.textures, shared_data);
                 (material.material_label.clone(), data)
             })
             .collect();
@@ -577,7 +576,7 @@ impl RenderModel {
             .iter()
             .filter(|m| m.is_selected || self.is_selected)
         {
-            // Use defaults to render outlines for models with missing materials.
+            // Use defaults to still render outlines for models with missing materials.
             self.draw_mesh(
                 render_pass,
                 mesh,

@@ -11,8 +11,8 @@ use ssbh_data::matl_data::*;
 use wgpu::SamplerDescriptor;
 
 // TODO: Move this to textures?
-pub fn create_material_uniforms_bind_group(
-    material: Option<&ssbh_data::matl_data::MatlEntryData>,
+pub fn material_uniforms_bind_group(
+    material: &ssbh_data::matl_data::MatlEntryData,
     device: &wgpu::Device,
     textures: &[(String, wgpu::Texture, wgpu::TextureViewDimension)],
     default_textures: &[(String, wgpu::Texture, wgpu::TextureViewDimension)],
@@ -32,17 +32,13 @@ pub fn create_material_uniforms_bind_group(
         .1;
 
     let load_texture = |texture_id, dim| {
-        material
-            .and_then(|material| {
-                // TODO: Add proper path and parameter handling.
-                // TODO: Find a way to test texture path loading.
-                // This should also handle paths like "../texture.nutexb" and "/render/shader/bin/texture.nutexb".
-                material
-                    .textures
+        // TODO: Add proper path and parameter handling.
+        // TODO: Find a way to test texture path loading.
+        // This should also handle paths like "../texture.nutexb" and "/render/shader/bin/texture.nutexb".
+        material.textures
                     .iter()
                     .find(|t| t.param_id == texture_id)
                     .map(|t| t.data.as_str())
-            })
             .and_then(|material_path| {
                 load_texture(material_path, textures, default_textures, dim).map_err(|e| {
                     match e {
@@ -64,16 +60,16 @@ pub fn create_material_uniforms_bind_group(
     // Samplers are immutable and can be safely cached.
     // TODO: This should be shared over all materials in the matl.
     let mut sampler_by_data = Vec::new();
-    if let Some(material) = material {
-        update_sampler_cache(device, material, &mut sampler_by_data);
-    }
+    update_sampler_cache(device, material, &mut sampler_by_data);
     info!("Created {} samplers", sampler_by_data.len());
 
     // TODO: This could be combined with above if we only cache for each material?
     let default_sampler = device.create_sampler(&SamplerDescriptor::default());
     let load_sampler = |sampler_id| {
         material
-            .and_then(|material| material.samplers.iter().find(|s| s.param_id == sampler_id))
+            .samplers
+            .iter()
+            .find(|s| s.param_id == sampler_id)
             .and_then(|sampler| sampler_by_data.iter().find(|(d, _)| d == &sampler.data))
             .map(|(_, s)| s)
             .unwrap_or(&default_sampler)
@@ -118,6 +114,70 @@ pub fn create_material_uniforms_bind_group(
     )
 }
 
+pub fn default_material_uniforms_bind_group(
+    device: &wgpu::Device,
+    default_textures: &[(String, wgpu::Texture, wgpu::TextureViewDimension)],
+    uniforms_buffer: &wgpu::Buffer,
+) -> crate::shader::model::bind_groups::BindGroup1 {
+    let default_black = &default_textures
+        .iter()
+        .find(|d| d.0 == "/common/shader/sfxpbs/default_black")
+        .unwrap();
+    let default_white = default_black.1.create_view(&wgpu::TextureViewDescriptor {
+        dimension: Some(default_black.2),
+        ..Default::default()
+    });
+
+    let default_cube = &default_textures
+        .iter()
+        .find(|d| d.0 == "#replace_cubemap")
+        .unwrap();
+    let default_cube = default_cube.1.create_view(&wgpu::TextureViewDescriptor {
+        dimension: Some(default_cube.2),
+        ..Default::default()
+    });
+
+    let default_sampler = device.create_sampler(&SamplerDescriptor::default());
+
+    // TODO: Default texture for other cube maps?
+    crate::shader::model::bind_groups::BindGroup1::from_bindings(
+        device,
+        crate::shader::model::bind_groups::BindGroupLayout1 {
+            texture0: &default_white,
+            sampler0: &default_sampler,
+            texture1: &default_white,
+            sampler1: &default_sampler,
+            texture2: &default_cube,
+            sampler2: &default_sampler,
+            texture3: &default_white,
+            sampler3: &default_sampler,
+            texture4: &default_white,
+            sampler4: &default_sampler,
+            texture5: &default_white,
+            sampler5: &default_sampler,
+            texture6: &default_white,
+            sampler6: &default_sampler,
+            texture7: &default_cube,
+            sampler7: &default_sampler,
+            texture8: &default_cube,
+            sampler8: &default_sampler,
+            texture9: &default_white,
+            sampler9: &default_sampler,
+            texture10: &default_white,
+            sampler10: &default_sampler,
+            texture11: &default_white,
+            sampler11: &default_sampler,
+            texture12: &default_white,
+            sampler12: &default_sampler,
+            texture13: &default_white,
+            sampler13: &default_sampler,
+            texture14: &default_white,
+            sampler14: &default_sampler,
+            per_material: uniforms_buffer.as_entire_buffer_binding(),
+        },
+    )
+}
+
 fn update_sampler_cache(
     device: &wgpu::Device,
     material: &MatlEntryData,
@@ -131,12 +191,12 @@ fn update_sampler_cache(
     }
 }
 
-pub fn create_uniforms_buffer(
-    material: Option<&MatlEntryData>,
+pub fn uniforms_buffer(
+    material: &MatlEntryData,
     device: &wgpu::Device,
     database: &ShaderDatabase,
 ) -> wgpu::Buffer {
-    let uniforms = create_uniforms(material, database);
+    let uniforms = per_material(material, database);
     device.create_buffer_from_data(
         "Material Uniforms Buffer",
         &[uniforms],
@@ -144,119 +204,122 @@ pub fn create_uniforms_buffer(
     )
 }
 
-// TODO: Test attributes, non required attributes, missing required attributes, etc.
-pub fn create_uniforms(material: Option<&MatlEntryData>, database: &ShaderDatabase) -> PerMaterial {
-    material
-        .map(|material| {
-            // Ignore invalid parameters for now to avoid an error or panic.
-            let mut custom_vector = [glam::Vec4::ZERO; 64];
-            for vector in &material.vectors {
-                if let Some(index) = vector_index(vector.param_id) {
-                    custom_vector[index] = vector.data.to_array().into();
-                }
-            }
-
-            let mut custom_float = [glam::Vec4::ZERO; 20];
-            for float in &material.floats {
-                if let Some(index) = float_index(float.param_id) {
-                    custom_float[index][0] = float.data;
-                }
-            }
-
-            let mut custom_boolean = [glam::UVec4::ZERO; 20];
-            for boolean in &material.booleans {
-                if let Some(index) = boolean_index(boolean.param_id) {
-                    custom_boolean[index][0] = boolean.data as u32;
-                }
-            }
-
-            // The nufxlb defines what parameters are expected.
-            // Not all shaders require all parameters.
-            let mut has_texture = [glam::UVec4::ZERO; 19];
-            let mut has_boolean = [glam::UVec4::ZERO; 20];
-            let mut has_float = [glam::UVec4::ZERO; 20];
-            let mut has_vector = [glam::UVec4::ZERO; 64];
-            if let Some(program) = database.get(&material.shader_label) {
-                for param_name in &program.material_parameters {
-                    // TODO: This is redundant to split twice.
-                    let (param, _) = split_param(param_name);
-                    // It's safe to assume the database has valid parameters.
-                    let id = ParamId::from_str(param).unwrap();
-                    if let Some(i) = texture_index(id) {
-                        has_texture[i][0] = 1;
-                    } else if let Some(i) = boolean_index(id) {
-                        has_boolean[i][0] = 1;
-                    } else if let Some(i) = float_index(id) {
-                        has_float[i][0] = 1;
-                    } else if let Some(i) = vector_index(id) {
-                        // Check which components are accessed by the shader binary.
-                        has_vector[i] = program.accessed_channels(param_name).map(u32::from).into();
-                    }
-                }
-            }
-
-            let program = database.get(&material.shader_label);
-
-            let (has_color_set1234, has_color_set567) = if let Some(program) = program {
-                (
-                    glam::UVec4::new(
-                        program.has_attribute("colorSet1") as u32,
-                        program.has_attribute("colorSet2") as u32,
-                        program.has_attribute("colorSet3") as u32,
-                        program.has_attribute("colorSet4") as u32,
-                    ),
-                    glam::UVec4::new(
-                        program.has_attribute("colorSet5") as u32,
-                        program.has_attribute("colorSet6") as u32,
-                        program.has_attribute("colorSet7") as u32,
-                        0,
-                    ),
-                )
-            } else {
-                (glam::UVec4::ZERO, glam::UVec4::ZERO)
-            };
-
-            let alpha_settings = program
-                .map(|program| {
-                    glam::UVec4::new(program.discard as u32, program.premultiplied as u32, 0, 0)
-                })
-                .unwrap_or_default();
-
-            let shader_complexity = program
-                .map(|program| glam::Vec4::splat(program.complexity as f32))
-                .unwrap_or_default();
-
-            PerMaterial {
-                custom_vector,
-                custom_boolean,
-                custom_float,
-                has_texture,
-                has_boolean,
-                has_float,
-                has_vector,
-                has_color_set1234,
-                has_color_set567,
-                alpha_settings,
-                shader_complexity,
-            }
-        })
-        .unwrap_or(
-            // Missing values are always set to zero.
-            PerMaterial {
-                custom_vector: [glam::Vec4::ZERO; 64],
-                custom_boolean: [glam::UVec4::ZERO; 20],
-                custom_float: [glam::Vec4::ZERO; 20],
-                has_boolean: [glam::UVec4::ZERO; 20],
-                has_texture: [glam::UVec4::ZERO; 19],
-                has_float: [glam::UVec4::ZERO; 20],
-                has_vector: [glam::UVec4::ZERO; 64],
-                has_color_set1234: glam::UVec4::ZERO,
-                has_color_set567: glam::UVec4::ZERO,
-                alpha_settings: glam::UVec4::ZERO,
-                shader_complexity: glam::Vec4::ZERO,
-            },
-        )
+pub fn default_uniforms_buffer(device: &wgpu::Device) -> wgpu::Buffer {
+    device.create_buffer_from_data(
+        "Material Uniforms Buffer",
+        &[DEFAULT_PER_MATERIAL],
+        wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+    )
 }
+
+// TODO: Test attributes, non required attributes, missing required attributes, etc.
+pub fn per_material(material: &MatlEntryData, database: &ShaderDatabase) -> PerMaterial {
+    // Ignore invalid parameters for now to avoid an error or panic.
+    let mut custom_vector = [glam::Vec4::ZERO; 64];
+    for vector in &material.vectors {
+        if let Some(index) = vector_index(vector.param_id) {
+            custom_vector[index] = vector.data.to_array().into();
+        }
+    }
+
+    let mut custom_float = [glam::Vec4::ZERO; 20];
+    for float in &material.floats {
+        if let Some(index) = float_index(float.param_id) {
+            custom_float[index][0] = float.data;
+        }
+    }
+
+    let mut custom_boolean = [glam::UVec4::ZERO; 20];
+    for boolean in &material.booleans {
+        if let Some(index) = boolean_index(boolean.param_id) {
+            custom_boolean[index][0] = boolean.data as u32;
+        }
+    }
+
+    // The nufxlb defines what parameters are expected.
+    // Not all shaders require all parameters.
+    let mut has_texture = [glam::UVec4::ZERO; 19];
+    let mut has_boolean = [glam::UVec4::ZERO; 20];
+    let mut has_float = [glam::UVec4::ZERO; 20];
+    let mut has_vector = [glam::UVec4::ZERO; 64];
+    if let Some(program) = database.get(&material.shader_label) {
+        for param_name in &program.material_parameters {
+            // TODO: This is redundant to split twice.
+            let (param, _) = split_param(param_name);
+            // It's safe to assume the database has valid parameters.
+            let id = ParamId::from_str(param).unwrap();
+            if let Some(i) = texture_index(id) {
+                has_texture[i][0] = 1;
+            } else if let Some(i) = boolean_index(id) {
+                has_boolean[i][0] = 1;
+            } else if let Some(i) = float_index(id) {
+                has_float[i][0] = 1;
+            } else if let Some(i) = vector_index(id) {
+                // Check which components are accessed by the shader binary.
+                has_vector[i] = program.accessed_channels(param_name).map(u32::from).into();
+            }
+        }
+    }
+
+    let program = database.get(&material.shader_label);
+
+    let (has_color_set1234, has_color_set567) = if let Some(program) = program {
+        (
+            glam::UVec4::new(
+                program.has_attribute("colorSet1") as u32,
+                program.has_attribute("colorSet2") as u32,
+                program.has_attribute("colorSet3") as u32,
+                program.has_attribute("colorSet4") as u32,
+            ),
+            glam::UVec4::new(
+                program.has_attribute("colorSet5") as u32,
+                program.has_attribute("colorSet6") as u32,
+                program.has_attribute("colorSet7") as u32,
+                0,
+            ),
+        )
+    } else {
+        (glam::UVec4::ZERO, glam::UVec4::ZERO)
+    };
+
+    let alpha_settings = program
+        .map(|program| glam::UVec4::new(program.discard as u32, program.premultiplied as u32, 0, 0))
+        .unwrap_or_default();
+
+    let shader_complexity = program
+        .map(|program| glam::Vec4::splat(program.complexity as f32))
+        .unwrap_or_default();
+
+    PerMaterial {
+        custom_vector,
+        custom_boolean,
+        custom_float,
+        has_texture,
+        has_boolean,
+        has_float,
+        has_vector,
+        has_color_set1234,
+        has_color_set567,
+        alpha_settings,
+        shader_complexity,
+    }
+}
+
+pub const DEFAULT_PER_MATERIAL: PerMaterial =
+    // Missing values are always set to zero.
+    PerMaterial {
+        custom_vector: [glam::Vec4::ZERO; 64],
+        custom_boolean: [glam::UVec4::ZERO; 20],
+        custom_float: [glam::Vec4::ZERO; 20],
+        has_boolean: [glam::UVec4::ZERO; 20],
+        has_texture: [glam::UVec4::ZERO; 19],
+        has_float: [glam::UVec4::ZERO; 20],
+        has_vector: [glam::UVec4::ZERO; 64],
+        has_color_set1234: glam::UVec4::ZERO,
+        has_color_set567: glam::UVec4::ZERO,
+        alpha_settings: glam::UVec4::ZERO,
+        shader_complexity: glam::Vec4::ZERO,
+    };
 
 // TODO: Make this an extension trait?
 pub fn vector_index(param: ParamId) -> Option<usize> {
@@ -415,7 +478,7 @@ mod tests {
     use ssbh_data::Vector4;
 
     #[test]
-    fn create_uniforms_no_material() {
+    fn create_default_uniforms() {
         assert_eq!(
             PerMaterial {
                 custom_vector: [glam::Vec4::ZERO; 64],
@@ -430,7 +493,7 @@ mod tests {
                 alpha_settings: glam::UVec4::ZERO,
                 shader_complexity: glam::Vec4::ZERO
             },
-            create_uniforms(None, &ShaderDatabase::from_iter(std::iter::empty()))
+            DEFAULT_PER_MATERIAL
         );
     }
 
@@ -450,8 +513,8 @@ mod tests {
                 alpha_settings: glam::UVec4::ZERO,
                 shader_complexity: glam::Vec4::ZERO
             },
-            create_uniforms(
-                Some(&MatlEntryData {
+            per_material(
+                &MatlEntryData {
                     material_label: String::new(),
                     shader_label: String::new(),
                     blend_states: Vec::new(),
@@ -461,7 +524,7 @@ mod tests {
                     rasterizer_states: Vec::new(),
                     samplers: Vec::new(),
                     textures: Vec::new(),
-                }),
+                },
                 &ShaderDatabase::from_iter(std::iter::empty())
             )
         );
@@ -484,8 +547,8 @@ mod tests {
                 alpha_settings: glam::UVec4::ZERO,
                 shader_complexity: glam::Vec4::ZERO
             },
-            create_uniforms(
-                Some(&MatlEntryData {
+            per_material(
+                &MatlEntryData {
                     material_label: String::new(),
                     shader_label: String::new(),
                     blend_states: vec![BlendStateParam {
@@ -516,7 +579,7 @@ mod tests {
                         param_id: ParamId::Sampler0,
                         data: String::new()
                     }],
-                }),
+                },
                 &ShaderDatabase::from_iter(std::iter::empty())
             )
         );
@@ -549,8 +612,8 @@ mod tests {
 
         assert_eq!(
             expected,
-            create_uniforms(
-                Some(&MatlEntryData {
+            per_material(
+                &MatlEntryData {
                     material_label: String::new(),
                     shader_label: "SFX_PBS_010002000800824f_opaque".to_owned(),
                     blend_states: vec![BlendStateParam {
@@ -597,7 +660,7 @@ mod tests {
                         param_id: ParamId::Texture1,
                         data: String::new()
                     }],
-                }),
+                },
                 &ShaderDatabase::from_iter(
                     [(
                         "SFX_PBS_010002000800824f".to_owned(),

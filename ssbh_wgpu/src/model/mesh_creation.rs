@@ -4,7 +4,10 @@ use crate::{
     bone_rendering::*,
     model::BoneRenderData,
     swing_rendering::SwingRenderData,
-    uniforms::{create_material_uniforms_bind_group, create_uniforms, create_uniforms_buffer},
+    uniforms::{
+        default_material_uniforms_bind_group, default_uniforms_buffer,
+        material_uniforms_bind_group, per_material, uniforms_buffer,
+    },
     vertex::{buffer0, buffer1, mesh_object_buffers, skin_weights, MeshObjectBufferData},
     DeviceBufferExt, ModelFiles, RenderMesh, RenderModel, ShaderDatabase, SharedRenderData,
 };
@@ -32,7 +35,7 @@ impl MaterialData {
         // Material animations don't assign textures.
         // We only need to update the material parameter buffer.
         // This avoids creating GPU resources each frame.
-        let uniforms = create_uniforms(Some(material), database);
+        let uniforms = per_material(material, database);
         queue.write_buffer(&self.uniforms_buffer, 0, bytemuck::cast_slice(&[uniforms]));
     }
 }
@@ -100,7 +103,7 @@ impl<'a> RenderMeshSharedData<'a> {
             world_transforms,
         };
 
-        let default_material_data = create_material_data(device, None, &[], self.shared_data);
+        let default_material_data = default_material_data(device, self.shared_data);
 
         let RenderMeshData {
             meshes,
@@ -333,8 +336,7 @@ impl<'a> RenderMeshSharedData<'a> {
                 matl.entries
                     .iter()
                     .map(|entry| {
-                        let data =
-                            create_material_data(device, Some(entry), textures, self.shared_data);
+                        let data = material_data(device, entry, textures, self.shared_data);
                         (entry.material_label.clone(), data)
                     })
                     .collect()
@@ -532,19 +534,34 @@ fn bone_bind_group1(
     )
 }
 
-// TODO: The material shouldn't be optional.
-// TODO: Just create a separate function that fills in a default material?
-pub fn create_material_data(
+pub fn material_data(
     device: &wgpu::Device,
-    material: Option<&MatlEntryData>,
+    material: &MatlEntryData,
     textures: &[(String, wgpu::Texture, wgpu::TextureViewDimension)],
     shared_data: &SharedRenderData,
 ) -> MaterialData {
-    let uniforms_buffer = create_uniforms_buffer(material, device, &shared_data.database);
-    let material_uniforms_bind_group = create_material_uniforms_bind_group(
+    let uniforms_buffer = uniforms_buffer(material, device, &shared_data.database);
+    let material_uniforms_bind_group = material_uniforms_bind_group(
         material,
         device,
         textures,
+        &shared_data.default_textures,
+        &uniforms_buffer,
+    );
+
+    MaterialData {
+        material_uniforms_bind_group,
+        uniforms_buffer,
+    }
+}
+
+pub fn default_material_data(
+    device: &wgpu::Device,
+    shared_data: &SharedRenderData,
+) -> MaterialData {
+    let uniforms_buffer = default_uniforms_buffer(device);
+    let material_uniforms_bind_group = default_material_uniforms_bind_group(
+        device,
         &shared_data.default_textures,
         &uniforms_buffer,
     );
