@@ -1,5 +1,7 @@
 use image::EncodableLayout;
-use ssbh_data::matl_data::{MagFilter, MatlEntryData, MinFilter, ParamId, WrapMode};
+use ssbh_data::matl_data::{
+    MagFilter, MatlEntryData, MinFilter, ParamId, SamplerData, SamplerParam, WrapMode,
+};
 use std::{num::NonZeroU8, path::Path};
 use wgpu::{
     util::DeviceExt, Device, Queue, Sampler, SamplerDescriptor, Texture, TextureDescriptor,
@@ -52,33 +54,19 @@ pub fn load_texture(
     }
 }
 
-pub fn load_sampler(
-    material: &MatlEntryData,
-    device: &Device,
-    sampler_id: ParamId,
-) -> Option<Sampler> {
-    let sampler = material
-        .samplers
-        .iter()
-        .find(|t| t.param_id == sampler_id)?;
-
-    let sampler = device.create_sampler(&SamplerDescriptor {
-        label: Some(&sampler.param_id.to_string()),
-        address_mode_u: address_mode(sampler.data.wraps),
-        address_mode_v: address_mode(sampler.data.wrapt),
-        address_mode_w: address_mode(sampler.data.wrapr),
-        mag_filter: mag_filter_mode(sampler.data.mag_filter),
-        min_filter: min_filter_mode(sampler.data.min_filter),
-        mipmap_filter: mip_filter_mode(sampler.data.min_filter),
-        anisotropy_clamp: sampler
-            .data
-            .max_anisotropy
-            .and_then(|m| NonZeroU8::new(m as u8)),
+pub fn create_sampler(device: &Device, param_id: ParamId, data: &SamplerData) -> Sampler {
+    device.create_sampler(&SamplerDescriptor {
+        label: Some(&param_id.to_string()),
+        address_mode_u: address_mode(data.wraps),
+        address_mode_v: address_mode(data.wrapt),
+        address_mode_w: address_mode(data.wrapr),
+        mag_filter: mag_filter_mode(data.mag_filter),
+        min_filter: min_filter_mode(data.min_filter),
+        mipmap_filter: mip_filter_mode(data.min_filter),
+        anisotropy_clamp: data.max_anisotropy.and_then(|m| NonZeroU8::new(m as u8)),
         // TODO: Set other options?
         ..Default::default()
-    });
-
-    Some(sampler)
+    })
 }
 
 pub fn load_default(

@@ -111,7 +111,7 @@ impl<'a> RenderMeshSharedData<'a> {
         } = self.create_render_mesh_data(device, queue, &mesh_buffers);
 
         info!(
-            "Create {:?} render meshe(s), {:?} material(s), {:?} pipeline(s): {:?}",
+            "Created {:?} render meshe(s), {:?} material(s), {:?} pipeline(s): {:?}",
             meshes.len(),
             material_data_by_label.len(),
             pipelines.len(),
@@ -532,6 +532,8 @@ fn bone_bind_group1(
     )
 }
 
+// TODO: The material shouldn't be optional.
+// TODO: Just create a separate function that fills in a default material?
 pub fn create_material_data(
     device: &wgpu::Device,
     material: Option<&MatlEntryData>,

@@ -270,7 +270,7 @@ pub fn load_render_models<'a>(
         .collect();
 
     info!(
-        "Load {:?} render model(s): {:?}",
+        "Loaded {:?} render model(s): {:?}",
         render_models.len(),
         start.elapsed()
     );
@@ -299,7 +299,7 @@ pub fn load_model_folders<P: AsRef<Path>>(root: P) -> Vec<(PathBuf, ModelFolder)
         .collect();
 
     info!(
-        "Load {:?} ModelFolder(s): {:?}",
+        "Loaded {:?} ModelFolder(s): {:?}",
         models.len(),
         start.elapsed()
     );

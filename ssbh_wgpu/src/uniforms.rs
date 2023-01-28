@@ -3,10 +3,10 @@ use std::str::FromStr;
 use crate::{
     shader::model::PerMaterial,
     split_param,
-    texture::{load_default, load_sampler, load_texture, LoadTextureError},
+    texture::{create_sampler, load_default, load_texture, LoadTextureError},
     DeviceBufferExt, ShaderDatabase,
 };
-use log::warn;
+use log::{info, warn};
 use ssbh_data::matl_data::*;
 use wgpu::SamplerDescriptor;
 
@@ -59,10 +59,24 @@ pub fn create_material_uniforms_bind_group(
             }).unwrap_or_else(|| load_default(texture_id, default_cube, default_white))
     };
 
+    // Some devices only support up to 4000 sampler allocations.
+    // Avoid creating duplicate samplers with the same settings.
+    // Samplers are immutable and can be safely cached.
+    // TODO: This should be shared over all materials in the matl.
+    let mut sampler_by_data = Vec::new();
+    if let Some(material) = material {
+        update_sampler_cache(device, material, &mut sampler_by_data);
+    }
+    info!("Created {} samplers", sampler_by_data.len());
+
+    // TODO: This could be combined with above if we only cache for each material?
+    let default_sampler = device.create_sampler(&SamplerDescriptor::default());
     let load_sampler = |sampler_id| {
         material
-            .and_then(|material| load_sampler(material, device, sampler_id))
-            .unwrap_or_else(|| device.create_sampler(&SamplerDescriptor::default()))
+            .and_then(|material| material.samplers.iter().find(|s| s.param_id == sampler_id))
+            .and_then(|sampler| sampler_by_data.iter().find(|(d, _)| d == &sampler.data))
+            .map(|(_, s)| s)
+            .unwrap_or(&default_sampler)
     };
 
     // TODO: Default texture for other cube maps?
@@ -70,38 +84,51 @@ pub fn create_material_uniforms_bind_group(
         device,
         crate::shader::model::bind_groups::BindGroupLayout1 {
             texture0: &load_texture(ParamId::Texture0, wgpu::TextureViewDimension::D2),
-            sampler0: &load_sampler(ParamId::Sampler0),
+            sampler0: load_sampler(ParamId::Sampler0),
             texture1: &load_texture(ParamId::Texture1, wgpu::TextureViewDimension::D2),
-            sampler1: &load_sampler(ParamId::Sampler1),
+            sampler1: load_sampler(ParamId::Sampler1),
             texture2: &load_texture(ParamId::Texture2, wgpu::TextureViewDimension::Cube),
-            sampler2: &load_sampler(ParamId::Sampler2),
+            sampler2: load_sampler(ParamId::Sampler2),
             texture3: &load_texture(ParamId::Texture3, wgpu::TextureViewDimension::D2),
-            sampler3: &load_sampler(ParamId::Sampler3),
+            sampler3: load_sampler(ParamId::Sampler3),
             texture4: &load_texture(ParamId::Texture4, wgpu::TextureViewDimension::D2),
-            sampler4: &load_sampler(ParamId::Sampler4),
+            sampler4: load_sampler(ParamId::Sampler4),
             texture5: &load_texture(ParamId::Texture5, wgpu::TextureViewDimension::D2),
-            sampler5: &load_sampler(ParamId::Sampler5),
+            sampler5: load_sampler(ParamId::Sampler5),
             texture6: &load_texture(ParamId::Texture6, wgpu::TextureViewDimension::D2),
-            sampler6: &load_sampler(ParamId::Sampler6),
+            sampler6: load_sampler(ParamId::Sampler6),
             texture7: &load_texture(ParamId::Texture7, wgpu::TextureViewDimension::Cube),
-            sampler7: &load_sampler(ParamId::Sampler7),
+            sampler7: load_sampler(ParamId::Sampler7),
             texture8: &load_texture(ParamId::Texture8, wgpu::TextureViewDimension::Cube),
-            sampler8: &load_sampler(ParamId::Sampler8),
+            sampler8: load_sampler(ParamId::Sampler8),
             texture9: &load_texture(ParamId::Texture9, wgpu::TextureViewDimension::D2),
-            sampler9: &load_sampler(ParamId::Sampler9),
+            sampler9: load_sampler(ParamId::Sampler9),
             texture10: &load_texture(ParamId::Texture10, wgpu::TextureViewDimension::D2),
-            sampler10: &load_sampler(ParamId::Sampler10),
+            sampler10: load_sampler(ParamId::Sampler10),
             texture11: &load_texture(ParamId::Texture11, wgpu::TextureViewDimension::D2),
-            sampler11: &load_sampler(ParamId::Sampler11),
+            sampler11: load_sampler(ParamId::Sampler11),
             texture12: &load_texture(ParamId::Texture12, wgpu::TextureViewDimension::D2),
-            sampler12: &load_sampler(ParamId::Sampler12),
+            sampler12: load_sampler(ParamId::Sampler12),
             texture13: &load_texture(ParamId::Texture13, wgpu::TextureViewDimension::D2),
-            sampler13: &load_sampler(ParamId::Sampler13),
+            sampler13: load_sampler(ParamId::Sampler13),
             texture14: &load_texture(ParamId::Texture14, wgpu::TextureViewDimension::D2),
-            sampler14: &load_sampler(ParamId::Sampler14),
+            sampler14: load_sampler(ParamId::Sampler14),
             per_material: uniforms_buffer.as_entire_buffer_binding(),
         },
     )
+}
+
+fn update_sampler_cache(
+    device: &wgpu::Device,
+    material: &MatlEntryData,
+    sampler_by_data: &mut Vec<(SamplerData, wgpu::Sampler)>,
+) {
+    for param in &material.samplers {
+        if !sampler_by_data.iter().any(|(d, _)| d == &param.data) {
+            let sampler = create_sampler(device, param.param_id, &param.data);
+            sampler_by_data.push((param.data.clone(), sampler));
+        }
+    }
 }
 
 pub fn create_uniforms_buffer(
