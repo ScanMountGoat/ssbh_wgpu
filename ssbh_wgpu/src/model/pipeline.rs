@@ -1,6 +1,6 @@
 use ssbh_data::matl_data::{BlendFactor, BlendStateData, MatlEntryData};
 
-use crate::renderer::INVERTED_STENCIL_MASK_STATE;
+use crate::renderer::{INVERTED_STENCIL_MASK_STATE, MSAA_SAMPLE_COUNT};
 
 // Create some helper structs to simplify the function signatures.
 pub struct PipelineData {
@@ -117,7 +117,8 @@ pub fn pipeline(
             pipeline_key.enable_depth_test,
         )),
         multisample: wgpu::MultisampleState {
-            // TODO: This wont look correct without multisampling?
+            // MSAA is required for alpha to coverage to work on metal.
+            count: MSAA_SAMPLE_COUNT,
             alpha_to_coverage_enabled: pipeline_key.alpha_to_coverage_enabled,
             ..Default::default()
         },
@@ -274,7 +275,10 @@ pub fn wireframe_pipeline(
             ..Default::default()
         },
         depth_stencil: Some(depth_stencil_state(true, true)),
-        multisample: wgpu::MultisampleState::default(),
+        multisample: wgpu::MultisampleState {
+            count: MSAA_SAMPLE_COUNT,
+            ..Default::default()
+        },
         multiview: None,
     })
 }
@@ -315,7 +319,10 @@ pub fn model_pipeline_from_entry(
             ..Default::default()
         },
         depth_stencil: Some(depth_stencil_state(true, true)),
-        multisample: wgpu::MultisampleState::default(),
+        multisample: wgpu::MultisampleState {
+            count: MSAA_SAMPLE_COUNT,
+            ..Default::default()
+        },
         multiview: None,
     })
 }

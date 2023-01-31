@@ -16,6 +16,7 @@ use ssbh_data::{anim_data::AnimData, skel_data::SkelData};
 use wgpu::{ComputePassDescriptor, ComputePipelineDescriptor};
 use wgpu_text::{font::FontRef, BrushBuilder, TextBrush};
 
+// TODO: Adjust this to use less precision.
 // Rgba16Float is widely supported.
 // The in game format uses less precision.
 const BLOOM_COLOR_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba16Float;
@@ -25,6 +26,10 @@ const BLOOM_COLOR_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba16Float
 // This simplifies integrating with GUIs and image formats like PNG.
 /// The color format for the render pass returned by [SsbhRenderer::render_models].
 pub const RGBA_COLOR_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Bgra8UnormSrgb;
+
+// Alpha to coverage on metal requires a sample count above 1.
+// 4 is a widely supported value for MSAA samples.
+pub const MSAA_SAMPLE_COUNT: u32 = 4;
 
 pub const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
 pub const DEPTH_STENCIL_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32FloatStencil8;
@@ -268,13 +273,14 @@ impl SsbhRenderer {
 
         // Depth from the perspective of the light.
         // TODO: Multiple lights require multiple depth maps?
-        let shadow_depth = create_depth(device, SHADOW_MAP_WIDTH, SHADOW_MAP_HEIGHT);
+        let shadow_depth = create_depth(device, SHADOW_MAP_WIDTH, SHADOW_MAP_HEIGHT, 1);
 
         let variance_shadow = create_texture_sampler(
             device,
             VARIANCE_SHADOW_WIDTH,
             VARIANCE_SHADOW_HEIGHT,
             VARIANCE_SHADOW_FORMAT,
+            1,
         );
 
         let render_settings = RenderSettings::default();
@@ -597,6 +603,7 @@ impl SsbhRenderer {
         // TODO: Benchmark and investigate compute shaders for post processing.
         // TODO: Don't make color_final a parameter since we already take self.
         if self.render_settings.debug_mode != DebugMode::Shaded {
+            // TODO: Use msaa and resolve to color_final
             self.model_debug_pass(
                 encoder,
                 render_models,
@@ -611,6 +618,7 @@ impl SsbhRenderer {
             // Create the two channel shadow map for variance shadows.
             self.variance_shadow_pass(encoder);
 
+            // TODO: Adjust this to use msaa?
             // Draw the models to the initial color texture.
             self.model_pass(
                 encoder,
@@ -699,8 +707,8 @@ impl SsbhRenderer {
         let mut grid_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("Grid Pass"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                view: &self.pass_info.color_final.view,
-                resolve_target: None,
+                view: &self.pass_info.color_msaa.view,
+                resolve_target: Some(&self.pass_info.color_final.view),
                 ops: wgpu::Operations {
                     // TODO: Combine with another pass to avoid loading.
                     load: wgpu::LoadOp::Load,
@@ -937,8 +945,8 @@ impl SsbhRenderer {
         let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("Model Pass"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                view: &self.pass_info.color.view,
-                resolve_target: None,
+                view: &self.pass_info.color_msaa.view,
+                resolve_target: Some(&self.pass_info.color.view),
                 ops: wgpu::Operations {
                     load: wgpu::LoadOp::Clear(self.clear_color()),
                     store: true,
@@ -1039,8 +1047,8 @@ impl SsbhRenderer {
         let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("Model Debug Pass"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                view: &self.pass_info.color_final.view,
-                resolve_target: None,
+                view: &self.pass_info.color_msaa.view,
+                resolve_target: Some(&self.pass_info.color_final.view),
                 ops: wgpu::Operations {
                     load: wgpu::LoadOp::Clear(self.clear_color()),
                     store: true,
@@ -1382,8 +1390,11 @@ fn create_color_pass<'a>(
     })
 }
 
+// TODO: Move this to it's own module?
 struct PassInfo {
+    // TODO: most of these just need a view?
     color: TextureSamplerView,
+    color_msaa: TextureSamplerView,
     depth: TextureSamplerView,
 
     // TODO: Most of these textures can just be cleared and reused.
@@ -1427,16 +1438,18 @@ impl PassInfo {
         scale_factor: f64,
         color_lut: &TextureSamplerView,
     ) -> Self {
-        let depth = create_depth(device, width, height);
+        let depth = create_depth(device, width, height, MSAA_SAMPLE_COUNT);
 
         // TODO: Reuse textures for outlines?
         let skel_depth_stencil = create_depth_stencil(device, width, height);
-        let skel_mask = create_texture_sampler(device, width, height, RGBA_COLOR_FORMAT);
-        let skel_outlines = create_texture_sampler(device, width, height, RGBA_COLOR_FORMAT);
+        let skel_mask = create_texture_sampler(device, width, height, RGBA_COLOR_FORMAT, 1);
+        let skel_outlines = create_texture_sampler(device, width, height, RGBA_COLOR_FORMAT, 1);
         let skel_outline_bind_group = create_outline_bind_group(device, &skel_mask);
 
-        let color = create_texture_sampler(device, width, height, RGBA_COLOR_FORMAT);
-        let color_final = create_texture_sampler(device, width, height, RGBA_COLOR_FORMAT);
+        let color = create_texture_sampler(device, width, height, RGBA_COLOR_FORMAT, 1);
+        let color_msaa =
+            create_texture_sampler(device, width, height, RGBA_COLOR_FORMAT, MSAA_SAMPLE_COUNT);
+        let color_final = create_texture_sampler(device, width, height, RGBA_COLOR_FORMAT, 1);
 
         // Bloom uses successively smaller render targets to increase the blur.
         // Account for monitor scaling to avoid a smaller perceived radius on high DPI screens.
@@ -1478,8 +1491,9 @@ impl PassInfo {
             create_post_process_bind_group(device, &color, &bloom_upscaled, color_lut);
 
         let silhouette_stencil = create_depth_stencil(device, width, height);
-        let silhouette_mask = create_texture_sampler(device, width, height, RGBA_COLOR_FORMAT);
-        let silhouette_outlines = create_texture_sampler(device, width, height, RGBA_COLOR_FORMAT);
+        let silhouette_mask = create_texture_sampler(device, width, height, RGBA_COLOR_FORMAT, 1);
+        let silhouette_outlines =
+            create_texture_sampler(device, width, height, RGBA_COLOR_FORMAT, 1);
         let outline_bind_group = create_outline_bind_group(device, &silhouette_mask);
 
         let overlay_bind_group =
@@ -1491,6 +1505,7 @@ impl PassInfo {
             skel_mask,
             skel_outlines,
             color,
+            color_msaa,
             color_final,
             bloom_threshold,
             bloom_threshold_bind_group,
@@ -1510,7 +1525,12 @@ impl PassInfo {
     }
 }
 
-fn create_depth(device: &wgpu::Device, width: u32, height: u32) -> TextureSamplerView {
+fn create_depth(
+    device: &wgpu::Device,
+    width: u32,
+    height: u32,
+    sample_count: u32,
+) -> TextureSamplerView {
     let size = wgpu::Extent3d {
         width: width.max(1),
         height: height.max(1),
@@ -1520,7 +1540,7 @@ fn create_depth(device: &wgpu::Device, width: u32, height: u32) -> TextureSample
         label: Some("depth texture"),
         size,
         mip_level_count: 1,
-        sample_count: 1,
+        sample_count,
         dimension: wgpu::TextureDimension::D2,
         format: DEPTH_FORMAT,
         usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
@@ -1577,6 +1597,7 @@ fn create_texture_sampler(
     width: u32,
     height: u32,
     format: wgpu::TextureFormat,
+    sample_count: u32,
 ) -> TextureSamplerView {
     // TODO: Labels
     let texture = device.create_texture(&wgpu::TextureDescriptor {
@@ -1587,7 +1608,7 @@ fn create_texture_sampler(
             depth_or_array_layers: 1,
         },
         mip_level_count: 1,
-        sample_count: 1,
+        sample_count,
         dimension: wgpu::TextureDimension::D2,
         format,
         usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
@@ -1649,7 +1670,7 @@ fn create_bloom_combine_bind_group(
     TextureSamplerView,
     crate::shader::bloom_combine::bind_groups::BindGroup0,
 ) {
-    let texture = create_texture_sampler(device, width, height, RGBA_COLOR_FORMAT);
+    let texture = create_texture_sampler(device, width, height, RGBA_COLOR_FORMAT, 1);
 
     let bind_group = crate::shader::bloom_combine::bind_groups::BindGroup0::from_bindings(
         device,
@@ -1675,7 +1696,7 @@ fn create_bloom_bind_group(
     TextureSamplerView,
     crate::shader::bloom::bind_groups::BindGroup0,
 ) {
-    let texture = create_texture_sampler(device, width, height, format);
+    let texture = create_texture_sampler(device, width, height, format, 1);
 
     let bind_group = crate::shader::bloom::bind_groups::BindGroup0::from_bindings(
         device,

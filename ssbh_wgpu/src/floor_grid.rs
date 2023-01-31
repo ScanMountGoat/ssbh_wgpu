@@ -1,4 +1,4 @@
-use crate::{renderer::DEPTH_FORMAT, shape::IndexedMeshBuffers};
+use crate::{renderer::{DEPTH_FORMAT, MSAA_SAMPLE_COUNT}, shape::IndexedMeshBuffers};
 
 // TODO: FloorGrid?
 pub struct FloorGridRenderData {
@@ -54,7 +54,10 @@ impl FloorGridRenderData {
                 stencil: wgpu::StencilState::default(),
                 bias: wgpu::DepthBiasState::default(),
             }),
-            multisample: wgpu::MultisampleState::default(),
+            multisample: wgpu::MultisampleState {
+                count: MSAA_SAMPLE_COUNT,
+                ..Default::default()
+            },
             multiview: None,
         });
 
