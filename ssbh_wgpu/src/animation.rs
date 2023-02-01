@@ -1,5 +1,6 @@
 use self::constraints::{apply_aim_constraint, apply_orient_constraint};
 use crate::{shader::skinning::AnimatedWorldTransforms, RenderMesh};
+use indexmap::IndexSet;
 use ssbh_data::{
     anim_data::{GroupType, TrackValues, TransformFlags},
     matl_data::MatlEntryData,
@@ -204,32 +205,7 @@ pub fn animate_skel_inner(
     skel_bones: &[BoneData],
     hlpb: Option<&HlpbData>,
 ) {
-    // TODO: Add tests for evaluation order.
-    // The parent-child relationship determines the evaluation order.
-    // The order is partial since only a parent and child bone are comparable.
-    // We need a topological sort instead of a regular sort to enforce these dependencies.
-    // TODO: Is there a cleaner way of doing this?
-    // TODO: What is the performance impact of this?
-    let mut topo_sort = topological_sort::TopologicalSort::<usize>::new();
-    let mut evaluation_order = Vec::new();
-    for (i, bone) in bones.iter() {
-        if let Some(p) = bone.bone.parent_index {
-            topo_sort.add_dependency(p, *i);
-        } else {
-            // Root bones won't be part of the dependency graph.
-            // Add them manually to ensure all bones get evaluated.
-            evaluation_order.push(*i);
-        }
-    }
-    // TODO: Cycle checking?
-    loop {
-        let parts = topo_sort.pop_all();
-        if parts.is_empty() {
-            break;
-        }
-
-        evaluation_order.extend(parts);
-    }
+    let evaluation_order = evaluation_order(bones);
 
     // Assume parents always appear before their children.
     // This partial order respects dependencies, so bones can be iterated exactly once.
@@ -279,6 +255,36 @@ pub fn animate_skel_inner(
         result.animated_world_transforms.transforms_inv_transpose[i] =
             anim_transform.inverse().transpose();
     }
+}
+
+fn evaluation_order(bones: &mut Vec<(usize, AnimatedBone)>) -> IndexSet<usize> {
+    // The parent-child relationship determines the evaluation order.
+    // The order is partial since only a parent and child bone are comparable.
+    // We need a topological sort instead of a regular sort to enforce these dependencies.
+    let mut topo_sort = topological_sort::TopologicalSort::<usize>::new();
+    let mut evaluation_order = IndexSet::new();
+    for (i, bone) in bones.iter() {
+        if let Some(p) = bone.bone.parent_index {
+            topo_sort.add_dependency(p, *i);
+        } else {
+            // Root bones with no children won't be part of the dependency graph.
+            // Add them manually to ensure all bones get evaluated.
+            // Use a set to avoid duplicates here.
+            evaluation_order.insert(*i);
+        }
+    }
+
+    // TODO: Cycle checking?
+    loop {
+        let parts = topo_sort.pop_all();
+        if parts.is_empty() {
+            break;
+        }
+
+        evaluation_order.extend(parts);
+    }
+
+    evaluation_order
 }
 
 fn apply_constraints(
@@ -533,6 +539,7 @@ fn frame_values<T>(frame: f32, values: &[T]) -> (&T, &T, f32) {
 
 #[cfg(test)]
 mod tests {
+    use indexmap::indexset;
     use ssbh_data::{
         anim_data::{GroupData, NodeData, TrackData, Transform, TransformFlags},
         hlpb_data::OrientConstraintData,
@@ -1483,5 +1490,90 @@ mod tests {
         assert_eq!(true, meshes[1].1);
         // The third mesh should be unchanged.
         assert_eq!(true, meshes[2].1);
+    }
+
+    #[test]
+    fn evaluation_order_empty() {
+        assert!(evaluation_order(&mut Vec::new()).is_empty());
+    }
+
+    #[test]
+    fn evaluation_order_single_bone() {
+        assert_eq!(
+            indexset![0],
+            evaluation_order(&mut vec![(
+                0,
+                AnimatedBone {
+                    bone: &identity_bone("a", None),
+                    anim_transform: None,
+                    compensate_scale: false,
+                    flags: TransformFlags::default()
+                }
+            )])
+        );
+    }
+
+    #[test]
+    fn evaluation_order_multiple_bones() {
+        assert_eq!(
+            indexset![2, 0, 1],
+            evaluation_order(&mut vec![
+                (
+                    0,
+                    AnimatedBone {
+                        bone: &identity_bone("child", Some(2)),
+                        anim_transform: None,
+                        compensate_scale: false,
+                        flags: TransformFlags::default()
+                    }
+                ),
+                (
+                    1,
+                    AnimatedBone {
+                        bone: &identity_bone("grandchild", Some(0)),
+                        anim_transform: None,
+                        compensate_scale: false,
+                        flags: TransformFlags::default()
+                    }
+                ),
+                (
+                    2,
+                    AnimatedBone {
+                        bone: &identity_bone("root", None),
+                        anim_transform: None,
+                        compensate_scale: false,
+                        flags: TransformFlags::default()
+                    }
+                )
+            ])
+        );
+    }
+
+    #[test]
+    fn evaluation_order_cycles() {
+        // TODO: How should this case be handled?
+        assert_eq!(
+            indexset![],
+            evaluation_order(&mut vec![
+                (
+                    0,
+                    AnimatedBone {
+                        bone: &identity_bone("a", Some(1)),
+                        anim_transform: None,
+                        compensate_scale: false,
+                        flags: TransformFlags::default()
+                    }
+                ),
+                (
+                    1,
+                    AnimatedBone {
+                        bone: &identity_bone("b", Some(0)),
+                        anim_transform: None,
+                        compensate_scale: false,
+                        flags: TransformFlags::default()
+                    }
+                ),
+            ])
+        );
     }
 }
