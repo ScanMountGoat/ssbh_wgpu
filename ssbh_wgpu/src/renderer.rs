@@ -610,6 +610,7 @@ impl SsbhRenderer {
                 options.mask_model_index,
                 &options.mask_material_label,
                 options.draw_wireframe,
+                options.draw_floor_grid,
             );
         } else {
             // Depth only pass for shadow maps.
@@ -618,7 +619,6 @@ impl SsbhRenderer {
             // Create the two channel shadow map for variance shadows.
             self.variance_shadow_pass(encoder);
 
-            // TODO: Adjust this to use msaa?
             // Draw the models to the initial color texture.
             self.model_pass(
                 encoder,
@@ -626,6 +626,7 @@ impl SsbhRenderer {
                 shader_database,
                 options.mask_model_index,
                 &options.mask_material_label,
+                options.draw_floor_grid,
             );
 
             // TODO: Will these be faster as compute passes?
@@ -646,10 +647,6 @@ impl SsbhRenderer {
 
             // Combine the model and bloom contributions and apply color grading.
             self.post_processing_pass(encoder, &self.pass_info.color_final.view);
-        }
-
-        if options.draw_floor_grid {
-            self.grid_pass(encoder);
         }
 
         // The skeleton pass needs to happen before the silhouettes.
@@ -701,31 +698,6 @@ impl SsbhRenderer {
         // TODO: This can be combined with post processing?
         // Composite the outlines onto the result of the debug or shaded passes.
         self.overlay_pass(encoder, output_view)
-    }
-
-    fn grid_pass(&self, encoder: &mut wgpu::CommandEncoder) {
-        let mut grid_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-            label: Some("Grid Pass"),
-            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                view: &self.pass_info.color_msaa.view,
-                resolve_target: Some(&self.pass_info.color_final.view),
-                ops: wgpu::Operations {
-                    // TODO: Combine with another pass to avoid loading.
-                    load: wgpu::LoadOp::Load,
-                    store: true,
-                },
-            })],
-            depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                view: &self.pass_info.depth.view,
-                depth_ops: Some(wgpu::Operations {
-                    load: wgpu::LoadOp::Load,
-                    store: false,
-                }),
-                stencil_ops: None,
-            }),
-        });
-
-        self.floor_grid.draw(&mut grid_pass);
     }
 
     /// Renders UVs for all of the meshes with `is_selected` set to `true`.
@@ -938,6 +910,7 @@ impl SsbhRenderer {
         shader_database: &ShaderDatabase,
         mask_model_index: usize,
         mask_material_label: &str,
+        floor_grid: bool,
     ) {
         // TODO: Force having a color attachment for each fragment shader output in wgsl_to_wgpu?
         // TODO: Should this pass draw to a floating point target?
@@ -963,6 +936,10 @@ impl SsbhRenderer {
         });
 
         self.set_scissor(&mut pass);
+
+        if floor_grid {
+            self.floor_grid.draw(&mut pass);
+        }
 
         // TODO: Investigate sorting.
         self.draw_render_models(render_models.iter(), &mut pass, shader_database, "opaque");
@@ -1043,6 +1020,7 @@ impl SsbhRenderer {
         mask_model_index: usize,
         mask_material_label: &str,
         wireframe: bool,
+        floor_grid: bool,
     ) {
         let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("Model Debug Pass"),
@@ -1065,6 +1043,10 @@ impl SsbhRenderer {
         });
 
         self.set_scissor(&mut pass);
+
+        if floor_grid {
+            self.floor_grid.draw(&mut pass);
+        }
 
         pass.set_pipeline(&self.debug_pipeline);
         for model in render_models.iter().filter(|m| m.is_visible) {
