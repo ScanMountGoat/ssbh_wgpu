@@ -72,5 +72,5 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     // Assume an sRGB frame buffer and don't gamma correct here.
     // Set alpha to allow for transparent screenshots.
     // TODO: What to use for alpha here?
-    return vec4(output * color.a, color.a);
+    return vec4(output, color.a);
 }

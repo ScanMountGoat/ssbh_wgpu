@@ -174,8 +174,9 @@ impl RenderModel {
         device: &wgpu::Device,
         materials: &[MatlEntryData],
         shared_data: &SharedRenderData,
-        sampler_by_data: &mut SamplerCache,
     ) {
+        let mut sampler_by_data = SamplerCache::new();
+
         self.material_data_by_label = materials
             .iter()
             .map(|material| {
@@ -201,7 +202,7 @@ impl RenderModel {
                     material,
                     &self.textures,
                     shared_data,
-                    sampler_by_data,
+                    &mut sampler_by_data,
                 );
                 (material.material_label.clone(), data)
             })
