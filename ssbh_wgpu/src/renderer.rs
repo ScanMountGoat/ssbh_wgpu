@@ -1344,7 +1344,15 @@ fn create_screen_pipeline(
         fragment: Some(wgpu::FragmentState {
             module,
             entry_point: fs_main,
-            targets: &[Some(target.into())],
+            targets: &[Some(wgpu::ColorTargetState {
+                format: target,
+                // Enable blending to allow transparent screenshots.
+                blend: Some(wgpu::BlendState {
+                    color: wgpu::BlendComponent::OVER,
+                    alpha: wgpu::BlendComponent::REPLACE,
+                }),
+                write_mask: wgpu::ColorWrites::ALL,
+            })],
         }),
         primitive: wgpu::PrimitiveState::default(),
         depth_stencil: None,

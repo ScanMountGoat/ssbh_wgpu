@@ -36,5 +36,5 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     // TODO: Set outline color?
     var output = mix(color.rgb, vec3(0.0, 1.0, 1.0), outline1);
     output = mix(output, vec3(0.0, 0.0, 0.0), outline2);
-    return vec4(output, color.a);
+    return vec4(output * color.a, color.a);
 }
