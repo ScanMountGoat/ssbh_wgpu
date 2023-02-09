@@ -24,7 +24,6 @@ fn main() {
     // TODO: Only rerun if the shaders change?
     let mut shader_paths: Vec<_> = std::fs::read_dir("src/shader")
         .unwrap()
-        .into_iter()
         .filter_map(|p| Some(p.ok()?.path()))
         .filter(|p| p.extension().unwrap().to_string_lossy() == "wgsl")
         .collect();

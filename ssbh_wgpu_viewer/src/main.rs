@@ -95,8 +95,6 @@ impl State {
         prc: Option<PathBuf>,
         camera_anim: Option<PathBuf>,
     ) -> Self {
-        // TODO: How to try Vulkan and then DX12?
-        // TODO: Some Windows systems don't work on vulkan for some reason.
         let instance = wgpu::Instance::new(wgpu::Backends::all());
         let surface = unsafe { instance.create_surface(&window) };
         let adapter = instance

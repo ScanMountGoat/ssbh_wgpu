@@ -156,8 +156,6 @@ impl<'a> RenderMeshSharedData<'a> {
             wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         );
 
-        // TODO: How to avoid applying scale to the bone geometry?
-        // TODO: Use the stencil mask outline to avoid needing multiple buffers.
         let bone_data = bone_bind_group1(device, world_transforms, &bone_colors);
         let joint_data = bone_bind_group1(device, &joint_world_transforms, &bone_colors);
         let bone_bind_groups = bone_bind_groups(device, self.skel);
@@ -526,7 +524,7 @@ impl<'a> RenderMeshSharedData<'a> {
             skinning_transforms_bind_group,
             mesh_object_info_bind_group,
             pipeline_key,
-            normals_bind_group: renormal_bind_group,
+            renormal_bind_group,
             subindex: mesh_object.subindex,
             vertex_count,
             vertex_index_count: mesh_object.vertex_indices.len(),

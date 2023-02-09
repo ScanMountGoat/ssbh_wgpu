@@ -36,7 +36,6 @@ pub type SamplerCache = Vec<(SamplerData, wgpu::Sampler)>;
 /// This encapsulates data shared between [RenderMesh] like materials, bones, and textures.
 /// Grouping shared state reduces redundant state changes for faster creation and updating.
 /// Most methods affecting a mesh are only available from the parent [RenderModel] for this reason.
-// TODO: Is it worth allowing models to reference textures from other folders?
 pub struct RenderModel {
     pub meshes: Vec<RenderMesh>,
     /// Render the visible meshes in this model when `true`.
@@ -77,7 +76,7 @@ pub struct RenderMesh {
     material_label: String,
     shader_label: String,
     sort_bias: i32,
-    normals_bind_group: crate::shader::renormal::bind_groups::BindGroup0,
+    renormal_bind_group: crate::shader::renormal::bind_groups::BindGroup0,
     skinning_bind_group: crate::shader::skinning::bind_groups::BindGroup0,
     skinning_transforms_bind_group: crate::shader::skinning::bind_groups::BindGroup1,
     mesh_object_info_bind_group: crate::shader::skinning::bind_groups::BindGroup2,
@@ -579,7 +578,6 @@ impl RenderModel {
     ) -> bool {
         // Assume the pipeline is already set.
         let mut active = false;
-        // TODO: Show meshes that aren't visible?
         for mesh in self
             .meshes
             .iter()
@@ -711,7 +709,7 @@ pub fn dispatch_renormal<'a>(meshes: &'a [RenderMesh], compute_pass: &mut wgpu::
         crate::shader::renormal::bind_groups::set_bind_groups(
             compute_pass,
             crate::shader::renormal::bind_groups::BindGroups::<'a> {
-                bind_group0: &mesh.normals_bind_group,
+                bind_group0: &mesh.renormal_bind_group,
             },
         );
 

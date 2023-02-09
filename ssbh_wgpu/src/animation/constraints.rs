@@ -27,14 +27,9 @@ pub fn apply_aim_constraint(
         .iter()
         .position(|b| b.name == constraint.target_bone_name1)?;
 
-    // TODO: Avoid finding the bone twice?
     let target_world = *world_transforms
         .get(target)
         .unwrap_or(&glam::Mat4::IDENTITY);
-
-    let _target = bones
-        .iter()
-        .find(|b| b.name == constraint.target_bone_name1)?;
 
     // TODO: Can a bone not affected by the anim be the source?
     // TODO: Will the target of a constraint ever be animated?

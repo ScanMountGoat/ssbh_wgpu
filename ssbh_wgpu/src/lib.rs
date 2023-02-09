@@ -400,8 +400,6 @@ trait DeviceBufferExt {
     ) -> wgpu::Buffer;
 }
 
-// TODO: Rework this to use encase instead of bytemuck.
-// TODO: Create a single function that uses encase and takes a usage parameter?
 impl DeviceBufferExt for wgpu::Device {
     fn create_buffer_from_data<T: ShaderType + WriteInto + ShaderSize>(
         &self,
@@ -410,7 +408,6 @@ impl DeviceBufferExt for wgpu::Device {
         usage: wgpu::BufferUsages,
     ) -> wgpu::Buffer {
         // Storage buffers also satisfy uniform buffer alignment requirements.
-        // TODO: Check field offset calculations for vertex attribute in vertex buffers.
         let mut buffer = StorageBuffer::new(Vec::new());
         buffer.write(&data).unwrap();
 

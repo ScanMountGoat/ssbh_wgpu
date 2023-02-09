@@ -1,4 +1,7 @@
-use crate::{renderer::{DEPTH_FORMAT, MSAA_SAMPLE_COUNT}, shape::IndexedMeshBuffers};
+use crate::{
+    renderer::{DEPTH_FORMAT, MSAA_SAMPLE_COUNT},
+    shape::IndexedMeshBuffers,
+};
 
 // TODO: FloorGrid?
 pub struct FloorGridRenderData {
@@ -12,7 +15,6 @@ impl FloorGridRenderData {
         let shader = crate::shader::floor_grid::create_shader_module(device);
         let layout = crate::shader::floor_grid::create_pipeline_layout(device);
 
-        // TODO: Get the stride using encase.
         let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: None,
             layout: Some(&layout),

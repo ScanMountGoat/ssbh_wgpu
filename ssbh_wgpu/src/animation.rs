@@ -257,7 +257,7 @@ pub fn animate_skel_inner(
     }
 }
 
-fn evaluation_order(bones: &mut Vec<(usize, AnimatedBone)>) -> IndexSet<usize> {
+fn evaluation_order(bones: &[(usize, AnimatedBone)]) -> IndexSet<usize> {
     // The parent-child relationship determines the evaluation order.
     // The order is partial since only a parent and child bone are comparable.
     // We need a topological sort instead of a regular sort to enforce these dependencies.
