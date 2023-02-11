@@ -603,9 +603,9 @@ fn GetShadow(light_position: vec4<f32>) -> f32
     let flipCorrection = vec2(0.5, -0.5);
     // compute texture coordinates for shadow lookup
     let projCorrection = 1.0 / light_position.w;
-    let light_local = light_position.xy * flipCorrection * projCorrection + vec2(0.5, 0.5);
+    var light_local = light_position.xy * flipCorrection * projCorrection + vec2(0.5, 0.5);
     // Clamp the UVs since the sampler is shared with a repeat sampler.
-    let light_local = clamp(light_local, vec2(0.0), vec2(1.0));
+    light_local = clamp(light_local, vec2(0.0), vec2(1.0));
 
     // TODO: This assumes depth is in the range 0.0 to 1.0 in the texture.
     let currentDepth = light_position.z * projCorrection;
@@ -1245,7 +1245,7 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) is_front: bool) -> @location
     // This is similar to mikktspace but normalization happens in the fragment shader.
     let normal = normalize(in.normal.xyz);
     let tangent = normalize(in.tangent.xyz);
-    let bitangent = GetBitangent(normal, tangent, in.tangent.w);
+    var bitangent = GetBitangent(normal, tangent, in.tangent.w);
 
     var fragmentNormal = normal;
     if (per_material.has_texture[4].x == 1u) {
@@ -1253,7 +1253,7 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) is_front: bool) -> @location
     }
 
     // TODO: Is this correct?
-    let bitangent = GetBitangent(fragmentNormal, tangent, in.tangent.w);
+    bitangent = GetBitangent(fragmentNormal, tangent, in.tangent.w);
 
     // TODO: Investigate lighting for double sided materials with culling disabled.
     if (!is_front) {

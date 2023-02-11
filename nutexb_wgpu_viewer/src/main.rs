@@ -15,14 +15,17 @@ struct State {
     size: winit::dpi::PhysicalSize<u32>,
     config: wgpu::SurfaceConfiguration,
     renderer: TextureRenderer,
-    layer: u32,
-    mipmap: f32,
+    _layer: u32,
+    _mipmap: f32,
 }
 
 impl State {
     async fn new<P: AsRef<Path>>(window: &Window, path: P, layer: u32, mipmap: f32) -> Self {
-        let instance = wgpu::Instance::new(wgpu::Backends::all());
-        let surface = unsafe { instance.create_surface(window) };
+        let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
+            backends: wgpu::Backends::all(),
+            ..Default::default()
+        });
+        let surface = unsafe { instance.create_surface(window).unwrap() };
         let adapter = instance
             .request_adapter(&wgpu::RequestAdapterOptions {
                 power_preference: wgpu::PowerPreference::default(),
@@ -53,6 +56,7 @@ impl State {
             height: size.height,
             present_mode: wgpu::PresentMode::Fifo,
             alpha_mode: wgpu::CompositeAlphaMode::Auto,
+            view_formats: Vec::new(),
         };
         surface.configure(&device, &config);
 
@@ -108,8 +112,8 @@ impl State {
             size,
             renderer,
             config,
-            layer,
-            mipmap,
+            _layer: layer,
+            _mipmap: mipmap,
         }
     }
 

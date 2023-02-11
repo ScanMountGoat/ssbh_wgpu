@@ -3,7 +3,6 @@ use crate::{
     shape::IndexedMeshBuffers,
 };
 
-// TODO: FloorGrid?
 pub struct FloorGridRenderData {
     pipeline: wgpu::RenderPipeline,
     bind_group: crate::shader::floor_grid::bind_groups::BindGroup0,
@@ -30,6 +29,7 @@ impl FloorGridRenderData {
             fragment: Some(wgpu::FragmentState {
                 module: &shader,
                 entry_point: "fs_main",
+                // TODO: Why doesn't this blend properly from below?
                 targets: &[Some(wgpu::ColorTargetState {
                     format: crate::RGBA_COLOR_FORMAT,
                     blend: Some(wgpu::BlendState {

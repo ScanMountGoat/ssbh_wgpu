@@ -14,6 +14,18 @@ pub struct VertexInput {
     pub position: glam::Vec4,
     pub normal: glam::Vec4,
 }
+const _: () = assert!(
+    std::mem::size_of:: < VertexInput > () == 32,
+    "size of VertexInput does not match WGSL"
+);
+const _: () = assert!(
+    memoffset::offset_of!(VertexInput, position) == 0,
+    "offset of VertexInput.position does not match WGSL"
+);
+const _: () = assert!(
+    memoffset::offset_of!(VertexInput, normal) == 16,
+    "offset of VertexInput.normal does not match WGSL"
+);
 #[repr(C)]
 #[derive(
     Debug,
@@ -31,6 +43,30 @@ pub struct CameraTransforms {
     pub camera_pos: glam::Vec4,
     pub screen_dimensions: glam::Vec4,
 }
+const _: () = assert!(
+    std::mem::size_of:: < CameraTransforms > () == 224,
+    "size of CameraTransforms does not match WGSL"
+);
+const _: () = assert!(
+    memoffset::offset_of!(CameraTransforms, model_view_matrix) == 0,
+    "offset of CameraTransforms.model_view_matrix does not match WGSL"
+);
+const _: () = assert!(
+    memoffset::offset_of!(CameraTransforms, mvp_matrix) == 64,
+    "offset of CameraTransforms.mvp_matrix does not match WGSL"
+);
+const _: () = assert!(
+    memoffset::offset_of!(CameraTransforms, mvp_inv_matrix) == 128,
+    "offset of CameraTransforms.mvp_inv_matrix does not match WGSL"
+);
+const _: () = assert!(
+    memoffset::offset_of!(CameraTransforms, camera_pos) == 192,
+    "offset of CameraTransforms.camera_pos does not match WGSL"
+);
+const _: () = assert!(
+    memoffset::offset_of!(CameraTransforms, screen_dimensions) == 208,
+    "offset of CameraTransforms.screen_dimensions does not match WGSL"
+);
 #[repr(C)]
 #[derive(
     Debug,
@@ -44,6 +80,14 @@ pub struct CameraTransforms {
 pub struct WorldTransforms {
     pub transforms: [glam::Mat4; 512],
 }
+const _: () = assert!(
+    std::mem::size_of:: < WorldTransforms > () == 32768,
+    "size of WorldTransforms does not match WGSL"
+);
+const _: () = assert!(
+    memoffset::offset_of!(WorldTransforms, transforms) == 0,
+    "offset of WorldTransforms.transforms does not match WGSL"
+);
 #[repr(C)]
 #[derive(
     Debug,
@@ -59,6 +103,21 @@ pub struct PerShape {
     pub start_transform: glam::Mat4,
     pub color: glam::Vec4,
 }
+const _: () = assert!(
+    std::mem::size_of:: < PerShape > () == 96, "size of PerShape does not match WGSL"
+);
+const _: () = assert!(
+    memoffset::offset_of!(PerShape, bone_indices) == 0,
+    "offset of PerShape.bone_indices does not match WGSL"
+);
+const _: () = assert!(
+    memoffset::offset_of!(PerShape, start_transform) == 16,
+    "offset of PerShape.start_transform does not match WGSL"
+);
+const _: () = assert!(
+    memoffset::offset_of!(PerShape, color) == 80,
+    "offset of PerShape.color does not match WGSL"
+);
 pub mod bind_groups {
     pub struct BindGroup0(wgpu::BindGroup);
     pub struct BindGroupLayout0<'a> {

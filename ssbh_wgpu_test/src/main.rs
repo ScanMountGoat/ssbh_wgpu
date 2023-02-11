@@ -11,8 +11,8 @@ use ssbh_wgpu::{
     SsbhRenderer, REQUIRED_FEATURES, RGBA_COLOR_FORMAT,
 };
 use wgpu::{
-    Backends, DeviceDescriptor, Extent3d, Instance, Limits, PowerPreference, RequestAdapterOptions,
-    TextureDescriptor, TextureDimension, TextureUsages,
+    DeviceDescriptor, Extent3d, Limits, PowerPreference, RequestAdapterOptions, TextureDescriptor,
+    TextureDimension, TextureUsages,
 };
 
 fn calculate_camera_pos_mvp(
@@ -36,6 +36,7 @@ fn calculate_camera_pos_mvp(
 }
 
 fn main() {
+    // TODO: use pico-args for this.
     let args: Vec<_> = std::env::args().collect();
     let source_folder = &args[1];
     let fighter_anim = args.get(2).map(|s| s.as_str()) == Some("--fighter-anim");
@@ -49,7 +50,10 @@ fn main() {
 
     // Load models in headless mode without a surface.
     // This simplifies testing for stability and performance.
-    let instance = Instance::new(Backends::all());
+    let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
+        backends: wgpu::Backends::all(),
+        ..Default::default()
+    });
     let adapter = block_on(instance.request_adapter(&RequestAdapterOptions {
         power_preference: PowerPreference::HighPerformance,
         compatible_surface: None,
@@ -105,6 +109,7 @@ fn main() {
         format: surface_format,
         usage: TextureUsages::COPY_SRC | TextureUsages::RENDER_ATTACHMENT,
         label: None,
+        view_formats: &[],
     };
     let output = device.create_texture(&texture_desc);
     let output_view = output.create_view(&Default::default());

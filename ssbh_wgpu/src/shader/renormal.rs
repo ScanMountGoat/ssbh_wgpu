@@ -15,6 +15,22 @@ pub struct VertexInput0 {
     pub normal0: glam::Vec4,
     pub tangent0: glam::Vec4,
 }
+const _: () = assert!(
+    std::mem::size_of:: < VertexInput0 > () == 48,
+    "size of VertexInput0 does not match WGSL"
+);
+const _: () = assert!(
+    memoffset::offset_of!(VertexInput0, position0) == 0,
+    "offset of VertexInput0.position0 does not match WGSL"
+);
+const _: () = assert!(
+    memoffset::offset_of!(VertexInput0, normal0) == 16,
+    "offset of VertexInput0.normal0 does not match WGSL"
+);
+const _: () = assert!(
+    memoffset::offset_of!(VertexInput0, tangent0) == 32,
+    "offset of VertexInput0.tangent0 does not match WGSL"
+);
 pub mod bind_groups {
     pub struct BindGroup0(wgpu::BindGroup);
     pub struct BindGroupLayout0<'a> {

@@ -5,8 +5,8 @@ edition = "2021"
 
 [dependencies]
 glam = { version = "0.22.0", features = ["bytemuck"] }
-wgpu = "0.14.0"
-bytemuck = { version = "1.7", features = [ "derive" ] }
+wgpu = "0.15.0"
+bytemuck = { version = "1.13", features = [ "derive" ] }
 ssbh_data = { git = "https://github.com/ultimate-research/ssbh_lib", features = ["strum"] }
 walkdir = "2"
 rayon = "1.5.1"

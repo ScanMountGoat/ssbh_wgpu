@@ -15,6 +15,22 @@ pub struct VertexInput0 {
     pub normal0: glam::Vec4,
     pub tangent0: glam::Vec4,
 }
+const _: () = assert!(
+    std::mem::size_of:: < VertexInput0 > () == 48,
+    "size of VertexInput0 does not match WGSL"
+);
+const _: () = assert!(
+    memoffset::offset_of!(VertexInput0, position0) == 0,
+    "offset of VertexInput0.position0 does not match WGSL"
+);
+const _: () = assert!(
+    memoffset::offset_of!(VertexInput0, normal0) == 16,
+    "offset of VertexInput0.normal0 does not match WGSL"
+);
+const _: () = assert!(
+    memoffset::offset_of!(VertexInput0, tangent0) == 32,
+    "offset of VertexInput0.tangent0 does not match WGSL"
+);
 #[repr(C)]
 #[derive(
     Debug,
@@ -29,6 +45,18 @@ pub struct VertexWeight {
     pub bone_indices: glam::IVec4,
     pub weights: glam::Vec4,
 }
+const _: () = assert!(
+    std::mem::size_of:: < VertexWeight > () == 32,
+    "size of VertexWeight does not match WGSL"
+);
+const _: () = assert!(
+    memoffset::offset_of!(VertexWeight, bone_indices) == 0,
+    "offset of VertexWeight.bone_indices does not match WGSL"
+);
+const _: () = assert!(
+    memoffset::offset_of!(VertexWeight, weights) == 16,
+    "offset of VertexWeight.weights does not match WGSL"
+);
 #[repr(C)]
 #[derive(
     Debug,
@@ -43,6 +71,18 @@ pub struct AnimatedWorldTransforms {
     pub transforms: [glam::Mat4; 512],
     pub transforms_inv_transpose: [glam::Mat4; 512],
 }
+const _: () = assert!(
+    std::mem::size_of:: < AnimatedWorldTransforms > () == 65536,
+    "size of AnimatedWorldTransforms does not match WGSL"
+);
+const _: () = assert!(
+    memoffset::offset_of!(AnimatedWorldTransforms, transforms) == 0,
+    "offset of AnimatedWorldTransforms.transforms does not match WGSL"
+);
+const _: () = assert!(
+    memoffset::offset_of!(AnimatedWorldTransforms, transforms_inv_transpose) == 32768,
+    "offset of AnimatedWorldTransforms.transforms_inv_transpose does not match WGSL"
+);
 #[repr(C)]
 #[derive(
     Debug,
@@ -56,6 +96,14 @@ pub struct AnimatedWorldTransforms {
 pub struct WorldTransforms {
     pub transforms: [glam::Mat4; 512],
 }
+const _: () = assert!(
+    std::mem::size_of:: < WorldTransforms > () == 32768,
+    "size of WorldTransforms does not match WGSL"
+);
+const _: () = assert!(
+    memoffset::offset_of!(WorldTransforms, transforms) == 0,
+    "offset of WorldTransforms.transforms does not match WGSL"
+);
 #[repr(C)]
 #[derive(
     Debug,
@@ -69,6 +117,14 @@ pub struct WorldTransforms {
 pub struct MeshObjectInfo {
     pub parent_index: glam::IVec4,
 }
+const _: () = assert!(
+    std::mem::size_of:: < MeshObjectInfo > () == 16,
+    "size of MeshObjectInfo does not match WGSL"
+);
+const _: () = assert!(
+    memoffset::offset_of!(MeshObjectInfo, parent_index) == 0,
+    "offset of MeshObjectInfo.parent_index does not match WGSL"
+);
 #[repr(C)]
 #[derive(
     Debug,
@@ -83,6 +139,18 @@ pub struct SkinningSettings {
     pub enable_parenting: glam::UVec4,
     pub enable_skinning: glam::UVec4,
 }
+const _: () = assert!(
+    std::mem::size_of:: < SkinningSettings > () == 32,
+    "size of SkinningSettings does not match WGSL"
+);
+const _: () = assert!(
+    memoffset::offset_of!(SkinningSettings, enable_parenting) == 0,
+    "offset of SkinningSettings.enable_parenting does not match WGSL"
+);
+const _: () = assert!(
+    memoffset::offset_of!(SkinningSettings, enable_skinning) == 16,
+    "offset of SkinningSettings.enable_skinning does not match WGSL"
+);
 pub mod bind_groups {
     pub struct BindGroup0(wgpu::BindGroup);
     pub struct BindGroupLayout0<'a> {

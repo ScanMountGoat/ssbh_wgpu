@@ -17,6 +17,30 @@ pub struct CameraTransforms {
     pub camera_pos: glam::Vec4,
     pub screen_dimensions: glam::Vec4,
 }
+const _: () = assert!(
+    std::mem::size_of:: < CameraTransforms > () == 224,
+    "size of CameraTransforms does not match WGSL"
+);
+const _: () = assert!(
+    memoffset::offset_of!(CameraTransforms, model_view_matrix) == 0,
+    "offset of CameraTransforms.model_view_matrix does not match WGSL"
+);
+const _: () = assert!(
+    memoffset::offset_of!(CameraTransforms, mvp_matrix) == 64,
+    "offset of CameraTransforms.mvp_matrix does not match WGSL"
+);
+const _: () = assert!(
+    memoffset::offset_of!(CameraTransforms, mvp_inv_matrix) == 128,
+    "offset of CameraTransforms.mvp_inv_matrix does not match WGSL"
+);
+const _: () = assert!(
+    memoffset::offset_of!(CameraTransforms, camera_pos) == 192,
+    "offset of CameraTransforms.camera_pos does not match WGSL"
+);
+const _: () = assert!(
+    memoffset::offset_of!(CameraTransforms, screen_dimensions) == 208,
+    "offset of CameraTransforms.screen_dimensions does not match WGSL"
+);
 #[repr(C)]
 #[derive(
     Debug,
@@ -30,6 +54,14 @@ pub struct CameraTransforms {
 pub struct LightTransforms {
     pub light_transform: glam::Mat4,
 }
+const _: () = assert!(
+    std::mem::size_of:: < LightTransforms > () == 64,
+    "size of LightTransforms does not match WGSL"
+);
+const _: () = assert!(
+    memoffset::offset_of!(LightTransforms, light_transform) == 0,
+    "offset of LightTransforms.light_transform does not match WGSL"
+);
 #[repr(C)]
 #[derive(
     Debug,
@@ -57,6 +89,70 @@ pub struct RenderSettings {
     pub render_nor: glam::UVec4,
     pub render_prm: glam::UVec4,
 }
+const _: () = assert!(
+    std::mem::size_of:: < RenderSettings > () == 240,
+    "size of RenderSettings does not match WGSL"
+);
+const _: () = assert!(
+    memoffset::offset_of!(RenderSettings, debug_mode) == 0,
+    "offset of RenderSettings.debug_mode does not match WGSL"
+);
+const _: () = assert!(
+    memoffset::offset_of!(RenderSettings, render_uv_pattern) == 16,
+    "offset of RenderSettings.render_uv_pattern does not match WGSL"
+);
+const _: () = assert!(
+    memoffset::offset_of!(RenderSettings, transition_material) == 32,
+    "offset of RenderSettings.transition_material does not match WGSL"
+);
+const _: () = assert!(
+    memoffset::offset_of!(RenderSettings, transition_factor) == 48,
+    "offset of RenderSettings.transition_factor does not match WGSL"
+);
+const _: () = assert!(
+    memoffset::offset_of!(RenderSettings, render_diffuse) == 64,
+    "offset of RenderSettings.render_diffuse does not match WGSL"
+);
+const _: () = assert!(
+    memoffset::offset_of!(RenderSettings, render_specular) == 80,
+    "offset of RenderSettings.render_specular does not match WGSL"
+);
+const _: () = assert!(
+    memoffset::offset_of!(RenderSettings, render_emission) == 96,
+    "offset of RenderSettings.render_emission does not match WGSL"
+);
+const _: () = assert!(
+    memoffset::offset_of!(RenderSettings, render_rim_lighting) == 112,
+    "offset of RenderSettings.render_rim_lighting does not match WGSL"
+);
+const _: () = assert!(
+    memoffset::offset_of!(RenderSettings, render_shadows) == 128,
+    "offset of RenderSettings.render_shadows does not match WGSL"
+);
+const _: () = assert!(
+    memoffset::offset_of!(RenderSettings, render_bloom) == 144,
+    "offset of RenderSettings.render_bloom does not match WGSL"
+);
+const _: () = assert!(
+    memoffset::offset_of!(RenderSettings, render_vertex_color) == 160,
+    "offset of RenderSettings.render_vertex_color does not match WGSL"
+);
+const _: () = assert!(
+    memoffset::offset_of!(RenderSettings, scale_vertex_color) == 176,
+    "offset of RenderSettings.scale_vertex_color does not match WGSL"
+);
+const _: () = assert!(
+    memoffset::offset_of!(RenderSettings, render_rgba) == 192,
+    "offset of RenderSettings.render_rgba does not match WGSL"
+);
+const _: () = assert!(
+    memoffset::offset_of!(RenderSettings, render_nor) == 208,
+    "offset of RenderSettings.render_nor does not match WGSL"
+);
+const _: () = assert!(
+    memoffset::offset_of!(RenderSettings, render_prm) == 224,
+    "offset of RenderSettings.render_prm does not match WGSL"
+);
 #[repr(C)]
 #[derive(
     Debug,
@@ -71,6 +167,16 @@ pub struct Light {
     pub color: glam::Vec4,
     pub direction: glam::Vec4,
 }
+const _: () = assert!(
+    std::mem::size_of:: < Light > () == 32, "size of Light does not match WGSL"
+);
+const _: () = assert!(
+    memoffset::offset_of!(Light, color) == 0, "offset of Light.color does not match WGSL"
+);
+const _: () = assert!(
+    memoffset::offset_of!(Light, direction) == 16,
+    "offset of Light.direction does not match WGSL"
+);
 #[repr(C)]
 #[derive(
     Debug,
@@ -86,6 +192,22 @@ pub struct SceneAttributesForShaderFx {
     pub custom_vector: [glam::Vec4; 64],
     pub custom_float: [glam::Vec4; 20],
 }
+const _: () = assert!(
+    std::mem::size_of:: < SceneAttributesForShaderFx > () == 1664,
+    "size of SceneAttributesForShaderFx does not match WGSL"
+);
+const _: () = assert!(
+    memoffset::offset_of!(SceneAttributesForShaderFx, custom_boolean) == 0,
+    "offset of SceneAttributesForShaderFx.custom_boolean does not match WGSL"
+);
+const _: () = assert!(
+    memoffset::offset_of!(SceneAttributesForShaderFx, custom_vector) == 320,
+    "offset of SceneAttributesForShaderFx.custom_vector does not match WGSL"
+);
+const _: () = assert!(
+    memoffset::offset_of!(SceneAttributesForShaderFx, custom_float) == 1344,
+    "offset of SceneAttributesForShaderFx.custom_float does not match WGSL"
+);
 #[repr(C)]
 #[derive(
     Debug,
@@ -100,6 +222,18 @@ pub struct StageUniforms {
     pub light_chr: Light,
     pub scene_attributes: SceneAttributesForShaderFx,
 }
+const _: () = assert!(
+    std::mem::size_of:: < StageUniforms > () == 1696,
+    "size of StageUniforms does not match WGSL"
+);
+const _: () = assert!(
+    memoffset::offset_of!(StageUniforms, light_chr) == 0,
+    "offset of StageUniforms.light_chr does not match WGSL"
+);
+const _: () = assert!(
+    memoffset::offset_of!(StageUniforms, scene_attributes) == 32,
+    "offset of StageUniforms.scene_attributes does not match WGSL"
+);
 #[repr(C)]
 #[derive(
     Debug,
@@ -123,6 +257,54 @@ pub struct PerMaterial {
     pub alpha_settings: glam::UVec4,
     pub shader_complexity: glam::Vec4,
 }
+const _: () = assert!(
+    std::mem::size_of:: < PerMaterial > () == 3696,
+    "size of PerMaterial does not match WGSL"
+);
+const _: () = assert!(
+    memoffset::offset_of!(PerMaterial, custom_vector) == 0,
+    "offset of PerMaterial.custom_vector does not match WGSL"
+);
+const _: () = assert!(
+    memoffset::offset_of!(PerMaterial, custom_boolean) == 1024,
+    "offset of PerMaterial.custom_boolean does not match WGSL"
+);
+const _: () = assert!(
+    memoffset::offset_of!(PerMaterial, custom_float) == 1344,
+    "offset of PerMaterial.custom_float does not match WGSL"
+);
+const _: () = assert!(
+    memoffset::offset_of!(PerMaterial, has_boolean) == 1664,
+    "offset of PerMaterial.has_boolean does not match WGSL"
+);
+const _: () = assert!(
+    memoffset::offset_of!(PerMaterial, has_float) == 1984,
+    "offset of PerMaterial.has_float does not match WGSL"
+);
+const _: () = assert!(
+    memoffset::offset_of!(PerMaterial, has_texture) == 2304,
+    "offset of PerMaterial.has_texture does not match WGSL"
+);
+const _: () = assert!(
+    memoffset::offset_of!(PerMaterial, has_vector) == 2608,
+    "offset of PerMaterial.has_vector does not match WGSL"
+);
+const _: () = assert!(
+    memoffset::offset_of!(PerMaterial, has_color_set1234) == 3632,
+    "offset of PerMaterial.has_color_set1234 does not match WGSL"
+);
+const _: () = assert!(
+    memoffset::offset_of!(PerMaterial, has_color_set567) == 3648,
+    "offset of PerMaterial.has_color_set567 does not match WGSL"
+);
+const _: () = assert!(
+    memoffset::offset_of!(PerMaterial, alpha_settings) == 3664,
+    "offset of PerMaterial.alpha_settings does not match WGSL"
+);
+const _: () = assert!(
+    memoffset::offset_of!(PerMaterial, shader_complexity) == 3680,
+    "offset of PerMaterial.shader_complexity does not match WGSL"
+);
 #[repr(C)]
 #[derive(
     Debug,
@@ -138,6 +320,22 @@ pub struct VertexInput0 {
     pub normal0: glam::Vec4,
     pub tangent0: glam::Vec4,
 }
+const _: () = assert!(
+    std::mem::size_of:: < VertexInput0 > () == 48,
+    "size of VertexInput0 does not match WGSL"
+);
+const _: () = assert!(
+    memoffset::offset_of!(VertexInput0, position0) == 0,
+    "offset of VertexInput0.position0 does not match WGSL"
+);
+const _: () = assert!(
+    memoffset::offset_of!(VertexInput0, normal0) == 16,
+    "offset of VertexInput0.normal0 does not match WGSL"
+);
+const _: () = assert!(
+    memoffset::offset_of!(VertexInput0, tangent0) == 32,
+    "offset of VertexInput0.tangent0 does not match WGSL"
+);
 #[repr(C)]
 #[derive(
     Debug,
@@ -160,6 +358,50 @@ pub struct VertexInput1 {
     pub color_set6: glam::Vec4,
     pub color_set7: glam::Vec4,
 }
+const _: () = assert!(
+    std::mem::size_of:: < VertexInput1 > () == 160,
+    "size of VertexInput1 does not match WGSL"
+);
+const _: () = assert!(
+    memoffset::offset_of!(VertexInput1, map1_uvset) == 0,
+    "offset of VertexInput1.map1_uvset does not match WGSL"
+);
+const _: () = assert!(
+    memoffset::offset_of!(VertexInput1, uv_set1_uv_set2) == 16,
+    "offset of VertexInput1.uv_set1_uv_set2 does not match WGSL"
+);
+const _: () = assert!(
+    memoffset::offset_of!(VertexInput1, bake1) == 32,
+    "offset of VertexInput1.bake1 does not match WGSL"
+);
+const _: () = assert!(
+    memoffset::offset_of!(VertexInput1, color_set1) == 48,
+    "offset of VertexInput1.color_set1 does not match WGSL"
+);
+const _: () = assert!(
+    memoffset::offset_of!(VertexInput1, color_set2_combined) == 64,
+    "offset of VertexInput1.color_set2_combined does not match WGSL"
+);
+const _: () = assert!(
+    memoffset::offset_of!(VertexInput1, color_set3) == 80,
+    "offset of VertexInput1.color_set3 does not match WGSL"
+);
+const _: () = assert!(
+    memoffset::offset_of!(VertexInput1, color_set4) == 96,
+    "offset of VertexInput1.color_set4 does not match WGSL"
+);
+const _: () = assert!(
+    memoffset::offset_of!(VertexInput1, color_set5) == 112,
+    "offset of VertexInput1.color_set5 does not match WGSL"
+);
+const _: () = assert!(
+    memoffset::offset_of!(VertexInput1, color_set6) == 128,
+    "offset of VertexInput1.color_set6 does not match WGSL"
+);
+const _: () = assert!(
+    memoffset::offset_of!(VertexInput1, color_set7) == 144,
+    "offset of VertexInput1.color_set7 does not match WGSL"
+);
 pub mod bind_groups {
     pub struct BindGroup0(wgpu::BindGroup);
     pub struct BindGroupLayout0<'a> {

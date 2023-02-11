@@ -13,9 +13,9 @@ struct VertexInput0 {
 @compute
 @workgroup_size(256)
 fn main(@builtin(global_invocation_id) global_invocation_id: vec3<u32>) {
-    let vertexCount = arrayLength(&vertices);
+    let vertexCountLength = arrayLength(&vertices);
     let index = global_invocation_id.x;
-    if (index >= vertexCount) {
+    if (index >= vertexCountLength) {
         return;
     }
 
@@ -27,7 +27,7 @@ fn main(@builtin(global_invocation_id) global_invocation_id: vec3<u32>) {
     let start = i32(index) * 18;
 
     // Loop over up to 9 adjacent faces.
-    let vertexCount = i32(vertexCount);
+    let vertexCount = i32(vertexCountLength);
     for (var i = 0; i < 9; i = i + 1) {
         let v0 = i32(index);
         let v1 = adj_data[start + i*2 + 0];

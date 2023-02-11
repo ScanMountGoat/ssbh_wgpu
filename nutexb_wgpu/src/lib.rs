@@ -183,6 +183,7 @@ pub fn create_texture(
             usage: wgpu::TextureUsages::COPY_SRC
                 | wgpu::TextureUsages::COPY_DST
                 | wgpu::TextureUsages::TEXTURE_BINDING,
+            view_formats: &[],
         },
         &data,
     );
@@ -357,6 +358,7 @@ impl TextureRenderer {
             usage: wgpu::TextureUsages::COPY_DST
                 | wgpu::TextureUsages::TEXTURE_BINDING
                 | wgpu::TextureUsages::RENDER_ATTACHMENT,
+            view_formats: &[],
         });
 
         let rgba_texture_view = rgba_texture.create_view(&wgpu::TextureViewDescriptor::default());
@@ -499,6 +501,7 @@ fn default_texture_2d(device: &wgpu::Device, queue: &wgpu::Queue) -> wgpu::Textu
                 dimension: TextureDimension::D2,
                 format: TextureFormat::Rgba8Unorm,
                 usage: TextureUsages::COPY_DST | TextureUsages::TEXTURE_BINDING,
+                view_formats: &[],
             },
             &[0; 4],
         )
@@ -525,6 +528,7 @@ fn default_texture_3d(device: &wgpu::Device, queue: &wgpu::Queue) -> wgpu::Textu
                 dimension: TextureDimension::D3,
                 format: TextureFormat::Rgba8Unorm,
                 usage: TextureUsages::COPY_DST | TextureUsages::TEXTURE_BINDING,
+                view_formats: &[],
             },
             &[0; 4],
         )
@@ -551,6 +555,7 @@ fn default_texture_cube(device: &wgpu::Device, queue: &wgpu::Queue) -> wgpu::Tex
                 dimension: TextureDimension::D2,
                 format: TextureFormat::Rgba8Unorm,
                 usage: TextureUsages::COPY_DST | TextureUsages::TEXTURE_BINDING,
+                view_formats: &[],
             },
             &[0; 4 * 6],
         )

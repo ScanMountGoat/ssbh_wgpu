@@ -13,6 +13,14 @@
 pub struct VertexInput {
     pub position: glam::Vec4,
 }
+const _: () = assert!(
+    std::mem::size_of:: < VertexInput > () == 16,
+    "size of VertexInput does not match WGSL"
+);
+const _: () = assert!(
+    memoffset::offset_of!(VertexInput, position) == 0,
+    "offset of VertexInput.position does not match WGSL"
+);
 #[repr(C)]
 #[derive(
     Debug,
@@ -30,6 +38,30 @@ pub struct CameraTransforms {
     pub camera_pos: glam::Vec4,
     pub screen_dimensions: glam::Vec4,
 }
+const _: () = assert!(
+    std::mem::size_of:: < CameraTransforms > () == 224,
+    "size of CameraTransforms does not match WGSL"
+);
+const _: () = assert!(
+    memoffset::offset_of!(CameraTransforms, model_view_matrix) == 0,
+    "offset of CameraTransforms.model_view_matrix does not match WGSL"
+);
+const _: () = assert!(
+    memoffset::offset_of!(CameraTransforms, mvp_matrix) == 64,
+    "offset of CameraTransforms.mvp_matrix does not match WGSL"
+);
+const _: () = assert!(
+    memoffset::offset_of!(CameraTransforms, mvp_inv_matrix) == 128,
+    "offset of CameraTransforms.mvp_inv_matrix does not match WGSL"
+);
+const _: () = assert!(
+    memoffset::offset_of!(CameraTransforms, camera_pos) == 192,
+    "offset of CameraTransforms.camera_pos does not match WGSL"
+);
+const _: () = assert!(
+    memoffset::offset_of!(CameraTransforms, screen_dimensions) == 208,
+    "offset of CameraTransforms.screen_dimensions does not match WGSL"
+);
 pub mod bind_groups {
     pub struct BindGroup0(wgpu::BindGroup);
     pub struct BindGroupLayout0<'a> {

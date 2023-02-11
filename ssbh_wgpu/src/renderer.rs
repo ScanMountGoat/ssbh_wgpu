@@ -351,6 +351,7 @@ impl SsbhRenderer {
             height,
             present_mode: wgpu::PresentMode::Mailbox,
             alpha_mode: wgpu::CompositeAlphaMode::Auto,
+            view_formats: Vec::new(),
         };
 
         // TODO: Log errors?
@@ -1534,6 +1535,7 @@ fn create_depth(
         dimension: wgpu::TextureDimension::D2,
         format: DEPTH_FORMAT,
         usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
+        view_formats: &[],
     };
     let texture = device.create_texture(&desc);
 
@@ -1565,6 +1567,7 @@ fn create_depth_stencil(device: &wgpu::Device, width: u32, height: u32) -> Textu
         dimension: wgpu::TextureDimension::D2,
         format: DEPTH_STENCIL_FORMAT,
         usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
+        view_formats: &[],
     };
     let texture = device.create_texture(&desc);
 
@@ -1602,6 +1605,7 @@ fn create_texture_sampler(
         dimension: wgpu::TextureDimension::D2,
         format,
         usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
+        view_formats: &[],
     });
 
     let view = texture.create_view(&wgpu::TextureViewDescriptor::default());

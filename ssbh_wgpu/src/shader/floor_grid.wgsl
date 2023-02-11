@@ -79,11 +79,11 @@ fn fs_main(in: VertexOutput) -> FragmentOutput {
     if (t > 0.0) {
         // Increase the depth fade since the far clip distance is so large.
         let depth_fade = max(1.0 - linear_depth_normalized*500.0, 0.0);
-        let alpha = max(1.0 - grid_line, 0.0) * depth_fade * 0.5;
+        var alpha = max(1.0 - grid_line, 0.0) * depth_fade * 0.5;
         var color = vec3(1.0);
 
         // Remove a bright line at the horizon when t approaches 1.0.
-        let alpha = alpha * (1.0 - abs(t));
+        alpha = alpha * (1.0 - abs(t));
 
         // x-axis
         if (position.z > -scale * minz && position.z < scale * minz) {
