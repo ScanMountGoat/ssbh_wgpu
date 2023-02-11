@@ -74,6 +74,7 @@ struct State {
     // Animations
     animation: Option<AnimData>,
     camera_animation: Option<AnimData>,
+    light_animation: Option<AnimData>,
 
     // TODO: How to handle overflow if left running too long?
     current_frame: f32,
@@ -94,6 +95,7 @@ impl State {
         anim: Option<PathBuf>,
         prc: Option<PathBuf>,
         camera_anim: Option<PathBuf>,
+        light_anim: Option<PathBuf>,
     ) -> Self {
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
             backends: wgpu::Backends::all(),
@@ -137,6 +139,8 @@ impl State {
         let swing_prc = prc.and_then(|prc_path| SwingPrc::from_file(prc_path));
         let camera_animation =
             camera_anim.map(|camera_anim_path| AnimData::from_file(camera_anim_path).unwrap());
+        let light_animation =
+            light_anim.map(|light_anim_path| AnimData::from_file(light_anim_path).unwrap());
 
         let shared_data = SharedRenderData::new(&device, &queue, surface_format);
 
@@ -177,6 +181,7 @@ impl State {
             rotation_xyz: glam::vec3(0.0, 0.0, 0.0),
             animation,
             camera_animation,
+            light_animation,
             current_frame: 0.0,
             previous_frame_start: std::time::Instant::now(),
             shared_data,
@@ -403,6 +408,12 @@ impl State {
                             .as_ref()
                             .map(|a| a.final_frame_index)
                             .unwrap_or_default(),
+                    )
+                    .max(
+                        self.light_animation
+                            .as_ref()
+                            .map(|a| a.final_frame_index)
+                            .unwrap_or_default(),
                     ),
                 1.0,
                 true,
@@ -459,6 +470,11 @@ impl State {
                 ) {
                     self.renderer.update_camera(&self.queue, transforms);
                 }
+            }
+
+            if let Some(anim) = &self.light_animation {
+                self.renderer
+                    .update_stage_uniforms(&self.queue, anim, self.current_frame);
             }
         }
 
@@ -525,6 +541,7 @@ fn main() {
     let anim_path: Option<PathBuf> = args.opt_value_from_str("--anim").unwrap();
     let prc_path: Option<PathBuf> = args.opt_value_from_str("--swing").unwrap();
     let camera_anim_path: Option<PathBuf> = args.opt_value_from_str("--camera-anim").unwrap();
+    let light_anim_path: Option<PathBuf> = args.opt_value_from_str("--light-anim").unwrap();
 
     let event_loop = EventLoop::new();
     let window = WindowBuilder::new()
@@ -538,6 +555,7 @@ fn main() {
         anim_path,
         prc_path,
         camera_anim_path,
+        light_anim_path,
     ));
 
     // Initialize the camera buffer.

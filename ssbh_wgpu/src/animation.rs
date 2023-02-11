@@ -11,6 +11,7 @@ use ssbh_data::{
 
 pub mod camera;
 mod constraints;
+pub mod lighting;
 
 /// The maximum number of bones supported by the shader's uniform buffer.
 pub const MAX_BONE_COUNT: usize = 512;
@@ -71,6 +72,16 @@ struct AnimTransform {
     translation: glam::Vec3,
     rotation: glam::Quat,
     scale: glam::Vec3,
+}
+
+impl From<ssbh_data::anim_data::Transform> for AnimTransform {
+    fn from(value: ssbh_data::anim_data::Transform) -> Self {
+        Self {
+            translation: value.translation.to_array().into(),
+            rotation: glam::Quat::from_array(value.rotation.to_array()),
+            scale: value.scale.to_array().into(),
+        }
+    }
 }
 
 impl AnimTransform {
@@ -393,8 +404,8 @@ pub fn animate_visibility<V: Visibility>(anim: &AnimData, frame: f32, meshes: &m
                             .filter(|m| m.name().starts_with(&node.name))
                         {
                             // TODO: Share this between tracks?
-                            let (current, _, _) = frame_values(frame, values);
-                            mesh.set_visibility(*current);
+                            let value = frame_value(values, frame);
+                            mesh.set_visibility(value);
                         }
                     }
                 }
@@ -448,8 +459,7 @@ fn apply_material_track(
                     .iter_mut()
                     .find(|p| track.name == p.param_id.to_string())
                 {
-                    let (current, next, factor) = frame_values(frame, v);
-                    param.data = interpolate_f32(*current, *next, factor);
+                    param.data = frame_value(v, frame);
                 }
             }
             TrackValues::PatternIndex(_) => (),
@@ -459,9 +469,7 @@ fn apply_material_track(
                     .iter_mut()
                     .find(|p| track.name == p.param_id.to_string())
                 {
-                    // TODO: Is this the correct frame to pick?
-                    let (current, _, _) = frame_values(frame, v);
-                    param.data = *current;
+                    param.data = frame_value(v, frame);
                 }
             }
             TrackValues::Vector4(v) => {
@@ -470,30 +478,11 @@ fn apply_material_track(
                     .iter_mut()
                     .find(|p| track.name == p.param_id.to_string())
                 {
-                    let (current, next, factor) = frame_values(frame, v);
-                    param.data = interpolate_vec4(current, next, factor).to_array().into();
+                    param.data = frame_value(v, frame);
                 }
             }
         }
     }
-}
-
-fn interpolate_f32(a: f32, b: f32, factor: f32) -> f32 {
-    a * (1.0 - factor) + b * factor
-}
-
-fn interpolate_quat(a: &Vector4, b: &Vector4, factor: f32) -> glam::Quat {
-    glam::Quat::from_xyzw(a.x, a.y, a.z, a.w)
-        .lerp(glam::Quat::from_xyzw(b.x, b.y, b.z, b.w), factor)
-}
-
-fn interpolate_vec3(a: &Vector3, b: &Vector3, factor: f32) -> glam::Vec3 {
-    // TODO: Faster to use Vec3A?
-    glam::Vec3::from(a.to_array()).lerp(glam::Vec3::from(b.to_array()), factor)
-}
-
-fn interpolate_vec4(a: &Vector4, b: &Vector4, factor: f32) -> glam::Vec4 {
-    glam::Vec4::from(a.to_array()).lerp(glam::Vec4::from(b.to_array()), factor)
 }
 
 fn create_animated_bone<'a>(
@@ -502,8 +491,7 @@ fn create_animated_bone<'a>(
     track: &ssbh_data::anim_data::TrackData,
     values: &[ssbh_data::anim_data::Transform],
 ) -> AnimatedBone<'a> {
-    let (current, next, factor) = frame_values(frame, values);
-    let anim_transform = interpolate_transform(current, next, factor);
+    let anim_transform = frame_value(values, frame).into();
 
     AnimatedBone {
         bone,
@@ -513,28 +501,75 @@ fn create_animated_bone<'a>(
     }
 }
 
-fn interpolate_transform(
-    current: &ssbh_data::anim_data::Transform,
-    next: &ssbh_data::anim_data::Transform,
-    factor: f32,
-) -> AnimTransform {
-    AnimTransform {
-        translation: interpolate_vec3(&current.translation, &next.translation, factor),
-        rotation: interpolate_quat(&current.rotation, &next.rotation, factor),
-        scale: interpolate_vec3(&current.scale, &next.scale, factor),
+trait Interpolate {
+    fn interpolate(&self, other: &Self, factor: f32) -> Self;
+}
+
+impl Interpolate for bool {
+    fn interpolate(&self, _other: &Self, _factor: f32) -> Self {
+        // Booleans don't interpolate.
+        *self
     }
 }
 
-fn frame_values<T>(frame: f32, values: &[T]) -> (&T, &T, f32) {
+impl Interpolate for f32 {
+    fn interpolate(&self, other: &Self, factor: f32) -> Self {
+        self * (1.0 - factor) + other * factor
+    }
+}
+
+impl Interpolate for Vector3 {
+    fn interpolate(&self, other: &Self, factor: f32) -> Self {
+        // TODO: Are these conversions optimized out?
+        glam::Vec3::from(self.to_array())
+            .lerp(glam::Vec3::from(other.to_array()), factor)
+            .to_array()
+            .into()
+    }
+}
+
+// TODO: Separate interpolation for quats and vectors.
+impl Interpolate for Vector4 {
+    fn interpolate(&self, other: &Self, factor: f32) -> Self {
+        // TODO: Are these conversions optimized out?
+        glam::Vec4::from(self.to_array())
+            .lerp(glam::Vec4::from(other.to_array()), factor)
+            .to_array()
+            .into()
+    }
+}
+
+fn interpolate_quat(a: &Vector4, b: &Vector4, factor: f32) -> Vector4 {
+    glam::Quat::from_xyzw(a.x, a.y, a.z, a.w)
+        .lerp(glam::Quat::from_xyzw(b.x, b.y, b.z, b.w), factor)
+        .to_array()
+        .into()
+}
+
+impl Interpolate for ssbh_data::anim_data::Transform {
+    fn interpolate(&self, other: &Self, factor: f32) -> Self {
+        // Use special quaternion interpolation for correct results.
+        Self {
+            translation: self.translation.interpolate(&other.translation, factor),
+            rotation: interpolate_quat(&self.rotation, &other.rotation, factor),
+            scale: self.scale.interpolate(&other.scale, factor),
+        }
+    }
+}
+
+fn frame_value<T>(values: &[T], frame: f32) -> T
+where
+    T: Interpolate,
+{
     // Force the frame to be in bounds.
     // TODO: Is this the correct way to handle single frame const animations?
     // TODO: Tests for interpolation?
     let current_frame = (frame.floor() as usize).clamp(0, values.len() - 1);
     let next_frame = (frame.ceil() as usize).clamp(0, values.len() - 1);
-    // TODO: Not all animations interpolate?
     let factor = frame.fract();
 
-    (&values[current_frame], &values[next_frame], factor)
+    // Frame values like 3.5 should be an average of values[3] and values[4].
+    values[current_frame].interpolate(&values[next_frame], factor)
 }
 
 #[cfg(test)]

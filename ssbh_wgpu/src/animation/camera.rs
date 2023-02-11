@@ -1,4 +1,4 @@
-use super::{frame_values, interpolate_f32, interpolate_transform};
+use super::{frame_value, AnimTransform};
 use crate::CameraTransforms;
 use ssbh_data::anim_data::{AnimData, GroupType, TrackValues};
 
@@ -25,10 +25,7 @@ pub fn animate_camera(
     let transform_track = transform_node.tracks.first()?;
 
     let transform = match &transform_track.values {
-        TrackValues::Transform(values) => {
-            let (current, next, factor) = frame_values(frame, values);
-            Some(interpolate_transform(current, next, factor))
-        }
+        TrackValues::Transform(values) => Some(AnimTransform::from(frame_value(values, frame))),
         _ => None,
     }?;
 
@@ -47,10 +44,7 @@ pub fn animate_camera(
     let near_clip = camera_node
         .and_then(|node| node.tracks.iter().find(|t| t.name == "NearClip"))
         .and_then(|track| match &track.values {
-            TrackValues::Float(values) => {
-                let (current, next, factor) = frame_values(frame, values);
-                Some(interpolate_f32(*current, *next, factor))
-            }
+            TrackValues::Float(values) => Some(frame_value(values, frame)),
             _ => None,
         })
         .unwrap_or(default_near_clip);
@@ -58,10 +52,7 @@ pub fn animate_camera(
     let far_clip = camera_node
         .and_then(|node| node.tracks.iter().find(|t| t.name == "FarClip"))
         .and_then(|track| match &track.values {
-            TrackValues::Float(values) => {
-                let (current, next, factor) = frame_values(frame, values);
-                Some(interpolate_f32(*current, *next, factor))
-            }
+            TrackValues::Float(values) => Some(frame_value(values, frame)),
             _ => None,
         })
         .unwrap_or(default_far_clip);
@@ -69,10 +60,7 @@ pub fn animate_camera(
     let fov = camera_node
         .and_then(|node| node.tracks.iter().find(|t| t.name == "FieldOfView"))
         .and_then(|track| match &track.values {
-            TrackValues::Float(values) => {
-                let (current, next, factor) = frame_values(frame, values);
-                Some(interpolate_f32(*current, *next, factor))
-            }
+            TrackValues::Float(values) => Some(frame_value(values, frame)),
             _ => None,
         })
         .unwrap_or(default_fov);

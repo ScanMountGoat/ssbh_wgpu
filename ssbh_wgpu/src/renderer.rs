@@ -1,9 +1,9 @@
 use std::collections::HashSet;
 
 use crate::{
+    animation::lighting::{animate_lighting, calculate_light_transform},
     bone_rendering::{BoneBuffers, BonePipelines},
     floor_grid::FloorGridRenderData,
-    lighting::{anim_to_lights, calculate_light_transform},
     model::pipeline::*,
     render_settings::*,
     swing_rendering::swing_pipeline,
@@ -508,11 +508,10 @@ impl SsbhRenderer {
         );
     }
 
-    /// Updates the stage lighting data.
-    pub fn update_stage_uniforms(&mut self, queue: &wgpu::Queue, data: &AnimData) {
+    /// Updates the stage lighting data to the given `frame`.
+    pub fn update_stage_uniforms(&mut self, queue: &wgpu::Queue, data: &AnimData, frame: f32) {
         // TODO: How to animate using the current frame?
-        let (stage_uniforms, light_transform) = anim_to_lights(data);
-
+        let (stage_uniforms, light_transform) = animate_lighting(data, frame);
         queue.write_data(&self.stage_uniforms_buffer, &[stage_uniforms]);
 
         queue.write_data(

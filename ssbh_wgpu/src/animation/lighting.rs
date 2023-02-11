@@ -11,6 +11,8 @@ use crate::{
     uniforms::{boolean_index, float_index, vector_index},
 };
 
+use super::frame_value;
+
 pub fn calculate_light_transform(rotation: Quat, scale: Vec3) -> Mat4 {
     // TODO: Why do we negate w?
     // TODO: Do translation and scale matter?
@@ -75,7 +77,7 @@ impl Default for SceneAttributesForShaderFx {
 }
 
 // TODO: Test cases.
-pub fn anim_to_lights(data: &AnimData) -> (StageUniforms, glam::Mat4) {
+pub fn animate_lighting(data: &AnimData, frame: f32) -> (StageUniforms, glam::Mat4) {
     let transform_group = data
         .groups
         .iter()
@@ -83,7 +85,8 @@ pub fn anim_to_lights(data: &AnimData) -> (StageUniforms, glam::Mat4) {
 
     // TODO: use LightStg0 for the shadow direction?
     let light_chr = transform_group.and_then(|g| g.nodes.iter().find(|n| n.name == "LightChr"));
-    let (light_chr, light_chr_rotation) = light_chr.map(light_node).unwrap_or_default();
+    let (light_chr, light_chr_rotation) =
+        light_chr.map(|n| light_node(n, frame)).unwrap_or_default();
 
     // TODO: Take the current frame for animation?
     let scene_attributes = transform_group.and_then(|g| {
@@ -92,7 +95,7 @@ pub fn anim_to_lights(data: &AnimData) -> (StageUniforms, glam::Mat4) {
             .find(|n| n.name == "sceneAttributesForShaderFX")
     });
     let scene_attributes = scene_attributes
-        .map(scene_attributes_node)
+        .map(|n| scene_attributes_node(n, frame))
         .unwrap_or_default();
 
     // TODO: What to use for the scale?
@@ -108,7 +111,7 @@ pub fn anim_to_lights(data: &AnimData) -> (StageUniforms, glam::Mat4) {
     )
 }
 
-fn scene_attributes_node(node: &NodeData) -> SceneAttributesForShaderFx {
+fn scene_attributes_node(node: &NodeData, frame: f32) -> SceneAttributesForShaderFx {
     // TODO: Interpolate vectors?
     let mut attributes = SceneAttributesForShaderFx::default();
 
@@ -117,19 +120,20 @@ fn scene_attributes_node(node: &NodeData) -> SceneAttributesForShaderFx {
         // Stage parameters use the matl names despite have different functions.
         if let Ok(param) = ParamId::from_str(&track.name) {
             match &track.values {
-                TrackValues::Float(v) => {
+                TrackValues::Float(values) => {
                     if let Some(index) = float_index(param) {
-                        attributes.custom_float[index][0] = v[0];
+                        attributes.custom_float[index][0] = frame_value(values, frame);
                     }
                 }
-                TrackValues::Boolean(v) => {
+                TrackValues::Boolean(values) => {
                     if let Some(index) = boolean_index(param) {
-                        attributes.custom_boolean[index][0] = v[0] as u32;
+                        attributes.custom_boolean[index][0] = frame_value(values, frame) as u32;
                     }
                 }
-                TrackValues::Vector4(v) => {
+                TrackValues::Vector4(values) => {
                     if let Some(index) = vector_index(param) {
-                        attributes.custom_vector[index] = v[0].to_array().into();
+                        attributes.custom_vector[index] =
+                            frame_value(values, frame).to_array().into();
                     }
                 }
                 _ => (),
@@ -140,7 +144,7 @@ fn scene_attributes_node(node: &NodeData) -> SceneAttributesForShaderFx {
     attributes
 }
 
-fn light_node(node: &NodeData) -> (Light, glam::Quat) {
+fn light_node(node: &NodeData, frame: f32) -> (Light, glam::Quat) {
     // TODO: Avoid unwrap.
     // TODO: Default to intensity of 1.0 instead?
     let float0 = node
@@ -148,7 +152,7 @@ fn light_node(node: &NodeData) -> (Light, glam::Quat) {
         .iter()
         .find(|t| t.name == "CustomFloat0")
         .and_then(|t| match &t.values {
-            TrackValues::Float(v) => Some(v[0]),
+            TrackValues::Float(values) => Some(frame_value(values, frame)),
             _ => None,
         })
         .unwrap_or_default();
@@ -158,18 +162,19 @@ fn light_node(node: &NodeData) -> (Light, glam::Quat) {
         .iter()
         .find(|t| t.name == "CustomVector0")
         .and_then(|t| match &t.values {
-            TrackValues::Vector4(v) => Some(v[0]),
+            TrackValues::Vector4(values) => Some(frame_value(values, frame)),
             _ => None,
         })
         .unwrap_or_default();
 
     // TODO: Does translation and scale matter?
+    // TODO: Make an interpolate function for TrackValues?
     let rotation = node
         .tracks
         .iter()
         .find(|t| t.name == "Transform")
         .and_then(|t| match &t.values {
-            TrackValues::Transform(v) => Some(v[0]),
+            TrackValues::Transform(values) => Some(frame_value(values, frame)),
             _ => None,
         })
         .map(|t| Quat::from_array(t.rotation.to_array()))

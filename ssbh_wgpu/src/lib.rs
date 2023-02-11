@@ -18,7 +18,6 @@ pub use nutexb_wgpu::NutexbFile;
 pub mod animation;
 mod bone_rendering;
 mod floor_grid;
-mod lighting;
 mod model;
 mod render_settings;
 mod renderer;
