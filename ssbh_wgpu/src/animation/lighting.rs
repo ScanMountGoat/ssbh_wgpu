@@ -88,7 +88,6 @@ pub fn animate_lighting(data: &AnimData, frame: f32) -> (StageUniforms, glam::Ma
     let (light_chr, light_chr_rotation) =
         light_chr.map(|n| light_node(n, frame)).unwrap_or_default();
 
-    // TODO: Take the current frame for animation?
     let scene_attributes = transform_group.and_then(|g| {
         g.nodes
             .iter()
@@ -168,7 +167,6 @@ fn light_node(node: &NodeData, frame: f32) -> (Light, glam::Quat) {
         .unwrap_or_default();
 
     // TODO: Does translation and scale matter?
-    // TODO: Make an interpolate function for TrackValues?
     let rotation = node
         .tracks
         .iter()
