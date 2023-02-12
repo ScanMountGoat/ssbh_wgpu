@@ -8,6 +8,7 @@ use ssbh_wgpu::CameraTransforms;
 use ssbh_wgpu::DebugMode;
 use ssbh_wgpu::ModelFolder;
 use ssbh_wgpu::ModelRenderOptions;
+use ssbh_wgpu::NutexbFile;
 use ssbh_wgpu::RenderModel;
 use ssbh_wgpu::RenderSettings;
 use ssbh_wgpu::SharedRenderData;
@@ -95,7 +96,7 @@ impl State {
         anim: Option<PathBuf>,
         prc: Option<PathBuf>,
         camera_anim: Option<PathBuf>,
-        light_anim: Option<PathBuf>,
+        render_folder: Option<PathBuf>,
     ) -> Self {
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
             backends: wgpu::Backends::all(),
@@ -139,10 +140,20 @@ impl State {
         let swing_prc = prc.and_then(|prc_path| SwingPrc::from_file(prc_path));
         let camera_animation =
             camera_anim.map(|camera_anim_path| AnimData::from_file(camera_anim_path).unwrap());
-        let light_animation =
-            light_anim.map(|light_anim_path| AnimData::from_file(light_anim_path).unwrap());
 
-        let shared_data = SharedRenderData::new(&device, &queue, surface_format);
+        let light_animation = render_folder
+            .as_ref()
+            .map(|f| AnimData::from_file(f.join("light").join("light00.nuanmb")).unwrap());
+
+        let mut shared_data = SharedRenderData::new(&device, &queue, surface_format);
+
+        // Update the cube map first since it's used in model loading for texture assignments.
+        if let Some(nutexb) = render_folder
+            .as_ref()
+            .and_then(|f| NutexbFile::read_from_file(f.join("reflection_cubemap.nutexb")).ok())
+        {
+            shared_data.update_stage_cube_map(&device, &queue, &nutexb);
+        }
 
         let models = load_model_folders(folder);
         let mut render_models =
@@ -155,7 +166,7 @@ impl State {
             }
         }
 
-        let renderer = SsbhRenderer::new(
+        let mut renderer = SsbhRenderer::new(
             &device,
             &queue,
             size.width,
@@ -164,6 +175,18 @@ impl State {
             [0.0; 3],
             &[],
         );
+
+        if let Some(nutexb) = render_folder.as_ref().and_then(|f| {
+            NutexbFile::read_from_file(
+                f.parent()
+                    .unwrap()
+                    .join("lut")
+                    .join("color_grading_lut.nutexb"),
+            )
+            .ok()
+        }) {
+            renderer.update_color_lut(&device, &queue, &nutexb);
+        }
 
         Self {
             surface,
@@ -486,7 +509,7 @@ impl State {
             &ModelRenderOptions {
                 draw_bones: false,
                 draw_bone_axes: false,
-                draw_floor_grid: true,
+                draw_floor_grid: false,
                 ..Default::default()
             },
         );
@@ -541,7 +564,7 @@ fn main() {
     let anim_path: Option<PathBuf> = args.opt_value_from_str("--anim").unwrap();
     let prc_path: Option<PathBuf> = args.opt_value_from_str("--swing").unwrap();
     let camera_anim_path: Option<PathBuf> = args.opt_value_from_str("--camera-anim").unwrap();
-    let light_anim_path: Option<PathBuf> = args.opt_value_from_str("--light-anim").unwrap();
+    let render_folder_path: Option<PathBuf> = args.opt_value_from_str("--render-folder").unwrap();
 
     let event_loop = EventLoop::new();
     let window = WindowBuilder::new()
@@ -555,7 +578,7 @@ fn main() {
         anim_path,
         prc_path,
         camera_anim_path,
-        light_anim_path,
+        render_folder_path,
     ));
 
     // Initialize the camera buffer.
