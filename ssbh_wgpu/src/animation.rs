@@ -540,8 +540,8 @@ impl Interpolate for Vector4 {
 }
 
 fn interpolate_quat(a: &Vector4, b: &Vector4, factor: f32) -> Vector4 {
-    glam::Quat::from_xyzw(a.x, a.y, a.z, a.w)
-        .lerp(glam::Quat::from_xyzw(b.x, b.y, b.z, b.w), factor)
+    glam::quat(a.x, a.y, a.z, a.w)
+        .lerp(glam::quat(b.x, b.y, b.z, b.w), factor)
         .to_array()
         .into()
 }

@@ -51,27 +51,6 @@ const _: () = assert!(
     bytemuck::Zeroable,
     encase::ShaderType
 )]
-pub struct LightTransforms {
-    pub light_transform: glam::Mat4,
-}
-const _: () = assert!(
-    std::mem::size_of:: < LightTransforms > () == 64,
-    "size of LightTransforms does not match WGSL"
-);
-const _: () = assert!(
-    memoffset::offset_of!(LightTransforms, light_transform) == 0,
-    "offset of LightTransforms.light_transform does not match WGSL"
-);
-#[repr(C)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    PartialEq,
-    bytemuck::Pod,
-    bytemuck::Zeroable,
-    encase::ShaderType
-)]
 pub struct RenderSettings {
     pub debug_mode: glam::UVec4,
     pub render_uv_pattern: glam::UVec4,
@@ -166,9 +145,10 @@ const _: () = assert!(
 pub struct Light {
     pub color: glam::Vec4,
     pub direction: glam::Vec4,
+    pub transform: glam::Mat4,
 }
 const _: () = assert!(
-    std::mem::size_of:: < Light > () == 32, "size of Light does not match WGSL"
+    std::mem::size_of:: < Light > () == 96, "size of Light does not match WGSL"
 );
 const _: () = assert!(
     memoffset::offset_of!(Light, color) == 0, "offset of Light.color does not match WGSL"
@@ -176,6 +156,10 @@ const _: () = assert!(
 const _: () = assert!(
     memoffset::offset_of!(Light, direction) == 16,
     "offset of Light.direction does not match WGSL"
+);
+const _: () = assert!(
+    memoffset::offset_of!(Light, transform) == 32,
+    "offset of Light.transform does not match WGSL"
 );
 #[repr(C)]
 #[derive(
@@ -223,7 +207,7 @@ pub struct StageUniforms {
     pub scene_attributes: SceneAttributesForShaderFx,
 }
 const _: () = assert!(
-    std::mem::size_of:: < StageUniforms > () == 1696,
+    std::mem::size_of:: < StageUniforms > () == 1760,
     "size of StageUniforms does not match WGSL"
 );
 const _: () = assert!(
@@ -231,7 +215,7 @@ const _: () = assert!(
     "offset of StageUniforms.light_chr does not match WGSL"
 );
 const _: () = assert!(
-    memoffset::offset_of!(StageUniforms, scene_attributes) == 32,
+    memoffset::offset_of!(StageUniforms, scene_attributes) == 96,
     "offset of StageUniforms.scene_attributes does not match WGSL"
 );
 #[repr(C)]
@@ -408,7 +392,6 @@ pub mod bind_groups {
         pub camera: wgpu::BufferBinding<'a>,
         pub texture_shadow: &'a wgpu::TextureView,
         pub default_sampler: &'a wgpu::Sampler,
-        pub light: wgpu::BufferBinding<'a>,
         pub render_settings: wgpu::BufferBinding<'a>,
         pub stage_uniforms: wgpu::BufferBinding<'a>,
         pub uv_pattern: &'a wgpu::TextureView,
@@ -442,16 +425,6 @@ pub mod bind_groups {
                 binding: 2,
                 visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
                 ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
-                count: None,
-            },
-            wgpu::BindGroupLayoutEntry {
-                binding: 3,
-                visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
-                ty: wgpu::BindingType::Buffer {
-                    ty: wgpu::BufferBindingType::Uniform,
-                    has_dynamic_offset: false,
-                    min_binding_size: None,
-                },
                 count: None,
             },
             wgpu::BindGroupLayoutEntry {
@@ -514,10 +487,6 @@ pub mod bind_groups {
                                 resource: wgpu::BindingResource::Sampler(
                                     bindings.default_sampler,
                                 ),
-                            },
-                            wgpu::BindGroupEntry {
-                                binding: 3,
-                                resource: wgpu::BindingResource::Buffer(bindings.light),
                             },
                             wgpu::BindGroupEntry {
                                 binding: 4,

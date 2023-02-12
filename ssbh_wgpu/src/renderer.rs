@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use crate::{
-    animation::lighting::{animate_lighting, calculate_light_transform},
+    animation::lighting::animate_lighting,
     bone_rendering::{BoneBuffers, BonePipelines},
     floor_grid::FloorGridRenderData,
     model::pipeline::*,
@@ -132,7 +132,6 @@ pub struct SsbhRenderer {
     // This avoids exposing shader implementations like bind groups.
     camera_buffer: wgpu::Buffer,
     stage_uniforms_buffer: wgpu::Buffer,
-    light_transform_buffer: wgpu::Buffer,
     per_frame_bind_group: crate::shader::model::bind_groups::BindGroup0,
     skeleton_camera_bind_group: crate::shader::skeleton::bind_groups::BindGroup0,
 
@@ -260,17 +259,6 @@ impl SsbhRenderer {
                 },
             );
 
-        let light_transform = calculate_light_transform(
-            glam::Quat::from_xyzw(-0.495286, -0.0751228, 0.0431234, 0.864401),
-            glam::vec3(25.0, 25.0, 50.0),
-        );
-
-        let light_transform_buffer = device.create_buffer_from_data(
-            "Light Transform Buffer",
-            &[crate::shader::model::LightTransforms { light_transform }],
-            wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-        );
-
         // Depth from the perspective of the light.
         // TODO: Multiple lights require multiple depth maps?
         let shadow_depth = create_depth(device, SHADOW_MAP_WIDTH, SHADOW_MAP_HEIGHT, 1);
@@ -317,7 +305,6 @@ impl SsbhRenderer {
                 camera: camera_buffer.as_entire_buffer_binding(),
                 texture_shadow: &variance_shadow.view,
                 default_sampler: &default_sampler,
-                light: light_transform_buffer.as_entire_buffer_binding(),
                 render_settings: render_settings_buffer.as_entire_buffer_binding(),
                 stage_uniforms: stage_uniforms_buffer.as_entire_buffer_binding(),
                 uv_pattern: &uv_pattern.create_view(&wgpu::TextureViewDescriptor::default()),
@@ -411,7 +398,6 @@ impl SsbhRenderer {
             variance_bind_group,
             clear_color,
             stage_uniforms_buffer,
-            light_transform_buffer,
             bone_pipelines,
             invalid_shader_pipeline,
             invalid_attributes_pipeline,
@@ -510,14 +496,8 @@ impl SsbhRenderer {
 
     /// Updates the stage lighting data to the given `frame`.
     pub fn update_stage_uniforms(&mut self, queue: &wgpu::Queue, data: &AnimData, frame: f32) {
-        // TODO: How to animate using the current frame?
-        let (stage_uniforms, light_transform) = animate_lighting(data, frame);
+        let stage_uniforms = animate_lighting(data, frame);
         queue.write_data(&self.stage_uniforms_buffer, &[stage_uniforms]);
-
-        queue.write_data(
-            &self.light_transform_buffer,
-            &[crate::shader::model::LightTransforms { light_transform }],
-        );
     }
 
     /// Resets the stage uniforms and lighting to their default values.

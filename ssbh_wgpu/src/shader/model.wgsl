@@ -6,10 +6,6 @@ struct CameraTransforms {
     screen_dimensions: vec4<f32>, // width, height, scale, _
 };
 
-struct LightTransforms {
-    light_transform: mat4x4<f32>
-};
-
 // TODO: How to handle alignment?
 struct RenderSettings {
     debug_mode: vec4<u32>,
@@ -29,14 +25,14 @@ struct RenderSettings {
     render_prm: vec4<u32>,
 };
 
-// TODO: What should the default values be?
-// TODO: Store light transform here as well?
 // Stage lighting is stored in nuanmb files like light00.nuanmb
+// TODO: Does Smash Ultimate support shadow casting from multiple lights?
 struct Light {
     // Store combined CustomVector0 and CustomFloat0
     color: vec4<f32>,
     // Convert quaternions to direction vectors.
     direction: vec4<f32>,
+    transform: mat4x4<f32>
 }
 
 struct SceneAttributesForShaderFx {
@@ -45,15 +41,15 @@ struct SceneAttributesForShaderFx {
     custom_float: array<vec4<f32>, 20>,
 };
 
+// TODO: Include other lights?
+// TODO: How to decide on which light is used for shadow casting?
 struct StageUniforms {
     light_chr: Light,
     scene_attributes: SceneAttributesForShaderFx
 };
 
-// TODO: Bind groups should be ordered by how frequently they change for performance.
-// group0 = PerFrame
-// group1 = PerMaterial
-// ... 
+// Bind groups are ordered by how frequently they change for performance.
+// TODO: Is it worth actually optimizing this on the CPU side?
 @group(0) @binding(0)
 var<uniform> camera: CameraTransforms;
 
@@ -61,10 +57,6 @@ var<uniform> camera: CameraTransforms;
 var texture_shadow: texture_2d<f32>;
 @group(0) @binding(2)
 var default_sampler: sampler;
-// TODO: Specify that this is just the main character light?
-// TODO: Does Smash Ultimate support shadow casting from multiple lights?
-@group(0) @binding(3)
-var<uniform> light: LightTransforms;
 
 @group(0) @binding(4)
 var<uniform> render_settings: RenderSettings;
@@ -710,7 +702,8 @@ fn vs_main(
         out.color_set7 = buffer1.color_set7;
     }
 
-    out.light_position = light.light_transform * vec4(buffer0.position0.xyz, 1.0);
+    // TODO: This won't always be light_chr.
+    out.light_position = stage_uniforms.light_chr.transform * vec4(buffer0.position0.xyz, 1.0);
     return out;
 }
 
@@ -719,7 +712,8 @@ fn vs_depth(
     buffer0: VertexInput0,
     buffer1: VertexInput1
 ) -> @builtin(position) vec4<f32> {
-    return light.light_transform * vec4(buffer0.position0.xyz, 1.0);
+    // TODO: This won't always be light_chr.
+    return stage_uniforms.light_chr.transform * vec4(buffer0.position0.xyz, 1.0);
 }
 
 @vertex

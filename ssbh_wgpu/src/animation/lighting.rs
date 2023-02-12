@@ -1,6 +1,5 @@
 use std::str::FromStr;
 
-use glam::{Mat4, Quat, Vec3, Vec4};
 use ssbh_data::{
     anim_data::{AnimData, GroupType, NodeData, TrackValues},
     matl_data::ParamId,
@@ -13,24 +12,20 @@ use crate::{
 
 use super::frame_value;
 
-pub fn calculate_light_transform(rotation: Quat, scale: Vec3) -> Mat4 {
+pub fn light_transform(rotation: glam::Quat, scale: glam::Vec3) -> glam::Mat4 {
     // TODO: Why do we negate w?
     // TODO: Do translation and scale matter?
     // TODO: What controls the "scale" of the lighting region?
     let perspective_matrix =
-        Mat4::orthographic_rh(-scale.x, scale.x, -scale.y, scale.y, -scale.z, scale.z);
-    let model_view = Mat4::from_quat(Quat::from_xyzw(
-        rotation.x,
-        rotation.y,
-        rotation.z,
-        -rotation.w,
-    ));
+        glam::Mat4::orthographic_rh(-scale.x, scale.x, -scale.y, scale.y, -scale.z, scale.z);
+    let model_view =
+        glam::Mat4::from_quat(glam::quat(rotation.x, rotation.y, rotation.z, -rotation.w));
 
     perspective_matrix * model_view
 }
 
-pub fn light_direction(rotation: Quat) -> Vec4 {
-    Mat4::from_quat(rotation) * Vec4::Z
+pub fn light_direction(rotation: glam::Quat) -> glam::Vec4 {
+    glam::Mat4::from_quat(rotation) * glam::Vec4::Z
 }
 
 impl StageUniforms {
@@ -40,13 +35,15 @@ impl StageUniforms {
         custom_vector[8] = glam::Vec4::ONE;
         let custom_float = [glam::Vec4::ZERO; 20];
 
+        let light_chr_rotation = glam::quat(-0.453154, -0.365998, -0.211309, 0.784886);
+        let light_chr_scale = glam::vec3(25.0, 25.0, 25.0);
+
         // TODO: Set the scene attributes from the training nuanmb.
         Self {
             light_chr: Light {
                 color: glam::Vec4::splat(4.0),
-                direction: light_direction(glam::Quat::from_xyzw(
-                    -0.453154, -0.365998, -0.211309, 0.784886,
-                )),
+                direction: light_direction(glam::quat(-0.453154, -0.365998, -0.211309, 0.784886)),
+                transform: light_transform(light_chr_rotation, light_chr_scale),
             },
             scene_attributes: SceneAttributesForShaderFx {
                 custom_boolean,
@@ -62,6 +59,7 @@ impl Default for Light {
         Self {
             color: glam::Vec4::ZERO,
             direction: glam::Vec4::ZERO,
+            transform: glam::Mat4::IDENTITY,
         }
     }
 }
@@ -77,16 +75,16 @@ impl Default for SceneAttributesForShaderFx {
 }
 
 // TODO: Test cases.
-pub fn animate_lighting(data: &AnimData, frame: f32) -> (StageUniforms, glam::Mat4) {
+pub fn animate_lighting(data: &AnimData, frame: f32) -> StageUniforms {
     let transform_group = data
         .groups
         .iter()
         .find(|g| g.group_type == GroupType::Transform);
 
     // TODO: use LightStg0 for the shadow direction?
+    // TODO: Include all lights so that models can index into the appropriate light.
     let light_chr = transform_group.and_then(|g| g.nodes.iter().find(|n| n.name == "LightChr"));
-    let (light_chr, light_chr_rotation) =
-        light_chr.map(|n| light_node(n, frame)).unwrap_or_default();
+    let light_chr = light_chr.map(|n| light_node(n, frame)).unwrap_or_default();
 
     let scene_attributes = transform_group.and_then(|g| {
         g.nodes
@@ -97,17 +95,10 @@ pub fn animate_lighting(data: &AnimData, frame: f32) -> (StageUniforms, glam::Ma
         .map(|n| scene_attributes_node(n, frame))
         .unwrap_or_default();
 
-    // TODO: What to use for the scale?
-    let light_transform =
-        calculate_light_transform(light_chr_rotation, glam::vec3(25.0, 25.0, 25.0));
-
-    (
-        StageUniforms {
-            light_chr,
-            scene_attributes,
-        },
-        light_transform,
-    )
+    StageUniforms {
+        light_chr,
+        scene_attributes,
+    }
 }
 
 fn scene_attributes_node(node: &NodeData, frame: f32) -> SceneAttributesForShaderFx {
@@ -143,7 +134,7 @@ fn scene_attributes_node(node: &NodeData, frame: f32) -> SceneAttributesForShade
     attributes
 }
 
-fn light_node(node: &NodeData, frame: f32) -> (Light, glam::Quat) {
+fn light_node(node: &NodeData, frame: f32) -> Light {
     // TODO: Avoid unwrap.
     // TODO: Default to intensity of 1.0 instead?
     let float0 = node
@@ -167,25 +158,28 @@ fn light_node(node: &NodeData, frame: f32) -> (Light, glam::Quat) {
         .unwrap_or_default();
 
     // TODO: Does translation and scale matter?
-    let rotation = node
+    let transform = node
         .tracks
         .iter()
         .find(|t| t.name == "Transform")
         .and_then(|t| match &t.values {
             TrackValues::Transform(values) => Some(frame_value(values, frame)),
             _ => None,
-        })
-        .map(|t| Quat::from_array(t.rotation.to_array()))
-        .unwrap_or(Quat::IDENTITY);
+        });
 
-    // TODO: Return an intermediate type instead?
-    (
-        Light {
-            color: glam::Vec4::from_array(vector0.to_array()) * float0,
-            direction: light_direction(rotation),
-        },
-        rotation,
-    )
+    let rotation = transform
+        .map(|t| glam::Quat::from_array(t.rotation.to_array()))
+        .unwrap_or(glam::Quat::IDENTITY);
+
+    let scale = transform
+        .map(|t| glam::Vec3::from_array(t.scale.to_array()))
+        .unwrap_or(glam::Vec3::ONE);
+
+    Light {
+        color: glam::Vec4::from_array(vector0.to_array()) * float0,
+        direction: light_direction(rotation),
+        transform: light_transform(rotation, scale),
+    }
 }
 
 #[cfg(test)]
@@ -206,12 +200,9 @@ mod tests {
                 [0.0, 0.0, -0.5, 0.5],
                 [0.0, 0.0, 0.0, 1.0],
             ],
-            calculate_light_transform(
-                Quat::from_xyzw(0.0, 0.0, 0.0, 1.0),
-                Vec3::new(1.0, 1.0, 1.0)
-            )
-            .transpose()
-            .to_cols_array_2d()
+            light_transform(glam::quat(0.0, 0.0, 0.0, 1.0), glam::vec3(1.0, 1.0, 1.0))
+                .transpose()
+                .to_cols_array_2d()
         )
     }
 
@@ -224,9 +215,9 @@ mod tests {
                 [0.0, 0.5, 0.0, 0.5],
                 [0.0, 0.0, 0.0, 1.0],
             ],
-            calculate_light_transform(
-                Quat::from_xyzw(1.0, 0.0, 0.0, 1.0).normalize(),
-                Vec3::new(1.0, 1.0, 1.0)
+            light_transform(
+                glam::quat(1.0, 0.0, 0.0, 1.0).normalize(),
+                glam::vec3(1.0, 1.0, 1.0)
             )
             .transpose()
             .to_cols_array_2d()
@@ -242,9 +233,9 @@ mod tests {
                 [-0.5, 0.0, 0.0, 0.5],
                 [0.0, 0.0, 0.0, 1.0],
             ],
-            calculate_light_transform(
-                Quat::from_xyzw(0.0, 1.0, 0.0, 1.0).normalize(),
-                Vec3::new(1.0, 1.0, 1.0)
+            light_transform(
+                glam::quat(0.0, 1.0, 0.0, 1.0).normalize(),
+                glam::vec3(1.0, 1.0, 1.0)
             )
             .transpose()
             .to_cols_array_2d()
@@ -260,9 +251,9 @@ mod tests {
                 [0.0, 0.0, -0.5, 0.5],
                 [0.0, 0.0, 0.0, 1.0],
             ],
-            calculate_light_transform(
-                Quat::from_xyzw(0.0, 0.0, 1.0, 1.0).normalize(),
-                Vec3::new(1.0, 1.0, 1.0)
+            light_transform(
+                glam::quat(0.0, 0.0, 1.0, 1.0).normalize(),
+                glam::vec3(1.0, 1.0, 1.0)
             )
             .transpose()
             .to_cols_array_2d()
@@ -273,7 +264,7 @@ mod tests {
     // TODO: Add additional test cases from more stages.
     #[test]
     fn light_direction_light_chr_training() {
-        let dir = light_direction(Quat::from_xyzw(-0.453154, -0.365998, -0.211309, 0.784886));
+        let dir = light_direction(glam::quat(-0.453154, -0.365998, -0.211309, 0.784886));
         assert_relative_eq!(-0.38302213, dir.x, epsilon = 0.0001f32);
         assert_relative_eq!(0.86602527, dir.y, epsilon = 0.0001f32);
         assert_relative_eq!(0.32139426, dir.z, epsilon = 0.0001f32);
