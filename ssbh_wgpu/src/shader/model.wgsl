@@ -168,7 +168,7 @@ struct PerMaterial {
     has_vector: array<vec4<u32>, 64>,
     has_color_set1234: vec4<u32>,
     has_color_set567: vec4<u32>,
-    alpha_settings: vec4<u32>, // discard, premultiplied, 0, 0
+    shader_settings: vec4<u32>, // discard, premultiplied, receives_shadow, 0
     shader_complexity: vec4<f32>
 };
 
@@ -1321,7 +1321,7 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) is_front: bool) -> @location
     let emissionColor = GetEmissionColor(map1, uvSet);
 
     var shadow = 1.0;
-    if (render_settings.render_shadows.x == 1u) {
+    if (render_settings.render_shadows.x == 1u && per_material.shader_settings.z == 1u) {
         shadow = GetShadow(in.light_position);
     }
 
@@ -1329,7 +1329,7 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) is_front: bool) -> @location
     if (per_material.has_vector[0].x == 1u) {
         outAlpha = max(albedoColor.a * emissionColor.a, per_material.custom_vector[0].x);
     }
-    if (per_material.alpha_settings.x == 1u && outAlpha < 0.5) {
+    if (per_material.shader_settings.x == 1u && outAlpha < 0.5) {
         discard;
     }
 
@@ -1398,7 +1398,7 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) is_front: bool) -> @location
     }
 
     // Premultiplied alpha. 
-    if (per_material.alpha_settings.y == 1u) {
+    if (per_material.shader_settings.y == 1u) {
         outColor = outColor * outAlpha;
     }
 

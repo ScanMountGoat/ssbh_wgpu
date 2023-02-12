@@ -7,6 +7,9 @@ pub struct ShaderProgram {
     pub discard: bool,
     /// `true` if the fragment RGB outputs are multiplied by the alpha output value.
     pub premultiplied: bool,
+    /// `true` if the fragment shader has a shadow map texture and will render shadows.
+    /// This does not affect casting shadows on other objects.
+    pub receives_shadow: bool,
     /// The collection of required mesh vertex attributes and their accessed channels.
     pub vertex_attributes: Vec<String>,
     /// The collection of required material parameters and their accessed channels.
@@ -112,6 +115,7 @@ impl ShaderDatabase {
                     ShaderProgram {
                         discard: program["discard"].as_bool().unwrap(),
                         premultiplied: program["premultiplied"].as_bool().unwrap(),
+                        receives_shadow: program["receives_shadow"].as_bool().unwrap(),
                         vertex_attributes: program["attrs"]
                             .as_array()
                             .unwrap()

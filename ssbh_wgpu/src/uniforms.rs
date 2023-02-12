@@ -278,8 +278,15 @@ pub fn per_material(material: &MatlEntryData, database: &ShaderDatabase) -> PerM
         (glam::UVec4::ZERO, glam::UVec4::ZERO)
     };
 
-    let alpha_settings = program
-        .map(|program| glam::UVec4::new(program.discard as u32, program.premultiplied as u32, 0, 0))
+    let shader_settings = program
+        .map(|program| {
+            glam::UVec4::new(
+                program.discard as u32,
+                program.premultiplied as u32,
+                program.receives_shadow as u32,
+                0,
+            )
+        })
         .unwrap_or_default();
 
     let shader_complexity = program
@@ -296,7 +303,7 @@ pub fn per_material(material: &MatlEntryData, database: &ShaderDatabase) -> PerM
         has_vector,
         has_color_set1234,
         has_color_set567,
-        alpha_settings,
+        shader_settings,
         shader_complexity,
     }
 }
@@ -313,7 +320,7 @@ pub const DEFAULT_PER_MATERIAL: PerMaterial =
         has_vector: [glam::UVec4::ZERO; 64],
         has_color_set1234: glam::UVec4::ZERO,
         has_color_set567: glam::UVec4::ZERO,
-        alpha_settings: glam::UVec4::ZERO,
+        shader_settings: glam::UVec4::ZERO,
         shader_complexity: glam::Vec4::ZERO,
     };
 
@@ -486,7 +493,7 @@ mod tests {
                 has_vector: [glam::UVec4::ZERO; 64],
                 has_color_set1234: glam::UVec4::ZERO,
                 has_color_set567: glam::UVec4::ZERO,
-                alpha_settings: glam::UVec4::ZERO,
+                shader_settings: glam::UVec4::ZERO,
                 shader_complexity: glam::Vec4::ZERO
             },
             DEFAULT_PER_MATERIAL
@@ -506,7 +513,7 @@ mod tests {
                 has_vector: [glam::UVec4::ZERO; 64],
                 has_color_set1234: glam::UVec4::ZERO,
                 has_color_set567: glam::UVec4::ZERO,
-                alpha_settings: glam::UVec4::ZERO,
+                shader_settings: glam::UVec4::ZERO,
                 shader_complexity: glam::Vec4::ZERO
             },
             per_material(
@@ -540,7 +547,7 @@ mod tests {
                 has_vector: [glam::UVec4::ZERO; 64],
                 has_color_set1234: glam::UVec4::ZERO,
                 has_color_set567: glam::UVec4::ZERO,
-                alpha_settings: glam::UVec4::ZERO,
+                shader_settings: glam::UVec4::ZERO,
                 shader_complexity: glam::Vec4::ZERO
             },
             per_material(
@@ -593,7 +600,7 @@ mod tests {
             has_vector: [glam::UVec4::ZERO; 64],
             has_color_set1234: glam::UVec4::ZERO,
             has_color_set567: glam::UVec4::ZERO,
-            alpha_settings: glam::UVec4::new(1, 0, 0, 0),
+            shader_settings: glam::UVec4::new(1, 0, 0, 0),
             shader_complexity: glam::Vec4::ZERO,
         };
         expected.custom_vector[0] = glam::vec4(1.0, 2.0, 3.0, 4.0);
@@ -664,6 +671,7 @@ mod tests {
                         ShaderProgram {
                             discard: true,
                             premultiplied: false,
+                            receives_shadow: false,
                             vertex_attributes: Vec::new(),
                             material_parameters: vec![
                                 "Texture0".to_owned(),

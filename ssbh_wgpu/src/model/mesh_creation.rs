@@ -165,6 +165,7 @@ impl<'a> RenderMeshSharedData<'a> {
             .and_then(|a| a.parse().ok())
             .unwrap_or_default();
 
+        // TODO: Include other model.xmb rendering related settings.
         device.create_buffer_from_data(
             "PerModel",
             &[crate::shader::model::PerModel {
