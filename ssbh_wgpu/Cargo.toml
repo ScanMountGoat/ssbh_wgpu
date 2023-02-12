@@ -8,6 +8,7 @@ glam = { version = "0.22.0", features = ["bytemuck"] }
 wgpu = "0.15.0"
 bytemuck = { version = "1.13", features = [ "derive" ] }
 ssbh_data = { git = "https://github.com/ultimate-research/ssbh_lib", features = ["strum"] }
+xmb_lib = { git = "https://github.com/ultimate-research/xmb_lib" }
 walkdir = "2"
 rayon = "1.5.1"
 nutexb_wgpu = { path = "../nutexb_wgpu" }
@@ -32,7 +33,7 @@ criterion = "0.3.5"
 wgsl_to_wgpu = { git = "https://github.com/ScanMountGoat/wgsl_to_wgpu" }
 
 [features]
-arbitrary = ["dep:arbitrary", "ssbh_data/arbitrary"]
+arbitrary = ["dep:arbitrary", "ssbh_data/arbitrary", "xmb_lib/arbitrary"]
 
 [[bench]]
 name = "animate_skel"

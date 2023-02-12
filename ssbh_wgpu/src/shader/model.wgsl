@@ -41,10 +41,11 @@ struct SceneAttributesForShaderFx {
     custom_float: array<vec4<f32>, 20>,
 };
 
-// TODO: Include other lights?
+// TODO: What is the upper limit on light sets?
 // TODO: How to decide on which light is used for shadow casting?
 struct StageUniforms {
     light_chr: Light,
+    light_stage: array<Light, 8>,
     scene_attributes: SceneAttributesForShaderFx
 };
 
@@ -67,81 +68,88 @@ var<uniform> stage_uniforms: StageUniforms;
 @group(0) @binding(6)
 var uv_pattern: texture_2d<f32>;
 
+struct PerModel {
+    light_set_index: vec4<u32> // is_stage, light_set, 0, 0
+}
+
+@group(1) @binding(0)
+var<uniform> per_model: PerModel;
+
 // TODO: Is there a better way of organizing this?
 // TODO: How many textures can we have?
-@group(1) @binding(0)
+@group(2) @binding(0)
 var texture0: texture_2d<f32>;
-@group(1) @binding(1)
+@group(2) @binding(1)
 var sampler0: sampler;
 
-@group(1) @binding(2)
+@group(2) @binding(2)
 var texture1: texture_2d<f32>;
-@group(1) @binding(3)
+@group(2) @binding(3)
 var sampler1: sampler;
 
-@group(1) @binding(4)
+@group(2) @binding(4)
 var texture2: texture_cube<f32>;
-@group(1) @binding(5)
+@group(2) @binding(5)
 var sampler2: sampler;
 
-@group(1) @binding(6)
+@group(2) @binding(6)
 var texture3: texture_2d<f32>;
-@group(1) @binding(7)
+@group(2) @binding(7)
 var sampler3: sampler;
 
-@group(1) @binding(8)
+@group(2) @binding(8)
 var texture4: texture_2d<f32>;
-@group(1) @binding(9)
+@group(2) @binding(9)
 var sampler4: sampler;
 
-@group(1) @binding(10)
+@group(2) @binding(10)
 var texture5: texture_2d<f32>;
-@group(1) @binding(11)
+@group(2) @binding(11)
 var sampler5: sampler;
 
-@group(1) @binding(12)
+@group(2) @binding(12)
 var texture6: texture_2d<f32>;
-@group(1) @binding(13)
+@group(2) @binding(13)
 var sampler6: sampler;
 
-@group(1) @binding(14)
+@group(2) @binding(14)
 var texture7: texture_cube<f32>;
-@group(1) @binding(15)
+@group(2) @binding(15)
 var sampler7: sampler;
 
-@group(1) @binding(16)
+@group(2) @binding(16)
 var texture8: texture_cube<f32>;
-@group(1) @binding(17)
+@group(2) @binding(17)
 var sampler8: sampler;
 
-@group(1) @binding(18)
+@group(2) @binding(18)
 var texture9: texture_2d<f32>;
-@group(1) @binding(19)
+@group(2) @binding(19)
 var sampler9: sampler;
 
-@group(1) @binding(20)
+@group(2) @binding(20)
 var texture10: texture_2d<f32>;
-@group(1) @binding(21)
+@group(2) @binding(21)
 var sampler10: sampler;
 
-@group(1) @binding(22)
+@group(2) @binding(22)
 var texture11: texture_2d<f32>;
-@group(1) @binding(23)
+@group(2) @binding(23)
 var sampler11: sampler;
 
-@group(1) @binding(24)
+@group(2) @binding(24)
 var texture12: texture_2d<f32>;
-@group(1) @binding(25)
+@group(2) @binding(25)
 var sampler12: sampler;
 
-@group(1) @binding(26)
+@group(2) @binding(26)
 var texture13: texture_2d<f32>;
-@group(1) @binding(27)
+@group(2) @binding(27)
 var sampler13: sampler;
 
-@group(1) @binding(28)
+@group(2) @binding(28)
 var texture14: texture_2d<f32>;
-@group(1) @binding(29)
+@group(2) @binding(29)
 var sampler14: sampler;
 
 // TODO: use naming convention to indicate frequency like PerMaterial
@@ -164,7 +172,7 @@ struct PerMaterial {
     shader_complexity: vec4<f32>
 };
 
-@group(1) @binding(30)
+@group(2) @binding(30)
 var<uniform> per_material: PerMaterial;
 
 struct VertexInput0 {
@@ -355,13 +363,50 @@ fn GetBumpMapNormal(normal: vec3<f32>, tangent: vec3<f32>, bitangent: vec3<f32>,
     return normalize(newNormal);
 }
 
+fn GetLight() -> Light {
+    // TODO: How expensive is this?
+    // TODO: Is this worth moving to the CPU?
+    if (per_model.light_set_index.x == 0u) {
+        return stage_uniforms.light_chr;
+    } else {
+        switch (per_model.light_set_index.y) {
+            case 0u: {
+                return stage_uniforms.light_stage[0];
+            }
+            case 1u: {
+                return stage_uniforms.light_stage[1];
+            }
+            case 2u: {
+                return stage_uniforms.light_stage[2];
+            }
+            case 3u: {
+                return stage_uniforms.light_stage[3];
+            }
+            case 4u: {
+                return stage_uniforms.light_stage[4];
+            }
+            case 5u: {
+                return stage_uniforms.light_stage[5];
+            }
+            case 6u: {
+                return stage_uniforms.light_stage[6];
+            }
+            case 7u: {
+                return stage_uniforms.light_stage[7];
+            }
+            default: {
+                return stage_uniforms.light_stage[7];
+            }
+        }
+    }
+}
 
 fn DiffuseTerm(
     bake1: vec2<f32>, 
     albedo: vec3<f32>, 
     nDotL: f32, 
     ambientLight: vec3<f32>, 
-    ao: vec3<f32>, 
+    ao: f32, 
     sssBlend: f32, 
     shadow: f32,
     custom_vector11: vec4<f32>,
@@ -384,8 +429,13 @@ fn DiffuseTerm(
     // TODO: Skin shading looks correct without the PI term?
     directShading = mix(directShading / 3.14159, skinShading, sssBlend);
 
-    var directLight = stage_uniforms.light_chr.color.rgb * directShading;
+    var directLight = GetLight().color.rgb * directShading;
     var ambientTerm = (ambientLight * ao);
+
+    // TODO: Does Texture3 also affect specular?
+    if (per_material.has_texture[3].x == 1u) {
+        ambientTerm = ambientTerm * textureSample(texture3, sampler3, bake1).rgb;
+    }
 
     if (per_material.has_texture[9].x == 1u) {
         // The alpha channel masks direct lighting to act as baked shadows.
@@ -702,8 +752,7 @@ fn vs_main(
         out.color_set7 = buffer1.color_set7;
     }
 
-    // TODO: This won't always be light_chr.
-    out.light_position = stage_uniforms.light_chr.transform * vec4(buffer0.position0.xyz, 1.0);
+    out.light_position = GetLight().transform * vec4(buffer0.position0.xyz, 1.0);
     return out;
 }
 
@@ -712,8 +761,7 @@ fn vs_depth(
     buffer0: VertexInput0,
     buffer1: VertexInput1
 ) -> @builtin(position) vec4<f32> {
-    // TODO: This won't always be light_chr.
-    return stage_uniforms.light_chr.transform * vec4(buffer0.position0.xyz, 1.0);
+    return GetLight().transform * vec4(buffer0.position0.xyz, 1.0);
 }
 
 @vertex
@@ -1258,7 +1306,7 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) is_front: bool) -> @location
     var reflectionVector = reflect(viewVector, fragmentNormal);
     reflectionVector.y = reflectionVector.y * -1.0;
 
-    let chrLightDir = stage_uniforms.light_chr.direction.xyz;
+    let chrLightDir = GetLight().direction.xyz;
 
     let halfAngle = normalize(chrLightDir + viewVector);
     let nDotV = max(dot(fragmentNormal, viewVector), 0.0);
@@ -1294,7 +1342,7 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) is_front: bool) -> @location
     let shAmbientB = dot(vec4(normalize(normal), 1.0), vec4(0.1419, 0.04334, -0.08283, 1.11018));
     let shColor = vec3(shAmbientR, shAmbientG, shAmbientB);
 
-    let diffusePass = DiffuseTerm(bake1, albedoColorFinal.rgb, nDotL, shColor, vec3(ao), sssBlend, shadow, customVector11Final, customVector30Final, colorSet2);
+    let diffusePass = DiffuseTerm(bake1, albedoColorFinal.rgb, nDotL, shColor, ao, sssBlend, shadow, customVector11Final, customVector30Final, colorSet2);
 
     let specularF0 = GetF0FromSpecular(prm.a);
     let specularReflectionF0 = vec3(specularF0);

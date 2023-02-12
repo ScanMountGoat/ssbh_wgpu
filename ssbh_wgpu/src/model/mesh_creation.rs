@@ -19,9 +19,10 @@ use ssbh_data::{
     meshex_data::EntryFlags, prelude::*,
 };
 use std::{collections::HashMap, error::Error, num::NonZeroU64};
+use xmb_lib::XmbFile;
 
 pub struct MaterialData {
-    pub material_uniforms_bind_group: crate::shader::model::bind_groups::BindGroup1,
+    pub material_uniforms_bind_group: crate::shader::model::bind_groups::BindGroup2,
     pub uniforms_buffer: wgpu::Buffer,
 }
 
@@ -63,6 +64,7 @@ pub struct RenderMeshSharedData<'a> {
     pub matl: Option<&'a MatlData>,
     pub adj: Option<&'a AdjData>,
     pub hlpb: Option<&'a HlpbData>,
+    pub model_xmb: Option<&'a XmbFile>,
     pub nutexbs: &'a ModelFiles<NutexbFile>,
 }
 
@@ -105,6 +107,15 @@ impl<'a> RenderMeshSharedData<'a> {
 
         let default_material_data = default_material_data(device, self.shared_data);
 
+        let per_model_buffer = self.per_model_buffer(device);
+
+        let per_model_bind_group = crate::shader::model::bind_groups::BindGroup1::from_bindings(
+            device,
+            crate::shader::model::bind_groups::BindGroupLayout1 {
+                per_model: per_model_buffer.as_entire_buffer_binding(),
+            },
+        );
+
         let RenderMeshData {
             meshes,
             material_data_by_label,
@@ -134,7 +145,33 @@ impl<'a> RenderMeshSharedData<'a> {
             buffer_data,
             animation_transforms: Box::new(animation_transforms),
             swing_render_data,
+            per_model_bind_group,
         }
+    }
+
+    fn per_model_buffer(&self, device: &wgpu::Device) -> wgpu::Buffer {
+        // Get light set information from the model.xmb.
+        // We don't initialize the light data itself here.
+        // This allows lighting to be updated globally for all models.
+        let model_entry = self.model_xmb.and_then(|xmb| xmb.entries.get(0));
+        let is_stage = model_entry
+            .and_then(|e| e.attributes.get("type"))
+            .map(|model_type| model_type == "stage")
+            .unwrap_or_default();
+
+        let lightset: u32 = model_entry
+            .and_then(|e| e.children.iter().find(|c| c.name == "lightset"))
+            .and_then(|e| e.attributes.get("number"))
+            .and_then(|a| a.parse().ok())
+            .unwrap_or_default();
+
+        device.create_buffer_from_data(
+            "PerModel",
+            &[crate::shader::model::PerModel {
+                light_set_index: glam::uvec4(is_stage as u32, lightset, 0, 0),
+            }],
+            wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        )
     }
 
     fn create_bone_render_data(

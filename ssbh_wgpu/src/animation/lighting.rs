@@ -45,6 +45,7 @@ impl StageUniforms {
                 direction: light_direction(glam::quat(-0.453154, -0.365998, -0.211309, 0.784886)),
                 transform: light_transform(light_chr_rotation, light_chr_scale),
             },
+            light_stage: [Light::default(); 8], // TODO: Fill this in
             scene_attributes: SceneAttributesForShaderFx {
                 custom_boolean,
                 custom_vector,
@@ -82,9 +83,27 @@ pub fn animate_lighting(data: &AnimData, frame: f32) -> StageUniforms {
         .find(|g| g.group_type == GroupType::Transform);
 
     // TODO: use LightStg0 for the shadow direction?
-    // TODO: Include all lights so that models can index into the appropriate light.
     let light_chr = transform_group.and_then(|g| g.nodes.iter().find(|n| n.name == "LightChr"));
-    let light_chr = light_chr.map(|n| light_node(n, frame)).unwrap_or_default();
+    let light_chr = light_chr
+        .map(|n| light_from_node(n, frame))
+        .unwrap_or_default();
+
+    // TODO: What is the upper limit for the number of light sets.
+    // In game lighting anim files seem to have no more than 8.
+    let mut light_stage = [Light::default(); 8];
+    if let Some(group) = transform_group {
+        // TODO: How to correctly map stage lights to indices?
+        for (i, node) in group
+            .nodes
+            .iter()
+            .filter(|n| n.name.starts_with("LightStg"))
+            .enumerate()
+        {
+            if let Some(light) = light_stage.get_mut(i) {
+                *light = light_from_node(node, frame);
+            }
+        }
+    }
 
     let scene_attributes = transform_group.and_then(|g| {
         g.nodes
@@ -92,16 +111,17 @@ pub fn animate_lighting(data: &AnimData, frame: f32) -> StageUniforms {
             .find(|n| n.name == "sceneAttributesForShaderFX")
     });
     let scene_attributes = scene_attributes
-        .map(|n| scene_attributes_node(n, frame))
+        .map(|n| scene_attributes_from_node(n, frame))
         .unwrap_or_default();
 
     StageUniforms {
         light_chr,
+        light_stage,
         scene_attributes,
     }
 }
 
-fn scene_attributes_node(node: &NodeData, frame: f32) -> SceneAttributesForShaderFx {
+fn scene_attributes_from_node(node: &NodeData, frame: f32) -> SceneAttributesForShaderFx {
     // TODO: Interpolate vectors?
     let mut attributes = SceneAttributesForShaderFx::default();
 
@@ -134,7 +154,7 @@ fn scene_attributes_node(node: &NodeData, frame: f32) -> SceneAttributesForShade
     attributes
 }
 
-fn light_node(node: &NodeData, frame: f32) -> Light {
+fn light_from_node(node: &NodeData, frame: f32) -> Light {
     // TODO: Avoid unwrap.
     // TODO: Default to intensity of 1.0 instead?
     let float0 = node

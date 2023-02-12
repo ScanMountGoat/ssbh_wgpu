@@ -10,6 +10,7 @@ use std::{
 };
 use walkdir::WalkDir;
 use wgpu::util::DeviceExt;
+use xmb_lib::XmbFile;
 // TODO: Use rayon to speed up load times?
 
 // TODO: Rework this public API and improve docs.
@@ -136,15 +137,14 @@ pub struct ModelFolder {
     pub anims: ModelFiles<AnimData>,
     pub hlpbs: ModelFiles<HlpbData>,
     pub nutexbs: ModelFiles<NutexbFile>,
+    pub xmbs: ModelFiles<XmbFile>,
 }
 
 #[cfg(feature = "arbitrary")]
 impl<'a> arbitrary::Arbitrary<'a> for ModelFolder {
     fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
-        // TODO: Createy arbitrary nutexbs.
         // TODO: Use option to make some files missing?
         Ok(Self {
-            folder_name: u.arbitrary()?,
             meshes: vec![("model.numshb".to_owned(), Ok(u.arbitrary()?))],
             skels: vec![("model.nusktb".to_owned(), Ok(u.arbitrary()?))],
             matls: vec![("model.numatb".to_owned(), Ok(u.arbitrary()?))],
@@ -152,8 +152,9 @@ impl<'a> arbitrary::Arbitrary<'a> for ModelFolder {
             adjs: vec![(u.arbitrary()?, Ok(u.arbitrary()?))],
             anims: vec![(u.arbitrary()?, Ok(u.arbitrary()?))],
             hlpbs: vec![(u.arbitrary()?, Ok(u.arbitrary()?))],
-            nutexbs: vec![],
+            nutexbs: vec![], // TODO: Createy arbitrary nutexbs
             meshexes: vec![("model.numshexb".to_owned(), Ok(u.arbitrary()?))],
+            xmbs: vec![("model.xmb".to_owned(), Ok(u.arbitrary()?))],
         })
     }
 }
@@ -174,6 +175,7 @@ impl ModelFolder {
             adjs: read_files(&files, "adjb", AdjData::from_file),
             hlpbs: read_files(&files, "nuhlpb", HlpbData::from_file),
             nutexbs: read_files(&files, "nutexb", NutexbFile::read_from_file),
+            xmbs: read_files(&files, "xmb", XmbFile::from_file),
         }
     }
 
@@ -238,6 +240,22 @@ impl ModelFolder {
         self.adjs
             .iter()
             .find(|(f, _)| f == "model.adjb")
+            .and_then(|(_, m)| m.as_ref().ok())
+    }
+
+    /// Finds the `"model.nuhlpb"` file in [hlpbs](#structfield.hlpbs).
+    pub fn find_nuhlpb(&self) -> Option<&HlpbData> {
+        self.hlpbs
+            .iter()
+            .find(|(f, _)| f == "model.nuhlpb")
+            .and_then(|(_, m)| m.as_ref().ok())
+    }
+
+    /// Finds the `"model.xmb"` file in [xmbs](#structfield.xmbs).
+    pub fn find_model_xmb(&self) -> Option<&XmbFile> {
+        self.xmbs
+            .iter()
+            .find(|(f, _)| f == "model.xmb")
             .and_then(|(_, m)| m.as_ref().ok())
     }
 

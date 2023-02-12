@@ -19,7 +19,7 @@ pub fn material_uniforms_bind_group(
     default_textures: &[(String, wgpu::Texture, wgpu::TextureViewDimension)],
     uniforms_buffer: &wgpu::Buffer, // TODO: Just return this?
     sampler_by_data: &mut SamplerCache,
-) -> crate::shader::model::bind_groups::BindGroup1 {
+) -> crate::shader::model::bind_groups::BindGroup2 {
     // TODO: Do all 2D textures default to white if the path isn't correct?
     let default_white = &default_textures
         .iter()
@@ -72,9 +72,9 @@ pub fn material_uniforms_bind_group(
     };
 
     // TODO: Default texture for other cube maps?
-    crate::shader::model::bind_groups::BindGroup1::from_bindings(
+    crate::shader::model::bind_groups::BindGroup2::from_bindings(
         device,
-        crate::shader::model::bind_groups::BindGroupLayout1 {
+        crate::shader::model::bind_groups::BindGroupLayout2 {
             texture0: &load_texture(ParamId::Texture0, wgpu::TextureViewDimension::D2),
             sampler0: load_sampler(ParamId::Sampler0),
             texture1: &load_texture(ParamId::Texture1, wgpu::TextureViewDimension::D2),
@@ -114,7 +114,7 @@ pub fn default_material_uniforms_bind_group(
     device: &wgpu::Device,
     default_textures: &[(String, wgpu::Texture, wgpu::TextureViewDimension)],
     uniforms_buffer: &wgpu::Buffer,
-) -> crate::shader::model::bind_groups::BindGroup1 {
+) -> crate::shader::model::bind_groups::BindGroup2 {
     let default_black = &default_textures
         .iter()
         .find(|d| d.0 == "/common/shader/sfxpbs/default_black")
@@ -136,9 +136,9 @@ pub fn default_material_uniforms_bind_group(
     let default_sampler = device.create_sampler(&SamplerDescriptor::default());
 
     // TODO: Default texture for other cube maps?
-    crate::shader::model::bind_groups::BindGroup1::from_bindings(
+    crate::shader::model::bind_groups::BindGroup2::from_bindings(
         device,
-        crate::shader::model::bind_groups::BindGroupLayout1 {
+        crate::shader::model::bind_groups::BindGroupLayout2 {
             texture0: &default_white,
             sampler0: &default_sampler,
             texture1: &default_white,

@@ -129,11 +129,12 @@ pub fn pipeline(
 pub fn depth_pipeline(device: &wgpu::Device) -> wgpu::RenderPipeline {
     let shader = crate::shader::model::create_shader_module(device);
 
-    // We only need the per frame light transforms.
+    // We only need the per frame and light related bind groups.
     let render_pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
         label: None,
         bind_group_layouts: &[
             &crate::shader::model::bind_groups::BindGroup0::get_bind_group_layout(device),
+            &crate::shader::model::bind_groups::BindGroup1::get_bind_group_layout(device),
         ],
         push_constant_ranges: &[],
     });

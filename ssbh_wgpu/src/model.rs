@@ -48,6 +48,8 @@ pub struct RenderModel {
     pipelines: HashMap<PipelineKey, wgpu::RenderPipeline>,
     textures: Vec<(String, wgpu::Texture, wgpu::TextureViewDimension)>,
 
+    per_model_bind_group: crate::shader::model::bind_groups::BindGroup1,
+
     bone_render_data: BoneRenderData,
 
     // TODO: The swing pipelines should be created only once in the renderer.
@@ -113,13 +115,9 @@ impl RenderModel {
             skel: model.find_skel(),
             matl: model.find_matl(),
             adj: model.find_adj(),
+            hlpb: model.find_hlpb(),
+            model_xmb: model.find_model_xmb(),
             nutexbs: &model.nutexbs,
-            hlpb: model
-                .hlpbs
-                .iter()
-                .find(|(f, _)| f == "model.nuhlpb")
-                .and_then(|(_, m)| m.as_ref().ok()),
-
             shared_data,
         };
 
@@ -463,6 +461,7 @@ impl RenderModel {
         mesh: &RenderMesh,
         bind_group0: &'a crate::shader::model::bind_groups::BindGroup0,
         bind_group1: &'a crate::shader::model::bind_groups::BindGroup1,
+        bind_group2: &'a crate::shader::model::bind_groups::BindGroup2,
     ) {
         // Prevent potential validation error from empty meshes.
         if mesh.vertex_index_count > 0 {
@@ -471,6 +470,7 @@ impl RenderModel {
                 crate::shader::model::bind_groups::BindGroups::<'a> {
                     bind_group0,
                     bind_group1,
+                    bind_group2,
                 },
             );
 
@@ -520,6 +520,7 @@ impl RenderModel {
                     render_pass,
                     mesh,
                     per_frame_bind_group,
+                    &self.per_model_bind_group,
                     &material_data.material_uniforms_bind_group,
                 );
             }
@@ -544,6 +545,7 @@ impl RenderModel {
                 render_pass,
                 mesh,
                 per_frame_bind_group,
+                &self.per_model_bind_group,
                 &self.default_material_data.material_uniforms_bind_group,
             );
         }
@@ -566,6 +568,7 @@ impl RenderModel {
                 render_pass,
                 mesh,
                 per_frame_bind_group,
+                &self.per_model_bind_group,
                 &material_data.material_uniforms_bind_group,
             );
         }
@@ -588,6 +591,7 @@ impl RenderModel {
                 render_pass,
                 mesh,
                 per_frame_bind_group,
+                &self.per_model_bind_group,
                 &self.default_material_data.material_uniforms_bind_group,
             );
             active = true;
@@ -606,6 +610,7 @@ impl RenderModel {
                 render_pass,
                 mesh,
                 per_frame_bind_group,
+                &self.per_model_bind_group,
                 &self.default_material_data.material_uniforms_bind_group,
             );
         }
@@ -676,10 +681,11 @@ impl RenderModel {
     pub(crate) fn draw_meshes_depth<'a>(
         &'a self,
         render_pass: &mut wgpu::RenderPass<'a>,
-        camera_bind_group: &'a crate::shader::model::bind_groups::BindGroup0,
+        per_frame_bind_group: &'a crate::shader::model::bind_groups::BindGroup0,
     ) {
-        // Assume only one shared bind group for all meshes.
-        camera_bind_group.set(render_pass);
+        // Assume only shared bind groups for all meshes.
+        per_frame_bind_group.set(render_pass);
+        self.per_model_bind_group.set(render_pass);
 
         // The numshexb can disable shadows for transparent models or special effects.
         for mesh in self
