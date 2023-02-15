@@ -264,10 +264,11 @@ pub struct PerMaterial {
     pub has_color_set1234: glam::UVec4,
     pub has_color_set567: glam::UVec4,
     pub shader_settings: glam::UVec4,
+    pub lighting_settings: glam::UVec4,
     pub shader_complexity: glam::Vec4,
 }
 const _: () = assert!(
-    std::mem::size_of:: < PerMaterial > () == 3696,
+    std::mem::size_of:: < PerMaterial > () == 3712,
     "size of PerMaterial does not match WGSL"
 );
 const _: () = assert!(
@@ -311,7 +312,11 @@ const _: () = assert!(
     "offset of PerMaterial.shader_settings does not match WGSL"
 );
 const _: () = assert!(
-    memoffset::offset_of!(PerMaterial, shader_complexity) == 3680,
+    memoffset::offset_of!(PerMaterial, lighting_settings) == 3680,
+    "offset of PerMaterial.lighting_settings does not match WGSL"
+);
+const _: () = assert!(
+    memoffset::offset_of!(PerMaterial, shader_complexity) == 3696,
     "offset of PerMaterial.shader_complexity does not match WGSL"
 );
 #[repr(C)]

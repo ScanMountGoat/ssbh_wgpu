@@ -28,6 +28,7 @@ struct WorldTransforms {
     transforms: array<mat4x4<f32>, 512>
 };
 
+// TODO: Rework this to PerMesh?
 struct MeshObjectInfo {
     // TODO: Alignment?
     // Just use X for now.

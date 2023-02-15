@@ -168,7 +168,8 @@ struct PerMaterial {
     has_vector: array<vec4<u32>, 64>,
     has_color_set1234: vec4<u32>,
     has_color_set567: vec4<u32>,
-    shader_settings: vec4<u32>, // discard, premultiplied, receives_shadow, 0
+    shader_settings: vec4<u32>, // discard, premultiplied, 0, 0
+    lighting_settings: vec4<u32>, // lighting, sh, receives_shadow, 0
     shader_complexity: vec4<f32>
 };
 
@@ -213,6 +214,7 @@ struct VertexOutput {
     @location(11) color_set6: vec4<f32>,
     @location(12) color_set7: vec4<f32>,
     @location(13) light_position: vec4<f32>,
+    @location(14) sh_lighting: vec4<f32>,
 };
 
 struct VertexOutputInvalid {
@@ -405,7 +407,7 @@ fn DiffuseTerm(
     bake1: vec2<f32>, 
     albedo: vec3<f32>, 
     nDotL: f32, 
-    ambientLight: vec3<f32>, 
+    shLighting: vec3<f32>, 
     ao: f32, 
     sssBlend: f32, 
     shadow: f32,
@@ -429,8 +431,11 @@ fn DiffuseTerm(
     // TODO: Skin shading looks correct without the PI term?
     directShading = mix(directShading / 3.14159, skinShading, sssBlend);
 
-    var directLight = GetLight().color.rgb * directShading;
-    var ambientTerm = (ambientLight * ao);
+    var directLight = vec3(0.0);
+    if (per_material.lighting_settings.x == 1u) {
+        directLight = GetLight().color.rgb * directShading;
+    }
+    var ambientTerm = (shLighting * ao);
 
     // TODO: Does Texture3 also affect specular?
     if (per_material.has_texture[3].x == 1u) {
@@ -453,6 +458,8 @@ fn DiffuseTerm(
     var result = directLight * shadow + ambientTerm;
 
     // Baked stage lighting.
+    // TODO: How is this different from colorSet1?
+    // TODO: Check the king model on zelda_tower.
     if (per_material.has_color_set1234.y == 1u && render_settings.render_vertex_color.x == 1u) {
        result = result * colorSet2.rgb;
     }
@@ -676,6 +683,21 @@ fn vs_main(
     out.clip_position.z = out.clip_position.z - per_material.custom_float[16].x;
     out.normal = buffer0.normal0;
     out.tangent = buffer0.tangent0;
+
+    // TODO: How to update the SH lighting for each mesh?
+    // The in game shaders just add these coefficients as uniforms.
+    // TODO: Create a PerMesh buffer with SH coefficients?
+    // This could just use PerModel for now based on the model type in the xmb.
+    // Stages and fighters use different SH coefficients.
+    // TODO: The easiest is to just update a global SH Coefficients buffer for now.
+    out.sh_lighting = vec4(0.0);
+    if (per_material.lighting_settings.y == 1u) {
+        let shNormal = vec4(normalize(buffer0.normal0.xyz), 1.0);
+        let shAmbientR = dot(shNormal, vec4(0.14186, 0.04903, -0.082, 1.11054));
+        let shAmbientG = dot(shNormal, vec4(0.14717, 0.03699, -0.08283, 1.11036));
+        let shAmbientB = dot(shNormal, vec4(0.1419, 0.04334, -0.08283, 1.11018));
+        out.sh_lighting = vec4(shAmbientR, shAmbientG, shAmbientB, 0.0);
+    }
 
     // TODO: Also apply transforms to the debug shader?
     var uvTransform1 = vec4(1.0, 1.0, 0.0, 0.0);
@@ -960,6 +982,7 @@ fn fs_debug(in: VertexOutput) -> @location(0) vec4<f32> {
     let albedoColor = GetAlbedoColor(map1, uvSet, uvSet1, reflectionVector, colorSet5);
     var albedoColorFinal = GetAlbedoColorFinal(albedoColor);
     albedoColorFinal = mix(albedoColorFinal, per_material.custom_vector[11].rgb, sssBlend);
+    let emissionColor = GetEmissionColor(map1, uvSet);
 
     // TODO: Some of these render modes should be gamma corrected.
     // TODO: Use more accurate gamma correction.
@@ -1044,6 +1067,7 @@ fn fs_debug(in: VertexOutput) -> @location(0) vec4<f32> {
             outColor = textureSample(texture14, sampler14, uvSet);
         }
         // case 26u: {
+        // TODO: Find a way to include this many textures?
         //     outColor = textureSample(texture16, sampler16, map1);
         // }
         case 27u: {
@@ -1096,8 +1120,8 @@ fn fs_debug(in: VertexOutput) -> @location(0) vec4<f32> {
             outColor = vec4(pow(bitangent.xyz * 0.5 + 0.5, vec3(2.2)), 1.0);
         }
         case 35u: {
-            // Albedo
-            outColor = vec4(albedoColorFinal.rgb, 1.0);
+            // Unlit
+            outColor = vec4(albedoColorFinal.rgb + emissionColor.rgb, albedoColor.a * emissionColor.a);
         }
         case 36u: {
             // The min complexity isn't 0.0 since shaders are all non empty.
@@ -1321,7 +1345,7 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) is_front: bool) -> @location
     let emissionColor = GetEmissionColor(map1, uvSet);
 
     var shadow = 1.0;
-    if (render_settings.render_shadows.x == 1u && per_material.shader_settings.z == 1u) {
+    if (render_settings.render_shadows.x == 1u && per_material.lighting_settings.z == 1u) {
         shadow = GetShadow(in.light_position);
     }
 
@@ -1336,13 +1360,7 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) is_front: bool) -> @location
     let specularLod = RoughnessToLod(roughness);
     let specularIbl = textureSampleLevel(texture7, sampler7, reflectionVector, specularLod).rgb;
 
-    // TODO: Vertex shader
-    let shAmbientR = dot(vec4(normalize(normal), 1.0), vec4(0.14186, 0.04903, -0.082, 1.11054));
-    let shAmbientG = dot(vec4(normalize(normal), 1.0), vec4(0.14717, 0.03699, -0.08283, 1.11036));
-    let shAmbientB = dot(vec4(normalize(normal), 1.0), vec4(0.1419, 0.04334, -0.08283, 1.11018));
-    let shColor = vec3(shAmbientR, shAmbientG, shAmbientB);
-
-    let diffusePass = DiffuseTerm(bake1, albedoColorFinal.rgb, nDotL, shColor, ao, sssBlend, shadow, customVector11Final, customVector30Final, colorSet2);
+    let diffusePass = DiffuseTerm(bake1, albedoColorFinal.rgb, nDotL, in.sh_lighting.rgb, ao, sssBlend, shadow, customVector11Final, customVector30Final, colorSet2);
 
     let specularF0 = GetF0FromSpecular(prm.a);
     let specularReflectionF0 = vec3(specularF0);
@@ -1374,7 +1392,7 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) is_front: bool) -> @location
 
     // TODO: What affects rim lighting intensity?
     if (render_settings.render_rim_lighting.x == 1u) {
-        outColor = GetRimBlend(outColor, albedoColorFinal, nDotV, max(nDotL, 0.0), shadow * nor.a, shColor);
+        outColor = GetRimBlend(outColor, albedoColorFinal, nDotV, max(nDotL, 0.0), shadow * nor.a, in.sh_lighting.rgb);
     }
 
     // TODO: Check all channels?

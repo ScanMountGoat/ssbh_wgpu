@@ -10,6 +10,10 @@ pub struct ShaderProgram {
     /// `true` if the fragment shader has a shadow map texture and will render shadows.
     /// This does not affect casting shadows on other objects.
     pub receives_shadow: bool,
+    /// `true` if the fragment shader uses per vertex spherical harmonic ambient lighting.
+    pub sh: bool,
+    /// `true` if the fragment shader uses the light set directional lighting.
+    pub lighting: bool,
     /// The collection of required mesh vertex attributes and their accessed channels.
     pub vertex_attributes: Vec<String>,
     /// The collection of required material parameters and their accessed channels.
@@ -116,6 +120,8 @@ impl ShaderDatabase {
                         discard: program["discard"].as_bool().unwrap(),
                         premultiplied: program["premultiplied"].as_bool().unwrap(),
                         receives_shadow: program["receives_shadow"].as_bool().unwrap(),
+                        sh: program["sh"].as_bool().unwrap(),
+                        lighting: program["lighting"].as_bool().unwrap(),
                         vertex_attributes: program["attrs"]
                             .as_array()
                             .unwrap()

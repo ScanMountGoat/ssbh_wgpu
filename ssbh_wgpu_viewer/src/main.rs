@@ -98,6 +98,7 @@ impl State {
         camera_anim: Option<PathBuf>,
         render_folder: Option<PathBuf>,
     ) -> Self {
+        // TODO: Investigate DX12 errors on Windows.
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
             backends: wgpu::Backends::all(),
             ..Default::default()
@@ -141,9 +142,15 @@ impl State {
         let camera_animation =
             camera_anim.map(|camera_anim_path| AnimData::from_file(camera_anim_path).unwrap());
 
+        // Try different possible paths.
         let light_animation = render_folder
             .as_ref()
-            .map(|f| AnimData::from_file(f.join("light").join("light00.nuanmb")).unwrap());
+            .and_then(|f| AnimData::from_file(f.join("light").join("light00.nuanmb")).ok())
+            .or_else(|| {
+                render_folder
+                    .as_ref()
+                    .and_then(|f| AnimData::from_file(f.join("light").join("light_00.nuanmb")).ok())
+            });
 
         let mut shared_data = SharedRenderData::new(&device, &queue, surface_format);
 
@@ -359,7 +366,7 @@ impl State {
                             VirtualKeyCode::N => self.render.debug_mode = DebugMode::Basic,
                             VirtualKeyCode::M => self.render.debug_mode = DebugMode::Normals,
                             VirtualKeyCode::Comma => self.render.debug_mode = DebugMode::Bitangents,
-                            VirtualKeyCode::Period => self.render.debug_mode = DebugMode::Albedo,
+                            VirtualKeyCode::Period => self.render.debug_mode = DebugMode::Unlit,
                             VirtualKeyCode::Slash => {
                                 self.render.debug_mode = DebugMode::ShaderComplexity
                             }

@@ -51,9 +51,8 @@ pub enum DebugMode {
     Normals,
     /// Calculated bitangent vectors for Smash Ultimate.
     Bitangents,
-    // TODO: Change this to Unlit?
-    /// The final albedo or base color after applying textures and materials.
-    Albedo,
+    /// The color after applying textures and materials but without any lighting.
+    Unlit,
     /// Relative shader complexity based on instruction count.
     ShaderComplexity,
 }
