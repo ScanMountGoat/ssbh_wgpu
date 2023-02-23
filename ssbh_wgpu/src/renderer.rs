@@ -917,10 +917,6 @@ impl SsbhRenderer {
 
         self.set_scissor(&mut pass);
 
-        if floor_grid {
-            self.floor_grid.draw(&mut pass);
-        }
-
         // TODO: Investigate sorting.
         self.draw_render_models(render_models.iter(), &mut pass, shader_database, "opaque");
         self.draw_render_models(render_models.iter(), &mut pass, shader_database, "far");
@@ -933,6 +929,11 @@ impl SsbhRenderer {
             mask_model_index,
             mask_material_label,
         );
+
+        // Draw this last to avoid obscuring models or masks.
+        if floor_grid {
+            self.floor_grid.draw(&mut pass);
+        }
     }
 
     fn draw_render_models<'a>(
