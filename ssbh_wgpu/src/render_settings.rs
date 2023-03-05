@@ -1,8 +1,8 @@
-use strum::{Display, EnumString, EnumVariantNames};
+use strum::{Display, EnumIter, EnumString};
 
 // TODO: Separate modes for selecting parameters by index (ex: Booleans[3])?
 /// Model rendering modes supported by [SsbhRenderer](crate::SsbhRenderer).
-#[derive(PartialEq, Eq, Copy, Clone, Display, EnumVariantNames, EnumString)]
+#[derive(PartialEq, Eq, Copy, Clone, Display, EnumIter, EnumString)]
 pub enum DebugMode {
     /// The default shaded mode supporting lighting and post processing.
     Shaded,
@@ -58,7 +58,7 @@ pub enum DebugMode {
 }
 
 /// The secondary material for material transitions when using [DebugMode::Shaded].
-#[derive(PartialEq, Eq, Copy, Clone, Display, EnumVariantNames, EnumString)]
+#[derive(PartialEq, Eq, Copy, Clone, Display, EnumIter, EnumString)]
 pub enum TransitionMaterial {
     /// The colored material applied by Inkling's ink.
     Ink,
