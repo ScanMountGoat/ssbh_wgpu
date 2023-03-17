@@ -198,6 +198,9 @@ struct VertexInput1 {
 };
 
 // TODO: This will need to be reworked at some point.
+// TODO: The in game shaders combine fog and vertex color into IN_FinalGain and IN_FinalOffset.
+// TODO: Some shaders use IN_VertexLightMap like dracula castle clock tower.
+// TODO: Create a separate vertex shader for debug shading?
 struct VertexOutput {
     @builtin(position) clip_position: vec4<f32>,
     @location(0) position: vec4<f32>,
@@ -233,21 +236,18 @@ fn Blend(a: vec3<f32>, b: vec4<f32>) -> vec3<f32> {
 
 fn TransformUv(uv: vec2<f32>, transform: vec4<f32>) -> vec2<f32>
 {
-    let translate = vec2(-1.0 * transform.z, transform.w);
+    // TODO: UV automatic scrolling animations?
 
-    // TODO: Does this affect all layers?
-    // if (CustomBoolean5 == 1 || CustomBoolean6 == 1)
-    //     translate *= currentFrame / 60.0;
-
-    let scale = transform.xy;
-    var result = (uv + translate) * scale;
-
-    // dUdV Map.
+    // TODO: dUdV Map.
     // Remap [0,1] to [-1,1].
     // let textureOffset = textureSample(texture4, sampler4, uv * 2.0).xy * 2.0 - 1.0;
     // result = result + textureOffset * per_material.custom_float[4].x;
 
-    return result;
+    // UV transform code ported from Mario's eye shader in game.
+    // TODO: Is it worth porting the checks for NaN and 0.0 on transform.xy?
+    let x = transform.x * (uv.x - transform.z);
+    let y = 1.0 - transform.y * (1.0 - uv.y - transform.w);
+    return vec2(x, y);
 }
 
 // TODO: Rework texture blending to match the in game behavior.
