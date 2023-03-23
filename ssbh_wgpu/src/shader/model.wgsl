@@ -258,7 +258,7 @@ fn TransformUv(uv: vec2<f32>, transform: vec4<f32>) -> vec2<f32>
 // This could probably be loaded from Rust as has_attribute & requires_attribute.
 fn GetEmissionColor(uv1: vec2<f32>, uv2: vec2<f32>) -> vec4<f32> {
     var emissionColor = vec4(0.0, 0.0, 0.0, 1.0);
-    
+
     if (per_material.has_texture[5].x == 1u) {
         emissionColor = textureSample(texture5, sampler5, uv1);
     }
@@ -326,7 +326,7 @@ fn GetAlbedoColor(uv1: vec2<f32>, uv2: vec2<f32>, uv3: vec2<f32>, R: vec3<f32>, 
 }
 
 fn GetAlbedoColorFinal(albedoColor: vec4<f32>) -> vec3<f32>
-{    
+{
     var albedoColorFinal = albedoColor.rgb;
 
     // Color multiplier param.
@@ -360,7 +360,7 @@ fn GetBumpMapNormal(normal: vec3<f32>, tangent: vec3<f32>, bitangent: vec3<f32>,
     let z = sqrt(max(1.0 - (x * x) + (y * y), 0.001));
 
     // Normal mapping is a change of basis using the TBN vectors.
-    let nor = vec3(x, y, z);    
+    let nor = vec3(x, y, z);
     let newNormal = tangent * nor.x + bitangent * nor.y + normal * nor.z;
     return normalize(newNormal);
 }
@@ -404,12 +404,12 @@ fn GetLight() -> Light {
 }
 
 fn DiffuseTerm(
-    bake1: vec2<f32>, 
-    albedo: vec3<f32>, 
-    nDotL: f32, 
-    shLighting: vec3<f32>, 
-    ao: f32, 
-    sssBlend: f32, 
+    bake1: vec2<f32>,
+    albedo: vec3<f32>,
+    nDotL: f32,
+    shLighting: vec3<f32>,
+    ao: f32,
+    sssBlend: f32,
     shadow: f32,
     custom_vector11: vec4<f32>,
     custom_vector30: vec4<f32>,
@@ -471,7 +471,7 @@ fn DiffuseTerm(
 fn FresnelSchlick(cosTheta: f32, f0: vec3<f32>) -> vec3<f32>
 {
     return f0 + (1.0 - f0) * pow(1.0 - cosTheta, 5.0);
-} 
+}
 
 // Ultimate uses something similar to the schlick geometry masking term.
 // http://cwyman.org/code/dxrTutors/tutors/Tutor14/tutorial14.md.html
@@ -549,7 +549,7 @@ fn SpecularBrdf(tangent: vec4<f32>, bitangent: vec3<f32>, nDotH: f32, nDotL: f32
     }
 }
 
-fn SpecularTerm(tangent: vec4<f32>, bitangent: vec3<f32>, nDotH: f32, nDotL: f32, nDotV: f32, halfAngle: vec3<f32>, 
+fn SpecularTerm(tangent: vec4<f32>, bitangent: vec3<f32>, nDotH: f32, nDotL: f32, nDotV: f32, halfAngle: vec3<f32>,
     roughness: f32, specularIbl: vec3<f32>, kDirect: vec3<f32>, kIndirect: vec3<f32>) -> vec3<f32>
 {
     var directSpecular = vec3(4.0);
@@ -810,7 +810,7 @@ fn ScreenCheckerBoard(screenPosition: vec2<f32>) -> f32
 }
 
 fn plasma_colormap(x: f32) -> vec3<f32> {
-    // Colormaps generated from tables provided at 
+    // Colormaps generated from tables provided at
     // https://www.kennethmoreland.com/color-advice/
     let plasma8 = array(
         vec3(0.05038205347059877,0.029801736499741757,0.5279751010495176),
@@ -1097,7 +1097,7 @@ fn fs_debug(in: VertexOutput) -> @location(0) vec4<f32> {
                 outColor = textureSample(uv_pattern, default_sampler, uvSet1);
             } else {
                 outColor = vec4(pow(fract(uvSet1), vec2(2.2)), 1.0, 1.0);
-            }        
+            }
         }
         case 31u: {
             if (render_settings.render_uv_pattern.x == 1u) {
@@ -1128,10 +1128,10 @@ fn fs_debug(in: VertexOutput) -> @location(0) vec4<f32> {
             // Normalize to the 0.0 to 1.0 range to use the full colormap.
             let min = 0.10816174646489705;
             let complexity = (per_material.shader_complexity.x - min) / (1.0 - min);
-            let color = plasma_colormap(complexity);     
+            let color = plasma_colormap(complexity);
             outColor = vec4(pow(color, vec3(2.2)), 1.0);
         }
-        default: { 
+        default: {
             outColor = vec4(1.0);
         }
     }
@@ -1215,7 +1215,7 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) is_front: bool) -> @location
     var transitionCustomVector30 = vec4(0.0);
 
     switch (render_settings.transition_material.x) {
-        case 0u: {      
+        case 0u: {
             // Inkling's Ink.
             // TODO: Include other colors from /fighter/common/param/effect.prc?
             transitionAlbedo = vec3(0.758027, 0.115859, 0.04);
@@ -1224,14 +1224,14 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) is_front: bool) -> @location
             transitionCustomVector11 = vec4(0.0);
             transitionCustomVector30 = vec4(0.0);
         }
-        case 1u: {      
+        case 1u: {
             // Metal Box.
             transitionAlbedo = vec3(0.257, 0.257, 0.257);
             transitionPrm = vec4(1.0, 0.3, 1.0, 0.0);
             transitionCustomVector11 = vec4(0.0);
             transitionCustomVector30 = vec4(0.0);
         }
-        case 2u: {      
+        case 2u: {
             // Gold (Xerneas Pokemon).
             // (0.257, 0.257, 0.257) + (0.125, 0.047, -0.234) in the shader.
             transitionAlbedo = vec3(0.382, 0.304, 0.023);
@@ -1239,15 +1239,15 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) is_front: bool) -> @location
             transitionCustomVector11 = vec4(0.0);
             transitionCustomVector30 = vec4(0.0);
         }
-        case 3u: {      
+        case 3u: {
             // Ditto Pokemon.
             transitionAlbedo = vec3(0.1694, 0.0924, 0.2002);
             transitionPrm = vec4(1.0, 0.75, 1.0, 0.032); // TODO: Roughness?
             transitionCustomVector11 = vec4(0.0); // TODO: What is this?
             transitionCustomVector30 = vec4(0.5, 4.0, 0.0, 0.0);
         }
-        default: { 
-            
+        default: {
+
         }
     }
 
@@ -1397,25 +1397,25 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) is_front: bool) -> @location
 
     // TODO: Check all channels?
     if (per_material.has_vector[8].x == 1u) {
-        // TODO: Does this affect alpha?
         outColor = outColor * per_material.custom_vector[8].rgb;
+        outAlpha = outAlpha * per_material.custom_vector[8].a;
     }
 
     if (per_material.has_color_set1234.x == 1u && render_settings.render_vertex_color.x == 1u) {
-        outColor = outColor * colorSet1.rgb; 
-        outAlpha = outAlpha * colorSet1.a; 
+        outColor = outColor * colorSet1.rgb;
+        outAlpha = outAlpha * colorSet1.a;
     }
 
     if (per_material.has_color_set1234.z == 1u && render_settings.render_vertex_color.x == 1u) {
         outColor = outColor * colorSet3.rgb;
-        outAlpha = outAlpha * colorSet3.a; 
+        outAlpha = outAlpha * colorSet3.a;
     }
 
     if (per_material.has_float[19].x == 1u) {
         outAlpha = GetAngleFade(nDotV, per_material.custom_float[19].x, specularF0);
     }
 
-    // Premultiplied alpha. 
+    // Premultiplied alpha.
     if (per_material.shader_settings.y == 1u) {
         outColor = outColor * outAlpha;
     }
