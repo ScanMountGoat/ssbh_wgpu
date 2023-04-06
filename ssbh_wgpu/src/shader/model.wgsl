@@ -1411,6 +1411,22 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) is_front: bool) -> @location
         outAlpha = outAlpha * colorSet3.a;
     }
 
+
+    // TODO: Use FinalColorGain and FinalColorOffset like the in game shaders.
+    // TODO: Finish analyzing the in game code for fog.
+    // TODO: Move this to the vertex shader?
+    // Linearly interpolate between the near and far threshold.
+    // TODO: How to account for the offset in CustomVector13.w?
+    // TODO: Should this be the frag pos or the object space position?
+    // TODO: CustomVector9.x for fog intensity from material.
+    let depth = -in.position.z;
+    var fogIntensity = smoothstep(depth, stage_uniforms.scene_attributes.custom_vector[13].x, stage_uniforms.scene_attributes.custom_vector[13].y);
+    let fogNear = stage_uniforms.scene_attributes.custom_vector[13].x;
+    let fogFar = stage_uniforms.scene_attributes.custom_vector[13].y;
+    fogIntensity = clamp((depth - fogNear) / fogFar, 0.0, 1.0);
+
+    outColor = mix(outColor, stage_uniforms.scene_attributes.custom_vector[1].rgb, fogIntensity * 0.1);
+
     if (per_material.has_float[19].x == 1u) {
         outAlpha = GetAngleFade(nDotV, per_material.custom_float[19].x, specularF0);
     }
