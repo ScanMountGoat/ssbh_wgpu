@@ -56,8 +56,7 @@ fn main() {
     });
     let adapter = block_on(instance.request_adapter(&RequestAdapterOptions {
         power_preference: PowerPreference::HighPerformance,
-        compatible_surface: None,
-        force_fallback_adapter: false,
+        ..Default::default()
     }))
     .unwrap();
     let (device, queue) = block_on(adapter.request_device(

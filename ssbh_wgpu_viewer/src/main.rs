@@ -98,14 +98,16 @@ impl State {
         camera_anim: Option<PathBuf>,
         render_folder: Option<PathBuf>,
     ) -> Self {
-        // TODO: Investigate DX12 errors on Windows.
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
             backends: wgpu::Backends::all(),
             ..Default::default()
         });
         let surface = unsafe { instance.create_surface(window).unwrap() };
         let adapter = instance
-            .request_adapter(&wgpu::RequestAdapterOptions::default())
+            .request_adapter(&wgpu::RequestAdapterOptions {
+                power_preference: wgpu::PowerPreference::HighPerformance,
+                ..Default::default()
+            })
             .await
             .unwrap();
 
