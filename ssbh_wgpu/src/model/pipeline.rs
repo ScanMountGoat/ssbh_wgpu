@@ -80,18 +80,13 @@ pub fn pipeline(
     device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
         label: Some("Render Pipeline"),
         layout: Some(&pipeline_data.layout),
-        vertex: wgpu::VertexState {
-            module: &pipeline_data.shader,
-            entry_point: "vs_main",
-            buffers: &[
-                crate::shader::model::VertexInput0::vertex_buffer_layout(
-                    wgpu::VertexStepMode::Vertex,
-                ),
-                crate::shader::model::VertexInput1::vertex_buffer_layout(
-                    wgpu::VertexStepMode::Vertex,
-                ),
-            ],
-        },
+        vertex: crate::shader::model::vertex_state(
+            &pipeline_data.shader,
+            &crate::shader::model::vs_main_entry(
+                wgpu::VertexStepMode::Vertex,
+                wgpu::VertexStepMode::Vertex,
+            ),
+        ),
         fragment: Some(wgpu::FragmentState {
             module: &pipeline_data.shader,
             entry_point: "fs_main",
@@ -127,7 +122,7 @@ pub fn pipeline(
 }
 
 pub fn depth_pipeline(device: &wgpu::Device) -> wgpu::RenderPipeline {
-    let shader = crate::shader::model::create_shader_module(device);
+    let module = crate::shader::model::create_shader_module(device);
 
     // We only need the per frame and light related bind groups.
     let render_pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
@@ -144,18 +139,13 @@ pub fn depth_pipeline(device: &wgpu::Device) -> wgpu::RenderPipeline {
     device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
         label: Some("Render Pipeline Depth"),
         layout: Some(&render_pipeline_layout),
-        vertex: wgpu::VertexState {
-            module: &shader,
-            entry_point: "vs_depth",
-            buffers: &[
-                crate::shader::model::VertexInput0::vertex_buffer_layout(
-                    wgpu::VertexStepMode::Vertex,
-                ),
-                crate::shader::model::VertexInput1::vertex_buffer_layout(
-                    wgpu::VertexStepMode::Vertex,
-                ),
-            ],
-        },
+        vertex: crate::shader::model::vertex_state(
+            &module,
+            &crate::shader::model::vs_depth_entry(
+                wgpu::VertexStepMode::Vertex,
+                wgpu::VertexStepMode::Vertex,
+            ),
+        ),
         fragment: None,
         primitive: wgpu::PrimitiveState::default(),
         depth_stencil: Some(depth_stencil_state(true, true)),
@@ -214,26 +204,21 @@ pub fn silhouette_pipeline(
     device: &wgpu::Device,
     surface_format: wgpu::TextureFormat,
 ) -> wgpu::RenderPipeline {
-    let shader = crate::shader::model::create_shader_module(device);
+    let module = crate::shader::model::create_shader_module(device);
     let render_pipeline_layout = crate::shader::model::create_pipeline_layout(device);
 
     device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
         label: Some("Model Silhouette"),
         layout: Some(&render_pipeline_layout),
-        vertex: wgpu::VertexState {
-            module: &shader,
-            entry_point: "vs_main",
-            buffers: &[
-                crate::shader::model::VertexInput0::vertex_buffer_layout(
-                    wgpu::VertexStepMode::Vertex,
-                ),
-                crate::shader::model::VertexInput1::vertex_buffer_layout(
-                    wgpu::VertexStepMode::Vertex,
-                ),
-            ],
-        },
+        vertex: crate::shader::model::vertex_state(
+            &module,
+            &crate::shader::model::vs_main_entry(
+                wgpu::VertexStepMode::Vertex,
+                wgpu::VertexStepMode::Vertex,
+            ),
+        ),
         fragment: Some(wgpu::FragmentState {
-            module: &shader,
+            module: &module,
             entry_point: "fs_solid",
             targets: &[Some(surface_format.into())],
         }),
@@ -248,26 +233,21 @@ pub fn wireframe_pipeline(
     device: &wgpu::Device,
     surface_format: wgpu::TextureFormat,
 ) -> wgpu::RenderPipeline {
-    let shader = crate::shader::model::create_shader_module(device);
+    let module = crate::shader::model::create_shader_module(device);
     let render_pipeline_layout = crate::shader::model::create_pipeline_layout(device);
 
     device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
         label: Some("Model Wireframe"),
         layout: Some(&render_pipeline_layout),
-        vertex: wgpu::VertexState {
-            module: &shader,
-            entry_point: "vs_main",
-            buffers: &[
-                crate::shader::model::VertexInput0::vertex_buffer_layout(
-                    wgpu::VertexStepMode::Vertex,
-                ),
-                crate::shader::model::VertexInput1::vertex_buffer_layout(
-                    wgpu::VertexStepMode::Vertex,
-                ),
-            ],
-        },
+        vertex: crate::shader::model::vertex_state(
+            &module,
+            &crate::shader::model::vs_main_entry(
+                wgpu::VertexStepMode::Vertex,
+                wgpu::VertexStepMode::Vertex,
+            ),
+        ),
         fragment: Some(wgpu::FragmentState {
-            module: &shader,
+            module: &module,
             entry_point: "fs_solid",
             targets: &[Some(surface_format.into())],
         }),
@@ -291,14 +271,14 @@ pub fn model_pipeline_from_entry(
     entry_point: &str,
     label: &str,
 ) -> wgpu::RenderPipeline {
-    let shader = crate::shader::model::create_shader_module(device);
+    let module = crate::shader::model::create_shader_module(device);
     let render_pipeline_layout = crate::shader::model::create_pipeline_layout(device);
 
     device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
         label: Some(label),
         layout: Some(&render_pipeline_layout),
         vertex: wgpu::VertexState {
-            module: &shader,
+            module: &module,
             entry_point: vertex_entry,
             buffers: &[
                 crate::shader::model::VertexInput0::vertex_buffer_layout(
@@ -310,7 +290,7 @@ pub fn model_pipeline_from_entry(
             ],
         },
         fragment: Some(wgpu::FragmentState {
-            module: &shader,
+            module: &module,
             entry_point,
             targets: &[Some(surface_format.into())],
         }),
@@ -347,26 +327,21 @@ pub fn uv_pipeline(
     device: &wgpu::Device,
     surface_format: wgpu::TextureFormat,
 ) -> wgpu::RenderPipeline {
-    let shader = crate::shader::model::create_shader_module(device);
+    let module = crate::shader::model::create_shader_module(device);
     let render_pipeline_layout = crate::shader::model::create_pipeline_layout(device);
 
     device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
         label: Some("Model UV"),
         layout: Some(&render_pipeline_layout),
-        vertex: wgpu::VertexState {
-            module: &shader,
-            entry_point: "vs_uv",
-            buffers: &[
-                crate::shader::model::VertexInput0::vertex_buffer_layout(
-                    wgpu::VertexStepMode::Vertex,
-                ),
-                crate::shader::model::VertexInput1::vertex_buffer_layout(
-                    wgpu::VertexStepMode::Vertex,
-                ),
-            ],
-        },
+        vertex: crate::shader::model::vertex_state(
+            &module,
+            &crate::shader::model::vs_uv_entry(
+                wgpu::VertexStepMode::Vertex,
+                wgpu::VertexStepMode::Vertex,
+            ),
+        ),
         fragment: Some(wgpu::FragmentState {
-            module: &shader,
+            module: &module,
             entry_point: "fs_uv",
             targets: &[Some(surface_format.into())],
         }),

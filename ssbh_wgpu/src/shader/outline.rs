@@ -13,11 +13,11 @@ pub mod bind_groups {
                 binding: 0,
                 visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
                 ty: wgpu::BindingType::Texture {
-                    multisampled: false,
-                    view_dimension: wgpu::TextureViewDimension::D2,
                     sample_type: wgpu::TextureSampleType::Float {
                         filterable: true,
                     },
+                    view_dimension: wgpu::TextureViewDimension::D2,
+                    multisampled: false,
                 },
                 count: None,
             },
@@ -70,6 +70,28 @@ pub mod bind_groups {
         bind_groups: BindGroups<'a>,
     ) {
         bind_groups.bind_group0.set(pass);
+    }
+}
+pub const ENTRY_VS_MAIN: &str = "vs_main";
+pub const ENTRY_FS_MAIN: &str = "fs_main";
+pub struct VertexEntry<const N: usize> {
+    entry_point: &'static str,
+    buffers: [wgpu::VertexBufferLayout<'static>; N],
+}
+pub fn vertex_state<'a, const N: usize>(
+    module: &'a wgpu::ShaderModule,
+    entry: &'a VertexEntry<N>,
+) -> wgpu::VertexState<'a> {
+    wgpu::VertexState {
+        module,
+        entry_point: entry.entry_point,
+        buffers: &entry.buffers,
+    }
+}
+pub fn vs_main_entry() -> VertexEntry<0> {
+    VertexEntry {
+        entry_point: ENTRY_VS_MAIN,
+        buffers: [],
     }
 }
 pub fn create_shader_module(device: &wgpu::Device) -> wgpu::ShaderModule {

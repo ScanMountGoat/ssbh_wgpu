@@ -14,6 +14,7 @@ fn write_shader_module<P: AsRef<Path>>(wgsl_path: P, output_path: P, include_pat
         derive_bytemuck: true,
         derive_encase: true,
         matrix_vector_types: wgsl_to_wgpu::MatrixVectorTypes::Glam,
+        ..Default::default()
     };
     text += &wgsl_to_wgpu::create_shader_module(&wgsl_source, include_path, options).unwrap();
 

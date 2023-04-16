@@ -280,21 +280,21 @@ fn skeleton_pipeline(
     fragment_entry: &str,
     cull_face: wgpu::Face,
 ) -> wgpu::RenderPipeline {
-    let shader = crate::shader::skeleton::create_shader_module(device);
+    let module = crate::shader::skeleton::create_shader_module(device);
     let layout = crate::shader::skeleton::create_pipeline_layout(device);
-    // TODO: Get the stride using encase.
+
     device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
         label: None,
         layout: Some(&layout),
         vertex: wgpu::VertexState {
-            module: &shader,
+            module: &module,
             entry_point: vertex_entry,
             buffers: &[crate::shader::skeleton::VertexInput::vertex_buffer_layout(
                 wgpu::VertexStepMode::Vertex,
             )],
         },
         fragment: Some(wgpu::FragmentState {
-            module: &shader,
+            module: &module,
             entry_point: fragment_entry,
             targets: &[Some(crate::RGBA_COLOR_FORMAT.into())],
         }),

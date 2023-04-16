@@ -7,12 +7,6 @@ pub struct VertexInput {
 }
 #[repr(C)]
 #[derive(Debug, Copy, Clone, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
-pub struct VertexOutput {
-    pub clip_position: [f32; 4],
-    pub tex_coords: [f32; 2],
-}
-#[repr(C)]
-#[derive(Debug, Copy, Clone, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct RenderSettings {
     pub render_rgba: [f32; 4],
     pub mipmap: [f32; 4],
@@ -20,6 +14,30 @@ pub struct RenderSettings {
     pub texture_slot: [u32; 4],
     pub texture_size: [f32; 4],
 }
+const _: () = assert!(
+    std::mem::size_of:: < RenderSettings > () == 80,
+    "size of RenderSettings does not match WGSL"
+);
+const _: () = assert!(
+    memoffset::offset_of!(RenderSettings, render_rgba) == 0,
+    "offset of RenderSettings.render_rgba does not match WGSL"
+);
+const _: () = assert!(
+    memoffset::offset_of!(RenderSettings, mipmap) == 16,
+    "offset of RenderSettings.mipmap does not match WGSL"
+);
+const _: () = assert!(
+    memoffset::offset_of!(RenderSettings, layer) == 32,
+    "offset of RenderSettings.layer does not match WGSL"
+);
+const _: () = assert!(
+    memoffset::offset_of!(RenderSettings, texture_slot) == 48,
+    "offset of RenderSettings.texture_slot does not match WGSL"
+);
+const _: () = assert!(
+    memoffset::offset_of!(RenderSettings, texture_size) == 64,
+    "offset of RenderSettings.texture_size does not match WGSL"
+);
 pub mod bind_groups {
     pub struct BindGroup0(wgpu::BindGroup);
     pub struct BindGroupLayout0<'a> {
@@ -36,11 +54,11 @@ pub mod bind_groups {
                 binding: 0,
                 visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
                 ty: wgpu::BindingType::Texture {
-                    multisampled: false,
-                    view_dimension: wgpu::TextureViewDimension::D2,
                     sample_type: wgpu::TextureSampleType::Float {
                         filterable: true,
                     },
+                    view_dimension: wgpu::TextureViewDimension::D2,
+                    multisampled: false,
                 },
                 count: None,
             },
@@ -48,11 +66,11 @@ pub mod bind_groups {
                 binding: 1,
                 visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
                 ty: wgpu::BindingType::Texture {
-                    multisampled: false,
-                    view_dimension: wgpu::TextureViewDimension::Cube,
                     sample_type: wgpu::TextureSampleType::Float {
                         filterable: true,
                     },
+                    view_dimension: wgpu::TextureViewDimension::Cube,
+                    multisampled: false,
                 },
                 count: None,
             },
@@ -60,11 +78,11 @@ pub mod bind_groups {
                 binding: 2,
                 visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
                 ty: wgpu::BindingType::Texture {
-                    multisampled: false,
-                    view_dimension: wgpu::TextureViewDimension::D3,
                     sample_type: wgpu::TextureSampleType::Float {
                         filterable: true,
                     },
+                    view_dimension: wgpu::TextureViewDimension::D3,
+                    multisampled: false,
                 },
                 count: None,
             },
@@ -143,6 +161,28 @@ pub mod bind_groups {
         bind_groups: BindGroups<'a>,
     ) {
         bind_groups.bind_group0.set(pass);
+    }
+}
+pub const ENTRY_VS_MAIN: &str = "vs_main";
+pub const ENTRY_FS_MAIN: &str = "fs_main";
+pub struct VertexEntry<const N: usize> {
+    entry_point: &'static str,
+    buffers: [wgpu::VertexBufferLayout<'static>; N],
+}
+pub fn vertex_state<'a, const N: usize>(
+    module: &'a wgpu::ShaderModule,
+    entry: &'a VertexEntry<N>,
+) -> wgpu::VertexState<'a> {
+    wgpu::VertexState {
+        module,
+        entry_point: entry.entry_point,
+        buffers: &entry.buffers,
+    }
+}
+pub fn vs_main_entry() -> VertexEntry<0> {
+    VertexEntry {
+        entry_point: ENTRY_VS_MAIN,
+        buffers: [],
     }
 }
 pub fn create_shader_module(device: &wgpu::Device) -> wgpu::ShaderModule {

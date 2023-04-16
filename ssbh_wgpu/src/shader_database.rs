@@ -100,7 +100,7 @@ pub fn split_param(param: &str) -> (&str, &str) {
         .unwrap_or((param, ""))
 }
 
-static SHADER_JSON: &str = include_str!("shaders.json");
+static SHADER_JSON: &str = include_str!("resources/shaders.json");
 
 pub struct ShaderDatabase(HashMap<String, ShaderProgram>);
 

@@ -14,18 +14,6 @@ pub struct VertexInput {
     pub position: glam::Vec4,
     pub normal: glam::Vec4,
 }
-const _: () = assert!(
-    std::mem::size_of:: < VertexInput > () == 32,
-    "size of VertexInput does not match WGSL"
-);
-const _: () = assert!(
-    memoffset::offset_of!(VertexInput, position) == 0,
-    "offset of VertexInput.position does not match WGSL"
-);
-const _: () = assert!(
-    memoffset::offset_of!(VertexInput, normal) == 16,
-    "offset of VertexInput.normal does not match WGSL"
-);
 #[repr(C)]
 #[derive(
     Debug,
@@ -309,7 +297,7 @@ pub mod vertex {
                 shader_location: 1,
             },
         ];
-        pub fn vertex_buffer_layout(
+        pub const fn vertex_buffer_layout(
             step_mode: wgpu::VertexStepMode,
         ) -> wgpu::VertexBufferLayout<'static> {
             wgpu::VertexBufferLayout {
@@ -318,6 +306,43 @@ pub mod vertex {
                 attributes: &super::VertexInput::VERTEX_ATTRIBUTES,
             }
         }
+    }
+}
+pub const ENTRY_VS_AXES: &str = "vs_axes";
+pub const ENTRY_VS_BONE: &str = "vs_bone";
+pub const ENTRY_VS_JOINT: &str = "vs_joint";
+pub const ENTRY_FS_MAIN: &str = "fs_main";
+pub const ENTRY_FS_AXES: &str = "fs_axes";
+pub struct VertexEntry<const N: usize> {
+    entry_point: &'static str,
+    buffers: [wgpu::VertexBufferLayout<'static>; N],
+}
+pub fn vertex_state<'a, const N: usize>(
+    module: &'a wgpu::ShaderModule,
+    entry: &'a VertexEntry<N>,
+) -> wgpu::VertexState<'a> {
+    wgpu::VertexState {
+        module,
+        entry_point: entry.entry_point,
+        buffers: &entry.buffers,
+    }
+}
+pub fn vs_axes_entry(vertex_input: wgpu::VertexStepMode) -> VertexEntry<1> {
+    VertexEntry {
+        entry_point: ENTRY_VS_AXES,
+        buffers: [VertexInput::vertex_buffer_layout(vertex_input)],
+    }
+}
+pub fn vs_bone_entry(vertex_input: wgpu::VertexStepMode) -> VertexEntry<1> {
+    VertexEntry {
+        entry_point: ENTRY_VS_BONE,
+        buffers: [VertexInput::vertex_buffer_layout(vertex_input)],
+    }
+}
+pub fn vs_joint_entry(vertex_input: wgpu::VertexStepMode) -> VertexEntry<1> {
+    VertexEntry {
+        entry_point: ENTRY_VS_JOINT,
+        buffers: [VertexInput::vertex_buffer_layout(vertex_input)],
     }
 }
 pub fn create_shader_module(device: &wgpu::Device) -> wgpu::ShaderModule {

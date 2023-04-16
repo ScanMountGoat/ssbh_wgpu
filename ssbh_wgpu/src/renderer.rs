@@ -13,7 +13,7 @@ use crate::{
 use glyph_brush::DefaultSectionHasher;
 use nutexb_wgpu::NutexbFile;
 use ssbh_data::{anim_data::AnimData, skel_data::SkelData};
-use wgpu::{ComputePassDescriptor, ComputePipelineDescriptor};
+use wgpu::ComputePassDescriptor;
 use wgpu_text::{font::FontRef, BrushBuilder, TextBrush};
 
 // TODO: Adjust this to use less precision.
@@ -204,25 +204,8 @@ impl SsbhRenderer {
         let bloom_combine_pipeline =
             create_screen_pipeline(device, &shader, &layout, "fs_main", RGBA_COLOR_FORMAT);
 
-        let module = crate::shader::skinning::create_shader_module(device);
-        let layout = crate::shader::skinning::create_pipeline_layout(device);
-        // TODO: Better support compute shaders in wgsl_to_wgpu.
-        let skinning_pipeline = device.create_compute_pipeline(&ComputePipelineDescriptor {
-            label: Some("Vertex Skinning Compute"),
-            layout: Some(&layout),
-            module: &module,
-            entry_point: "main",
-        });
-
-        let module = crate::shader::renormal::create_shader_module(device);
-        let layout = crate::shader::renormal::create_pipeline_layout(device);
-        // TODO: Better support compute shaders in wgsl_to_wgpu.
-        let renormal_pipeline = device.create_compute_pipeline(&ComputePipelineDescriptor {
-            label: Some("Vertex Renormal Compute"),
-            layout: Some(&layout),
-            module: &module,
-            entry_point: "main",
-        });
+        let skinning_pipeline = crate::shader::skinning::compute::create_main_pipeline(device);
+        let renormal_pipeline = crate::shader::renormal::compute::create_main_pipeline(device);
 
         let shadow_pipeline = depth_pipeline(device);
 
@@ -1737,19 +1720,19 @@ fn create_outline_pipeline(
     device: &wgpu::Device,
     surface_format: wgpu::TextureFormat,
 ) -> wgpu::RenderPipeline {
-    let shader = crate::shader::outline::create_shader_module(device);
+    let module = crate::shader::outline::create_shader_module(device);
     let render_pipeline_layout = crate::shader::outline::create_pipeline_layout(device);
 
     device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
         label: Some("Outline"),
         layout: Some(&render_pipeline_layout),
         vertex: wgpu::VertexState {
-            module: &shader,
+            module: &module,
             entry_point: "vs_main",
             buffers: &[],
         },
         fragment: Some(wgpu::FragmentState {
-            module: &shader,
+            module: &module,
             entry_point: "fs_main",
             targets: &[Some(surface_format.into())],
         }),

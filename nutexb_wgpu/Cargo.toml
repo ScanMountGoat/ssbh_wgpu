@@ -9,6 +9,7 @@ nutexb = "0.6.0"
 log = "0.4.17"
 bytemuck = { version = "1.7", features = [ "derive" ] }
 thiserror = "1.0"
+memoffset = "0.8.0"
 
 [build-dependencies]
-wgsl_to_wgpu = "0.3.0"
+wgsl_to_wgpu = { git = "https://github.com/ScanMountGoat/wgsl_to_wgpu" }

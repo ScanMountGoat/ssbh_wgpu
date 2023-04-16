@@ -104,7 +104,7 @@ pub fn load_default_spec_cube(device: &Device, queue: &Queue) -> (Texture, Sampl
             usage: TextureUsages::COPY_DST | TextureUsages::TEXTURE_BINDING,
             view_formats: &[],
         },
-        include_bytes!("stage_cube_surface.bin"),
+        include_bytes!("resources/stage_cube_surface.bin"),
     );
 
     let sampler = device.create_sampler(&SamplerDescriptor {
@@ -360,7 +360,7 @@ pub fn default_diffuse2(
             usage: TextureUsages::COPY_DST | TextureUsages::TEXTURE_BINDING,
             view_formats: &[],
         },
-        include_bytes!("default_diffuse2_surface.bin"),
+        include_bytes!("resources/default_diffuse2_surface.bin"),
     );
 
     (
@@ -378,7 +378,7 @@ pub fn uv_pattern(device: &Device, queue: &wgpu::Queue) -> Texture {
     };
 
     let data = image::load_from_memory_with_format(
-        include_bytes!("uv_pattern.png"),
+        include_bytes!("resources/uv_pattern.png"),
         image::ImageFormat::Png,
     )
     .unwrap();

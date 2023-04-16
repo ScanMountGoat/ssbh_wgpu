@@ -334,22 +334,6 @@ pub struct VertexInput0 {
     pub normal0: glam::Vec4,
     pub tangent0: glam::Vec4,
 }
-const _: () = assert!(
-    std::mem::size_of:: < VertexInput0 > () == 48,
-    "size of VertexInput0 does not match WGSL"
-);
-const _: () = assert!(
-    memoffset::offset_of!(VertexInput0, position0) == 0,
-    "offset of VertexInput0.position0 does not match WGSL"
-);
-const _: () = assert!(
-    memoffset::offset_of!(VertexInput0, normal0) == 16,
-    "offset of VertexInput0.normal0 does not match WGSL"
-);
-const _: () = assert!(
-    memoffset::offset_of!(VertexInput0, tangent0) == 32,
-    "offset of VertexInput0.tangent0 does not match WGSL"
-);
 #[repr(C)]
 #[derive(
     Debug,
@@ -372,50 +356,6 @@ pub struct VertexInput1 {
     pub color_set6: glam::Vec4,
     pub color_set7: glam::Vec4,
 }
-const _: () = assert!(
-    std::mem::size_of:: < VertexInput1 > () == 160,
-    "size of VertexInput1 does not match WGSL"
-);
-const _: () = assert!(
-    memoffset::offset_of!(VertexInput1, map1_uvset) == 0,
-    "offset of VertexInput1.map1_uvset does not match WGSL"
-);
-const _: () = assert!(
-    memoffset::offset_of!(VertexInput1, uv_set1_uv_set2) == 16,
-    "offset of VertexInput1.uv_set1_uv_set2 does not match WGSL"
-);
-const _: () = assert!(
-    memoffset::offset_of!(VertexInput1, bake1) == 32,
-    "offset of VertexInput1.bake1 does not match WGSL"
-);
-const _: () = assert!(
-    memoffset::offset_of!(VertexInput1, color_set1) == 48,
-    "offset of VertexInput1.color_set1 does not match WGSL"
-);
-const _: () = assert!(
-    memoffset::offset_of!(VertexInput1, color_set2_combined) == 64,
-    "offset of VertexInput1.color_set2_combined does not match WGSL"
-);
-const _: () = assert!(
-    memoffset::offset_of!(VertexInput1, color_set3) == 80,
-    "offset of VertexInput1.color_set3 does not match WGSL"
-);
-const _: () = assert!(
-    memoffset::offset_of!(VertexInput1, color_set4) == 96,
-    "offset of VertexInput1.color_set4 does not match WGSL"
-);
-const _: () = assert!(
-    memoffset::offset_of!(VertexInput1, color_set5) == 112,
-    "offset of VertexInput1.color_set5 does not match WGSL"
-);
-const _: () = assert!(
-    memoffset::offset_of!(VertexInput1, color_set6) == 128,
-    "offset of VertexInput1.color_set6 does not match WGSL"
-);
-const _: () = assert!(
-    memoffset::offset_of!(VertexInput1, color_set7) == 144,
-    "offset of VertexInput1.color_set7 does not match WGSL"
-);
 pub mod bind_groups {
     pub struct BindGroup0(wgpu::BindGroup);
     pub struct BindGroupLayout0<'a> {
@@ -443,11 +383,11 @@ pub mod bind_groups {
                 binding: 1,
                 visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
                 ty: wgpu::BindingType::Texture {
-                    multisampled: false,
-                    view_dimension: wgpu::TextureViewDimension::D2,
                     sample_type: wgpu::TextureSampleType::Float {
                         filterable: true,
                     },
+                    view_dimension: wgpu::TextureViewDimension::D2,
+                    multisampled: false,
                 },
                 count: None,
             },
@@ -481,11 +421,11 @@ pub mod bind_groups {
                 binding: 6,
                 visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
                 ty: wgpu::BindingType::Texture {
-                    multisampled: false,
-                    view_dimension: wgpu::TextureViewDimension::D2,
                     sample_type: wgpu::TextureSampleType::Float {
                         filterable: true,
                     },
+                    view_dimension: wgpu::TextureViewDimension::D2,
+                    multisampled: false,
                 },
                 count: None,
             },
@@ -631,11 +571,11 @@ pub mod bind_groups {
                 binding: 0,
                 visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
                 ty: wgpu::BindingType::Texture {
-                    multisampled: false,
-                    view_dimension: wgpu::TextureViewDimension::D2,
                     sample_type: wgpu::TextureSampleType::Float {
                         filterable: true,
                     },
+                    view_dimension: wgpu::TextureViewDimension::D2,
+                    multisampled: false,
                 },
                 count: None,
             },
@@ -649,11 +589,11 @@ pub mod bind_groups {
                 binding: 2,
                 visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
                 ty: wgpu::BindingType::Texture {
-                    multisampled: false,
-                    view_dimension: wgpu::TextureViewDimension::D2,
                     sample_type: wgpu::TextureSampleType::Float {
                         filterable: true,
                     },
+                    view_dimension: wgpu::TextureViewDimension::D2,
+                    multisampled: false,
                 },
                 count: None,
             },
@@ -667,11 +607,11 @@ pub mod bind_groups {
                 binding: 4,
                 visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
                 ty: wgpu::BindingType::Texture {
-                    multisampled: false,
-                    view_dimension: wgpu::TextureViewDimension::Cube,
                     sample_type: wgpu::TextureSampleType::Float {
                         filterable: true,
                     },
+                    view_dimension: wgpu::TextureViewDimension::Cube,
+                    multisampled: false,
                 },
                 count: None,
             },
@@ -685,11 +625,11 @@ pub mod bind_groups {
                 binding: 6,
                 visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
                 ty: wgpu::BindingType::Texture {
-                    multisampled: false,
-                    view_dimension: wgpu::TextureViewDimension::D2,
                     sample_type: wgpu::TextureSampleType::Float {
                         filterable: true,
                     },
+                    view_dimension: wgpu::TextureViewDimension::D2,
+                    multisampled: false,
                 },
                 count: None,
             },
@@ -703,11 +643,11 @@ pub mod bind_groups {
                 binding: 8,
                 visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
                 ty: wgpu::BindingType::Texture {
-                    multisampled: false,
-                    view_dimension: wgpu::TextureViewDimension::D2,
                     sample_type: wgpu::TextureSampleType::Float {
                         filterable: true,
                     },
+                    view_dimension: wgpu::TextureViewDimension::D2,
+                    multisampled: false,
                 },
                 count: None,
             },
@@ -721,11 +661,11 @@ pub mod bind_groups {
                 binding: 10,
                 visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
                 ty: wgpu::BindingType::Texture {
-                    multisampled: false,
-                    view_dimension: wgpu::TextureViewDimension::D2,
                     sample_type: wgpu::TextureSampleType::Float {
                         filterable: true,
                     },
+                    view_dimension: wgpu::TextureViewDimension::D2,
+                    multisampled: false,
                 },
                 count: None,
             },
@@ -739,11 +679,11 @@ pub mod bind_groups {
                 binding: 12,
                 visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
                 ty: wgpu::BindingType::Texture {
-                    multisampled: false,
-                    view_dimension: wgpu::TextureViewDimension::D2,
                     sample_type: wgpu::TextureSampleType::Float {
                         filterable: true,
                     },
+                    view_dimension: wgpu::TextureViewDimension::D2,
+                    multisampled: false,
                 },
                 count: None,
             },
@@ -757,11 +697,11 @@ pub mod bind_groups {
                 binding: 14,
                 visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
                 ty: wgpu::BindingType::Texture {
-                    multisampled: false,
-                    view_dimension: wgpu::TextureViewDimension::Cube,
                     sample_type: wgpu::TextureSampleType::Float {
                         filterable: true,
                     },
+                    view_dimension: wgpu::TextureViewDimension::Cube,
+                    multisampled: false,
                 },
                 count: None,
             },
@@ -775,11 +715,11 @@ pub mod bind_groups {
                 binding: 16,
                 visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
                 ty: wgpu::BindingType::Texture {
-                    multisampled: false,
-                    view_dimension: wgpu::TextureViewDimension::Cube,
                     sample_type: wgpu::TextureSampleType::Float {
                         filterable: true,
                     },
+                    view_dimension: wgpu::TextureViewDimension::Cube,
+                    multisampled: false,
                 },
                 count: None,
             },
@@ -793,11 +733,11 @@ pub mod bind_groups {
                 binding: 18,
                 visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
                 ty: wgpu::BindingType::Texture {
-                    multisampled: false,
-                    view_dimension: wgpu::TextureViewDimension::D2,
                     sample_type: wgpu::TextureSampleType::Float {
                         filterable: true,
                     },
+                    view_dimension: wgpu::TextureViewDimension::D2,
+                    multisampled: false,
                 },
                 count: None,
             },
@@ -811,11 +751,11 @@ pub mod bind_groups {
                 binding: 20,
                 visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
                 ty: wgpu::BindingType::Texture {
-                    multisampled: false,
-                    view_dimension: wgpu::TextureViewDimension::D2,
                     sample_type: wgpu::TextureSampleType::Float {
                         filterable: true,
                     },
+                    view_dimension: wgpu::TextureViewDimension::D2,
+                    multisampled: false,
                 },
                 count: None,
             },
@@ -829,11 +769,11 @@ pub mod bind_groups {
                 binding: 22,
                 visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
                 ty: wgpu::BindingType::Texture {
-                    multisampled: false,
-                    view_dimension: wgpu::TextureViewDimension::D2,
                     sample_type: wgpu::TextureSampleType::Float {
                         filterable: true,
                     },
+                    view_dimension: wgpu::TextureViewDimension::D2,
+                    multisampled: false,
                 },
                 count: None,
             },
@@ -847,11 +787,11 @@ pub mod bind_groups {
                 binding: 24,
                 visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
                 ty: wgpu::BindingType::Texture {
-                    multisampled: false,
-                    view_dimension: wgpu::TextureViewDimension::D2,
                     sample_type: wgpu::TextureSampleType::Float {
                         filterable: true,
                     },
+                    view_dimension: wgpu::TextureViewDimension::D2,
+                    multisampled: false,
                 },
                 count: None,
             },
@@ -865,11 +805,11 @@ pub mod bind_groups {
                 binding: 26,
                 visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
                 ty: wgpu::BindingType::Texture {
-                    multisampled: false,
-                    view_dimension: wgpu::TextureViewDimension::D2,
                     sample_type: wgpu::TextureSampleType::Float {
                         filterable: true,
                     },
+                    view_dimension: wgpu::TextureViewDimension::D2,
+                    multisampled: false,
                 },
                 count: None,
             },
@@ -883,11 +823,11 @@ pub mod bind_groups {
                 binding: 28,
                 visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
                 ty: wgpu::BindingType::Texture {
-                    multisampled: false,
-                    view_dimension: wgpu::TextureViewDimension::D2,
                     sample_type: wgpu::TextureSampleType::Float {
                         filterable: true,
                     },
+                    view_dimension: wgpu::TextureViewDimension::D2,
+                    multisampled: false,
                 },
                 count: None,
             },
@@ -1119,7 +1059,7 @@ pub mod vertex {
                 shader_location: 2,
             },
         ];
-        pub fn vertex_buffer_layout(
+        pub const fn vertex_buffer_layout(
             step_mode: wgpu::VertexStepMode,
         ) -> wgpu::VertexBufferLayout<'static> {
             wgpu::VertexBufferLayout {
@@ -1184,7 +1124,7 @@ pub mod vertex {
                 shader_location: 12,
             },
         ];
-        pub fn vertex_buffer_layout(
+        pub const fn vertex_buffer_layout(
             step_mode: wgpu::VertexStepMode,
         ) -> wgpu::VertexBufferLayout<'static> {
             wgpu::VertexBufferLayout {
@@ -1193,6 +1133,79 @@ pub mod vertex {
                 attributes: &super::VertexInput1::VERTEX_ATTRIBUTES,
             }
         }
+    }
+}
+pub const ENTRY_VS_MAIN: &str = "vs_main";
+pub const ENTRY_VS_DEPTH: &str = "vs_depth";
+pub const ENTRY_VS_UV: &str = "vs_uv";
+pub const ENTRY_VS_MAIN_INVALID: &str = "vs_main_invalid";
+pub const ENTRY_FS_INVALID_SHADER: &str = "fs_invalid_shader";
+pub const ENTRY_FS_INVALID_ATTRIBUTES: &str = "fs_invalid_attributes";
+pub const ENTRY_FS_SOLID: &str = "fs_solid";
+pub const ENTRY_FS_SELECTED_MATERIAL: &str = "fs_selected_material";
+pub const ENTRY_FS_UV: &str = "fs_uv";
+pub const ENTRY_FS_DEBUG: &str = "fs_debug";
+pub const ENTRY_FS_MAIN: &str = "fs_main";
+pub struct VertexEntry<const N: usize> {
+    entry_point: &'static str,
+    buffers: [wgpu::VertexBufferLayout<'static>; N],
+}
+pub fn vertex_state<'a, const N: usize>(
+    module: &'a wgpu::ShaderModule,
+    entry: &'a VertexEntry<N>,
+) -> wgpu::VertexState<'a> {
+    wgpu::VertexState {
+        module,
+        entry_point: entry.entry_point,
+        buffers: &entry.buffers,
+    }
+}
+pub fn vs_main_entry(
+    vertex_input0: wgpu::VertexStepMode,
+    vertex_input1: wgpu::VertexStepMode,
+) -> VertexEntry<2> {
+    VertexEntry {
+        entry_point: ENTRY_VS_MAIN,
+        buffers: [
+            VertexInput0::vertex_buffer_layout(vertex_input0),
+            VertexInput1::vertex_buffer_layout(vertex_input1),
+        ],
+    }
+}
+pub fn vs_depth_entry(
+    vertex_input0: wgpu::VertexStepMode,
+    vertex_input1: wgpu::VertexStepMode,
+) -> VertexEntry<2> {
+    VertexEntry {
+        entry_point: ENTRY_VS_DEPTH,
+        buffers: [
+            VertexInput0::vertex_buffer_layout(vertex_input0),
+            VertexInput1::vertex_buffer_layout(vertex_input1),
+        ],
+    }
+}
+pub fn vs_uv_entry(
+    vertex_input0: wgpu::VertexStepMode,
+    vertex_input1: wgpu::VertexStepMode,
+) -> VertexEntry<2> {
+    VertexEntry {
+        entry_point: ENTRY_VS_UV,
+        buffers: [
+            VertexInput0::vertex_buffer_layout(vertex_input0),
+            VertexInput1::vertex_buffer_layout(vertex_input1),
+        ],
+    }
+}
+pub fn vs_main_invalid_entry(
+    vertex_input0: wgpu::VertexStepMode,
+    vertex_input1: wgpu::VertexStepMode,
+) -> VertexEntry<2> {
+    VertexEntry {
+        entry_point: ENTRY_VS_MAIN_INVALID,
+        buffers: [
+            VertexInput0::vertex_buffer_layout(vertex_input0),
+            VertexInput1::vertex_buffer_layout(vertex_input1),
+        ],
     }
 }
 pub fn create_shader_module(device: &wgpu::Device) -> wgpu::ShaderModule {
