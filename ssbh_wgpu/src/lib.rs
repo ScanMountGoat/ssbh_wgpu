@@ -64,10 +64,9 @@ impl SharedRenderData {
     pub fn new(
         device: &wgpu::Device,
         queue: &wgpu::Queue,
-        surface_format: wgpu::TextureFormat,
     ) -> Self {
         Self {
-            pipeline_data: PipelineData::new(device, surface_format),
+            pipeline_data: PipelineData::new(device),
             default_textures: create_default_textures(device, queue),
             database: ShaderDatabase::new(),
         }

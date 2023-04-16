@@ -70,8 +70,7 @@ fn main() {
     .unwrap();
 
     // TODO: Find a way to simplify initialization.
-    let surface_format = RGBA_COLOR_FORMAT;
-    let shared_data = SharedRenderData::new(&device, &queue, surface_format);
+    let shared_data = SharedRenderData::new(&device, &queue);
     let mut renderer = SsbhRenderer::new(&device, &queue, 512, 512, 1.0, [0.0; 3], &[]);
 
     // TODO: Share camera code with ssbh_wgpu?
@@ -105,7 +104,7 @@ fn main() {
         mip_level_count: 1,
         sample_count: 1,
         dimension: TextureDimension::D2,
-        format: surface_format,
+        format: RGBA_COLOR_FORMAT,
         usage: TextureUsages::COPY_SRC | TextureUsages::RENDER_ATTACHMENT,
         label: None,
         view_formats: &[],

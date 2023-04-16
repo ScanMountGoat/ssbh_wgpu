@@ -22,8 +22,6 @@ static SHARED: Lazy<(Device, Queue, SharedRenderData, SsbhRenderer, TextureView)
         }))
         .unwrap();
 
-        let surface_format = RGBA_COLOR_FORMAT;
-
         let (device, queue) = block_on(adapter.request_device(
             &DeviceDescriptor {
                 label: None,
@@ -34,7 +32,7 @@ static SHARED: Lazy<(Device, Queue, SharedRenderData, SsbhRenderer, TextureView)
         ))
         .unwrap();
 
-        let shared_data = SharedRenderData::new(&device, &queue, surface_format);
+        let shared_data = SharedRenderData::new(&device, &queue);
 
         let renderer = SsbhRenderer::new(&device, &queue, 64, 64, 1.0, [0.0; 3], &[]);
 
@@ -47,7 +45,7 @@ static SHARED: Lazy<(Device, Queue, SharedRenderData, SsbhRenderer, TextureView)
             mip_level_count: 1,
             sample_count: 1,
             dimension: TextureDimension::D2,
-            format: surface_format,
+            format: RGBA_COLOR_FORMAT,
             usage: TextureUsages::COPY_SRC | TextureUsages::RENDER_ATTACHMENT,
             label: None,
         };

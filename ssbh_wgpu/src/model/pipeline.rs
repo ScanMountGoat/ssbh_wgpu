@@ -1,23 +1,21 @@
 use ssbh_data::matl_data::{BlendFactor, BlendStateData, MatlEntryData};
 
-use crate::renderer::{INVERTED_STENCIL_MASK_STATE, MSAA_SAMPLE_COUNT};
+use crate::{
+    renderer::{INVERTED_STENCIL_MASK_STATE, MSAA_SAMPLE_COUNT},
+    RGBA_COLOR_FORMAT,
+};
 
 // Create some helper structs to simplify the function signatures.
 pub struct PipelineData {
-    pub surface_format: wgpu::TextureFormat,
     pub layout: wgpu::PipelineLayout,
     pub shader: wgpu::ShaderModule,
 }
 
 impl PipelineData {
-    pub fn new(device: &wgpu::Device, surface_format: wgpu::TextureFormat) -> Self {
+    pub fn new(device: &wgpu::Device) -> Self {
         let shader = crate::shader::model::create_shader_module(device);
         let layout = crate::shader::model::create_pipeline_layout(device);
-        Self {
-            surface_format,
-            layout,
-            shader,
-        }
+        Self { layout, shader }
     }
 }
 
@@ -91,7 +89,7 @@ pub fn pipeline(
             module: &pipeline_data.shader,
             entry_point: "fs_main",
             targets: &[Some(wgpu::ColorTargetState {
-                format: pipeline_data.surface_format,
+                format: RGBA_COLOR_FORMAT,
                 blend: pipeline_key.blend,
                 write_mask: wgpu::ColorWrites::ALL,
             })],

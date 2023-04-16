@@ -8,7 +8,7 @@ use crate::{
         default_material_uniforms_bind_group, default_uniforms_buffer,
         material_uniforms_bind_group, per_material, uniforms_buffer,
     },
-    vertex::{buffer0, buffer1, mesh_object_buffers, skin_weights, MeshObjectBufferData},
+    vertex::{buffer0, buffer1, combined_mesh_buffers, skin_weights, CombinedMeshBuffers},
     DeviceBufferExt, ModelFiles, RenderMesh, RenderModel, ShaderDatabase, SharedRenderData,
 };
 use encase::{DynamicStorageBuffer, ShaderType};
@@ -21,12 +21,12 @@ use ssbh_data::{
 use std::{collections::HashMap, error::Error, num::NonZeroU64};
 use xmb_lib::XmbFile;
 
-pub struct MaterialData {
+pub struct Material {
     pub material_uniforms_bind_group: crate::shader::model::bind_groups::BindGroup2,
     pub uniforms_buffer: wgpu::Buffer,
 }
 
-impl MaterialData {
+impl Material {
     pub fn update(
         &mut self,
         queue: &wgpu::Queue,
@@ -41,17 +41,17 @@ impl MaterialData {
     }
 }
 
-pub struct MeshBuffers {
+pub struct TransformBuffers {
     pub skinning_transforms: wgpu::Buffer,
     pub world_transforms: wgpu::Buffer,
 }
 
 struct RenderMeshData {
     meshes: Vec<RenderMesh>,
-    material_data_by_label: HashMap<String, MaterialData>,
+    material_data_by_label: HashMap<String, Material>,
     textures: Vec<(String, wgpu::Texture, wgpu::TextureViewDimension)>,
     pipelines: HashMap<PipelineKey, wgpu::RenderPipeline>,
-    buffer_data: MeshObjectBufferData,
+    buffer_data: CombinedMeshBuffers,
 }
 
 // TODO: Come up with a better name.
@@ -100,7 +100,7 @@ impl<'a> RenderMeshSharedData<'a> {
         let bone_render_data =
             self.create_bone_render_data(device, &animation_transforms, &world_transforms);
 
-        let mesh_buffers = MeshBuffers {
+        let mesh_buffers = TransformBuffers {
             skinning_transforms: skinning_transforms_buffer,
             world_transforms,
         };
@@ -136,13 +136,13 @@ impl<'a> RenderMeshSharedData<'a> {
             is_visible: true,
             is_selected: false,
             meshes,
-            mesh_buffers,
+            transforms: mesh_buffers,
             material_data_by_label,
             default_material_data,
             textures,
             pipelines,
             bone_render_data,
-            buffer_data,
+            mesh_buffers: buffer_data,
             animation_transforms: Box::new(animation_transforms),
             swing_render_data,
             per_model_bind_group,
@@ -210,7 +210,7 @@ impl<'a> RenderMeshSharedData<'a> {
         &self,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
-        mesh_buffers: &MeshBuffers,
+        mesh_buffers: &TransformBuffers,
     ) -> RenderMeshData {
         // TODO: Find a way to organize this.
 
@@ -255,7 +255,7 @@ impl<'a> RenderMeshSharedData<'a> {
             }
         }
 
-        let buffer_data = mesh_object_buffers(
+        let combined_mesh_buffers = combined_mesh_buffers(
             device,
             &model_buffer0_data.into_inner(),
             &model_buffer1_data.into_inner(),
@@ -269,7 +269,13 @@ impl<'a> RenderMeshSharedData<'a> {
         let mut pipelines = HashMap::new();
 
         let meshes = self
-            .create_render_meshes(accesses, device, &mut pipelines, mesh_buffers, &buffer_data)
+            .create_render_meshes(
+                accesses,
+                device,
+                &mut pipelines,
+                mesh_buffers,
+                &combined_mesh_buffers,
+            )
             .unwrap_or_default();
 
         RenderMeshData {
@@ -277,7 +283,7 @@ impl<'a> RenderMeshSharedData<'a> {
             material_data_by_label,
             textures,
             pipelines,
-            buffer_data,
+            buffer_data: combined_mesh_buffers,
         }
     }
 
@@ -286,8 +292,8 @@ impl<'a> RenderMeshSharedData<'a> {
         accesses: Vec<MeshBufferAccess>,
         device: &wgpu::Device,
         pipelines: &mut HashMap<PipelineKey, wgpu::RenderPipeline>,
-        mesh_buffers: &MeshBuffers,
-        buffer_data: &MeshObjectBufferData,
+        transform_buffers: &TransformBuffers,
+        mesh_buffers: &CombinedMeshBuffers,
     ) -> Option<Vec<RenderMesh>> {
         Some(
             self.mesh?
@@ -318,9 +324,9 @@ impl<'a> RenderMeshSharedData<'a> {
                         adj_entry,
                         meshex_flags.copied(),
                         pipelines,
-                        mesh_buffers,
+                        transform_buffers,
                         access,
-                        buffer_data,
+                        mesh_buffers,
                     )
                     .map_err(|e| {
                         error!(
@@ -365,7 +371,7 @@ impl<'a> RenderMeshSharedData<'a> {
         &self,
         device: &wgpu::Device,
         textures: &[(String, wgpu::Texture, wgpu::TextureViewDimension)],
-    ) -> HashMap<String, MaterialData> {
+    ) -> HashMap<String, Material> {
         // Some devices only support up to 4000 sampler allocations.
         // Models use very few unique sampler settings in practice.
         // Samplers are immutable and can be safely cached.
@@ -404,9 +410,9 @@ impl<'a> RenderMeshSharedData<'a> {
         adj_entry: Option<&AdjEntryData>,
         meshex_flags: Option<EntryFlags>,
         pipelines: &mut HashMap<PipelineKey, wgpu::RenderPipeline>,
-        mesh_buffers: &MeshBuffers,
+        transforms: &TransformBuffers,
         access: MeshBufferAccess,
-        buffer_data: &MeshObjectBufferData,
+        buffers: &CombinedMeshBuffers,
     ) -> Result<RenderMesh, Box<dyn Error>> {
         // TODO: These could be cleaner as functions.
         // TODO: Is using a default for the material label ok?
@@ -459,25 +465,9 @@ impl<'a> RenderMeshSharedData<'a> {
         // TODO: Can this be done in a single dispatch for the entire model?
         // TODO: Add a proper error for empty meshes.
         // TODO: Investigate why empty meshes crash on emulators.
-        let message = "Mesh has no vertices. Failed to create vertex buffers.";
-        let buffer0_binding = wgpu::BufferBinding {
-            buffer: &buffer_data.vertex_buffer0,
-            offset: access.buffer0_start,
-            size: Some(NonZeroU64::new(access.buffer0_size).ok_or(message)?),
-        };
-
-        // TODO: Automate creating the buffer bindings?
-        let buffer0_source_binding = wgpu::BufferBinding {
-            buffer: &buffer_data.vertex_buffer0_source,
-            offset: access.buffer0_start,
-            size: Some(NonZeroU64::new(access.buffer0_size).ok_or(message)?),
-        };
-
-        let weights_binding = wgpu::BufferBinding {
-            buffer: &buffer_data.skinning_buffer,
-            offset: access.weights_start,
-            size: Some(NonZeroU64::new(access.weights_size).ok_or(message)?),
-        };
+        let buffer0_binding = access.buffer0.binding(&buffers.vertex_buffer0)?;
+        let buffer0_source_binding = access.buffer0.binding(&buffers.vertex_buffer0_source)?;
+        let weights_binding = access.weights.binding(&buffers.skinning_buffer)?;
 
         let renormal_bind_group = crate::shader::renormal::bind_groups::BindGroup0::from_bindings(
             device,
@@ -500,8 +490,8 @@ impl<'a> RenderMeshSharedData<'a> {
             crate::shader::skinning::bind_groups::BindGroup1::from_bindings(
                 device,
                 crate::shader::skinning::bind_groups::BindGroupLayout1 {
-                    transforms: mesh_buffers.skinning_transforms.as_entire_buffer_binding(),
-                    world_transforms: mesh_buffers.world_transforms.as_entire_buffer_binding(),
+                    transforms: transforms.skinning_transforms.as_entire_buffer_binding(),
+                    world_transforms: transforms.world_transforms.as_entire_buffer_binding(),
                 },
             );
 
@@ -592,7 +582,7 @@ pub fn material_data(
     textures: &[(String, wgpu::Texture, wgpu::TextureViewDimension)],
     shared_data: &SharedRenderData,
     sampler_by_data: &mut SamplerCache,
-) -> MaterialData {
+) -> Material {
     let uniforms_buffer = uniforms_buffer(material, device, &shared_data.database);
     let material_uniforms_bind_group = material_uniforms_bind_group(
         material,
@@ -603,16 +593,13 @@ pub fn material_data(
         sampler_by_data,
     );
 
-    MaterialData {
+    Material {
         material_uniforms_bind_group,
         uniforms_buffer,
     }
 }
 
-pub fn default_material_data(
-    device: &wgpu::Device,
-    shared_data: &SharedRenderData,
-) -> MaterialData {
+pub fn default_material_data(device: &wgpu::Device, shared_data: &SharedRenderData) -> Material {
     let uniforms_buffer = default_uniforms_buffer(device);
     let material_uniforms_bind_group = default_material_uniforms_bind_group(
         device,
@@ -620,22 +607,44 @@ pub fn default_material_data(
         &uniforms_buffer,
     );
 
-    MaterialData {
+    Material {
         material_uniforms_bind_group,
         uniforms_buffer,
     }
 }
 
-#[derive(Debug)]
 pub struct MeshBufferAccess {
-    pub buffer0_start: u64,
-    pub buffer0_size: u64,
-    pub buffer1_start: u64,
-    pub buffer1_size: u64,
-    pub weights_start: u64,
-    pub weights_size: u64,
-    pub indices_start: u64,
-    pub indices_size: u64,
+    pub buffer0: BufferAccess,
+    pub buffer1: BufferAccess,
+    pub weights: BufferAccess,
+    pub indices: BufferAccess,
+}
+
+pub struct BufferAccess {
+    start: u64,
+    size: u64,
+}
+
+// TODO: Avoid creating empty accesses entirely.
+// TODO: Double check that this handles empty meshes properly.
+impl BufferAccess {
+    pub fn binding<'a>(
+        &self,
+        buffer: &'a wgpu::Buffer,
+    ) -> Result<wgpu::BufferBinding<'a>, Box<dyn Error>> {
+        Ok(wgpu::BufferBinding::<'a> {
+            buffer,
+            offset: self.start,
+            size: Some(
+                NonZeroU64::new(self.size)
+                    .ok_or("Mesh has no vertices. Failed to create vertex buffers.")?,
+            ),
+        })
+    }
+
+    pub fn slice<'a>(&self, buffer: &'a wgpu::Buffer) -> wgpu::BufferSlice<'a> {
+        buffer.slice(self.start..self.start + self.size)
+    }
 }
 
 fn append_mesh_object_buffer_data(
@@ -661,14 +670,22 @@ fn append_mesh_object_buffer_data(
     model_index_data.extend_from_slice(&mesh_object.vertex_indices);
 
     Ok(MeshBufferAccess {
-        buffer0_start: buffer0_offset,
-        buffer0_size: buffer0_vertices.size().get(),
-        buffer1_start: buffer1_offset,
-        buffer1_size: buffer1_vertices.size().get(),
-        weights_start: weights_offset,
-        weights_size: skin_weights.size().get(),
-        indices_start: index_offset,
-        indices_size: (model_index_data.len() * std::mem::size_of::<u32>()) as u64,
+        buffer0: BufferAccess {
+            start: buffer0_offset,
+            size: buffer0_vertices.size().get(),
+        },
+        buffer1: BufferAccess {
+            start: buffer1_offset,
+            size: buffer1_vertices.size().get(),
+        },
+        weights: BufferAccess {
+            start: weights_offset,
+            size: skin_weights.size().get(),
+        },
+        indices: BufferAccess {
+            start: index_offset,
+            size: (model_index_data.len() * std::mem::size_of::<u32>()) as u64,
+        },
     })
 }
 

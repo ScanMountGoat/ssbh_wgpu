@@ -228,7 +228,7 @@ pub fn skin_weights(
     Ok(weights)
 }
 
-pub struct MeshObjectBufferData {
+pub struct CombinedMeshBuffers {
     pub vertex_buffer0_source: wgpu::Buffer,
     pub vertex_buffer0: wgpu::Buffer,
     pub vertex_buffer1: wgpu::Buffer,
@@ -236,14 +236,14 @@ pub struct MeshObjectBufferData {
     pub index_buffer: wgpu::Buffer,
 }
 
-pub fn mesh_object_buffers(
+pub fn combined_mesh_buffers(
     device: &Device,
     // TODO: Is this the best way to allow for aligning the buffers?
     buffer0: &[u8],
     buffer1: &[u8],
     skin_weights: &[u8],
     vertex_indices: &[u32],
-) -> MeshObjectBufferData {
+) -> CombinedMeshBuffers {
     // TODO: Clean this up.
     // TODO: Validate the vertex count and indices?
     // Keep a separate copy of the non transformed data.
@@ -271,7 +271,7 @@ pub fn mesh_object_buffers(
 
     let index_buffer = device.create_index_buffer("Index Buffer", vertex_indices);
 
-    MeshObjectBufferData {
+    CombinedMeshBuffers {
         vertex_buffer0_source,
         vertex_buffer0,
         vertex_buffer1,

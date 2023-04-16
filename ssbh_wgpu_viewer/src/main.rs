@@ -125,11 +125,9 @@ impl State {
 
         let size = window.inner_size();
 
-        let surface_format = ssbh_wgpu::RGBA_COLOR_FORMAT;
-
         let config = wgpu::SurfaceConfiguration {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-            format: surface_format,
+            format: ssbh_wgpu::RGBA_COLOR_FORMAT,
             width: size.width,
             height: size.height,
             present_mode: wgpu::PresentMode::Fifo,
@@ -154,7 +152,7 @@ impl State {
                     .and_then(|f| AnimData::from_file(f.join("light").join("light_00.nuanmb")).ok())
             });
 
-        let mut shared_data = SharedRenderData::new(&device, &queue, surface_format);
+        let mut shared_data = SharedRenderData::new(&device, &queue);
 
         // Update the cube map first since it's used in model loading for texture assignments.
         if let Some(nutexb) = render_folder

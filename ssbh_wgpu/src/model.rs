@@ -4,14 +4,14 @@ use crate::{
     shape::IndexedMeshBuffers,
     swing::SwingPrc,
     swing_rendering::{draw_swing_collisions, SwingRenderData},
-    vertex::MeshObjectBufferData,
+    vertex::CombinedMeshBuffers,
     viewport::world_to_screen,
     ModelFolder, QueueExt, ShaderDatabase, SharedRenderData,
 };
 use glam::Vec4Swizzles;
 use log::{debug, info};
 use mesh_creation::{
-    material_data, MaterialData, MeshBufferAccess, MeshBuffers, RenderMeshSharedData,
+    material_data, Material, MeshBufferAccess, RenderMeshSharedData, TransformBuffers,
 };
 use pipeline::{pipeline, PipelineKey};
 use ssbh_data::{
@@ -42,9 +42,10 @@ pub struct RenderModel {
     pub is_visible: bool,
     /// Outline all the meshes in this model when `true` regardless of which meshes are selected.
     pub is_selected: bool,
-    mesh_buffers: MeshBuffers,
-    material_data_by_label: HashMap<String, MaterialData>,
-    default_material_data: MaterialData,
+
+    transforms: TransformBuffers,
+    material_data_by_label: HashMap<String, Material>,
+    default_material_data: Material,
     pipelines: HashMap<PipelineKey, wgpu::RenderPipeline>,
     textures: Vec<(String, wgpu::Texture, wgpu::TextureViewDimension)>,
 
@@ -52,10 +53,9 @@ pub struct RenderModel {
 
     bone_render_data: BoneRenderData,
 
-    // TODO: The swing pipelines should be created only once in the renderer.
     swing_render_data: SwingRenderData,
 
-    buffer_data: MeshObjectBufferData,
+    mesh_buffers: CombinedMeshBuffers,
 
     // Used for text rendering.
     animation_transforms: Box<AnimationTransforms>,
@@ -244,12 +244,12 @@ impl RenderModel {
             );
 
             queue.write_data(
-                &self.mesh_buffers.skinning_transforms,
+                &self.transforms.skinning_transforms,
                 &[self.animation_transforms.animated_world_transforms],
             );
 
             queue.write_data(
-                &self.mesh_buffers.world_transforms,
+                &self.transforms.world_transforms,
                 &self.animation_transforms.world_transforms,
             );
 
@@ -660,20 +660,14 @@ impl RenderModel {
     fn set_mesh_buffers<'a>(&'a self, render_pass: &mut wgpu::RenderPass<'a>, mesh: &RenderMesh) {
         render_pass.set_vertex_buffer(
             0,
-            self.buffer_data.vertex_buffer0.slice(
-                mesh.access.buffer0_start..mesh.access.buffer0_start + mesh.access.buffer0_size,
-            ),
+            mesh.access.buffer0.slice(&self.mesh_buffers.vertex_buffer0),
         );
         render_pass.set_vertex_buffer(
             1,
-            self.buffer_data.vertex_buffer1.slice(
-                mesh.access.buffer1_start..mesh.access.buffer1_start + mesh.access.buffer1_size,
-            ),
+            mesh.access.buffer1.slice(&self.mesh_buffers.vertex_buffer1),
         );
         render_pass.set_index_buffer(
-            self.buffer_data.index_buffer.slice(
-                mesh.access.indices_start..mesh.access.indices_start + mesh.access.indices_size,
-            ),
+            mesh.access.indices.slice(&self.mesh_buffers.index_buffer),
             wgpu::IndexFormat::Uint32,
         );
     }
