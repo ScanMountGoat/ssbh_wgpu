@@ -5,14 +5,14 @@ use libfuzzer_sys::fuzz_target;
 use nutexb::NutexbFile;
 use nutexb_wgpu::create_texture;
 use once_cell::sync::Lazy;
-use wgpu::{
-    Backends, Device, DeviceDescriptor, Instance, Limits, PowerPreference, Queue,
-    RequestAdapterOptions,
-};
+use wgpu::{Device, DeviceDescriptor, Limits, PowerPreference, Queue, RequestAdapterOptions};
 
 static SHARED: Lazy<(Device, Queue)> = Lazy::new(|| {
     // Load models in headless mode without a surface.
-    let instance = Instance::new(Backends::all());
+    let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
+        backends: wgpu::Backends::all(),
+        ..Default::default()
+    });
     let adapter = block_on(instance.request_adapter(&RequestAdapterOptions {
         power_preference: PowerPreference::HighPerformance,
         compatible_surface: None,
@@ -59,4 +59,6 @@ fuzz_target!(|data: &[u8]| {
 
     // TODO: How to free up WGPU memory?
     let _texture = create_texture(&nutexb, &device, &queue);
+
+    device.poll(wgpu::Maintain::Wait);
 });

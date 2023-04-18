@@ -7,14 +7,17 @@ use ssbh_wgpu::{
     SharedRenderData, SsbhRenderer, REQUIRED_FEATURES, RGBA_COLOR_FORMAT,
 };
 use wgpu::{
-    Backends, Device, DeviceDescriptor, Extent3d, Instance, Limits, PowerPreference, Queue,
-    RequestAdapterOptions, TextureDescriptor, TextureDimension, TextureUsages, TextureView,
+    Device, DeviceDescriptor, Extent3d, Limits, PowerPreference, Queue, RequestAdapterOptions,
+    TextureDescriptor, TextureDimension, TextureUsages, TextureView,
 };
 
 static SHARED: Lazy<(Device, Queue, SharedRenderData, SsbhRenderer, TextureView)> =
     Lazy::new(|| {
         // Load models in headless mode without a surface.
-        let instance = Instance::new(Backends::all());
+        let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
+            backends: wgpu::Backends::all(),
+            ..Default::default()
+        });
         let adapter = block_on(instance.request_adapter(&RequestAdapterOptions {
             power_preference: PowerPreference::HighPerformance,
             compatible_surface: None,
@@ -34,12 +37,12 @@ static SHARED: Lazy<(Device, Queue, SharedRenderData, SsbhRenderer, TextureView)
 
         let shared_data = SharedRenderData::new(&device, &queue);
 
-        let renderer = SsbhRenderer::new(&device, &queue, 64, 64, 1.0, [0.0; 3], &[]);
+        let renderer = SsbhRenderer::new(&device, &queue, 8, 8, 1.0, [0.0; 3], &[]);
 
         let texture_desc = TextureDescriptor {
             size: Extent3d {
-                width: 64,
-                height: 64,
+                width: 8,
+                height: 8,
                 depth_or_array_layers: 1,
             },
             mip_level_count: 1,
@@ -48,6 +51,7 @@ static SHARED: Lazy<(Device, Queue, SharedRenderData, SsbhRenderer, TextureView)
             format: RGBA_COLOR_FORMAT,
             usage: TextureUsages::COPY_SRC | TextureUsages::RENDER_ATTACHMENT,
             label: None,
+            view_formats: &[],
         };
         let output = device.create_texture(&texture_desc);
         let output_view = output.create_view(&Default::default());
