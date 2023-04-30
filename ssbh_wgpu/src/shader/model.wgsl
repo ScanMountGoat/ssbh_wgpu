@@ -671,6 +671,17 @@ fn GetShadow(light_position: vec4<f32>) -> f32
     return shadow;
 }
 
+fn VertexLightMap(colorSet2: vec4<f32>, colorSet2_1: vec4<f32>, colorSet2_2: vec4<f32>, colorSet2_3: vec4<f32>) -> vec4<f32> {
+    // TODO: How to incorporate this into the actual code without exceeding attribute count limits?
+    let lightMapMixWeight = vec4(1.0, 0.0, 0.0, 0.0);
+    let lightX = colorSet2 * colorSet2 * 7.0;
+    let lightY = colorSet2_1 * colorSet2_1 * 7.0;
+    let lightZ = colorSet2_2 * colorSet2_2 * 7.0;
+    let lightW = colorSet2_3 * colorSet2_3 * 7.0;
+
+    return lightX * lightMapMixWeight.x + lightY * lightMapMixWeight.y + lightZ * lightMapMixWeight.z + lightW * lightMapMixWeight.w;
+}
+
 @vertex
 fn vs_main(
     buffer0: VertexInput0,
@@ -810,6 +821,7 @@ fn ScreenCheckerBoard(screenPosition: vec2<f32>) -> f32
 }
 
 fn plasma_colormap(x: f32) -> vec3<f32> {
+    // TODO: Just use a uniform array for this instead?
     // Colormaps generated from tables provided at
     // https://www.kennethmoreland.com/color-advice/
     let plasma8 = array(
@@ -1157,8 +1169,26 @@ fn fs_debug(in: VertexOutput) -> @location(0) vec4<f32> {
     return vec4(outColor.rgb * rgba.rgb, 1.0);
 }
 
-@fragment
-fn fs_main(in: VertexOutput, @builtin(front_facing) is_front: bool) -> @location(0) vec4<f32> {
+// TODO: use Rust naming conventions?
+struct PbrParams {
+    albedo: vec4<f32>,
+    emission: vec4<f32>,
+    nor: vec4<f32>,
+    // TODO: SSS and SSS params instead?
+    custom_vector11: vec4<f32>,
+    custom_vector30: vec4<f32>,
+    metalness: f32,
+    roughness: f32,
+    ambient_occlusion: f32,
+    specular_f0: f32,
+    sssBlend: f32,
+    pad1: f32,
+    pad2: f32,
+    pad3: f32
+}
+
+fn GetPbrParams(in: VertexOutput, viewVector: vec3<f32>, reflectionVector: vec3<f32>) -> PbrParams {
+    // TODO: Create a struct for the non packed attributes.
     let map1 = in.map1.xy;
     let map1_dual = in.map1.zw;
     let uvSet = in.uv_set_uv_set1.xy;
@@ -1175,35 +1205,37 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) is_front: bool) -> @location
     let colorSet7 = in.color_set7;
 
     // TODO: Mario's eyes don't render properly for the metal/gold materials.
-    var nor = vec4(0.5, 0.5, 1.0, 1.0);
+    var out: PbrParams;
+
+    out.nor = vec4(0.5, 0.5, 1.0, 1.0);
     if (per_material.has_texture[4].x == 1u) {
-        nor = textureSample(texture4, sampler4, map1);
+        out.nor = textureSample(texture4, sampler4, map1);
         if (per_material.has_vector[34].x == 1u) {
             // The second layer is added to the first layer.
             // TODO: These shaders use the z channel as a normal map.
-            let nor1 = nor.xyz;
+            let nor1 = out.nor.xyz;
             let nor2 = textureSample(texture4, sampler4, map1_dual).xyz;
-            nor = vec4(nor1 + nor2 - 1.0, nor.w);
+            out.nor = vec4(nor1 + nor2 - 1.0, out.nor.w);
         }
 
         // TODO: Simpler way to toggle channels?
         if (render_settings.render_nor.r == 0u) {
-            nor.r = 0.5;
+            out.nor.r = 0.5;
         }
         if (render_settings.render_nor.g == 0u) {
-            nor.g = 0.5;
+            out.nor.g = 0.5;
         }
         if (render_settings.render_nor.b == 0u) {
-            nor.b = 0.0;
+            out.nor.b = 0.0;
         }
         if (render_settings.render_nor.a == 0u) {
-            nor.a = 1.0;
+            out.nor.a = 1.0;
         }
     }
 
     // Check if the factor is non zero to prevent artifacts.
     var transitionFactor = 0.0;
-    if ((render_settings.transition_factor.x > 0.0) && (nor.b >= (1.0 - render_settings.transition_factor.x))) {
+    if ((render_settings.transition_factor.x > 0.0) && (out.nor.b >= (1.0 - render_settings.transition_factor.x))) {
         transitionFactor = 1.0;
     }
 
@@ -1251,8 +1283,9 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) is_front: bool) -> @location
         }
     }
 
-    let customVector11Final = mix(per_material.custom_vector[11], transitionCustomVector11, render_settings.transition_factor.x);
-    let customVector30Final = mix(per_material.custom_vector[30], transitionCustomVector30, render_settings.transition_factor.x);
+    // TODO: Combine mix with each case above?
+    out.custom_vector11 = mix(per_material.custom_vector[11], transitionCustomVector11, render_settings.transition_factor.x);
+    out.custom_vector30 = mix(per_material.custom_vector[30], transitionCustomVector30, render_settings.transition_factor.x);
 
     var prm = vec4(0.0, 0.0, 1.0, 0.0);
     let hasPrm = per_material.has_texture[6].x == 1u;
@@ -1293,19 +1326,50 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) is_front: bool) -> @location
         hasVector47 = true;
     }
 
-    var metalness = mix(prm.r, transitionPrm.r, transitionFactor);
-    let roughness = mix(prm.g, transitionPrm.g, transitionFactor);
-    let ao = prm.b;
-    let spec = mix(prm.a, transitionPrm.a, transitionFactor);
+    out.metalness = mix(prm.r, transitionPrm.r, transitionFactor);
+    out.roughness = mix(prm.g, transitionPrm.g, transitionFactor);
+    out.ambient_occlusion = prm.b;
+    out.specular_f0 = mix(prm.a, transitionPrm.a, transitionFactor);
 
-    let sssBlend = prm.r * customVector30Final.x;
+    // TODO: combine with sss params?
+    out.sssBlend = prm.r * out.custom_vector30.x;
 
     // Skin shaders use metalness for masking the fake SSS effect.
     if (per_material.has_vector[30].x == 1u) {
-        metalness = 0.0;
+        out.metalness = 0.0;
     }
 
-    let viewVector = normalize(camera.camera_pos.xyz - in.position.xyz);
+    let albedoColor = GetAlbedoColor(map1, uvSet, uvSet1, reflectionVector, colorSet5);
+    var albedoRgb = GetAlbedoColorFinal(albedoColor);
+    albedoRgb = mix(albedoRgb, transitionAlbedo, transitionFactor);
+    out.albedo = vec4(albedoRgb, albedoColor.a);
+
+    out.emission = GetEmissionColor(map1, uvSet);
+
+    return out;
+}
+
+// TODO: use a struct to share code with fs_debug.
+// the struct can hold the final base color, roughness, etc (principled)
+// does modifying a struct in a function work so we can have ApplyMaterialTransition, ApplyRenderSettings, etc?
+// consistent naming conventions with rust code?
+@fragment
+fn fs_main(in: VertexOutput, @builtin(front_facing) is_front: bool) -> @location(0) vec4<f32> {
+    let map1 = in.map1.xy;
+    let map1_dual = in.map1.zw;
+    let uvSet = in.uv_set_uv_set1.xy;
+    let uvSet1 = in.uv_set_uv_set1.zw;
+    let uvSet2 = in.uv_set2_bake1.xy;
+    let bake1 = in.uv_set2_bake1.zw;
+
+    let colorSet1 = in.color_set1;
+    let colorSet2 = in.color_set2_combined;
+    let colorSet3 = in.color_set3;
+    let colorSet4 = in.color_set4;
+    let colorSet5 = in.color_set5;
+    let colorSet6 = in.color_set6;
+    let colorSet7 = in.color_set7;
+
 
     // Normal code ported from in game.
     // This is similar to mikktspace but normalization happens in the fragment shader.
@@ -1313,9 +1377,17 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) is_front: bool) -> @location
     let tangent = normalize(in.tangent.xyz);
     var bitangent = GetBitangent(normal, tangent, in.tangent.w);
 
+    let viewVector = normalize(camera.camera_pos.xyz - in.position.xyz);
+    
+    // TODO: Is it just the metal material that uses the fragment normal?
+    var reflectionVector = reflect(viewVector, normal);
+    reflectionVector.y = reflectionVector.y * -1.0;
+
+    let params = GetPbrParams(in, viewVector, reflectionVector);
+
     var fragmentNormal = normal;
     if (per_material.has_texture[4].x == 1u) {
-        fragmentNormal = GetBumpMapNormal(normal, tangent, bitangent, nor);
+        fragmentNormal = GetBumpMapNormal(normal, tangent, bitangent, params.nor);
     }
 
     // TODO: Is this correct?
@@ -1327,7 +1399,7 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) is_front: bool) -> @location
     }
 
     // TODO: Is it just the metal material that uses the fragment normal?
-    var reflectionVector = reflect(viewVector, fragmentNormal);
+    reflectionVector = reflect(viewVector, fragmentNormal);
     reflectionVector.y = reflectionVector.y * -1.0;
 
     let chrLightDir = GetLight().direction.xyz;
@@ -1337,62 +1409,56 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) is_front: bool) -> @location
     let nDotH = clamp(dot(fragmentNormal, halfAngle), 0.0, 1.0);
     let nDotL = dot(fragmentNormal, normalize(chrLightDir));
 
-    let albedoColor = GetAlbedoColor(map1, uvSet, uvSet1, reflectionVector, colorSet5);
-    var albedoColorFinal = GetAlbedoColorFinal(albedoColor);
-
-    albedoColorFinal = mix(albedoColorFinal, transitionAlbedo, transitionFactor);
-
-    let emissionColor = GetEmissionColor(map1, uvSet);
 
     var shadow = 1.0;
     if (render_settings.render_shadows.x == 1u && per_material.lighting_settings.z == 1u) {
         shadow = GetShadow(in.light_position);
     }
 
-    var outAlpha = albedoColor.a * emissionColor.a;
+    var outAlpha = params.albedo.a * params.emission.a;
     if (per_material.has_vector[0].x == 1u) {
-        outAlpha = max(albedoColor.a * emissionColor.a, per_material.custom_vector[0].x);
+        outAlpha = max(params.albedo.a * params.emission.a, per_material.custom_vector[0].x);
     }
     if (per_material.shader_settings.x == 1u && outAlpha < 0.5) {
         discard;
     }
 
-    let specularLod = RoughnessToLod(roughness);
+    let specularLod = RoughnessToLod(params.roughness);
     let specularIbl = textureSampleLevel(texture7, sampler7, reflectionVector, specularLod).rgb;
 
-    let diffusePass = DiffuseTerm(bake1, albedoColorFinal.rgb, nDotL, in.sh_lighting.rgb, ao, sssBlend, shadow, customVector11Final, customVector30Final, colorSet2);
+    let diffusePass = DiffuseTerm(bake1, params.albedo.rgb, nDotL, in.sh_lighting.rgb, params.ambient_occlusion, params.sssBlend, shadow, params.custom_vector11, params.custom_vector30, colorSet2);
 
-    let specularF0 = GetF0FromSpecular(prm.a);
+    let specularF0 = GetF0FromSpecular(params.specular_f0);
     let specularReflectionF0 = vec3(specularF0);
     // Metals use albedo instead of the specular color/tint.
-    let kSpecular = mix(specularReflectionF0, albedoColorFinal, metalness);
+    let kSpecular = mix(specularReflectionF0, params.albedo.rgb, params.metalness);
     // TODO: Not all shaders use nor.a as a cavity map (check if has texture).
     // TODO: Include ambient occlusion in specular?
     // TODO: Does cavity occlude ambient specular?
-    let kDirect = kSpecular * shadow * nor.a;
+    let kDirect = kSpecular * shadow * params.nor.a;
     // TODO: Is this correct for masking environment reflections?
-    let kIndirect = FresnelSchlick(nDotV, kSpecular) * nor.a * 0.5; // TODO: Why is 0.5 needed here?
-    let specularPass = SpecularTerm(in.tangent, bitangent, nDotH, max(nDotL, 0.0), nDotV, halfAngle, roughness, specularIbl, kDirect, kIndirect);
+    let kIndirect = FresnelSchlick(nDotV, kSpecular) * params.nor.a * 0.5; // TODO: Why is 0.5 needed here?
+    let specularPass = SpecularTerm(in.tangent, bitangent, nDotH, max(nDotL, 0.0), nDotV, halfAngle, params.roughness, specularIbl, kDirect, kIndirect);
 
     var outColor = vec3(0.0, 0.0, 0.0);
     if (render_settings.render_diffuse.x == 1u) {
-        let kDiffuse = max(vec3(1.0 - metalness), vec3(0.0));
+        let kDiffuse = max(vec3(1.0 - params.metalness), vec3(0.0));
         outColor = outColor + (diffusePass * kDiffuse) / 3.14159;
     }
 
     // Assume materials without PRM omit the specular code entirely.
-    if (render_settings.render_specular.x == 1u && (hasPrm || hasVector47)) {
-        outColor = outColor + specularPass * ao;
+    if (render_settings.render_specular.x == 1u) {
+        outColor = outColor + specularPass * params.ambient_occlusion;
     }
 
     if (render_settings.render_emission.x == 1u) {
         // TODO: Emission is weakened somehow?
-        outColor = outColor + EmissionTerm(emissionColor) * 0.5;
+        outColor = outColor + EmissionTerm(params.emission) * 0.5;
     }
 
     // TODO: What affects rim lighting intensity?
     if (render_settings.render_rim_lighting.x == 1u) {
-        outColor = GetRimBlend(outColor, albedoColorFinal, nDotV, max(nDotL, 0.0), shadow * nor.a, in.sh_lighting.rgb);
+        outColor = GetRimBlend(outColor, params.albedo.rgb, nDotV, max(nDotL, 0.0), shadow * params.nor.a, in.sh_lighting.rgb);
     }
 
     // TODO: Check all channels?
