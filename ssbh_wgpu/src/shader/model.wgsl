@@ -409,10 +409,10 @@ fn DiffuseTerm(
     nDotL: f32,
     shLighting: vec3<f32>,
     ao: f32,
-    sssBlend: f32,
+    sss_color: vec3<f32>,
+    sss_smooth_factor: f32,
+    sss_blend: f32,
     shadow: f32,
-    custom_vector11: vec4<f32>,
-    custom_vector30: vec4<f32>,
     colorSet2: vec4<f32>) -> vec3<f32>
 {
     // TODO: This can be cleaned up.
@@ -422,14 +422,14 @@ fn DiffuseTerm(
 
     // Diffuse shading is remapped to be softer.
     // Multiplying be a constant and clamping affects the "smoothness".
-    var nDotLSkin = nDotL * custom_vector30.y;
+    var nDotLSkin = nDotL * sss_smooth_factor;
     nDotLSkin = clamp(nDotLSkin * 0.5 + 0.5, 0.0, 1.0);
     // TODO: Why is there an extra * sssBlend term here?
-    let skinShading = custom_vector11.rgb * sssBlend * nDotLSkin;
+    let skinShading = sss_color * sss_blend * nDotLSkin;
 
     // TODO: How many PI terms are there?
     // TODO: Skin shading looks correct without the PI term?
-    directShading = mix(directShading / 3.14159, skinShading, sssBlend);
+    directShading = mix(directShading / 3.14159, skinShading, sss_blend);
 
     var directLight = vec3(0.0);
     if (per_material.lighting_settings.x == 1u) {
@@ -453,7 +453,7 @@ fn DiffuseTerm(
     }
 
     // Assume the mix factor is 0.0 if the material doesn't have CustomVector11.
-    ambientTerm = ambientTerm * mix(albedo, custom_vector11.rgb, sssBlend);
+    ambientTerm = ambientTerm * mix(albedo, sss_color, sss_blend);
 
     var result = directLight * shadow + ambientTerm;
 
@@ -1174,14 +1174,13 @@ struct PbrParams {
     albedo: vec4<f32>,
     emission: vec4<f32>,
     nor: vec4<f32>,
-    // TODO: SSS and SSS params instead?
-    custom_vector11: vec4<f32>,
-    custom_vector30: vec4<f32>,
+    sss_color: vec3<f32>,
+    sss_blend: f32,
+    sss_smooth_factor: f32,
     metalness: f32,
     roughness: f32,
     ambient_occlusion: f32,
     specular_f0: f32,
-    sssBlend: f32,
     pad1: f32,
     pad2: f32,
     pad3: f32
@@ -1284,8 +1283,9 @@ fn GetPbrParams(in: VertexOutput, viewVector: vec3<f32>, reflectionVector: vec3<
     }
 
     // TODO: Combine mix with each case above?
-    out.custom_vector11 = mix(per_material.custom_vector[11], transitionCustomVector11, render_settings.transition_factor.x);
-    out.custom_vector30 = mix(per_material.custom_vector[30], transitionCustomVector30, render_settings.transition_factor.x);
+    out.sss_color = mix(per_material.custom_vector[11].rgb, transitionCustomVector11.rgb, render_settings.transition_factor.x);
+    out.sss_blend = mix(per_material.custom_vector[30].x, transitionCustomVector30.x, render_settings.transition_factor.x);
+    out.sss_smooth_factor = mix(per_material.custom_vector[30].y, transitionCustomVector30.y, render_settings.transition_factor.x);
 
     var prm = vec4(0.0, 0.0, 1.0, 0.0);
     let hasPrm = per_material.has_texture[6].x == 1u;
@@ -1332,7 +1332,7 @@ fn GetPbrParams(in: VertexOutput, viewVector: vec3<f32>, reflectionVector: vec3<
     out.specular_f0 = mix(prm.a, transitionPrm.a, transitionFactor);
 
     // TODO: combine with sss params?
-    out.sssBlend = prm.r * out.custom_vector30.x;
+    out.sss_blend = out.sss_blend * prm.r;
 
     // Skin shaders use metalness for masking the fake SSS effect.
     if (per_material.has_vector[30].x == 1u) {
@@ -1370,7 +1370,7 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) is_front: bool) -> @location
     let colorSet6 = in.color_set6;
     let colorSet7 = in.color_set7;
 
-
+    // TODO: Move this to GetPbrParams?
     // Normal code ported from in game.
     // This is similar to mikktspace but normalization happens in the fragment shader.
     let normal = normalize(in.normal.xyz);
@@ -1426,9 +1426,11 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) is_front: bool) -> @location
     let specularLod = RoughnessToLod(params.roughness);
     let specularIbl = textureSampleLevel(texture7, sampler7, reflectionVector, specularLod).rgb;
 
-    let diffusePass = DiffuseTerm(bake1, params.albedo.rgb, nDotL, in.sh_lighting.rgb, params.ambient_occlusion, params.sssBlend, shadow, params.custom_vector11, params.custom_vector30, colorSet2);
+    let diffusePass = DiffuseTerm(bake1, params.albedo.rgb, nDotL, in.sh_lighting.rgb, params.ambient_occlusion, params.sss_color, params.sss_smooth_factor, params.sss_blend, shadow, colorSet2);
 
+    // TODO: move this into GetPbrParams?
     let specularF0 = GetF0FromSpecular(params.specular_f0);
+
     let specularReflectionF0 = vec3(specularF0);
     // Metals use albedo instead of the specular color/tint.
     let kSpecular = mix(specularReflectionF0, params.albedo.rgb, params.metalness);
