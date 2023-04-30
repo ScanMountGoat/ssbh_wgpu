@@ -1177,13 +1177,11 @@ struct PbrParams {
     sss_color: vec3<f32>,
     sss_blend: f32,
     sss_smooth_factor: f32,
+    // PRM
     metalness: f32,
     roughness: f32,
     ambient_occlusion: f32,
-    specular_f0: f32,
-    pad1: f32,
-    pad2: f32,
-    pad3: f32
+    specular_f0: f32
 }
 
 fn GetPbrParams(in: VertexOutput, viewVector: vec3<f32>, reflectionVector: vec3<f32>) -> PbrParams {

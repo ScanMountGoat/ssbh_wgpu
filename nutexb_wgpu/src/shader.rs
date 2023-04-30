@@ -2,11 +2,6 @@
 // Changes made to this file will not be saved.
 #[repr(C)]
 #[derive(Debug, Copy, Clone, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
-pub struct VertexInput {
-    pub position: [f32; 3],
-}
-#[repr(C)]
-#[derive(Debug, Copy, Clone, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct RenderSettings {
     pub render_rgba: [f32; 4],
     pub mipmap: [f32; 4],
