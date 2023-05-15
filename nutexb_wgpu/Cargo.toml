@@ -12,4 +12,4 @@ thiserror = "1.0"
 memoffset = "0.8.0"
 
 [build-dependencies]
-wgsl_to_wgpu = { git = "https://github.com/ScanMountGoat/wgsl_to_wgpu" }
+wgsl_to_wgpu = "0.4.1"

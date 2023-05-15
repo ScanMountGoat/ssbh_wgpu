@@ -7,8 +7,8 @@ edition = "2021"
 glam = { version = "0.22.0", features = ["bytemuck"] }
 wgpu = "0.15.0"
 bytemuck = { version = "1.13", features = [ "derive" ] }
-ssbh_data = { git = "https://github.com/ultimate-research/ssbh_lib", features = ["strum"] }
-xmb_lib = { git = "https://github.com/ultimate-research/xmb_lib" }
+ssbh_data = { version = "0.17.0", features = ["strum"] }
+xmb_lib = { git = "https://github.com/ultimate-research/xmb_lib", rev = "c71253d" }
 walkdir = "2"
 rayon = "1.5.1"
 nutexb_wgpu = { path = "../nutexb_wgpu" }
@@ -30,7 +30,7 @@ approx = "0.5.1"
 criterion = "0.3.5"
 
 [build-dependencies]
-wgsl_to_wgpu = { git = "https://github.com/ScanMountGoat/wgsl_to_wgpu" }
+wgsl_to_wgpu = "0.4.1"
 
 [features]
 arbitrary = ["dep:arbitrary", "ssbh_data/arbitrary", "xmb_lib/arbitrary"]
