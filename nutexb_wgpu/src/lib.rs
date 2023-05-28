@@ -134,17 +134,17 @@ pub fn create_texture(
     }
 
     let format = wgpu_format(nutexb.footer.image_format);
-    let (block_width, block_height) = format.describe().block_dimensions;
-    if size.width % block_width as u32 != 0 {
+    let (block_width, block_height) = format.block_dimensions();
+    if size.width % block_width != 0 {
         return Err(CreateTextureError::UnalignedWidth {
             width: size.width,
-            block_width: block_width as u32,
+            block_width,
         });
     }
-    if size.height % block_height as u32 != 0 {
+    if size.height % block_height != 0 {
         return Err(CreateTextureError::UnalignedHeight {
             height: size.height,
-            block_height: block_height as u32,
+            block_height,
         });
     }
 
@@ -219,7 +219,7 @@ fn wgpu_format(format: nutexb::NutexbFormat) -> wgpu::TextureFormat {
         nutexb::NutexbFormat::BC4Snorm => wgpu::TextureFormat::Bc4RSnorm,
         nutexb::NutexbFormat::BC5Unorm => wgpu::TextureFormat::Bc5RgUnorm,
         nutexb::NutexbFormat::BC5Snorm => wgpu::TextureFormat::Bc5RgSnorm,
-        nutexb::NutexbFormat::BC6Sfloat => wgpu::TextureFormat::Bc6hRgbSfloat,
+        nutexb::NutexbFormat::BC6Sfloat => wgpu::TextureFormat::Bc6hRgbFloat,
         nutexb::NutexbFormat::BC6Ufloat => wgpu::TextureFormat::Bc6hRgbUfloat,
         nutexb::NutexbFormat::BC7Unorm => wgpu::TextureFormat::Bc7RgbaUnorm,
         nutexb::NutexbFormat::BC7Srgb => wgpu::TextureFormat::Bc7RgbaUnormSrgb,

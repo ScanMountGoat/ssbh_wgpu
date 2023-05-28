@@ -1,6 +1,6 @@
 use image::EncodableLayout;
 use ssbh_data::matl_data::{MagFilter, MinFilter, ParamId, SamplerData, WrapMode};
-use std::{num::NonZeroU8, path::Path};
+use std::path::Path;
 use wgpu::{
     util::DeviceExt, Device, Queue, Sampler, SamplerDescriptor, Texture, TextureDescriptor,
     TextureDimension, TextureFormat, TextureUsages, TextureView, TextureViewDescriptor,
@@ -61,7 +61,7 @@ pub fn create_sampler(device: &Device, param_id: ParamId, data: &SamplerData) ->
         mag_filter: mag_filter_mode(data.mag_filter),
         min_filter: min_filter_mode(data.min_filter),
         mipmap_filter: mip_filter_mode(data.min_filter),
-        anisotropy_clamp: data.max_anisotropy.and_then(|m| NonZeroU8::new(m as u8)),
+        anisotropy_clamp: data.max_anisotropy.map(|m| m as u16).unwrap_or(1),
         // TODO: Set other options?
         ..Default::default()
     })

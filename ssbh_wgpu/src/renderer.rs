@@ -10,11 +10,9 @@ use crate::{
     texture::{load_default_lut, uv_pattern, TextureSamplerView},
     CameraTransforms, DeviceBufferExt, QueueExt, RenderModel, ShaderDatabase,
 };
-use glyph_brush::DefaultSectionHasher;
 use nutexb_wgpu::NutexbFile;
-use ssbh_data::{anim_data::AnimData, skel_data::SkelData};
+use ssbh_data::anim_data::AnimData;
 use wgpu::ComputePassDescriptor;
-use wgpu_text::{font::FontRef, BrushBuilder, TextBrush};
 
 // TODO: Adjust this to use less precision.
 // Rgba16Float is widely supported.
@@ -151,9 +149,6 @@ pub struct SsbhRenderer {
     skinning_settings_buffer: wgpu::Buffer,
     skinning_settings_bind_group: crate::shader::skinning::bind_groups::BindGroup3,
 
-    // TODO: Find a way to simplify this?
-    brush: Option<TextBrush<FontRef<'static>, DefaultSectionHasher>>,
-
     scissor_rect: [u32; 4],
 }
 
@@ -164,9 +159,6 @@ impl SsbhRenderer {
     /// If unsure, set `scale_factor` to `1.0`.
     ///
     /// The `clear_color` determines the RGB color of the viewport background.
-    ///
-    /// The `font_bytes` should be the file contents of a `.ttf` font file.
-    /// If `font_bytes` is empty or is not a valid font, text rendering will be disabled.
     pub fn new(
         device: &wgpu::Device,
         queue: &wgpu::Queue,
@@ -174,7 +166,6 @@ impl SsbhRenderer {
         height: u32,
         scale_factor: f64,
         clear_color: [f64; 3],
-        font_bytes: &'static [u8],
     ) -> Self {
         let shader = crate::shader::post_process::create_shader_module(device);
         let layout = crate::shader::post_process::create_pipeline_layout(device);
@@ -313,22 +304,6 @@ impl SsbhRenderer {
         let uv_pipeline = uv_pipeline(device, RGBA_COLOR_FORMAT);
         let wireframe_pipeline = wireframe_pipeline(device, RGBA_COLOR_FORMAT);
 
-        // TODO: Does this need to match the initial config?
-        let config = wgpu::SurfaceConfiguration {
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-            format: RGBA_COLOR_FORMAT,
-            width,
-            height,
-            present_mode: wgpu::PresentMode::Mailbox,
-            alpha_mode: wgpu::CompositeAlphaMode::Auto,
-            view_formats: Vec::new(),
-        };
-
-        // TODO: Log errors?
-        let brush = BrushBuilder::using_font_bytes(font_bytes)
-            .ok()
-            .map(|b| b.build(device, &config));
-
         let bone_pipelines = BonePipelines::new(device);
         let bone_buffers = BoneBuffers::new(device);
 
@@ -390,7 +365,6 @@ impl SsbhRenderer {
             uv_pipeline,
             render_settings,
             render_settings_buffer,
-            brush,
             bone_buffers,
             overlay_pipeline,
             wireframe_pipeline,
@@ -439,9 +413,6 @@ impl SsbhRenderer {
         self.set_scissor_rect(scissor_rect);
 
         self.pass_info = PassInfo::new(device, width, height, scale_factor, &self.color_lut);
-        if let Some(brush) = self.brush.as_mut() {
-            brush.resize_view(width as f32, height as f32, queue);
-        }
     }
 
     // TODO: Document that anything that takes a device reference shouldn't be called each frame.
@@ -694,39 +665,6 @@ impl SsbhRenderer {
             &self.swing_camera_bind_group,
             hidden_collisions,
         );
-    }
-
-    /// Renders the bone names for skeleton in `skels` for each model in `render_models` to `output_view`.
-    ///
-    /// The `output_view` should have the format [RGBA_COLOR_FORMAT].
-    /// The output is not cleared before drawing.
-    pub fn render_skeleton_names<'a>(
-        &mut self,
-        device: &wgpu::Device,
-        queue: &wgpu::Queue,
-        output_view: &wgpu::TextureView,
-        models: impl Iterator<Item = (&'a RenderModel, &'a SkelData)>,
-        width: u32,
-        height: u32,
-        mvp: glam::Mat4,
-        font_size: f32,
-    ) -> Option<wgpu::CommandBuffer> {
-        let brush = self.brush.as_mut()?;
-
-        // TODO: Optimize this?
-        for (model, skel) in models {
-            model.queue_bone_names(skel, brush, width, height, mvp, font_size);
-        }
-
-        let region = wgpu_text::ScissorRegion {
-            x: self.scissor_rect[0],
-            y: self.scissor_rect[1],
-            width: self.scissor_rect[2],
-            height: self.scissor_rect[3],
-            out_width: width,
-            out_height: height,
-        };
-        Some(brush.draw_custom(device, output_view, queue, Some(region)))
     }
 
     fn draw_material_mask<'a>(

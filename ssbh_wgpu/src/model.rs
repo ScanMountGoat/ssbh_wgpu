@@ -618,6 +618,8 @@ impl RenderModel {
 
     pub(crate) fn queue_bone_names(
         &self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
         skel: &SkelData,
         brush: &mut TextBrush<FontRef>,
         width: u32,
@@ -653,7 +655,7 @@ impl RenderModel {
                 .with_screen_position((position_x_screen + 10.0, position_y_screen))
                 .to_owned();
 
-            brush.queue(&section);
+            brush.queue(device, queue, vec![&section]).unwrap();
         }
     }
 

@@ -180,7 +180,6 @@ impl State {
             size.height,
             window.scale_factor(),
             [0.0; 3],
-            &[],
         );
 
         if let Some(nutexb) = render_folder.as_ref().and_then(|f| {
@@ -529,26 +528,7 @@ impl State {
 
         drop(final_pass);
 
-        let (_, _, mvp) =
-            calculate_camera_pos_mvp(self.size, self.translation_xyz, self.rotation_xyz);
-
-        if let Some(text_commands) = self.renderer.render_skeleton_names(
-            &self.device,
-            &self.queue,
-            &output_view,
-            self.render_models
-                .iter()
-                .zip(self.models.iter().map(|(_, m)| m.find_skel()))
-                .filter_map(|(m, s)| Some((m, s?))),
-            self.size.width,
-            self.size.height,
-            mvp,
-            16.0,
-        ) {
-            self.queue.submit([encoder.finish(), text_commands]);
-        } else {
-            self.queue.submit([encoder.finish()]);
-        }
+        self.queue.submit([encoder.finish()]);
 
         // Actually draw the frame.
         output.present();

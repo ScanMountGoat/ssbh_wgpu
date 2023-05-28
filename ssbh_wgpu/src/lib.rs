@@ -17,6 +17,7 @@ use xmb_lib::XmbFile;
 pub use nutexb_wgpu::NutexbFile;
 
 pub mod animation;
+mod bone_name;
 mod bone_rendering;
 mod floor_grid;
 mod model;
@@ -32,6 +33,7 @@ mod uniforms;
 mod vertex;
 pub mod viewport;
 
+pub use bone_name::BoneNameRenderer;
 pub use model::{RenderMesh, RenderModel};
 pub use render_settings::{
     DebugMode, ModelRenderOptions, RenderSettings, SkinningSettings, TransitionMaterial,
@@ -61,10 +63,7 @@ pub struct SharedRenderData {
 }
 
 impl SharedRenderData {
-    pub fn new(
-        device: &wgpu::Device,
-        queue: &wgpu::Queue,
-    ) -> Self {
+    pub fn new(device: &wgpu::Device, queue: &wgpu::Queue) -> Self {
         Self {
             pipeline_data: PipelineData::new(device),
             default_textures: create_default_textures(device, queue),

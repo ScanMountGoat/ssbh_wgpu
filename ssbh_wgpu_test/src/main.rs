@@ -1,7 +1,4 @@
-use std::{
-    num::NonZeroU32,
-    path::{Path, PathBuf},
-};
+use std::path::{Path, PathBuf};
 
 use futures::executor::block_on;
 use image::ImageBuffer;
@@ -71,7 +68,7 @@ fn main() {
 
     // TODO: Find a way to simplify initialization.
     let shared_data = SharedRenderData::new(&device, &queue);
-    let mut renderer = SsbhRenderer::new(&device, &queue, 512, 512, 1.0, [0.0; 3], &[]);
+    let mut renderer = SsbhRenderer::new(&device, &queue, 512, 512, 1.0, [0.0; 3]);
 
     // TODO: Share camera code with ssbh_wgpu?
     // TODO: Document the screen_dimensions struct.
@@ -224,8 +221,8 @@ fn render_screenshot(
             buffer: output_buffer,
             layout: wgpu::ImageDataLayout {
                 offset: 0,
-                bytes_per_row: NonZeroU32::new(512 * 4),
-                rows_per_image: NonZeroU32::new(512),
+                bytes_per_row: Some(512 * 4),
+                rows_per_image: Some(512),
             },
         },
         size,
