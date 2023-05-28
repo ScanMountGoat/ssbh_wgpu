@@ -422,7 +422,7 @@ pub fn float_index(param: ParamId) -> Option<usize> {
         ParamId::CustomFloat16 => Some(16),
         ParamId::CustomFloat17 => Some(17),
         ParamId::CustomFloat18 => Some(18),
-        ParamId::CustomFloat19 => Some(18),
+        ParamId::CustomFloat19 => Some(19),
         _ => None,
     }
 }
