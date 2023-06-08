@@ -31,8 +31,13 @@ pub fn light_direction(rotation: glam::Quat) -> glam::Vec4 {
 impl StageUniforms {
     pub fn training() -> Self {
         let custom_boolean = [glam::UVec4::ZERO; 20];
+
         let mut custom_vector = [glam::Vec4::ZERO; 64];
+        // Rim lighting.
         custom_vector[8] = glam::Vec4::ONE;
+        // Distance fog.
+        custom_vector[13] = glam::vec4(0.0, 1000000.0, 1.0, -0.793551);
+
         let custom_float = [glam::Vec4::ZERO; 20];
 
         let light_chr_rotation = glam::quat(-0.453154, -0.365998, -0.211309, 0.784886);
