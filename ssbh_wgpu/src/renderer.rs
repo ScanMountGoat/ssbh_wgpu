@@ -404,7 +404,6 @@ impl SsbhRenderer {
     pub fn resize(
         &mut self,
         device: &wgpu::Device,
-        queue: &wgpu::Queue,
         width: u32,
         height: u32,
         scale_factor: f64,
