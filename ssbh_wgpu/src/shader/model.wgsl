@@ -1181,7 +1181,9 @@ struct PbrParams {
     metalness: f32,
     roughness: f32,
     ambient_occlusion: f32,
-    specular_f0: f32
+    specular_f0: f32,
+    // Flags
+    has_specular: bool
 }
 
 fn GetPbrParams(in: VertexOutput, viewVector: vec3<f32>, reflectionVector: vec3<f32>) -> PbrParams {
@@ -1344,6 +1346,8 @@ fn GetPbrParams(in: VertexOutput, viewVector: vec3<f32>, reflectionVector: vec3<
 
     out.emission = GetEmissionColor(map1, uvSet);
 
+    out.has_specular = hasPrm || hasVector47;
+
     return out;
 }
 
@@ -1447,7 +1451,7 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) is_front: bool) -> @location
     }
 
     // Assume materials without PRM omit the specular code entirely.
-    if (render_settings.render_specular.x == 1u) {
+    if (render_settings.render_specular.x == 1u && params.has_specular) {
         outColor = outColor + specularPass * params.ambient_occlusion;
     }
 
