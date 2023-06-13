@@ -245,7 +245,7 @@ pub fn per_material(material: &MatlEntryData, database: &ShaderDatabase) -> PerM
             // It's safe to assume the database has valid parameters.
             let id = ParamId::from_str(param).unwrap();
             if let Some(i) = texture_index(id) {
-                has_texture[i][0] = 1;
+                has_texture[i] = program.accessed_channels(param_name).map(u32::from).into();
             } else if let Some(i) = boolean_index(id) {
                 has_boolean[i][0] = 1;
             } else if let Some(i) = float_index(id) {
