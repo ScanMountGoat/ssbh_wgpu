@@ -124,6 +124,7 @@ fn main() {
         .into_iter()
         .filter_map(Result::ok);
 
+    // Render each model folder.
     let start = std::time::Instant::now();
     for (folder_path, model) in model_paths.into_iter().filter_map(|p| {
         let parent = p.path().parent()?;
@@ -183,6 +184,10 @@ fn main() {
             &queue,
             output_path,
         );
+
+        // Clean up resources.
+        queue.submit(std::iter::empty());
+        device.poll(wgpu::Maintain::Wait);
     }
 
     println!("Completed in {:?}", start.elapsed());
