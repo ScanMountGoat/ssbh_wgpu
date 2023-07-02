@@ -3,7 +3,6 @@ use ssbh_data::prelude::*;
 use ssbh_wgpu::animation::camera::animate_camera;
 use ssbh_wgpu::next_frame;
 use ssbh_wgpu::swing::SwingPrc;
-use ssbh_wgpu::viewport::screen_to_world;
 use ssbh_wgpu::CameraTransforms;
 use ssbh_wgpu::DebugMode;
 use ssbh_wgpu::ModelFolder;
@@ -24,9 +23,9 @@ use winit::{
     window::{Window, WindowBuilder},
 };
 
-const DEFAULT_FOV: f32 = 0.5;
-const DEFAULT_NEAR_CLIP: f32 = 1.0;
-const DEFAULT_FAR_CLIP: f32 = 400000.0;
+const FOV_Y: f32 = 0.5;
+const NEAR_CLIP: f32 = 1.0;
+const FAR_CLIP: f32 = 400000.0;
 
 fn calculate_camera_pos_mvp(
     size: winit::dpi::PhysicalSize<u32>,
@@ -38,8 +37,7 @@ fn calculate_camera_pos_mvp(
         * glam::Mat4::from_rotation_x(rotation.x)
         * glam::Mat4::from_rotation_y(rotation.y);
     // Use a large far clip distance to include stage skyboxes.
-    let perspective_matrix =
-        glam::Mat4::perspective_rh(DEFAULT_FOV, aspect, DEFAULT_NEAR_CLIP, DEFAULT_FAR_CLIP);
+    let perspective_matrix = glam::Mat4::perspective_rh(FOV_Y, aspect, NEAR_CLIP, FAR_CLIP);
 
     let camera_pos = model_view_matrix.inverse().col(3);
 
@@ -271,36 +269,16 @@ impl State {
                     self.rotation_xyz.x += (delta_y * 0.01) as f32;
                     self.rotation_xyz.y += (delta_x * 0.01) as f32;
                 } else if self.is_mouse_right_clicked {
-                    // TODO: Avoid recalculating the matrix?
-                    // TODO: Does ignoring rotation like this work in general?
-                    let (_, _, mvp) = calculate_camera_pos_mvp(
-                        self.size,
-                        self.translation_xyz,
-                        self.rotation_xyz * 0.0,
-                    );
+                    let delta_x = position.x - self.previous_cursor_position.x;
+                    let delta_y = position.y - self.previous_cursor_position.y;
 
-                    let (current_x_world, current_y_world) = screen_to_world(
-                        (position.x as f32, position.y as f32),
-                        mvp,
-                        self.size.width,
-                        self.size.height,
-                    );
-                    let (previous_x_world, previous_y_world) = screen_to_world(
-                        (
-                            self.previous_cursor_position.x as f32,
-                            self.previous_cursor_position.y as f32,
-                        ),
-                        mvp,
-                        self.size.width,
-                        self.size.height,
-                    );
-
-                    let delta_x_world = current_x_world - previous_x_world;
-                    let delta_y_world = current_y_world - previous_y_world;
+                    // Translate an equivalent distance in screen space based on the camera.
+                    // The viewport height and vertical field of view define the conversion.
+                    let fac = FOV_Y.sin() * self.translation_xyz.z.abs() / self.size.height as f32;
 
                     // Negate y so that dragging up "drags" the model up.
-                    self.translation_xyz.x += delta_x_world;
-                    self.translation_xyz.y -= delta_y_world;
+                    self.translation_xyz.x += delta_x as f32 * fac;
+                    self.translation_xyz.y -= delta_y as f32 * fac;
                 }
                 // Always update the position to avoid jumps when moving between clicks.
                 self.previous_cursor_position = *position;
@@ -492,9 +470,9 @@ impl State {
                     self.current_frame,
                     aspect,
                     screen_dimensions,
-                    DEFAULT_FOV,
-                    DEFAULT_NEAR_CLIP,
-                    DEFAULT_FAR_CLIP,
+                    FOV_Y,
+                    NEAR_CLIP,
+                    FAR_CLIP,
                 ) {
                     self.renderer.update_camera(&self.queue, transforms);
                 }

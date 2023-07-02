@@ -12,18 +12,3 @@ pub fn world_to_screen(point: glam::Vec3, mvp: glam::Mat4, width: u32, height: u
     let position_y_screen = height as f32 * (1.0 - (position_clip.y * 0.5 + 0.5));
     (position_x_screen, position_y_screen)
 }
-
-pub fn screen_to_world(point: (f32, f32), mvp: glam::Mat4, width: u32, height: u32) -> (f32, f32) {
-    // The translation input is in pixels.
-    let (x_pixels, y_pixels) = point;
-    // We want a world translation to move the scene origin that many pixels.
-    // Map from screen space to clip space in the range [-1,1].
-    let x_clip = 2.0 * x_pixels / width as f32 - 1.0;
-    let y_clip = 2.0 * y_pixels / height as f32 - 1.0;
-    // Map to world space using the model, view, and projection matrix.
-
-    let world = mvp.inverse() * glam::vec4(x_clip, y_clip, 0.0, 1.0);
-    let world_x = world.x * world.z;
-    let world_y = world.y * world.z;
-    (world_x, world_y)
-}
