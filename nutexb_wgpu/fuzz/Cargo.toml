@@ -13,7 +13,6 @@ libfuzzer-sys = "0.4"
 futures = "0.3"
 wgpu = "0.16.0"
 nutexb = "0.6.0"
-log = "0.4.17"
 once_cell = "1.12.0"
 arbitrary = { version = "1" }
 

@@ -10,7 +10,6 @@ bytemuck = { version = "1.13", features = [ "derive" ] }
 ssbh_data = { version = "0.17.0", features = ["strum"] }
 xmb_lib = { git = "https://github.com/ultimate-research/xmb_lib", rev = "c71253d" }
 walkdir = "2"
-rayon = "1.5.1"
 nutexb_wgpu = { path = "../nutexb_wgpu" }
 serde_json = "1.0"
 strum = { version = "0.24.1", features = ["derive"] }
