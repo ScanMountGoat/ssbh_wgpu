@@ -538,18 +538,18 @@ fn GgxAnisotropic(nDotH: f32, h: vec3<f32>, nDotL: f32, nDotV: f32, tangent: vec
     return nDotL/PI * shadowing / normalization / PI / PI;
 }
 
-fn SpecularBrdf(tangent: vec4<f32>, bitangent: vec3<f32>, nDotH: f32, nDotL: f32, nDotV: f32, halfAngle: vec3<f32>, roughness: f32) -> f32
+fn SpecularBrdf(tangent: vec3<f32>, bitangent: vec3<f32>, nDotH: f32, nDotL: f32, nDotV: f32, halfAngle: vec3<f32>, roughness: f32) -> f32
 {
     // TODO: How to calculate tangents and bitangents for prm.a anisotropic rotation?
     // The two BRDFs look very different so don't just use anisotropic for everything.
     if (per_material.has_float[10].x == 1u) {
-        return GgxAnisotropic(nDotH, halfAngle, nDotL, nDotV, tangent.xyz, bitangent, roughness, per_material.custom_float[10].x);
+        return GgxAnisotropic(nDotH, halfAngle, nDotL, nDotV, tangent, bitangent, roughness, per_material.custom_float[10].x);
     } else {
         return Ggx(nDotH, nDotL, nDotV, roughness);
     }
 }
 
-fn SpecularTerm(tangent: vec4<f32>, bitangent: vec3<f32>, nDotH: f32, nDotL: f32, nDotV: f32, halfAngle: vec3<f32>,
+fn SpecularTerm(tangent: vec3<f32>, bitangent: vec3<f32>, nDotH: f32, nDotL: f32, nDotV: f32, halfAngle: vec3<f32>,
     roughness: f32, specularIbl: vec3<f32>, kDirect: vec3<f32>, kIndirect: vec3<f32>) -> vec3<f32>
 {
     var directSpecular = vec3(4.0);
@@ -1183,10 +1183,16 @@ struct PbrParams {
     ambient_occlusion: f32,
     specular_f0: f32,
     // Flags
-    has_specular: bool
+    has_specular: bool,
+    // Vectors
+    viewVector: vec3<f32>,
+    reflectionVector: vec3<f32>,
+    normal: vec3<f32>,
+    tangent: vec3<f32>,
+    bitangent: vec3<f32>
 }
 
-fn GetPbrParams(in: VertexOutput, viewVector: vec3<f32>, reflectionVector: vec3<f32>) -> PbrParams {
+fn GetPbrParams(in: VertexOutput, is_front: bool) -> PbrParams {
     // TODO: Create a struct for the non packed attributes.
     let map1 = in.map1.xy;
     let map1_dual = in.map1.zw;
@@ -1203,8 +1209,24 @@ fn GetPbrParams(in: VertexOutput, viewVector: vec3<f32>, reflectionVector: vec3<
     let colorSet6 = in.color_set6;
     let colorSet7 = in.color_set7;
 
+    // TODO: clean up this code.
+    let viewVector = normalize(camera.camera_pos.xyz - in.position.xyz);
+    
+    // Normal code ported from in game.
+    // This is similar to mikktspace but normalization happens in the fragment shader.
+    let normal = normalize(in.normal.xyz);
+    let tangent = normalize(in.tangent.xyz);
+    var bitangent = GetBitangent(normal, tangent, in.tangent.w);
+
+    // TODO: Is it just the metal material that uses the fragment normal?
+    var reflectionVector = reflect(viewVector, normal);
+    reflectionVector.y = reflectionVector.y * -1.0;
+
     // TODO: Mario's eyes don't render properly for the metal/gold materials.
     var out: PbrParams;
+
+    out.viewVector = viewVector;
+    out.reflectionVector = reflectionVector;
 
     out.nor = vec4(0.5, 0.5, 1.0, 1.0);
     if (per_material.has_texture[4].x == 1u) {
@@ -1231,6 +1253,24 @@ fn GetPbrParams(in: VertexOutput, viewVector: vec3<f32>, reflectionVector: vec3<
             out.nor.a = 1.0;
         }
     }
+
+    // TODO: is this the right place to calculate this?
+    var fragmentNormal = normal;
+    if (per_material.has_texture[4].x == 1u) {
+        fragmentNormal = GetBumpMapNormal(normal, tangent, bitangent, out.nor);
+    }
+
+    // TODO: Is this correct?
+    bitangent = GetBitangent(fragmentNormal, tangent, in.tangent.w);
+
+    // TODO: Investigate lighting for double sided materials with culling disabled.
+    if (!is_front) {
+        fragmentNormal = fragmentNormal * -1.0;
+    }
+
+    out.normal = fragmentNormal;
+    out.tangent = tangent;
+    out.bitangent = bitangent;
 
     // Check if the factor is non zero to prevent artifacts.
     var transitionFactor = 0.0;
@@ -1329,7 +1369,7 @@ fn GetPbrParams(in: VertexOutput, viewVector: vec3<f32>, reflectionVector: vec3<
     out.metalness = mix(prm.r, transitionPrm.r, transitionFactor);
     out.roughness = mix(prm.g, transitionPrm.g, transitionFactor);
     out.ambient_occlusion = prm.b;
-    out.specular_f0 = mix(prm.a, transitionPrm.a, transitionFactor);
+    out.specular_f0 = GetF0FromSpecular(mix(prm.a, transitionPrm.a, transitionFactor));
 
     // TODO: combine with sss params?
     out.sss_blend = out.sss_blend * prm.r;
@@ -1372,44 +1412,20 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) is_front: bool) -> @location
     let colorSet6 = in.color_set6;
     let colorSet7 = in.color_set7;
 
-    // TODO: Move this to GetPbrParams?
-    // Normal code ported from in game.
-    // This is similar to mikktspace but normalization happens in the fragment shader.
-    let normal = normalize(in.normal.xyz);
-    let tangent = normalize(in.tangent.xyz);
-    var bitangent = GetBitangent(normal, tangent, in.tangent.w);
+    let params = GetPbrParams(in, is_front);
 
-    let viewVector = normalize(camera.camera_pos.xyz - in.position.xyz);
-    
-    // TODO: Is it just the metal material that uses the fragment normal?
-    var reflectionVector = reflect(viewVector, normal);
-    reflectionVector.y = reflectionVector.y * -1.0;
-
-    let params = GetPbrParams(in, viewVector, reflectionVector);
-
-    var fragmentNormal = normal;
-    if (per_material.has_texture[4].x == 1u) {
-        fragmentNormal = GetBumpMapNormal(normal, tangent, bitangent, params.nor);
-    }
-
-    // TODO: Is this correct?
-    bitangent = GetBitangent(fragmentNormal, tangent, in.tangent.w);
-
-    // TODO: Investigate lighting for double sided materials with culling disabled.
-    if (!is_front) {
-        fragmentNormal = fragmentNormal * -1.0;
-    }
-
-    // TODO: Is it just the metal material that uses the fragment normal?
-    reflectionVector = reflect(viewVector, fragmentNormal);
-    reflectionVector.y = reflectionVector.y * -1.0;
+    let normal = params.normal;
+    let tangent = params.tangent;
+    let bitangent = params.bitangent;
+    let viewVector = params.viewVector;
+    let reflectionVector = params.reflectionVector;
 
     let chrLightDir = GetLight().direction.xyz;
 
     let halfAngle = normalize(chrLightDir + viewVector);
-    let nDotV = max(dot(fragmentNormal, viewVector), 0.0);
-    let nDotH = clamp(dot(fragmentNormal, halfAngle), 0.0, 1.0);
-    let nDotL = dot(fragmentNormal, normalize(chrLightDir));
+    let nDotV = max(dot(normal, viewVector), 0.0);
+    let nDotH = clamp(dot(normal, halfAngle), 0.0, 1.0);
+    let nDotL = dot(normal, normalize(chrLightDir));
 
 
     var shadow = 1.0;
@@ -1430,8 +1446,7 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) is_front: bool) -> @location
 
     let diffusePass = DiffuseTerm(bake1, params.albedo.rgb, nDotL, in.sh_lighting.rgb, params.ambient_occlusion, params.sss_color, params.sss_smooth_factor, params.sss_blend, shadow, colorSet2);
 
-    // TODO: move this into GetPbrParams?
-    let specularF0 = GetF0FromSpecular(params.specular_f0);
+    let specularF0 = params.specular_f0;
 
     let specularReflectionF0 = vec3(specularF0);
     // Metals use albedo instead of the specular color/tint.
@@ -1442,7 +1457,7 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) is_front: bool) -> @location
     let kDirect = kSpecular * shadow * params.nor.a;
     // TODO: Is this correct for masking environment reflections?
     let kIndirect = FresnelSchlick(nDotV, kSpecular) * params.nor.a * 0.5; // TODO: Why is 0.5 needed here?
-    let specularPass = SpecularTerm(in.tangent, bitangent, nDotH, max(nDotL, 0.0), nDotV, halfAngle, params.roughness, specularIbl, kDirect, kIndirect);
+    let specularPass = SpecularTerm(tangent, bitangent, nDotH, max(nDotL, 0.0), nDotV, halfAngle, params.roughness, specularIbl, kDirect, kIndirect);
 
     var outColor = vec3(0.0, 0.0, 0.0);
     if (render_settings.render_diffuse.x == 1u) {
