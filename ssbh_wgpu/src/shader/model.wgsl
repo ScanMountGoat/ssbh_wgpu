@@ -227,15 +227,14 @@ struct VertexOutputInvalid {
 
 fn Blend(a: vec3<f32>, b: vec4<f32>) -> vec3<f32> {
     // CustomBoolean11 toggles additive vs alpha blending.
-    if (per_material.custom_boolean[11].x == 1u) {
+    if per_material.custom_boolean[11].x == 1u {
         return a.rgb + b.rgb * b.a;
     } else {
         return mix(a.rgb, b.rgb, b.a);
     }
 }
 
-fn TransformUv(uv: vec2<f32>, transform: vec4<f32>) -> vec2<f32>
-{
+fn TransformUv(uv: vec2<f32>, transform: vec4<f32>) -> vec2<f32> {
     // TODO: UV automatic scrolling animations?
 
     // TODO: dUdV Map.
@@ -259,11 +258,11 @@ fn TransformUv(uv: vec2<f32>, transform: vec4<f32>) -> vec2<f32>
 fn GetEmissionColor(uv1: vec2<f32>, uv2: vec2<f32>) -> vec4<f32> {
     var emissionColor = vec4(0.0, 0.0, 0.0, 1.0);
 
-    if (per_material.has_texture[5].x == 1u) {
+    if per_material.has_texture[5].x == 1u {
         emissionColor = textureSample(texture5, sampler5, uv1);
     }
 
-    if (per_material.has_texture[14].x == 1u) {
+    if per_material.has_texture[14].x == 1u {
         let emission2Color = textureSample(texture14, sampler14, uv2);
         return vec4(Blend(emissionColor.rgb, emission2Color), emissionColor.a);
     }
@@ -271,8 +270,7 @@ fn GetEmissionColor(uv1: vec2<f32>, uv2: vec2<f32>) -> vec4<f32> {
     return emissionColor;
 }
 
-fn GetAlbedoColor(uv1: vec2<f32>, uv2: vec2<f32>, uv3: vec2<f32>, R: vec3<f32>, colorSet5: vec4<f32>) -> vec4<f32>
-{
+fn GetAlbedoColor(uv1: vec2<f32>, uv2: vec2<f32>, uv3: vec2<f32>, R: vec3<f32>, colorSet5: vec4<f32>) -> vec4<f32> {
     let uvLayer1 = uv1;
     let uvLayer2 = uv2;
     let uvLayer3 = uv3;
@@ -285,39 +283,39 @@ fn GetAlbedoColor(uv1: vec2<f32>, uv2: vec2<f32>, uv3: vec2<f32>, R: vec3<f32>, 
     // TODO: Battlefield waterfalls and delfino volcano use channels differently?
     var difLayer1Mask = 1.0;
     var colLayer2Mask = 1.0;
-    if (per_material.has_color_set567.x == 1u && render_settings.render_vertex_color.x == 1u) {
+    if per_material.has_color_set567.x == 1u && render_settings.render_vertex_color.x == 1u {
         difLayer1Mask = colorSet5.x;
         colLayer2Mask = colorSet5.w;
     }
 
     // TODO: Do additional layers affect alpha?
-    if (per_material.has_texture[0].x == 1u) {
+    if per_material.has_texture[0].x == 1u {
         let albedoColor = textureSample(texture0, sampler0, uvLayer1);
         outRgb = albedoColor.rgb;
         outAlpha = albedoColor.a;
     }
 
     // TODO: Refactor blend to take RGB and w separately?
-    if (per_material.has_texture[1].x == 1u) {
+    if per_material.has_texture[1].x == 1u {
         let albedoColor2 = textureSample(texture1, sampler1, uvLayer2);
         outRgb = Blend(outRgb, albedoColor2 * vec4(1.0, 1.0, 1.0, colLayer2Mask));
     }
 
     // Materials won't have col and diffuse cube maps.
-    if (per_material.has_texture[8].x == 1u) {
+    if per_material.has_texture[8].x == 1u {
         // TODO: Just return early here?
         outRgb = textureSample(texture8, sampler8, R).rgb;
     }
 
-    if (per_material.has_texture[10].x == 1u) {
+    if per_material.has_texture[10].x == 1u {
         let diffuseColor1 = textureSample(texture10, sampler10, uvLayer1);
         outRgb = Blend(outRgb, diffuseColor1 * vec4(1.0, 1.0, 1.0, difLayer1Mask));
     }
-    if (per_material.has_texture[11].x == 1u) {
+    if per_material.has_texture[11].x == 1u {
         let diffuseColor2 = textureSample(texture11, sampler11, uvLayer2);
         outRgb = Blend(outRgb, diffuseColor2);
     }
-    if (per_material.has_texture[12].x == 1u) {
+    if per_material.has_texture[12].x == 1u {
         // TODO: Is the blending always additive?
         outRgb = outRgb + textureSample(texture12, sampler12, uvLayer3).rgb;
     }
@@ -325,13 +323,12 @@ fn GetAlbedoColor(uv1: vec2<f32>, uv2: vec2<f32>, uv3: vec2<f32>, R: vec3<f32>, 
     return vec4(outRgb, outAlpha);
 }
 
-fn GetAlbedoColorFinal(albedoColor: vec4<f32>) -> vec3<f32>
-{
+fn GetAlbedoColorFinal(albedoColor: vec4<f32>) -> vec3<f32> {
     var albedoColorFinal = albedoColor.rgb;
 
     // Color multiplier param.
     // TODO: Check all channels?
-    if (per_material.has_vector[13].x == 1u) {
+    if per_material.has_vector[13].x == 1u {
         albedoColorFinal = albedoColorFinal * per_material.custom_vector[13].rgb;
     }
 
@@ -343,14 +340,12 @@ fn GetAlbedoColorFinal(albedoColor: vec4<f32>) -> vec3<f32>
     return albedoColorFinal;
 }
 
-fn GetBitangent(normal: vec3<f32>, tangent: vec3<f32>, bitangent_sign: f32) -> vec3<f32>
-{
+fn GetBitangent(normal: vec3<f32>, tangent: vec3<f32>, bitangent_sign: f32) -> vec3<f32> {
     // Ultimate flips the bitangent before using it for normal mapping.
     return cross(normal.xyz, tangent.xyz) * bitangent_sign * -1.0;
 }
 
-fn GetBumpMapNormal(normal: vec3<f32>, tangent: vec3<f32>, bitangent: vec3<f32>, norColor: vec4<f32>) -> vec3<f32>
-{
+fn GetBumpMapNormal(normal: vec3<f32>, tangent: vec3<f32>, bitangent: vec3<f32>, norColor: vec4<f32>) -> vec3<f32> {
     // Remap the normal map to the correct range.
     let x = 2.0 * norColor.x - 1.0;
     let y = 2.0 * norColor.y - 1.0;
@@ -368,7 +363,7 @@ fn GetBumpMapNormal(normal: vec3<f32>, tangent: vec3<f32>, bitangent: vec3<f32>,
 fn GetLight() -> Light {
     // TODO: How expensive is this?
     // TODO: Is this worth moving to the CPU?
-    if (per_model.light_set_index.x == 0u) {
+    if per_model.light_set_index.x == 0u {
         return stage_uniforms.light_chr;
     } else {
         switch (per_model.light_set_index.y) {
@@ -413,8 +408,8 @@ fn DiffuseTerm(
     sss_smooth_factor: f32,
     sss_blend: f32,
     shadow: f32,
-    colorSet2: vec4<f32>) -> vec3<f32>
-{
+    colorSet2: vec4<f32>
+) -> vec3<f32> {
     // TODO: This can be cleaned up.
     var directShading = albedo * max(nDotL, 0.0);
 
@@ -432,17 +427,17 @@ fn DiffuseTerm(
     directShading = mix(directShading / 3.14159, skinShading, sss_blend);
 
     var directLight = vec3(0.0);
-    if (per_material.lighting_settings.x == 1u) {
+    if per_material.lighting_settings.x == 1u {
         directLight = GetLight().color.rgb * directShading;
     }
     var ambientTerm = (shLighting * ao);
 
     // TODO: Does Texture3 also affect specular?
-    if (per_material.has_texture[3].x == 1u) {
+    if per_material.has_texture[3].x == 1u {
         ambientTerm = ambientTerm * textureSample(texture3, sampler3, bake1).rgb;
     }
 
-    if (per_material.has_texture[9].x == 1u) {
+    if per_material.has_texture[9].x == 1u {
         // The alpha channel masks direct lighting to act as baked shadows.
         let bakedLitColor = textureSample(texture9, sampler9, bake1).rgba;
         directLight = directLight * bakedLitColor.a;
@@ -460,38 +455,35 @@ fn DiffuseTerm(
     // Baked stage lighting.
     // TODO: How is this different from colorSet1?
     // TODO: Check the king model on zelda_tower.
-    if (per_material.has_color_set1234.y == 1u && render_settings.render_vertex_color.x == 1u) {
-       result = result * colorSet2.rgb;
+    if per_material.has_color_set1234.y == 1u && render_settings.render_vertex_color.x == 1u {
+        result = result * colorSet2.rgb;
     }
 
     return result;
 }
 
 // Schlick fresnel approximation.
-fn FresnelSchlick(cosTheta: f32, f0: vec3<f32>) -> vec3<f32>
-{
+fn FresnelSchlick(cosTheta: f32, f0: vec3<f32>) -> vec3<f32> {
     return f0 + (1.0 - f0) * pow(1.0 - cosTheta, 5.0);
 }
 
 // Ultimate uses something similar to the schlick geometry masking term.
 // http://cwyman.org/code/dxrTutors/tutors/Tutor14/tutorial14.md.html
-fn SchlickMaskingTerm(nDotL: f32, nDotV: f32, a2: f32) -> f32
-{
+fn SchlickMaskingTerm(nDotL: f32, nDotV: f32, a2: f32) -> f32 {
     let PI = 3.14159;
     let k = a2 * 0.5;
     let gV = 1.0 / (nDotV * (1.0 - k) + k);
     // TODO: This is nDotL/PI in the shader?
-    let gL = 1.0 / ((nDotL/PI) * (1.0 - k) + k);
+    let gL = 1.0 / ((nDotL / PI) * (1.0 - k) + k);
     return gV * gL;
 }
 
 // Ultimate shaders use a mostly standard GGX BRDF for specular.
 // http://graphicrants.blogspot.com/2013/08/specular-brdf-reference.html
-fn Ggx(nDotH: f32, nDotL: f32, nDotV: f32, roughness: f32) -> f32
-{
+fn Ggx(nDotH: f32, nDotL: f32, nDotV: f32, roughness: f32) -> f32 {
     // Clamp to 0.01 to prevent divide by 0.
     let a = max(roughness, 0.01) * max(roughness, 0.01);
-    let a2 = a*a;
+    let a2 = a * a;
     let PI = 3.14159;
     let nDotH2 = nDotH * nDotH;
 
@@ -499,11 +491,10 @@ fn Ggx(nDotH: f32, nDotL: f32, nDotV: f32, roughness: f32) -> f32
     let ggx = a2 / (denominator * denominator);
     let shadowing = SchlickMaskingTerm(nDotL, nDotV, a2);
     // TODO: why do we need to divide by an extra PI here?
-    return nDotL/PI * ggx * shadowing / PI / PI;
+    return nDotL / PI * ggx * shadowing / PI / PI;
 }
 
-fn GgxAnisotropic(nDotH: f32, h: vec3<f32>, nDotL: f32, nDotV: f32, tangent: vec3<f32>, bitangent: vec3<f32>, roughness: f32, anisotropy: f32) -> f32
-{
+fn GgxAnisotropic(nDotH: f32, h: vec3<f32>, nDotL: f32, nDotV: f32, tangent: vec3<f32>, bitangent: vec3<f32>, roughness: f32, anisotropy: f32) -> f32 {
     // Clamp to 0.01 to prevent divide by 0.
     let roughnessX = max(max(roughness, 0.01) * anisotropy, 0.01);
     let roughnessY = max(max(roughness, 0.01) / anisotropy, 0.01);
@@ -524,42 +515,39 @@ fn GgxAnisotropic(nDotH: f32, h: vec3<f32>, nDotL: f32, nDotV: f32, tangent: vec
 
     // TODO: Check this section of code.
     let nDotHClamp = clamp(nDotH, 0.0, 1.0);
-    let denominator = xTerm + yTerm + nDotHClamp*nDotHClamp;
+    let denominator = xTerm + yTerm + nDotHClamp * nDotHClamp;
 
-    let normalization = roughnessX2 * roughnessY2 * denominator*denominator;
+    let normalization = roughnessX2 * roughnessY2 * denominator * denominator;
 
     // TODO: Optimize GGX functions and share code.
     // TODO: constants in WGSL?
     let PI = 3.14159;
     let a = max(roughness, 0.01) * max(roughness, 0.01);
-    let a2 = a*a;
+    let a2 = a * a;
     let shadowing = SchlickMaskingTerm(nDotL, nDotV, a2);
     // TODO: Why do we need to divide by an extra PI here?
-    return nDotL/PI * shadowing / normalization / PI / PI;
+    return nDotL / PI * shadowing / normalization / PI / PI;
 }
 
-fn SpecularBrdf(tangent: vec3<f32>, bitangent: vec3<f32>, nDotH: f32, nDotL: f32, nDotV: f32, halfAngle: vec3<f32>, roughness: f32) -> f32
-{
+fn SpecularBrdf(tangent: vec3<f32>, bitangent: vec3<f32>, nDotH: f32, nDotL: f32, nDotV: f32, halfAngle: vec3<f32>, roughness: f32) -> f32 {
     // TODO: How to calculate tangents and bitangents for prm.a anisotropic rotation?
     // The two BRDFs look very different so don't just use anisotropic for everything.
-    if (per_material.has_float[10].x == 1u) {
+    if per_material.has_float[10].x == 1u {
         return GgxAnisotropic(nDotH, halfAngle, nDotL, nDotV, tangent, bitangent, roughness, per_material.custom_float[10].x);
     } else {
         return Ggx(nDotH, nDotL, nDotV, roughness);
     }
 }
 
-fn SpecularTerm(tangent: vec3<f32>, bitangent: vec3<f32>, nDotH: f32, nDotL: f32, nDotV: f32, halfAngle: vec3<f32>,
-    roughness: f32, specularIbl: vec3<f32>, kDirect: vec3<f32>, kIndirect: vec3<f32>) -> vec3<f32>
-{
+fn SpecularTerm(tangent: vec3<f32>, bitangent: vec3<f32>, nDotH: f32, nDotL: f32, nDotV: f32, halfAngle: vec3<f32>, roughness: f32, specularIbl: vec3<f32>, kDirect: vec3<f32>, kIndirect: vec3<f32>) -> vec3<f32> {
     var directSpecular = vec3(4.0);
     directSpecular = directSpecular * SpecularBrdf(tangent, bitangent, nDotH, nDotL, nDotV, halfAngle, roughness);
-    if (per_material.has_boolean[3].x == 1u && per_material.custom_boolean[3].x == 0u) {
+    if per_material.has_boolean[3].x == 1u && per_material.custom_boolean[3].x == 0u {
         directSpecular = vec3(0.0);
     }
 
     var indirectSpecular = specularIbl;
-    if (per_material.has_boolean[4].x == 1u && per_material.custom_boolean[4].x == 0u) {
+    if per_material.has_boolean[4].x == 1u && per_material.custom_boolean[4].x == 0u {
         indirectSpecular = vec3(0.0);
     }
 
@@ -568,26 +556,23 @@ fn SpecularTerm(tangent: vec3<f32>, bitangent: vec3<f32>, nDotH: f32, nDotL: f32
     return specularTerm;
 }
 
-fn EmissionTerm(emissionColor: vec4<f32>) -> vec3<f32>
-{
+fn EmissionTerm(emissionColor: vec4<f32>) -> vec3<f32> {
     var result = emissionColor.rgb;
     // TODO: Check all channels?
-    if (per_material.has_vector[3].x == 1u) {
+    if per_material.has_vector[3].x == 1u {
         result = result * per_material.custom_vector[3].rgb;
     }
 
     return result;
 }
 
-fn GetF0FromIor(ior: f32) -> f32
-{
+fn GetF0FromIor(ior: f32) -> f32 {
     return pow((1.0 - ior) / (1.0 + ior), 2.0);
 }
 
 // TODO: Is this just a regular lighting term?
 // TODO: Does this depend on the light direction and intensity?
-fn GetRimBlend(baseColor: vec3<f32>, diffusePass: vec3<f32>, nDotV: f32, nDotL: f32, occlusion: f32, vertexAmbient: vec3<f32>) -> vec3<f32>
-{
+fn GetRimBlend(baseColor: vec3<f32>, diffusePass: vec3<f32>, nDotV: f32, nDotL: f32, occlusion: f32, vertexAmbient: vec3<f32>) -> vec3<f32> {
     var rimColor = per_material.custom_vector[14].rgb * stage_uniforms.scene_attributes.custom_vector[8].rgb;
 
     // TODO: How is the overall intensity controlled?
@@ -615,8 +600,7 @@ fn GetRimBlend(baseColor: vec3<f32>, diffusePass: vec3<f32>, nDotV: f32, nDotL: 
     return result;
 }
 
-fn RoughnessToLod(roughness: f32) -> f32
-{
+fn RoughnessToLod(roughness: f32) -> f32 {
     // Adapted from decompiled shader source.
     // Applies a curves adjustment to roughness.
     // Clamp roughness to avoid divide by 0.
@@ -625,8 +609,7 @@ fn RoughnessToLod(roughness: f32) -> f32
     return log2((1.0 / a) * 2.0 - 2.0) * -0.4545 + 4.0;
 }
 
-fn GetAngleFade(nDotV: f32, ior: f32, specularf0: f32) -> f32
-{
+fn GetAngleFade(nDotV: f32, ior: f32, specularf0: f32) -> f32 {
     // CustomFloat19 defines the IOR for a separate fresnel based fade.
     // The specular f0 value is used to set the minimum opacity.
     let f0AngleFade = GetF0FromIor(ior + 1.0);
@@ -634,11 +617,10 @@ fn GetAngleFade(nDotV: f32, ior: f32, specularf0: f32) -> f32
     return max(facingRatio, specularf0);
 }
 
-fn GetF0FromSpecular(specular: f32) -> f32
-{
+fn GetF0FromSpecular(specular: f32) -> f32 {
     // Specular gets remapped from [0.0,1.0] to [0.0,0.2].
     // The value is 0.16*0.2 = 0.032 if the PRM alpha is ignored.
-    if (per_material.has_boolean[1].x == 1u && per_material.custom_boolean[1].x == 0u) {
+    if per_material.has_boolean[1].x == 1u && per_material.custom_boolean[1].x == 0u {
         return 0.16 * 0.2;
     }
 
@@ -646,8 +628,7 @@ fn GetF0FromSpecular(specular: f32) -> f32
 }
 
 // Shadow mapping.
-fn GetShadow(light_position: vec4<f32>) -> f32
-{
+fn GetShadow(light_position: vec4<f32>) -> f32 {
     // compensate for the Y-flip difference between the NDC and texture coordinates
     let flipCorrection = vec2(0.5, -0.5);
     // compute texture coordinates for shadow lookup
@@ -662,10 +643,10 @@ fn GetShadow(light_position: vec4<f32>) -> f32
     // Translated variance shadow mapping from in game.
     let m1 = textureSample(texture_shadow, default_sampler, light_local).r;
     let m2 = textureSample(texture_shadow, default_sampler, light_local).g;
-    let sigma2 = clamp(m2 - m1*m1 + 0.0001, 0.0, 1.0);
+    let sigma2 = clamp(m2 - m1 * m1 + 0.0001, 0.0, 1.0);
     let tDif = max(currentDepth - m1, 0.0);
     // Approximate Pr(x >= t) using one of Chebychev's inqequalities.
-    var shadow = sigma2 / (sigma2 + tDif*tDif);
+    var shadow = sigma2 / (sigma2 + tDif * tDif);
     // TODO: Why is there a pow(shadow, 4.0) in game?
     shadow = pow(shadow, 4.0);
     return shadow;
@@ -702,7 +683,7 @@ fn vs_main(
     // Stages and fighters use different SH coefficients.
     // TODO: The easiest is to just update a global SH Coefficients buffer for now.
     out.sh_lighting = vec4(0.0);
-    if (per_material.lighting_settings.y == 1u) {
+    if per_material.lighting_settings.y == 1u {
         let shNormal = vec4(normalize(buffer0.normal0.xyz), 1.0);
         let shAmbientR = dot(shNormal, vec4(0.14186, 0.04903, -0.082, 1.11054));
         let shAmbientG = dot(shNormal, vec4(0.14717, 0.03699, -0.08283, 1.11036));
@@ -713,22 +694,22 @@ fn vs_main(
     // TODO: Also apply transforms to the debug shader?
     var uvTransform1 = vec4(1.0, 1.0, 0.0, 0.0);
     // TODO: Check all channels?
-    if (per_material.has_vector[6].x == 1u) {
+    if per_material.has_vector[6].x == 1u {
         uvTransform1 = per_material.custom_vector[6];
     }
 
     var uvTransform2 = vec4(1.0, 1.0, 0.0, 0.0);
-    if (per_material.has_vector[31].x == 1u) {
+    if per_material.has_vector[31].x == 1u {
         uvTransform2 = per_material.custom_vector[31];
     }
 
     var uvTransform3 = vec4(1.0, 1.0, 0.0, 0.0);
-    if (per_material.has_vector[32].x == 1u) {
+    if per_material.has_vector[32].x == 1u {
         uvTransform3 = per_material.custom_vector[32];
     }
 
     var uvTransformDualNormal = vec4(1.0, 1.0, 0.0, 0.0);
-    if (per_material.has_vector[34].x == 1u) {
+    if per_material.has_vector[34].x == 1u {
         uvTransformDualNormal = per_material.custom_vector[34];
     }
 
@@ -737,13 +718,13 @@ fn vs_main(
 
     // Sprite sheet params.
     // Perform this in the fragment shader to avoid affecting debug modes.
-    if (per_material.has_vector[18].x == 1u) {
+    if per_material.has_vector[18].x == 1u {
         let columnCount = round(per_material.custom_vector[18].x);
         let rowCount = round(per_material.custom_vector[18].y);
         let spriteCount = round(per_material.custom_vector[18].w);
         var spriteIndex = 1.0;
 
-        if (per_material.custom_boolean[9].x == 1u) {
+        if per_material.custom_boolean[9].x == 1u {
             map1 /= round(per_material.custom_vector[18].xy);
             spriteIndex = (round(per_material.custom_vector[18].z) - 1.0) % spriteCount;
         }
@@ -764,13 +745,13 @@ fn vs_main(
     out.uv_set_uv_set1 = vec4(uvSet, uvSet1);
     out.uv_set2_bake1 = vec4(uvSet2, buffer1.bake1.xy);
 
-    if (render_settings.scale_vertex_color.x == 1u) {
+    if render_settings.scale_vertex_color.x == 1u {
         // Apply color scaling since the attribute is stored as four bytes.
         // This allows values greater than the normal 0.0 to 1.0 range.
         out.color_set1 = buffer1.color_set1 * 2.0;
         out.color_set2_combined = (buffer1.color_set2_combined * buffer1.color_set2_combined) * 7.0;
         out.color_set3 = buffer1.color_set3 * 2.0;
-        out.color_set4 =  buffer1.color_set4 * 2.0;
+        out.color_set4 = buffer1.color_set4 * 2.0;
         out.color_set5 = buffer1.color_set5 * 3.0;
         out.color_set6 = buffer1.color_set6 * 3.0;
         out.color_set7 = buffer1.color_set7;
@@ -779,7 +760,7 @@ fn vs_main(
         out.color_set1 = buffer1.color_set1;
         out.color_set2_combined = buffer1.color_set2_combined;
         out.color_set3 = buffer1.color_set3;
-        out.color_set4 =  buffer1.color_set4;
+        out.color_set4 = buffer1.color_set4;
         out.color_set5 = buffer1.color_set5;
         out.color_set6 = buffer1.color_set6;
         out.color_set7 = buffer1.color_set7;
@@ -807,13 +788,12 @@ fn vs_uv(
     return vec4(uv, 0.0, 1.0);
 }
 
-fn ScreenCheckerBoard(screenPosition: vec2<f32>) -> f32
-{
+fn ScreenCheckerBoard(screenPosition: vec2<f32>) -> f32 {
     // Port of in game shader code for screen checkerboard.
     let x = screenPosition.x - 16.0 * floor(screenPosition.x / 16.0);
     let y = screenPosition.y - 16.0 * floor(screenPosition.y / 16.0);
 
-    if ((x <= 8.0 && y >= 8.0) || (x >= 8.0 && y < 8.0)) {
+    if (x <= 8.0 && y >= 8.0) || (x >= 8.0 && y < 8.0) {
         return 1.0;
     } else {
         return 0.0;
@@ -825,14 +805,14 @@ fn plasma_colormap(x: f32) -> vec3<f32> {
     // Colormaps generated from tables provided at
     // https://www.kennethmoreland.com/color-advice/
     let plasma8 = array(
-        vec3(0.05038205347059877,0.029801736499741757,0.5279751010495176),
-        vec3(0.32784692303604196,0.0066313933705768055,0.6402853293744383),
-        vec3(0.5453608398097519,0.03836817688235455,0.6472432548304646),
-        vec3(0.7246542772727967,0.1974236709187686,0.5379281037132716),
-        vec3(0.8588363515132411,0.35929521887338184,0.407891799954962),
-        vec3(0.9557564842476064,0.5338287173328614,0.2850080723374925),
-        vec3(0.9945257260387773,0.7382691276441445,0.16745985897148677),
-        vec3(0.9400151278782742,0.9751557856205376,0.131325887773911),
+        vec3(0.05038205347059877, 0.029801736499741757, 0.5279751010495176),
+        vec3(0.32784692303604196, 0.0066313933705768055, 0.6402853293744383),
+        vec3(0.5453608398097519, 0.03836817688235455, 0.6472432548304646),
+        vec3(0.7246542772727967, 0.1974236709187686, 0.5379281037132716),
+        vec3(0.8588363515132411, 0.35929521887338184, 0.407891799954962),
+        vec3(0.9557564842476064, 0.5338287173328614, 0.2850080723374925),
+        vec3(0.9945257260387773, 0.7382691276441445, 0.16745985897148677),
+        vec3(0.9400151278782742, 0.9751557856205376, 0.131325887773911),
     );
 
     // Use an array to avoid adding another texture.
@@ -966,26 +946,26 @@ fn fs_debug(in: VertexOutput) -> @location(0) vec4<f32> {
 
     // TODO: Apply normal maps and convert to view space.
     var fragmentNormal = normal;
-    if (per_material.has_texture[4].x == 1u) {
+    if per_material.has_texture[4].x == 1u {
         var nor = textureSample(texture4, sampler4, map1);
         // TODO: Simpler way to toggle channels?
-        if (render_settings.render_nor.r == 0u) {
+        if render_settings.render_nor.r == 0u {
             nor.r = 0.5;
         }
-        if (render_settings.render_nor.g == 0u) {
+        if render_settings.render_nor.g == 0u {
             nor.g = 0.5;
         }
-        if (render_settings.render_nor.b == 0u) {
+        if render_settings.render_nor.b == 0u {
             nor.b = 0.0;
         }
-        if (render_settings.render_nor.a == 0u) {
+        if render_settings.render_nor.a == 0u {
             nor.a = 1.0;
         }
         fragmentNormal = GetBumpMapNormal(normal, tangent, bitangent, nor);
     }
 
     var prm = vec4(0.0, 0.0, 1.0, 0.0);
-    if (per_material.has_texture[6].x == 1u) {
+    if per_material.has_texture[6].x == 1u {
         prm = textureSample(texture6, sampler6, map1);
     }
 
@@ -1083,7 +1063,7 @@ fn fs_debug(in: VertexOutput) -> @location(0) vec4<f32> {
         //     outColor = textureSample(texture16, sampler16, map1);
         // }
         case 27u: {
-            if (render_settings.render_uv_pattern.x == 1u) {
+            if render_settings.render_uv_pattern.x == 1u {
                 outColor = textureSample(uv_pattern, default_sampler, map1);
             } else {
                 // Use fract to remap values to 0.0 to 1.0 similar to a repeat wrap mode.
@@ -1091,28 +1071,28 @@ fn fs_debug(in: VertexOutput) -> @location(0) vec4<f32> {
             }
         }
         case 28u: {
-            if (render_settings.render_uv_pattern.x == 1u) {
+            if render_settings.render_uv_pattern.x == 1u {
                 outColor = textureSample(uv_pattern, default_sampler, bake1);
             } else {
                 outColor = vec4(pow(fract(bake1), vec2(2.2)), 1.0, 1.0);
             }
         }
         case 29u: {
-            if (render_settings.render_uv_pattern.x == 1u) {
+            if render_settings.render_uv_pattern.x == 1u {
                 outColor = textureSample(uv_pattern, default_sampler, uvSet);
             } else {
                 outColor = vec4(pow(fract(uvSet), vec2(2.2)), 1.0, 1.0);
             }
         }
         case 30u: {
-            if (render_settings.render_uv_pattern.x == 1u) {
+            if render_settings.render_uv_pattern.x == 1u {
                 outColor = textureSample(uv_pattern, default_sampler, uvSet1);
             } else {
                 outColor = vec4(pow(fract(uvSet1), vec2(2.2)), 1.0, 1.0);
             }
         }
         case 31u: {
-            if (render_settings.render_uv_pattern.x == 1u) {
+            if render_settings.render_uv_pattern.x == 1u {
                 outColor = textureSample(uv_pattern, default_sampler, uvSet2);
             } else {
                 outColor = vec4(pow(fract(uvSet2), vec2(2.2)), 1.0, 1.0);
@@ -1150,19 +1130,19 @@ fn fs_debug(in: VertexOutput) -> @location(0) vec4<f32> {
 
     // Use grayscale for single channels.
     let rgba = render_settings.render_rgba;
-    if (rgba.r == 1.0 && rgba.g == 0.0 && rgba.b == 0.0) {
+    if rgba.r == 1.0 && rgba.g == 0.0 && rgba.b == 0.0 {
         return vec4(outColor.rrr, 1.0);
     }
 
-    if (rgba.r == 0.0 && rgba.g == 1.0 && rgba.b == 0.0) {
+    if rgba.r == 0.0 && rgba.g == 1.0 && rgba.b == 0.0 {
         return vec4(outColor.ggg, 1.0);
     }
 
-    if (rgba.r == 0.0 && rgba.g == 0.0 && rgba.b == 1.0) {
+    if rgba.r == 0.0 && rgba.g == 0.0 && rgba.b == 1.0 {
         return vec4(outColor.bbb, 1.0);
     }
 
-    if (rgba.a == 1.0 && rgba.r == 0.0 && rgba.g == 0.0 && rgba.b == 0.0) {
+    if rgba.a == 1.0 && rgba.r == 0.0 && rgba.g == 0.0 && rgba.b == 0.0 {
         return vec4(outColor.aaa, 1.0);
     }
 
@@ -1229,9 +1209,9 @@ fn GetPbrParams(in: VertexOutput, is_front: bool) -> PbrParams {
     out.reflectionVector = reflectionVector;
 
     out.nor = vec4(0.5, 0.5, 1.0, 1.0);
-    if (per_material.has_texture[4].x == 1u) {
+    if per_material.has_texture[4].x == 1u {
         out.nor = textureSample(texture4, sampler4, map1);
-        if (per_material.has_vector[34].x == 1u) {
+        if per_material.has_vector[34].x == 1u {
             // The second layer is added to the first layer.
             // TODO: These shaders use the z channel as a normal map.
             let nor1 = out.nor.xyz;
@@ -1240,23 +1220,23 @@ fn GetPbrParams(in: VertexOutput, is_front: bool) -> PbrParams {
         }
 
         // TODO: Simpler way to toggle channels?
-        if (render_settings.render_nor.r == 0u) {
+        if render_settings.render_nor.r == 0u {
             out.nor.r = 0.5;
         }
-        if (render_settings.render_nor.g == 0u) {
+        if render_settings.render_nor.g == 0u {
             out.nor.g = 0.5;
         }
-        if (render_settings.render_nor.b == 0u) {
+        if render_settings.render_nor.b == 0u {
             out.nor.b = 0.0;
         }
-        if (render_settings.render_nor.a == 0u) {
+        if render_settings.render_nor.a == 0u {
             out.nor.a = 1.0;
         }
     }
 
     // TODO: is this the right place to calculate this?
     var fragmentNormal = normal;
-    if (per_material.has_texture[4].x == 1u) {
+    if per_material.has_texture[4].x == 1u {
         fragmentNormal = GetBumpMapNormal(normal, tangent, bitangent, out.nor);
     }
 
@@ -1264,7 +1244,7 @@ fn GetPbrParams(in: VertexOutput, is_front: bool) -> PbrParams {
     bitangent = GetBitangent(fragmentNormal, tangent, in.tangent.w);
 
     // TODO: Investigate lighting for double sided materials with culling disabled.
-    if (!is_front) {
+    if !is_front {
         fragmentNormal = fragmentNormal * -1.0;
     }
 
@@ -1274,7 +1254,7 @@ fn GetPbrParams(in: VertexOutput, is_front: bool) -> PbrParams {
 
     // Check if the factor is non zero to prevent artifacts.
     var transitionFactor = 0.0;
-    if ((render_settings.transition_factor.x > 0.0) && (out.nor.b >= (1.0 - render_settings.transition_factor.x))) {
+    if (render_settings.transition_factor.x > 0.0) && (out.nor.b >= (1.0 - render_settings.transition_factor.x)) {
         transitionFactor = 1.0;
     }
 
@@ -1318,7 +1298,6 @@ fn GetPbrParams(in: VertexOutput, is_front: bool) -> PbrParams {
             transitionCustomVector30 = vec4(0.5, 4.0, 0.0, 0.0);
         }
         default: {
-
         }
     }
 
@@ -1329,19 +1308,19 @@ fn GetPbrParams(in: VertexOutput, is_front: bool) -> PbrParams {
 
     var prm = vec4(0.0, 0.0, 1.0, 0.0);
     let hasPrm = per_material.has_texture[6].x == 1u;
-    if (hasPrm) {
+    if hasPrm {
         prm = textureSample(texture6, sampler6, map1);
         // TODO: Simpler way to toggle channels?
-        if (render_settings.render_prm.r == 0u) {
+        if render_settings.render_prm.r == 0u {
             prm.r = 0.0;
         }
-        if (render_settings.render_prm.g == 0u) {
+        if render_settings.render_prm.g == 0u {
             prm.g = 1.0;
         }
-        if (render_settings.render_prm.b == 0u) {
+        if render_settings.render_prm.b == 0u {
             prm.b = 1.0;
         }
-        if (render_settings.render_prm.a == 0u) {
+        if render_settings.render_prm.a == 0u {
             prm.a = 0.16;
         }
     }
@@ -1349,19 +1328,19 @@ fn GetPbrParams(in: VertexOutput, is_front: bool) -> PbrParams {
     // TODO: Is there a cleaner way of writing this?
     let vector47 = per_material.custom_vector[47];
     var hasVector47 = false;
-    if (per_material.has_vector[47].x == 1u) {
+    if per_material.has_vector[47].x == 1u {
         prm.x = vector47.x;
         hasVector47 = true;
     }
-    if (per_material.has_vector[47].y == 1u) {
+    if per_material.has_vector[47].y == 1u {
         prm.y = vector47.y;
         hasVector47 = true;
     }
-    if (per_material.has_vector[47].z == 1u) {
+    if per_material.has_vector[47].z == 1u {
         prm.z = vector47.z;
         hasVector47 = true;
     }
-    if (per_material.has_vector[47].w == 1u) {
+    if per_material.has_vector[47].w == 1u {
         prm.w = vector47.w;
         hasVector47 = true;
     }
@@ -1375,7 +1354,7 @@ fn GetPbrParams(in: VertexOutput, is_front: bool) -> PbrParams {
     out.sss_blend = out.sss_blend * prm.r;
 
     // Skin shaders use metalness for masking the fake SSS effect.
-    if (per_material.has_vector[30].x == 1u) {
+    if per_material.has_vector[30].x == 1u {
         out.metalness = 0.0;
     }
 
@@ -1429,15 +1408,15 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) is_front: bool) -> @location
 
 
     var shadow = 1.0;
-    if (render_settings.render_shadows.x == 1u && per_material.lighting_settings.z == 1u) {
+    if render_settings.render_shadows.x == 1u && per_material.lighting_settings.z == 1u {
         shadow = GetShadow(in.light_position);
     }
 
     var outAlpha = params.albedo.a * params.emission.a;
-    if (per_material.has_vector[0].x == 1u) {
+    if per_material.has_vector[0].x == 1u {
         outAlpha = max(params.albedo.a * params.emission.a, per_material.custom_vector[0].x);
     }
-    if (per_material.shader_settings.x == 1u && outAlpha < 0.5) {
+    if per_material.shader_settings.x == 1u && outAlpha < 0.5 {
         discard;
     }
 
@@ -1460,38 +1439,38 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) is_front: bool) -> @location
     let specularPass = SpecularTerm(tangent, bitangent, nDotH, max(nDotL, 0.0), nDotV, halfAngle, params.roughness, specularIbl, kDirect, kIndirect);
 
     var outColor = vec3(0.0, 0.0, 0.0);
-    if (render_settings.render_diffuse.x == 1u) {
+    if render_settings.render_diffuse.x == 1u {
         let kDiffuse = max(vec3(1.0 - params.metalness), vec3(0.0));
         outColor = outColor + (diffusePass * kDiffuse) / 3.14159;
     }
 
     // Assume materials without PRM omit the specular code entirely.
-    if (render_settings.render_specular.x == 1u && params.has_specular) {
+    if render_settings.render_specular.x == 1u && params.has_specular {
         outColor = outColor + specularPass * params.ambient_occlusion;
     }
 
-    if (render_settings.render_emission.x == 1u) {
+    if render_settings.render_emission.x == 1u {
         // TODO: Emission is weakened somehow?
         outColor = outColor + EmissionTerm(params.emission) * 0.5;
     }
 
     // TODO: What affects rim lighting intensity?
-    if (render_settings.render_rim_lighting.x == 1u) {
+    if render_settings.render_rim_lighting.x == 1u {
         outColor = GetRimBlend(outColor, params.albedo.rgb, nDotV, max(nDotL, 0.0), shadow * params.nor.a, in.sh_lighting.rgb);
     }
 
     // TODO: Check all channels?
-    if (per_material.has_vector[8].x == 1u) {
+    if per_material.has_vector[8].x == 1u {
         outColor = outColor * per_material.custom_vector[8].rgb;
         outAlpha = outAlpha * per_material.custom_vector[8].a;
     }
 
-    if (per_material.has_color_set1234.x == 1u && render_settings.render_vertex_color.x == 1u) {
+    if per_material.has_color_set1234.x == 1u && render_settings.render_vertex_color.x == 1u {
         outColor = outColor * colorSet1.rgb;
         outAlpha = outAlpha * colorSet1.a;
     }
 
-    if (per_material.has_color_set1234.z == 1u && render_settings.render_vertex_color.x == 1u) {
+    if per_material.has_color_set1234.z == 1u && render_settings.render_vertex_color.x == 1u {
         outColor = outColor * colorSet3.rgb;
         outAlpha = outAlpha * colorSet3.a;
     }
@@ -1512,17 +1491,17 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) is_front: bool) -> @location
 
     outColor = mix(outColor, stage_uniforms.scene_attributes.custom_vector[1].rgb, fogIntensity * 0.1);
 
-    if (per_material.has_float[19].x == 1u) {
+    if per_material.has_float[19].x == 1u {
         outAlpha = GetAngleFade(nDotV, per_material.custom_float[19].x, specularF0);
     }
 
     // Premultiplied alpha.
-    if (per_material.shader_settings.y == 1u) {
+    if per_material.shader_settings.y == 1u {
         outColor = outColor * outAlpha;
     }
 
     // Alpha override.
-    if (per_material.has_boolean[2].x == 1u && per_material.custom_boolean[2].x == 1u) {
+    if per_material.has_boolean[2].x == 1u && per_material.custom_boolean[2].x == 1u {
         outAlpha = 0.0;
     }
 

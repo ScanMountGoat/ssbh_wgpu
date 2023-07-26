@@ -29,8 +29,7 @@ var bloom_texture: texture_2d<f32>;
 @group(0) @binding(5)
 var bloom_sampler: sampler;
 
-fn GetPostProcessingResult(colorLinear: vec3<f32>) -> vec3<f32>
-{
+fn GetPostProcessingResult(colorLinear: vec3<f32>) -> vec3<f32> {
     let srgb = pow(colorLinear, vec3(0.4545449912548065));
     var result = srgb * 0.9375 + 0.03125;
 
@@ -45,9 +44,8 @@ fn GetPostProcessingResult(colorLinear: vec3<f32>) -> vec3<f32>
 }
 
 // TODO: Is this the same computation as in game?
-fn GetSrgb(colorLinear: f32) -> f32
-{
-    if (colorLinear <= 0.00031308) {
+fn GetSrgb(colorLinear: f32) -> f32 {
+    if colorLinear <= 0.00031308 {
         return 12.92 * colorLinear;
     } else {
         return 1.055 * pow(colorLinear, (1.0 / 2.4)) - 0.055;

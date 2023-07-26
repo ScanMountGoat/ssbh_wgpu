@@ -46,7 +46,7 @@ fn vs_main(in: VertexInput) -> VertexOutput {
     var out: VertexOutput;
 
     var world_position = per_shape.start_transform * vec4(in.position.xyz, 1.0);
-    if (per_shape.bone_indices.x >= 0 && per_shape.bone_indices.x < 512) {
+    if per_shape.bone_indices.x >= 0 && per_shape.bone_indices.x < 512 {
         world_position = world_transforms.transforms[per_shape.bone_indices.x] * world_position;
     }
 

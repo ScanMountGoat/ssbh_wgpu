@@ -56,7 +56,7 @@ struct SkinningSettings {
 fn main(@builtin(global_invocation_id) global_invocation_id: vec3<u32>) {
     let total = arrayLength(&src);
     let index = global_invocation_id.x;
-    if (index >= total) {
+    if index >= total {
         return;
     }
 
@@ -74,7 +74,7 @@ fn main(@builtin(global_invocation_id) global_invocation_id: vec3<u32>) {
     // Assume the object won't also have vertex weights.
     // The application of vertex weights "resets" the vectors.
     let parent_index = mesh_object_info.parent_index.x;
-    if (settings.enable_parenting.x == 1u && parent_index >= 0 && parent_index < 512) {
+    if settings.enable_parenting.x == 1u && parent_index >= 0 && parent_index < 512 {
         position = (world_transforms.transforms[parent_index] * vec4(position, 1.0)).xyz;
         normal = (world_transforms.transforms[parent_index] * vec4(normal, 0.0)).xyz;
         tangent = (world_transforms.transforms[parent_index] * vec4(tangent, 0.0)).xyz;
@@ -83,7 +83,7 @@ fn main(@builtin(global_invocation_id) global_invocation_id: vec3<u32>) {
     // Disabling skinning if the first influence is unused.
     // TODO: Is this accurate to the in game behavior?
     let influence = vertex_weights[index];
-    if (settings.enable_skinning.x == 1u && influence.bone_indices.x >= 0) {
+    if settings.enable_skinning.x == 1u && influence.bone_indices.x >= 0 {
         position = vec3(0.0);
         normal = vec3(0.0);
         tangent = vec3(0.0);
@@ -91,7 +91,7 @@ fn main(@builtin(global_invocation_id) global_invocation_id: vec3<u32>) {
         for (var i = 0; i < 4; i = i + 1) {
             // Only 511 influences are supported in game.
             let bone_index = influence.bone_indices[i];
-            if (bone_index >= 0 && bone_index < 511) {
+            if bone_index >= 0 && bone_index < 511 {
                 position = position + (transforms.transforms[bone_index] * vec4(vertex.position0.xyz, 1.0) * influence.weights[i]).xyz;
                 normal = normal + (transforms.transforms_inv_transpose[bone_index] * vec4(vertex.normal0.xyz, 0.0) * influence.weights[i]).xyz;
                 tangent = tangent + (transforms.transforms_inv_transpose[bone_index] * vec4(vertex.tangent0.xyz, 0.0) * influence.weights[i]).xyz;

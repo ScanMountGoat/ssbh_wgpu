@@ -26,5 +26,5 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     // This enables calculating smooth variance shadows in the model shader.
     let samples = textureGather(texture_shadow, sampler_shadow, in.uvs.xy);
     let m1 = (samples.x + samples.y + samples.y + samples.w) / 4.0;
-    return vec4(m1, m1*m1, 0.0, 0.0);
+    return vec4(m1, m1 * m1, 0.0, 0.0);
 }

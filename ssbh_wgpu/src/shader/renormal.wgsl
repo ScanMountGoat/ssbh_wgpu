@@ -15,7 +15,7 @@ struct VertexInput0 {
 fn main(@builtin(global_invocation_id) global_invocation_id: vec3<u32>) {
     let vertexCountLength = arrayLength(&vertices);
     let index = global_invocation_id.x;
-    if (index >= vertexCountLength) {
+    if index >= vertexCountLength {
         return;
     }
 
@@ -30,10 +30,10 @@ fn main(@builtin(global_invocation_id) global_invocation_id: vec3<u32>) {
     let vertexCount = i32(vertexCountLength);
     for (var i = 0; i < 9; i = i + 1) {
         let v0 = i32(index);
-        let v1 = adj_data[start + i*2 + 0];
-        let v2 = adj_data[start + i*2 + 1];
+        let v1 = adj_data[start + i * 2 + 0];
+        let v2 = adj_data[start + i * 2 + 1];
 
-        if ((v0 >= 0 && v0 < vertexCount) && (v1 >= 0 && v1 < vertexCount) && (v2 >= 0 && v2 < vertexCount)) {
+        if (v0 >= 0 && v0 < vertexCount) && (v1 >= 0 && v1 < vertexCount) && (v2 >= 0 && v2 < vertexCount) {
             let u = vertices[v1].position0 - vertices[v0].position0;
             let v = vertices[v2].position0 - vertices[v0].position0;
             renormal = renormal + cross(u.xyz, v.xyz);

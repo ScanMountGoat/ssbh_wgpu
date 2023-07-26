@@ -76,9 +76,9 @@ fn fs_main(in: VertexOutput) -> FragmentOutput {
     out.depth = clip_depth;
 
     // Restrict the grid above the XZ-plane.
-    if (t > 0.0) {
+    if t > 0.0 {
         // Increase the depth fade since the far clip distance is so large.
-        let depth_fade = max(1.0 - linear_depth_normalized*500.0, 0.0);
+        let depth_fade = max(1.0 - linear_depth_normalized * 500.0, 0.0);
         var alpha = max(1.0 - grid_line, 0.0) * depth_fade * 0.5;
         var color = vec3(1.0);
 
@@ -86,12 +86,12 @@ fn fs_main(in: VertexOutput) -> FragmentOutput {
         alpha = alpha * (1.0 - abs(t));
 
         // x-axis
-        if (position.z > -scale * minz && position.z < scale * minz) {
+        if position.z > -scale * minz && position.z < scale * minz {
             color = vec3(1.0, 0.0, 0.0);
         }
 
         // z-axis.
-        if (position.x > -scale * minx && position.x < scale * minx) {
+        if position.x > -scale * minx && position.x < scale * minx {
             color = vec3(0.0, 0.0, 1.0);
         }
 
