@@ -618,7 +618,7 @@ mod tests {
         expected.custom_boolean[5] = glam::UVec4::new(1, 0, 0, 0);
         expected.custom_float[3] = glam::vec4(0.7, 0.0, 0.0, 0.0);
         // This is based on the database rather than the material.
-        expected.has_texture[0] = glam::UVec4::new(1, 0, 0, 0);
+        expected.has_texture[0] = glam::UVec4::new(1, 1, 1, 0);
         expected.has_boolean[1] = glam::UVec4::new(1, 0, 0, 0);
         expected.has_float[2] = glam::UVec4::new(1, 0, 0, 0);
         expected.has_vector[8] = glam::UVec4::new(1, 0, 0, 1);
@@ -686,7 +686,7 @@ mod tests {
                             sh: false,
                             vertex_attributes: Vec::new(),
                             material_parameters: vec![
-                                "Texture0".to_owned(),
+                                "Texture0.xyz".to_owned(),
                                 "CustomBoolean1".to_owned(),
                                 "CustomFloat2".to_owned(),
                                 "CustomVector8.xw".to_owned()

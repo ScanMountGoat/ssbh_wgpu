@@ -24,7 +24,7 @@ pub fn light_transform(rotation: glam::Quat, scale: glam::Vec3) -> glam::Mat4 {
     perspective_matrix * model_view
 }
 
-pub fn light_direction(rotation: glam::Quat) -> glam::Vec4 {
+fn light_direction(rotation: glam::Quat) -> glam::Vec4 {
     glam::Mat4::from_quat(rotation) * glam::Vec4::Z
 }
 
