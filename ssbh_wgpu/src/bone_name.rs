@@ -1,9 +1,9 @@
+use crate::{RenderModel, RGBA_COLOR_FORMAT};
 use glyph_brush::{ab_glyph::FontRef, DefaultSectionHasher};
-use ssbh_data::skel_data::SkelData;
 use wgpu_text::{BrushBuilder, TextBrush};
 
-use crate::{RenderModel, RGBA_COLOR_FORMAT};
-
+// TODO: use glyphon?
+// TODO: each bone uses a glyphon::Buffer for its name text?
 // TODO: Don't require a static lifetime?
 pub struct BoneNameRenderer {
     // TODO: Find a way to simplify this?
@@ -32,7 +32,7 @@ impl BoneNameRenderer {
         device: &wgpu::Device,
         queue: &wgpu::Queue,
         render_pass: &mut wgpu::RenderPass<'a>,
-        models: impl Iterator<Item = (&'a RenderModel, &'a SkelData)>,
+        models: &'a [RenderModel],
         width: u32,
         height: u32,
         mvp: glam::Mat4,
@@ -40,8 +40,8 @@ impl BoneNameRenderer {
     ) {
         if let Some(brush) = self.brush.as_mut() {
             // TODO: Optimize this?
-            for (model, skel) in models {
-                model.queue_bone_names(device, queue, skel, brush, width, height, mvp, font_size);
+            for model in models {
+                model.queue_bone_names(device, queue, brush, width, height, mvp, font_size);
             }
 
             brush.draw(render_pass);

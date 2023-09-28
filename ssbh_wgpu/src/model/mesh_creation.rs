@@ -116,6 +116,11 @@ impl<'a> RenderMeshSharedData<'a> {
             },
         );
 
+        let bone_names = self
+            .skel
+            .map(|skel| skel.bones.iter().map(|b| b.name.clone()).collect())
+            .unwrap_or_default();
+
         let RenderMeshData {
             meshes,
             material_data_by_label,
@@ -146,6 +151,7 @@ impl<'a> RenderMeshSharedData<'a> {
             animation_transforms: Box::new(animation_transforms),
             swing_render_data,
             per_model_bind_group,
+            bone_names,
         }
     }
 

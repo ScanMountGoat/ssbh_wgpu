@@ -51,14 +51,14 @@ pub struct RenderModel {
 
     per_model_bind_group: crate::shader::model::bind_groups::BindGroup1,
 
+    // Skeleton
     bone_render_data: BoneRenderData,
+    animation_transforms: Box<AnimationTransforms>,
+    bone_names: Vec<String>,
 
     swing_render_data: SwingRenderData,
 
     mesh_buffers: CombinedMeshBuffers,
-
-    // Used for text rendering.
-    animation_transforms: Box<AnimationTransforms>,
 }
 
 /// A view over the data for a single mesh object in the parent [RenderModel].
@@ -620,18 +620,17 @@ impl RenderModel {
         &self,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
-        skel: &SkelData,
         brush: &mut TextBrush<FontRef>,
         width: u32,
         height: u32,
         mvp: glam::Mat4,
         font_size: f32,
     ) {
-        let sections: Vec<_> = skel
-            .bones
+        let sections: Vec<_> = self
+            .bone_names
             .iter()
             .enumerate()
-            .map(|(i, bone)| {
+            .map(|(i, name)| {
                 let bone_world = *self
                     .animation_transforms
                     .world_transforms
@@ -644,7 +643,7 @@ impl RenderModel {
 
                 Section::default()
                     .add_text(
-                        (Text::new(&bone.name))
+                        (Text::new(name))
                             // TODO: Use the window's scale factor?
                             .with_scale(font_size)
                             .with_color([1.0, 1.0, 1.0, 1.0]),
