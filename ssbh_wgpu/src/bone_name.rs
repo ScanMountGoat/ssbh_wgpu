@@ -1,57 +1,129 @@
-use crate::{RenderModel, RGBA_COLOR_FORMAT};
-use glyph_brush::{ab_glyph::FontRef, DefaultSectionHasher};
-use wgpu_text::{BrushBuilder, TextBrush};
+use std::sync::Arc;
 
-// TODO: use glyphon?
-// TODO: each bone uses a glyphon::Buffer for its name text?
-// TODO: Don't require a static lifetime?
+use crate::{viewport::world_to_screen, RenderModel, RGBA_COLOR_FORMAT};
+use glam::Vec4Swizzles;
+use glyphon::{
+    Attrs, Buffer, Color, FontSystem, Metrics, Resolution, Shaping, SwashCache, TextArea,
+    TextAtlas, TextBounds, TextRenderer,
+};
+
 pub struct BoneNameRenderer {
-    // TODO: Find a way to simplify this?
-    brush: Option<TextBrush<FontRef<'static>, DefaultSectionHasher>>,
+    font_system: FontSystem,
+    cache: SwashCache,
+    atlas: TextAtlas,
+    renderer: TextRenderer,
+}
+
+struct BoneText {
+    buffer: Buffer,
+    left: f32,
+    top: f32,
 }
 
 impl BoneNameRenderer {
-    /// Initializes the renderer for the given dimensions and font data.
-    ///
-    /// The `font_bytes` should be the file contents of a `.ttf` font file.
-    /// If `font_bytes` is empty or is not a valid font, text rendering will be disabled.
-    pub fn new(device: &wgpu::Device, font_bytes: &'static [u8], width: u32, height: u32) -> Self {
-        // TODO: Log errors?
-        let brush = BrushBuilder::using_font_bytes(font_bytes)
-            .ok()
-            .map(|b| b.build(device, width, height, RGBA_COLOR_FORMAT));
-        Self { brush }
+    /// Initializes the renderer from the given `font_bytes` or tries to use system fonts if `None`.
+    pub fn new(device: &wgpu::Device, queue: &wgpu::Queue, font_bytes: Option<Vec<u8>>) -> Self {
+        let font_system = font_bytes
+            .map(|font_bytes| {
+                FontSystem::new_with_fonts(std::iter::once(glyphon::fontdb::Source::Binary(
+                    Arc::new(font_bytes),
+                )))
+            })
+            .unwrap_or_else(|| FontSystem::new());
+
+        let cache = SwashCache::new();
+        let mut atlas = TextAtlas::new(device, queue, RGBA_COLOR_FORMAT);
+        let renderer =
+            TextRenderer::new(&mut atlas, device, wgpu::MultisampleState::default(), None);
+
+        Self {
+            font_system,
+            cache,
+            atlas,
+            renderer,
+        }
     }
 
     /// Renders the bone names for skeleton in `skels` for each model in `render_models` to `output_view`.
     ///
-    /// The `output_view` should have the format [RGBA_COLOR_FORMAT].
-    /// The output is not cleared before drawing.
-    pub fn render_skeleton_names<'a>(
+    /// The `render_pass` should have the format [RGBA_COLOR_FORMAT].
+    /// The pass is not cleared before drawing.
+    pub fn render_bone_names<'a>(
         &'a mut self,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
         render_pass: &mut wgpu::RenderPass<'a>,
-        models: &'a [RenderModel],
+        models: &[RenderModel],
         width: u32,
         height: u32,
         mvp: glam::Mat4,
         font_size: f32,
     ) {
-        if let Some(brush) = self.brush.as_mut() {
-            // TODO: Optimize this?
-            for model in models {
-                model.queue_bone_names(device, queue, brush, width, height, mvp, font_size);
+        // TODO: create buffers ahead of time to avoid per frame allocations?
+        let mut bone_texts = Vec::new();
+        for model in models {
+            for (name, transform) in model.bone_names_animated_world_transforms() {
+                let bone_text =
+                    self.create_bone_text(name, transform, mvp, width, height, font_size);
+                bone_texts.push(bone_text);
             }
-
-            brush.draw(render_pass);
         }
+
+        let text_areas = bone_texts.iter().map(|b| TextArea {
+            buffer: &b.buffer,
+            left: b.left,
+            top: b.top,
+            scale: 1.0,
+            bounds: TextBounds {
+                left: 0,
+                top: 0,
+                right: width as i32,
+                bottom: height as i32,
+            },
+            default_color: Color::rgb(255, 255, 255),
+        });
+
+        // TODO: Is it worth only calling prepare when something changes?
+        self.renderer
+            .prepare(
+                device,
+                queue,
+                &mut self.font_system,
+                &mut self.atlas,
+                Resolution { width, height },
+                text_areas,
+                &mut self.cache,
+            )
+            .unwrap();
+
+        self.renderer.render(&self.atlas, render_pass).unwrap();
     }
 
-    /// A faster alternative to creating a new [BoneNameRenderer] with the desired size.
-    pub fn resize(&mut self, queue: &wgpu::Queue, width: u32, height: u32) {
-        if let Some(brush) = self.brush.as_mut() {
-            brush.resize_view(width as f32, height as f32, queue);
-        }
+    // TODO: Should these be cached and stored?
+    fn create_bone_text(
+        &mut self,
+        text: &str,
+        transform: glam::Mat4,
+        mvp: glam::Mat4,
+        width: u32,
+        height: u32,
+        font_size: f32,
+    ) -> BoneText {
+        let mut buffer = Buffer::new(
+            &mut self.font_system,
+            Metrics {
+                font_size,
+                line_height: font_size,
+            },
+        );
+        // TODO: Account for window scale factor?
+        buffer.set_size(&mut self.font_system, width as f32, height as f32);
+        buffer.set_text(&mut self.font_system, text, Attrs::new(), Shaping::Advanced);
+        buffer.shape_until_scroll(&mut self.font_system);
+
+        let position = transform * glam::vec4(0.0, 0.0, 0.0, 1.0);
+        let (left, top) = world_to_screen(position.xyz(), mvp, width, height);
+
+        BoneText { buffer, left, top }
     }
 }

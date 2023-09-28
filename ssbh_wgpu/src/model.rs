@@ -5,10 +5,8 @@ use crate::{
     swing::SwingPrc,
     swing_rendering::{draw_swing_collisions, SwingRenderData},
     vertex::CombinedMeshBuffers,
-    viewport::world_to_screen,
     ModelFolder, QueueExt, ShaderDatabase, SharedRenderData,
 };
-use glam::Vec4Swizzles;
 use log::{debug, info};
 use mesh_creation::{
     material_data, Material, MeshBufferAccess, RenderMeshSharedData, TransformBuffers,
@@ -20,11 +18,6 @@ use ssbh_data::{
     prelude::*,
 };
 use std::collections::{HashMap, HashSet};
-use wgpu_text::{
-    font::FontRef,
-    section::{BuiltInLineBreaker, Layout, Section, Text, VerticalAlign},
-    TextBrush,
-};
 
 mod mesh_creation;
 pub mod pipeline;
@@ -616,50 +609,18 @@ impl RenderModel {
         }
     }
 
-    pub(crate) fn queue_bone_names(
+    pub(crate) fn bone_names_animated_world_transforms(
         &self,
-        device: &wgpu::Device,
-        queue: &wgpu::Queue,
-        brush: &mut TextBrush<FontRef>,
-        width: u32,
-        height: u32,
-        mvp: glam::Mat4,
-        font_size: f32,
-    ) {
-        let sections: Vec<_> = self
-            .bone_names
-            .iter()
-            .enumerate()
-            .map(|(i, name)| {
-                let bone_world = *self
-                    .animation_transforms
-                    .world_transforms
-                    .get(i)
-                    .unwrap_or(&glam::Mat4::IDENTITY);
+    ) -> impl Iterator<Item = (&String, glam::Mat4)> {
+        self.bone_names.iter().enumerate().map(|(i, name)| {
+            let transform = *self
+                .animation_transforms
+                .world_transforms
+                .get(i)
+                .unwrap_or(&glam::Mat4::IDENTITY);
 
-                let position = bone_world * glam::vec4(0.0, 0.0, 0.0, 1.0);
-                let (position_x_screen, position_y_screen) =
-                    world_to_screen(position.xyz(), mvp, width, height);
-
-                Section::default()
-                    .add_text(
-                        (Text::new(name))
-                            // TODO: Use the window's scale factor?
-                            .with_scale(font_size)
-                            .with_color([1.0, 1.0, 1.0, 1.0]),
-                    )
-                    .with_bounds((width as f32, height as f32))
-                    .with_layout(
-                        Layout::default()
-                            .v_align(VerticalAlign::Center)
-                            .line_breaker(BuiltInLineBreaker::AnyCharLineBreaker),
-                    )
-                    // Add a small offset to the bone position to reduce overlaps.
-                    .with_screen_position((position_x_screen + 10.0, position_y_screen))
-            })
-            .collect();
-
-        brush.queue(device, queue, sections).unwrap();
+            (name, transform)
+        })
     }
 
     fn set_mesh_buffers<'a>(&'a self, render_pass: &mut wgpu::RenderPass<'a>, mesh: &RenderMesh) {
