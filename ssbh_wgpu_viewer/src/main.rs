@@ -3,6 +3,7 @@ use ssbh_data::prelude::*;
 use ssbh_wgpu::animation::camera::animate_camera;
 use ssbh_wgpu::next_frame;
 use ssbh_wgpu::swing::SwingPrc;
+use ssbh_wgpu::BoneNameRenderer;
 use ssbh_wgpu::CameraTransforms;
 use ssbh_wgpu::DebugMode;
 use ssbh_wgpu::ModelFolder;
@@ -59,6 +60,7 @@ struct State {
     render_models: Vec<RenderModel>,
 
     renderer: SsbhRenderer,
+    name_renderer: BoneNameRenderer,
 
     // TODO: Separate camera/window state struct?
     size: winit::dpi::PhysicalSize<u32>,
@@ -95,6 +97,7 @@ impl State {
         prc: Option<PathBuf>,
         camera_anim: Option<PathBuf>,
         render_folder: Option<PathBuf>,
+        font_path: Option<PathBuf>,
     ) -> Self {
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
             backends: wgpu::Backends::all(),
@@ -192,6 +195,10 @@ impl State {
             renderer.update_color_lut(&device, &queue, &nutexb);
         }
 
+        let font_bytes = font_path.map(|font_path| std::fs::read(font_path).unwrap());
+
+        let name_renderer = BoneNameRenderer::new(&device, &queue, font_bytes);
+
         Self {
             surface,
             device,
@@ -214,6 +221,7 @@ impl State {
             shared_data,
             is_playing: false,
             render: RenderSettings::default(),
+            name_renderer,
         }
     }
 
@@ -457,23 +465,11 @@ impl State {
             }
 
             if let Some(anim) = &self.camera_animation {
-                let aspect = self.size.width as f32 / self.size.height as f32;
-                let screen_dimensions = glam::vec4(
-                    self.size.width as f32,
-                    self.size.height as f32,
-                    scale_factor as f32,
-                    0.0,
-                );
-
-                if let Some(transforms) = animate_camera(
-                    anim,
-                    self.current_frame,
-                    aspect,
-                    screen_dimensions,
-                    FOV_Y,
-                    NEAR_CLIP,
-                    FAR_CLIP,
-                ) {
+                if let Some(values) =
+                    animate_camera(anim, self.current_frame, FOV_Y, NEAR_CLIP, FAR_CLIP)
+                {
+                    let transforms =
+                        values.to_transforms(self.size.width, self.size.height, scale_factor);
                     self.renderer.update_camera(&self.queue, transforms);
                 }
             }
@@ -503,6 +499,23 @@ impl State {
                 .render_swing(&mut final_pass, model, &HashSet::new());
         }
 
+        // TODO: make name rendering optional.
+        // TODO: Avoid recalculating this?
+        let (_, _, mvp) =
+            calculate_camera_pos_mvp(self.size, self.translation_xyz, self.rotation_xyz);
+
+        // TODO: This doesn't work properly with camera animations.
+        self.name_renderer.render_bone_names(
+            &self.device,
+            &self.queue,
+            &mut final_pass,
+            &self.render_models,
+            self.size.width,
+            self.size.height,
+            mvp,
+            18.0,
+        );
+
         drop(final_pass);
 
         self.queue.submit([encoder.finish()]);
@@ -529,6 +542,7 @@ fn main() {
     let prc_path: Option<PathBuf> = args.opt_value_from_str("--swing").unwrap();
     let camera_anim_path: Option<PathBuf> = args.opt_value_from_str("--camera-anim").unwrap();
     let render_folder_path: Option<PathBuf> = args.opt_value_from_str("--render-folder").unwrap();
+    let font_path: Option<PathBuf> = args.opt_value_from_str("--font").unwrap();
 
     let event_loop = EventLoop::new();
     let window = WindowBuilder::new()
@@ -543,6 +557,7 @@ fn main() {
         prc_path,
         camera_anim_path,
         render_folder_path,
+        font_path,
     ));
 
     // Initialize the camera buffer.

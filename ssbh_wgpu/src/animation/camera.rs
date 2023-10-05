@@ -1,17 +1,61 @@
 use super::{frame_value, AnimTransform};
 use crate::CameraTransforms;
+use glam::{vec4, Mat4, Quat, Vec3};
 use ssbh_data::anim_data::{AnimData, GroupType, TrackValues};
 
+pub struct CameraAnimValues {
+    pub scale: Vec3,
+    pub rotation: Quat,
+    pub translation: Vec3,
+    pub fov_y_radians: f32,
+    pub near_clip: f32,
+    pub far_clip: f32,
+}
+
+impl CameraAnimValues {
+    /// Convert the animation values into the format expected by [SsbhRenderer](crate::SsbhRenderer).
+    pub fn to_transforms(&self, width: u32, height: u32, scale_factor: f64) -> CameraTransforms {
+        let translation = Mat4::from_translation(self.translation);
+        let rotation = Mat4::from_quat(self.rotation);
+        let scale = Mat4::from_scale(self.scale);
+
+        // A slightly unusual transform order of RTS instead of TRS.
+        let model_view_matrix = rotation * translation * scale;
+
+        let aspect_ratio = width as f32 / height as f32;
+
+        let perspective_matrix = Mat4::perspective_rh(
+            self.fov_y_radians,
+            aspect_ratio,
+            self.near_clip,
+            self.far_clip,
+        );
+        let mvp_matrix = perspective_matrix * model_view_matrix;
+
+        let camera_pos = model_view_matrix.inverse().col(3);
+
+        let screen_dimensions = vec4(width as f32, height as f32, scale_factor as f32, 0.0);
+
+        CameraTransforms {
+            model_view_matrix,
+            mvp_matrix,
+            mvp_inv_matrix: mvp_matrix.inverse(),
+            camera_pos,
+            screen_dimensions,
+        }
+    }
+}
+
 /// Calculate the camera transform from the tracks in `anim` at the given `frame`.
+///
+/// If a value is not present in the anim, the provided default values are used.
 pub fn animate_camera(
     anim: &AnimData,
     frame: f32,
-    aspect_ratio: f32,
-    screen_dimensions: glam::Vec4,
     default_fov: f32,
     default_near_clip: f32,
     default_far_clip: f32,
-) -> Option<CameraTransforms> {
+) -> Option<CameraAnimValues> {
     // TODO: Do all camera animations have this structure?
     // TODO: Are all these values required?
     let transform_node = anim
@@ -57,7 +101,7 @@ pub fn animate_camera(
         })
         .unwrap_or(default_far_clip);
 
-    let fov = camera_node
+    let fov_y_radians = camera_node
         .and_then(|node| node.tracks.iter().find(|t| t.name == "FieldOfView"))
         .and_then(|track| match &track.values {
             TrackValues::Float(values) => Some(frame_value(values, frame)),
@@ -65,36 +109,28 @@ pub fn animate_camera(
         })
         .unwrap_or(default_fov);
 
-    // TODO: Why do we negate the translation?
-    let translation = glam::Mat4::from_translation(-transform.translation);
+    let scale = transform.scale;
+
     // TODO: Why do we negate w like for lighting rotations?
-    let rotation = glam::Mat4::from_quat(glam::quat(
-        transform.rotation.x,
-        transform.rotation.y,
-        transform.rotation.z,
-        -transform.rotation.w,
-    ));
-    let scale = glam::Mat4::from_scale(transform.scale);
+    let rotation = transform.rotation.conjugate();
 
-    let model_view_matrix = rotation * translation * scale;
+    // TODO: Why do we negate the translation?
+    let translation = -transform.translation;
 
-    let perspective_matrix = glam::Mat4::perspective_rh(fov, aspect_ratio, near_clip, far_clip);
-    let mvp_matrix = perspective_matrix * model_view_matrix;
-
-    let camera_pos = model_view_matrix.inverse().col(3);
-
-    Some(CameraTransforms {
-        model_view_matrix,
-        mvp_matrix,
-        mvp_inv_matrix: mvp_matrix.inverse(),
-        camera_pos,
-        screen_dimensions,
+    Some(CameraAnimValues {
+        scale,
+        rotation,
+        translation,
+        fov_y_radians,
+        near_clip,
+        far_clip,
     })
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
     use crate::assert_matrix_relative_eq;
     use ssbh_data::{
         anim_data::{GroupData, NodeData, TrackData, Transform, TransformFlags},
@@ -158,9 +194,9 @@ mod tests {
             ],
         };
 
-        let screen_dimensions = glam::vec4(1920.0, 1080.0, 1.0, 0.0);
-        let transform =
-            animate_camera(&anim, 0.0, 1.0, screen_dimensions, 0.5, 0.1, 1000.0).unwrap();
+        let transform = animate_camera(&anim, 0.0, 0.5, 0.1, 1000.0)
+            .unwrap()
+            .to_transforms(128, 128, 1.0);
 
         // The matrix output after comparing the viewport with in game screenshots.
         // TODO: Investigate why this works differently than skel transforms.
