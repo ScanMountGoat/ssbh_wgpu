@@ -484,11 +484,8 @@ pub fn next_frame(
 ) -> f32 {
     // Convert elapsed time to a delta in frames.
     // This relies on interpolation or frame skipping.
-    // TODO: How robust is this implementation?
-
     // TODO: Ensure 60hz monitors always advanced by exactly one frame per refresh?
-    let millis_per_frame = 1000.0f64 / 60.0f64;
-    let delta_t_frames = time_since_last_frame.as_millis() as f64 / millis_per_frame;
+    let delta_t_frames = time_since_last_frame.as_secs_f64() * 60.0;
 
     let mut next_frame = current_frame + (delta_t_frames as f32 * playback_speed);
 
