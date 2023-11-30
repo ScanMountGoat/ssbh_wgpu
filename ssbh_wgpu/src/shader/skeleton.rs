@@ -118,7 +118,9 @@ const _: () = assert!(
     "offset of PerBone.indices does not match WGSL"
 );
 pub mod bind_groups {
+    #[derive(Debug)]
     pub struct BindGroup0(wgpu::BindGroup);
+    #[derive(Debug)]
     pub struct BindGroupLayout0<'a> {
         pub camera: wgpu::BufferBinding<'a>,
     }
@@ -162,7 +164,9 @@ pub mod bind_groups {
             render_pass.set_bind_group(0, &self.0, &[]);
         }
     }
+    #[derive(Debug)]
     pub struct BindGroup1(wgpu::BindGroup);
+    #[derive(Debug)]
     pub struct BindGroupLayout1<'a> {
         pub world_transforms: wgpu::BufferBinding<'a>,
         pub bone_colors: wgpu::BufferBinding<'a>,
@@ -225,7 +229,9 @@ pub mod bind_groups {
             render_pass.set_bind_group(1, &self.0, &[]);
         }
     }
+    #[derive(Debug)]
     pub struct BindGroup2(wgpu::BindGroup);
+    #[derive(Debug)]
     pub struct BindGroupLayout2<'a> {
         pub per_bone: wgpu::BufferBinding<'a>,
     }
@@ -269,6 +275,7 @@ pub mod bind_groups {
             render_pass.set_bind_group(2, &self.0, &[]);
         }
     }
+    #[derive(Debug)]
     pub struct BindGroups<'a> {
         pub bind_group0: &'a BindGroup0,
         pub bind_group1: &'a BindGroup1,
@@ -313,6 +320,7 @@ pub const ENTRY_VS_BONE: &str = "vs_bone";
 pub const ENTRY_VS_JOINT: &str = "vs_joint";
 pub const ENTRY_FS_MAIN: &str = "fs_main";
 pub const ENTRY_FS_AXES: &str = "fs_axes";
+#[derive(Debug)]
 pub struct VertexEntry<const N: usize> {
     entry_point: &'static str,
     buffers: [wgpu::VertexBufferLayout<'static>; N],

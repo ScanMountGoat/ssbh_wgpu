@@ -5,7 +5,7 @@ edition = "2021"
 
 [dependencies]
 glam = { version = "0.22.0", features = ["bytemuck"] }
-wgpu = "0.16.0"
+wgpu = "0.18.0"
 bytemuck = { version = "1.13", features = [ "derive" ] }
 ssbh_data = { version = "0.17.0", features = ["strum"] }
 xmb_lib = { git = "https://github.com/ultimate-research/xmb_lib", rev = "c71253d" }
@@ -21,14 +21,14 @@ topological-sort = "0.2.2"
 encase = { version = "0.4.1", features = ["glam"] }
 memoffset = "0.9.0"
 indexmap = "1.9.2"
-glyphon = "0.3.0"
+glyphon = { git = "https://github.com/grovesNL/glyphon", rev = "f554de8" }
 
 [dev-dependencies]
 approx = "0.5.1"
 criterion = "0.3.5"
 
 [build-dependencies]
-wgsl_to_wgpu = "0.4.1"
+wgsl_to_wgpu = "0.5.0"
 
 [features]
 arbitrary = ["dep:arbitrary", "ssbh_data/arbitrary", "xmb_lib/arbitrary"]

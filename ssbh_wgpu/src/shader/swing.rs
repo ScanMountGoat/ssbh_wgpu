@@ -107,7 +107,9 @@ const _: () = assert!(
     "offset of PerShape.color does not match WGSL"
 );
 pub mod bind_groups {
+    #[derive(Debug)]
     pub struct BindGroup0(wgpu::BindGroup);
+    #[derive(Debug)]
     pub struct BindGroupLayout0<'a> {
         pub camera: wgpu::BufferBinding<'a>,
     }
@@ -151,7 +153,9 @@ pub mod bind_groups {
             render_pass.set_bind_group(0, &self.0, &[]);
         }
     }
+    #[derive(Debug)]
     pub struct BindGroup1(wgpu::BindGroup);
+    #[derive(Debug)]
     pub struct BindGroupLayout1<'a> {
         pub world_transforms: wgpu::BufferBinding<'a>,
     }
@@ -197,7 +201,9 @@ pub mod bind_groups {
             render_pass.set_bind_group(1, &self.0, &[]);
         }
     }
+    #[derive(Debug)]
     pub struct BindGroup2(wgpu::BindGroup);
+    #[derive(Debug)]
     pub struct BindGroupLayout2<'a> {
         pub per_shape: wgpu::BufferBinding<'a>,
     }
@@ -241,6 +247,7 @@ pub mod bind_groups {
             render_pass.set_bind_group(2, &self.0, &[]);
         }
     }
+    #[derive(Debug)]
     pub struct BindGroups<'a> {
         pub bind_group0: &'a BindGroup0,
         pub bind_group1: &'a BindGroup1,
@@ -282,6 +289,7 @@ pub mod vertex {
 }
 pub const ENTRY_VS_MAIN: &str = "vs_main";
 pub const ENTRY_FS_MAIN: &str = "fs_main";
+#[derive(Debug)]
 pub struct VertexEntry<const N: usize> {
     entry_point: &'static str,
     buffers: [wgpu::VertexBufferLayout<'static>; N],

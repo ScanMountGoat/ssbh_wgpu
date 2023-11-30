@@ -734,10 +734,12 @@ impl SsbhRenderer {
                     resolve_target: None,
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
-                        store: true,
+                        store: wgpu::StoreOp::Store,
                     },
                 })],
                 depth_stencil_attachment: None,
+                timestamp_writes: None,
+                occlusion_query_set: None,
             });
         }
     }
@@ -750,10 +752,12 @@ impl SsbhRenderer {
                 resolve_target: None,
                 ops: wgpu::Operations {
                     load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
-                    store: true,
+                    store: wgpu::StoreOp::Store,
                 },
             })],
             depth_stencil_attachment: None,
+            timestamp_writes: None,
+            occlusion_query_set: None,
         });
         variance_shadow_pass.set_pipeline(&self.variance_shadow_pipeline);
         crate::shader::variance_shadow::bind_groups::set_bind_groups(
@@ -775,6 +779,7 @@ impl SsbhRenderer {
         // Modifying the vertex buffers once avoids redundant work in later passes.
         let mut skinning_pass = encoder.begin_compute_pass(&ComputePassDescriptor {
             label: Some("Skinning Pass"),
+            timestamp_writes: None,
         });
         skinning_pass.set_pipeline(&self.skinning_pipeline);
 
@@ -796,6 +801,7 @@ impl SsbhRenderer {
         // TODO: What is the performance cost of this?
         let mut renormal_pass = encoder.begin_compute_pass(&ComputePassDescriptor {
             label: Some("Renormal Pass"),
+            timestamp_writes: None,
         });
         renormal_pass.set_pipeline(&self.renormal_pipeline);
         for model in render_models {
@@ -822,17 +828,19 @@ impl SsbhRenderer {
                 resolve_target: Some(&self.pass_info.color.view),
                 ops: wgpu::Operations {
                     load: wgpu::LoadOp::Clear(self.clear_color()),
-                    store: true,
+                    store: wgpu::StoreOp::Store,
                 },
             })],
             depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
                 view: &self.pass_info.depth.view,
                 depth_ops: Some(wgpu::Operations {
                     load: wgpu::LoadOp::Clear(1.0),
-                    store: true,
+                    store: wgpu::StoreOp::Store,
                 }),
                 stencil_ops: None,
             }),
+            timestamp_writes: None,
+            occlusion_query_set: None,
         });
 
         self.set_scissor(&mut pass);
@@ -887,20 +895,22 @@ impl SsbhRenderer {
                 resolve_target: None,
                 ops: wgpu::Operations {
                     load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
-                    store: true,
+                    store: wgpu::StoreOp::Store,
                 },
             })],
             depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
                 view: &self.pass_info.silhouette_stencil.view,
                 depth_ops: Some(wgpu::Operations {
                     load: wgpu::LoadOp::Clear(1.0),
-                    store: true,
+                    store: wgpu::StoreOp::Store,
                 }),
                 stencil_ops: Some(wgpu::Operations {
                     load: wgpu::LoadOp::Clear(0xff),
-                    store: true,
+                    store: wgpu::StoreOp::Store,
                 }),
             }),
+            timestamp_writes: None,
+            occlusion_query_set: None,
         });
 
         self.set_scissor(&mut pass);
@@ -930,17 +940,19 @@ impl SsbhRenderer {
                 resolve_target: Some(&self.pass_info.color_final.view),
                 ops: wgpu::Operations {
                     load: wgpu::LoadOp::Clear(self.clear_color()),
-                    store: true,
+                    store: wgpu::StoreOp::Store,
                 },
             })],
             depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
                 view: &self.pass_info.depth.view,
                 depth_ops: Some(wgpu::Operations {
                     load: wgpu::LoadOp::Clear(1.0),
-                    store: true,
+                    store: wgpu::StoreOp::Store,
                 }),
                 stencil_ops: None,
             }),
+            timestamp_writes: None,
+            occlusion_query_set: None,
         });
 
         self.set_scissor(&mut pass);
@@ -997,7 +1009,7 @@ impl SsbhRenderer {
                 ops: wgpu::Operations {
                     // TODO: Combine with another pass to avoid loading.
                     load: wgpu::LoadOp::Load,
-                    store: true,
+                    store: wgpu::StoreOp::Store,
                 },
             })],
             // TODO: Make a function or constant for this since it is shared.
@@ -1006,13 +1018,15 @@ impl SsbhRenderer {
                 view: &self.pass_info.skel_depth_stencil.view,
                 depth_ops: Some(wgpu::Operations {
                     load: wgpu::LoadOp::Clear(1.0),
-                    store: true,
+                    store: wgpu::StoreOp::Store,
                 }),
                 stencil_ops: Some(wgpu::Operations {
                     load: wgpu::LoadOp::Clear(0x00),
-                    store: false,
+                    store: wgpu::StoreOp::Discard,
                 }),
             }),
+            timestamp_writes: None,
+            occlusion_query_set: None,
         });
 
         self.set_scissor(&mut pass);
@@ -1045,7 +1059,7 @@ impl SsbhRenderer {
                 resolve_target: None,
                 ops: wgpu::Operations {
                     load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
-                    store: true,
+                    store: wgpu::StoreOp::Store,
                 },
             })],
             // TODO: Make a function or constant for this since it is shared.
@@ -1053,13 +1067,15 @@ impl SsbhRenderer {
                 view: &self.pass_info.skel_depth_stencil.view,
                 depth_ops: Some(wgpu::Operations {
                     load: wgpu::LoadOp::Clear(1.0),
-                    store: true,
+                    store: wgpu::StoreOp::Store,
                 }),
                 stencil_ops: Some(wgpu::Operations {
                     load: wgpu::LoadOp::Clear(0xff),
-                    store: true,
+                    store: wgpu::StoreOp::Store,
                 }),
             }),
+            timestamp_writes: None,
+            occlusion_query_set: None,
         });
 
         self.set_scissor(&mut pass);
@@ -1094,7 +1110,7 @@ impl SsbhRenderer {
                 resolve_target: None,
                 ops: wgpu::Operations {
                     load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
-                    store: true,
+                    store: wgpu::StoreOp::Store,
                 },
             })],
             depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
@@ -1102,9 +1118,11 @@ impl SsbhRenderer {
                 depth_ops: None,
                 stencil_ops: Some(wgpu::Operations {
                     load: wgpu::LoadOp::Load,
-                    store: false,
+                    store: wgpu::StoreOp::Discard,
                 }),
             }),
+            timestamp_writes: None,
+            occlusion_query_set: None,
         });
 
         self.set_scissor(&mut pass);
@@ -1193,10 +1211,12 @@ impl SsbhRenderer {
                 view: &self.shadow_depth.view,
                 depth_ops: Some(wgpu::Operations {
                     load: wgpu::LoadOp::Clear(1.0),
-                    store: true,
+                    store: wgpu::StoreOp::Store,
                 }),
                 stencil_ops: None,
             }),
+            timestamp_writes: None,
+            occlusion_query_set: None,
         });
 
         pass.set_pipeline(&self.shadow_pipeline);
@@ -1274,10 +1294,12 @@ fn create_color_pass<'a>(
             resolve_target: None,
             ops: wgpu::Operations {
                 load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
-                store: true,
+                store: wgpu::StoreOp::Store,
             },
         })],
         depth_stencil_attachment: None,
+        timestamp_writes: None,
+        occlusion_query_set: None,
     })
 }
 

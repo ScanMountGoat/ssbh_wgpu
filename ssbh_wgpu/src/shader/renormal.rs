@@ -32,7 +32,9 @@ const _: () = assert!(
     "offset of VertexInput0.tangent0 does not match WGSL"
 );
 pub mod bind_groups {
+    #[derive(Debug)]
     pub struct BindGroup0(wgpu::BindGroup);
+    #[derive(Debug)]
     pub struct BindGroupLayout0<'a> {
         pub vertices: wgpu::BufferBinding<'a>,
         pub adj_data: wgpu::BufferBinding<'a>,
@@ -95,6 +97,7 @@ pub mod bind_groups {
             render_pass.set_bind_group(0, &self.0, &[]);
         }
     }
+    #[derive(Debug)]
     pub struct BindGroups<'a> {
         pub bind_group0: &'a BindGroup0,
     }
