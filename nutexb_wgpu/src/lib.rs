@@ -12,7 +12,9 @@ use wgpu::{
     TextureViewDimension,
 };
 
-mod shader;
+mod shader {
+    include!(concat!(env!("OUT_DIR"), "/shader.rs"));
+}
 
 /// Settings to control rendering of the texture.
 pub struct RenderSettings {
