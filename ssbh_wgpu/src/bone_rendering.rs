@@ -16,11 +16,23 @@ pub struct BonePipelines {
 }
 
 impl BonePipelines {
-    pub fn new(device: &wgpu::Device) -> Self {
+    pub fn new(device: &wgpu::Device, surface_format: wgpu::TextureFormat) -> Self {
         // TODO: Move this to bone rendering?
-        let bone_pipeline = skeleton_pipeline(device, "vs_bone", "fs_main", wgpu::Face::Back);
-        let joint_pipeline = skeleton_pipeline(device, "vs_joint", "fs_main", wgpu::Face::Back);
-        let bone_axes_pipeline = bone_axes_pipeline(device);
+        let bone_pipeline = skeleton_pipeline(
+            device,
+            "vs_bone",
+            "fs_main",
+            wgpu::Face::Back,
+            surface_format,
+        );
+        let joint_pipeline = skeleton_pipeline(
+            device,
+            "vs_joint",
+            "fs_main",
+            wgpu::Face::Back,
+            surface_format,
+        );
+        let bone_axes_pipeline = bone_axes_pipeline(device, surface_format);
 
         Self {
             bone_pipeline,
@@ -279,6 +291,7 @@ fn skeleton_pipeline(
     vertex_entry: &str,
     fragment_entry: &str,
     cull_face: wgpu::Face,
+    surface_format: wgpu::TextureFormat,
 ) -> wgpu::RenderPipeline {
     let module = crate::shader::skeleton::create_shader_module(device);
     let layout = crate::shader::skeleton::create_pipeline_layout(device);
@@ -296,7 +309,7 @@ fn skeleton_pipeline(
         fragment: Some(wgpu::FragmentState {
             module: &module,
             entry_point: fragment_entry,
-            targets: &[Some(crate::RGBA_COLOR_FORMAT.into())],
+            targets: &[Some(surface_format.into())],
         }),
         primitive: wgpu::PrimitiveState {
             cull_mode: Some(cull_face),
@@ -308,7 +321,10 @@ fn skeleton_pipeline(
     })
 }
 
-fn bone_axes_pipeline(device: &wgpu::Device) -> wgpu::RenderPipeline {
+fn bone_axes_pipeline(
+    device: &wgpu::Device,
+    surface_format: wgpu::TextureFormat,
+) -> wgpu::RenderPipeline {
     let shader = crate::shader::skeleton::create_shader_module(device);
     let layout = crate::shader::skeleton::create_pipeline_layout(device);
     device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
@@ -324,7 +340,7 @@ fn bone_axes_pipeline(device: &wgpu::Device) -> wgpu::RenderPipeline {
         fragment: Some(wgpu::FragmentState {
             module: &shader,
             entry_point: "fs_axes",
-            targets: &[Some(crate::RGBA_COLOR_FORMAT.into())],
+            targets: &[Some(surface_format.into())],
         }),
         primitive: wgpu::PrimitiveState {
             polygon_mode: wgpu::PolygonMode::Line,

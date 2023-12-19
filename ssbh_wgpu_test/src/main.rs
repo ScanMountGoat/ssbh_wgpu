@@ -5,7 +5,7 @@ use image::ImageBuffer;
 use ssbh_data::prelude::*;
 use ssbh_wgpu::{
     load_render_models, CameraTransforms, ModelFolder, ModelRenderOptions, SharedRenderData,
-    SsbhRenderer, REQUIRED_FEATURES, RGBA_COLOR_FORMAT,
+    SsbhRenderer, REQUIRED_FEATURES,
 };
 use wgpu::{
     DeviceDescriptor, Extent3d, Limits, PowerPreference, RequestAdapterOptions, TextureDescriptor,
@@ -67,8 +67,9 @@ fn main() {
     .unwrap();
 
     // TODO: Find a way to simplify initialization.
+    let surface_format = wgpu::TextureFormat::Bgra8UnormSrgb;
     let shared_data = SharedRenderData::new(&device, &queue);
-    let mut renderer = SsbhRenderer::new(&device, &queue, 512, 512, 1.0, [0.0; 3]);
+    let mut renderer = SsbhRenderer::new(&device, &queue, 512, 512, 1.0, [0.0; 3], surface_format);
 
     // TODO: Share camera code with ssbh_wgpu?
     // TODO: Document the screen_dimensions struct.
@@ -101,7 +102,7 @@ fn main() {
         mip_level_count: 1,
         sample_count: 1,
         dimension: TextureDimension::D2,
-        format: RGBA_COLOR_FORMAT,
+        format: surface_format,
         usage: TextureUsages::COPY_SRC | TextureUsages::RENDER_ATTACHMENT,
         label: None,
         view_formats: &[],

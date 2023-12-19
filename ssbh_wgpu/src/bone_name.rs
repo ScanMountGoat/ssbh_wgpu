@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::{viewport::world_to_screen, RenderModel, RGBA_COLOR_FORMAT};
+use crate::{viewport::world_to_screen, RenderModel};
 use glam::Vec4Swizzles;
 use glyphon::{
     Attrs, Buffer, Color, FontSystem, Metrics, Resolution, Shaping, SwashCache, TextArea,
@@ -22,7 +22,14 @@ struct BoneText {
 
 impl BoneNameRenderer {
     /// Initializes the renderer from the given `font_bytes` or tries to use system fonts if `None`.
-    pub fn new(device: &wgpu::Device, queue: &wgpu::Queue, font_bytes: Option<Vec<u8>>) -> Self {
+    /// The `surface_format` is used by the final render pass and should match the main window surface.
+    /// [wgpu::TextureFormat::Bgra8Unorm] or [wgpu::TextureFormat::Bgra8Srgb] have the best compatibility.
+    pub fn new(
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        font_bytes: Option<Vec<u8>>,
+        surface_format: wgpu::TextureFormat,
+    ) -> Self {
         let font_system = font_bytes
             .map(|font_bytes| {
                 FontSystem::new_with_fonts(std::iter::once(glyphon::fontdb::Source::Binary(
@@ -32,7 +39,7 @@ impl BoneNameRenderer {
             .unwrap_or_else(|| FontSystem::new());
 
         let cache = SwashCache::new();
-        let mut atlas = TextAtlas::new(device, queue, RGBA_COLOR_FORMAT);
+        let mut atlas = TextAtlas::new(device, queue, surface_format);
         let renderer =
             TextRenderer::new(&mut atlas, device, wgpu::MultisampleState::default(), None);
 

@@ -39,7 +39,6 @@ pub use render_settings::{
     DebugMode, ModelRenderOptions, RenderSettings, SkinningSettings, TransitionMaterial,
 };
 pub use renderer::SsbhRenderer;
-pub use renderer::RGBA_COLOR_FORMAT;
 pub use shader::model::CameraTransforms;
 pub use shader_database::{split_param, ShaderDatabase, ShaderProgram};
 pub use texture::{create_default_textures, load_default_spec_cube};

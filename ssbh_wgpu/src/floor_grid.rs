@@ -10,7 +10,11 @@ pub struct FloorGridRenderData {
 }
 
 impl FloorGridRenderData {
-    pub fn new(device: &wgpu::Device, camera_buffer: &wgpu::Buffer) -> Self {
+    pub fn new(
+        device: &wgpu::Device,
+        camera_buffer: &wgpu::Buffer,
+        surface_format: wgpu::TextureFormat,
+    ) -> Self {
         let shader = crate::shader::floor_grid::create_shader_module(device);
         let layout = crate::shader::floor_grid::create_pipeline_layout(device);
 
@@ -31,7 +35,7 @@ impl FloorGridRenderData {
                 entry_point: "fs_main",
                 // TODO: Why doesn't this blend properly from below?
                 targets: &[Some(wgpu::ColorTargetState {
-                    format: crate::RGBA_COLOR_FORMAT,
+                    format: surface_format,
                     blend: Some(wgpu::BlendState {
                         color: wgpu::BlendComponent {
                             src_factor: wgpu::BlendFactor::One,

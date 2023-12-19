@@ -17,6 +17,7 @@ mod shader {
 }
 
 /// Settings to control rendering of the texture.
+#[derive(Debug, Clone, PartialEq)]
 pub struct RenderSettings {
     /// Channel toggles for `[red, green, blue, alpha]`.
     pub render_rgba: [bool; 4],

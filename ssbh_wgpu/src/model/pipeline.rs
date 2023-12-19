@@ -1,9 +1,6 @@
 use ssbh_data::matl_data::{BlendFactor, BlendStateData, MatlEntryData};
 
-use crate::{
-    renderer::{INVERTED_STENCIL_MASK_STATE, MSAA_SAMPLE_COUNT},
-    RGBA_COLOR_FORMAT,
-};
+use crate::renderer::{INVERTED_STENCIL_MASK_STATE, MSAA_SAMPLE_COUNT, RGBA_COLOR_FORMAT};
 
 // Create some helper structs to simplify the function signatures.
 pub struct PipelineData {
@@ -31,6 +28,7 @@ pub struct PipelineKey {
     cull_mode: Option<wgpu::Face>,
     polygon_mode: wgpu::PolygonMode,
     alpha_to_coverage_enabled: bool,
+    surface_format: wgpu::TextureFormat,
 }
 
 impl PipelineKey {
@@ -38,6 +36,7 @@ impl PipelineKey {
         disable_depth_write: bool,
         disable_depth_test: bool,
         material: Option<&MatlEntryData>,
+        surface_format: wgpu::TextureFormat,
     ) -> Self {
         // Pipeline state takes most of its settings from the material.
         // The mesh object is just used for depth settings.
@@ -59,11 +58,17 @@ impl PipelineKey {
             alpha_to_coverage_enabled: blend_state_data
                 .map(|b| b.alpha_sample_to_coverage)
                 .unwrap_or(false),
+            surface_format,
         }
     }
 
     pub fn with_material(&self, material: Option<&MatlEntryData>) -> Self {
-        Self::new(!self.enable_depth_write, !self.enable_depth_test, material)
+        Self::new(
+            !self.enable_depth_write,
+            !self.enable_depth_test,
+            material,
+            self.surface_format,
+        )
     }
 }
 
@@ -89,7 +94,7 @@ pub fn pipeline(
             module: &pipeline_data.shader,
             entry_point: "fs_main",
             targets: &[Some(wgpu::ColorTargetState {
-                format: RGBA_COLOR_FORMAT,
+                format: pipeline_key.surface_format,
                 blend: pipeline_key.blend,
                 write_mask: wgpu::ColorWrites::ALL,
             })],
@@ -154,11 +159,9 @@ pub fn depth_pipeline(device: &wgpu::Device) -> wgpu::RenderPipeline {
 
 pub fn invalid_shader_pipeline(
     device: &wgpu::Device,
-    surface_format: wgpu::TextureFormat,
 ) -> wgpu::RenderPipeline {
     model_pipeline_from_entry(
         device,
-        surface_format,
         "vs_main_invalid",
         "fs_invalid_shader",
         "Model Invalid Shader",
@@ -167,11 +170,9 @@ pub fn invalid_shader_pipeline(
 
 pub fn selected_material_pipeline(
     device: &wgpu::Device,
-    surface_format: wgpu::TextureFormat,
 ) -> wgpu::RenderPipeline {
     model_pipeline_from_entry(
         device,
-        surface_format,
         "vs_main",
         "fs_selected_material",
         "Model Selected Material",
@@ -180,11 +181,9 @@ pub fn selected_material_pipeline(
 
 pub fn invalid_attributes_pipeline(
     device: &wgpu::Device,
-    surface_format: wgpu::TextureFormat,
 ) -> wgpu::RenderPipeline {
     model_pipeline_from_entry(
         device,
-        surface_format,
         "vs_main_invalid",
         "fs_invalid_attributes",
         "Model Invalid Attributes",
@@ -193,9 +192,8 @@ pub fn invalid_attributes_pipeline(
 
 pub fn debug_pipeline(
     device: &wgpu::Device,
-    surface_format: wgpu::TextureFormat,
 ) -> wgpu::RenderPipeline {
-    model_pipeline_from_entry(device, surface_format, "vs_main", "fs_debug", "Model Debug")
+    model_pipeline_from_entry(device, "vs_main", "fs_debug", "Model Debug")
 }
 
 pub fn silhouette_pipeline(
@@ -264,7 +262,6 @@ pub fn wireframe_pipeline(
 
 pub fn model_pipeline_from_entry(
     device: &wgpu::Device,
-    surface_format: wgpu::TextureFormat,
     vertex_entry: &str,
     entry_point: &str,
     label: &str,
@@ -290,7 +287,7 @@ pub fn model_pipeline_from_entry(
         fragment: Some(wgpu::FragmentState {
             module: &module,
             entry_point,
-            targets: &[Some(surface_format.into())],
+            targets: &[Some(RGBA_COLOR_FORMAT.into())],
         }),
         primitive: wgpu::PrimitiveState {
             // Force culling to prevent z-fighting on some double sided mehes.

@@ -126,9 +126,10 @@ impl State {
 
         let size = window.inner_size();
 
+        let surface_format = wgpu::TextureFormat::Bgra8UnormSrgb;
         let config = wgpu::SurfaceConfiguration {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-            format: ssbh_wgpu::RGBA_COLOR_FORMAT,
+            format: surface_format,
             width: size.width,
             height: size.height,
             present_mode: wgpu::PresentMode::Fifo,
@@ -181,6 +182,7 @@ impl State {
             size.height,
             window.scale_factor(),
             [0.0; 3],
+            surface_format,
         );
 
         if let Some(nutexb) = render_folder.as_ref().and_then(|f| {
@@ -197,7 +199,7 @@ impl State {
 
         let font_bytes = font_path.map(|font_path| std::fs::read(font_path).unwrap());
 
-        let name_renderer = BoneNameRenderer::new(&device, &queue, font_bytes);
+        let name_renderer = BoneNameRenderer::new(&device, &queue, font_bytes, surface_format);
 
         Self {
             surface,

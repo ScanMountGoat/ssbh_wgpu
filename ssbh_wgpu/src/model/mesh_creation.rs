@@ -449,6 +449,7 @@ impl<'a> RenderMeshSharedData<'a> {
             mesh_object.disable_depth_write,
             mesh_object.disable_depth_test,
             material,
+            wgpu::TextureFormat::Rgba8Unorm,
         );
 
         pipelines

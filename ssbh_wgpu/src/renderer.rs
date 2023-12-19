@@ -14,16 +14,14 @@ use nutexb_wgpu::NutexbFile;
 use ssbh_data::anim_data::AnimData;
 use wgpu::ComputePassDescriptor;
 
+// Used internally for model rendering passes.
+// The final render pass uses a user configurable format.
+pub const RGBA_COLOR_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8Unorm;
+
 // TODO: Adjust this to use less precision.
 // Rgba16Float is widely supported.
 // The in game format uses less precision.
 const BLOOM_COLOR_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba16Float;
-
-// Bgra8Unorm and Bgra8UnormSrgb should always be supported.
-// We'll use SRGB since it's more compatible with less color format aware applications.
-// This simplifies integrating with GUIs and image formats like PNG.
-/// The color format for the render pass returned by [SsbhRenderer::render_models].
-pub const RGBA_COLOR_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Bgra8UnormSrgb;
 
 // Alpha to coverage on metal requires a sample count above 1.
 // 4 is a widely supported value for MSAA samples.
@@ -149,7 +147,10 @@ pub struct SsbhRenderer {
     skinning_settings_buffer: wgpu::Buffer,
     skinning_settings_bind_group: crate::shader::skinning::bind_groups::BindGroup3,
 
+    // TODO: remove this?
     scissor_rect: [u32; 4],
+
+    surface_format: wgpu::TextureFormat,
 }
 
 impl SsbhRenderer {
@@ -159,6 +160,9 @@ impl SsbhRenderer {
     /// If unsure, set `scale_factor` to `1.0`.
     ///
     /// The `clear_color` determines the RGB color of the viewport background.
+    ///
+    /// The `surface_format` is used by the final render pass and should match the main window surface.
+    /// [wgpu::TextureFormat::Bgra8Unorm] or [wgpu::TextureFormat::Bgra8UnormSrgb] have the best compatibility.
     pub fn new(
         device: &wgpu::Device,
         queue: &wgpu::Queue,
@@ -166,6 +170,7 @@ impl SsbhRenderer {
         height: u32,
         scale_factor: f64,
         clear_color: [f64; 3],
+        surface_format: wgpu::TextureFormat,
     ) -> Self {
         let shader = crate::shader::post_process::create_shader_module(device);
         let layout = crate::shader::post_process::create_pipeline_layout(device);
@@ -175,7 +180,7 @@ impl SsbhRenderer {
         let shader = crate::shader::overlay::create_shader_module(device);
         let layout = crate::shader::overlay::create_pipeline_layout(device);
         let overlay_pipeline =
-            create_screen_pipeline(device, &shader, &layout, "fs_main", RGBA_COLOR_FORMAT);
+            create_screen_pipeline(device, &shader, &layout, "fs_main", surface_format);
 
         // Shared shaders for bloom passes.
         // TODO: Should this be all screen texture shaders?
@@ -209,7 +214,14 @@ impl SsbhRenderer {
         let color_lut = load_default_lut(device, queue);
 
         // TODO: Create a struct to store the stage rendering data?
-        let pass_info = PassInfo::new(device, width, height, scale_factor, &color_lut);
+        let pass_info = PassInfo::new(
+            device,
+            width,
+            height,
+            scale_factor,
+            &color_lut,
+            surface_format,
+        );
 
         // Assume the user will update the camera, so these values don't matter.
         let camera_buffer = device.create_buffer_from_data(
@@ -296,18 +308,18 @@ impl SsbhRenderer {
                 },
             );
 
-        let invalid_shader_pipeline = invalid_shader_pipeline(device, RGBA_COLOR_FORMAT);
-        let invalid_attributes_pipeline = invalid_attributes_pipeline(device, RGBA_COLOR_FORMAT);
-        let debug_pipeline = debug_pipeline(device, RGBA_COLOR_FORMAT);
-        let silhouette_pipeline = silhouette_pipeline(device, RGBA_COLOR_FORMAT);
-        let outline_pipeline = create_outline_pipeline(device, RGBA_COLOR_FORMAT);
-        let uv_pipeline = uv_pipeline(device, RGBA_COLOR_FORMAT);
-        let wireframe_pipeline = wireframe_pipeline(device, RGBA_COLOR_FORMAT);
+        let invalid_shader_pipeline = invalid_shader_pipeline(device);
+        let invalid_attributes_pipeline = invalid_attributes_pipeline(device);
+        let debug_pipeline = debug_pipeline(device);
+        let silhouette_pipeline = silhouette_pipeline(device, surface_format);
+        let outline_pipeline = create_outline_pipeline(device, surface_format);
+        let uv_pipeline = uv_pipeline(device, surface_format);
+        let wireframe_pipeline = wireframe_pipeline(device, surface_format);
 
-        let bone_pipelines = BonePipelines::new(device);
+        let bone_pipelines = BonePipelines::new(device, surface_format);
         let bone_buffers = BoneBuffers::new(device);
 
-        let selected_material_pipeline = selected_material_pipeline(device, RGBA_COLOR_FORMAT);
+        let selected_material_pipeline = selected_material_pipeline(device);
 
         let skinning_settings_buffer = device.create_buffer_from_data(
             "Skinning Settings Buffer",
@@ -332,9 +344,9 @@ impl SsbhRenderer {
             },
         );
 
-        let floor_grid = FloorGridRenderData::new(device, &camera_buffer);
+        let floor_grid = FloorGridRenderData::new(device, &camera_buffer, surface_format);
 
-        let swing_pipeline = swing_pipeline(device);
+        let swing_pipeline = swing_pipeline(device, surface_format);
 
         Self {
             bloom_threshold_pipeline,
@@ -375,6 +387,7 @@ impl SsbhRenderer {
             swing_camera_bind_group,
             swing_pipeline,
             floor_grid,
+            surface_format,
         }
     }
 
@@ -411,7 +424,14 @@ impl SsbhRenderer {
     ) {
         self.set_scissor_rect(scissor_rect);
 
-        self.pass_info = PassInfo::new(device, width, height, scale_factor, &self.color_lut);
+        self.pass_info = PassInfo::new(
+            device,
+            width,
+            height,
+            scale_factor,
+            &self.color_lut,
+            self.surface_format,
+        );
     }
 
     // TODO: Document that anything that takes a device reference shouldn't be called each frame.
@@ -508,12 +528,10 @@ impl SsbhRenderer {
 
     // TODO: Add a code example to show how to drop the pass.
     // TODO: Simplify parameters?
-    /// Renders the `render_meshes` to `output_view` using the standard rendering passes for Smash Ultimate.
+    /// Renders the `render_models` to `output_view` using the standard rendering passes for Smash Ultimate.
     ///
-    /// The `output_view` should have the format [RGBA_COLOR_FORMAT].
+    /// The `output_view` should have the format [surface_format].
     /// The output is cleared before drawing.
-    ///
-    /// For disabling bone rendering, pass an empty iterator for `skels`.
     ///
     /// Returns the final color pass with no depth attachment.
     /// This enables adding efficient overlays.
@@ -526,6 +544,23 @@ impl SsbhRenderer {
         shader_database: &ShaderDatabase,
         options: &ModelRenderOptions,
     ) -> wgpu::RenderPass<'a> {
+        self.begin_render_models(encoder, render_models, shader_database, options);
+
+        let mut pass = create_color_pass(encoder, output_view, Some("Overlay Pass"));
+        self.end_render_models(&mut pass);
+
+        pass
+    }
+
+    /// Renders the `render_models` to internal textures.
+    /// Complete rendering to the final output pass using [Self::end_render_models].
+    pub fn begin_render_models<'a>(
+        &'a self,
+        encoder: &'a mut wgpu::CommandEncoder,
+        render_models: &'a [RenderModel],
+        shader_database: &ShaderDatabase,
+        options: &ModelRenderOptions,
+    ) {
         // TODO: How to have RenderModel own all resources but still sort RenderMesh?
 
         // Transform the vertex positions and normals.
@@ -627,10 +662,14 @@ impl SsbhRenderer {
             &self.pass_info.skel_depth_stencil.view,
             &self.pass_info.skel_outline_bind_group,
         );
+    }
 
+    /// Completes rendering by drawing the models and any overlays to `render_pass`.
+    /// The `render_pass` should use the color format used for creation with no depth attachment.
+    pub fn end_render_models<'a>(&'a self, render_pass: &mut wgpu::RenderPass<'a>) {
         // TODO: This can be combined with post processing?
         // Composite the outlines onto the result of the debug or shaded passes.
-        self.overlay_pass(encoder, output_view)
+        self.overlay_pass(render_pass);
     }
 
     /// Renders UVs for all of the meshes with `is_selected` set to `true`.
@@ -1142,25 +1181,17 @@ impl SsbhRenderer {
         }
     }
 
-    fn overlay_pass<'a>(
-        &'a self,
-        encoder: &'a mut wgpu::CommandEncoder,
-        output_view: &'a wgpu::TextureView,
-    ) -> wgpu::RenderPass<'a> {
-        let mut pass = create_color_pass(encoder, output_view, Some("Overlay Pass"));
-
-        self.set_scissor(&mut pass);
+    fn overlay_pass<'a>(&'a self, pass: &mut wgpu::RenderPass<'a>) {
+        self.set_scissor(pass);
 
         pass.set_pipeline(&self.overlay_pipeline);
         crate::shader::overlay::bind_groups::set_bind_groups(
-            &mut pass,
+            pass,
             crate::shader::overlay::bind_groups::BindGroups {
                 bind_group0: &self.pass_info.overlay_bind_group,
             },
         );
         pass.draw(0..3, 0..1);
-
-        pass
     }
 
     fn post_processing_pass(
@@ -1350,13 +1381,14 @@ impl PassInfo {
         height: u32,
         scale_factor: f64,
         color_lut: &TextureSamplerView,
+        surface_format: wgpu::TextureFormat,
     ) -> Self {
         let depth = create_depth(device, width, height, MSAA_SAMPLE_COUNT);
 
         // TODO: Reuse textures for outlines?
         let skel_depth_stencil = create_depth_stencil(device, width, height);
-        let skel_mask = create_texture_sampler(device, width, height, RGBA_COLOR_FORMAT, 1);
-        let skel_outlines = create_texture_sampler(device, width, height, RGBA_COLOR_FORMAT, 1);
+        let skel_mask = create_texture_sampler(device, width, height, surface_format, 1);
+        let skel_outlines = create_texture_sampler(device, width, height, surface_format, 1);
         let skel_outline_bind_group = create_outline_bind_group(device, &skel_mask);
 
         let color = create_texture_sampler(device, width, height, RGBA_COLOR_FORMAT, 1);
@@ -1390,6 +1422,7 @@ impl PassInfo {
             bloom_width / 4,
             bloom_height / 4,
             &bloom_blur_colors,
+            RGBA_COLOR_FORMAT,
         );
         // A 2x bilinear upscale smooths the overall result.
         let (bloom_upscaled, bloom_upscale_bind_group) = create_bloom_bind_group(
@@ -1404,9 +1437,8 @@ impl PassInfo {
             create_post_process_bind_group(device, &color, &bloom_upscaled, color_lut);
 
         let silhouette_stencil = create_depth_stencil(device, width, height);
-        let silhouette_mask = create_texture_sampler(device, width, height, RGBA_COLOR_FORMAT, 1);
-        let silhouette_outlines =
-            create_texture_sampler(device, width, height, RGBA_COLOR_FORMAT, 1);
+        let silhouette_mask = create_texture_sampler(device, width, height, surface_format, 1);
+        let silhouette_outlines = create_texture_sampler(device, width, height, surface_format, 1);
         let outline_bind_group = create_outline_bind_group(device, &silhouette_mask);
 
         let overlay_bind_group =
@@ -1582,11 +1614,12 @@ fn create_bloom_combine_bind_group(
         TextureSamplerView,
         crate::shader::bloom::bind_groups::BindGroup0,
     ); 4],
+    surface_format: wgpu::TextureFormat,
 ) -> (
     TextureSamplerView,
     crate::shader::bloom_combine::bind_groups::BindGroup0,
 ) {
-    let texture = create_texture_sampler(device, width, height, RGBA_COLOR_FORMAT, 1);
+    let texture = create_texture_sampler(device, width, height, surface_format, 1);
 
     let bind_group = crate::shader::bloom_combine::bind_groups::BindGroup0::from_bindings(
         device,
@@ -1650,6 +1683,7 @@ fn create_overlay_bind_group(
     outline_texture: &TextureSamplerView,
     skel_outline_texture: &TextureSamplerView,
 ) -> crate::shader::overlay::bind_groups::BindGroup0 {
+    // TODO: This should handle sRGB gamma conversions.
     crate::shader::overlay::bind_groups::BindGroup0::from_bindings(
         device,
         crate::shader::overlay::bind_groups::BindGroupLayout0 {
