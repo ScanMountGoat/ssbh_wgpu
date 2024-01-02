@@ -3,7 +3,7 @@ use std::fmt::Write;
 fn write_shader_module(wgsl_source: &str, shader_name: &str) {
     // Generate the Rust bindings and write to a file.
     let text = wgsl_to_wgpu::create_shader_module_embedded(
-        &wgsl_source,
+        wgsl_source,
         wgsl_to_wgpu::WriteOptions {
             derive_bytemuck: true,
             derive_encase: true,

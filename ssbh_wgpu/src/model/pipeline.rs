@@ -157,9 +157,7 @@ pub fn depth_pipeline(device: &wgpu::Device) -> wgpu::RenderPipeline {
     })
 }
 
-pub fn invalid_shader_pipeline(
-    device: &wgpu::Device,
-) -> wgpu::RenderPipeline {
+pub fn invalid_shader_pipeline(device: &wgpu::Device) -> wgpu::RenderPipeline {
     model_pipeline_from_entry(
         device,
         "vs_main_invalid",
@@ -168,9 +166,7 @@ pub fn invalid_shader_pipeline(
     )
 }
 
-pub fn selected_material_pipeline(
-    device: &wgpu::Device,
-) -> wgpu::RenderPipeline {
+pub fn selected_material_pipeline(device: &wgpu::Device) -> wgpu::RenderPipeline {
     model_pipeline_from_entry(
         device,
         "vs_main",
@@ -179,9 +175,7 @@ pub fn selected_material_pipeline(
     )
 }
 
-pub fn invalid_attributes_pipeline(
-    device: &wgpu::Device,
-) -> wgpu::RenderPipeline {
+pub fn invalid_attributes_pipeline(device: &wgpu::Device) -> wgpu::RenderPipeline {
     model_pipeline_from_entry(
         device,
         "vs_main_invalid",
@@ -190,9 +184,7 @@ pub fn invalid_attributes_pipeline(
     )
 }
 
-pub fn debug_pipeline(
-    device: &wgpu::Device,
-) -> wgpu::RenderPipeline {
+pub fn debug_pipeline(device: &wgpu::Device) -> wgpu::RenderPipeline {
     model_pipeline_from_entry(device, "vs_main", "fs_debug", "Model Debug")
 }
 

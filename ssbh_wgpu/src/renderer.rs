@@ -147,9 +147,6 @@ pub struct SsbhRenderer {
     skinning_settings_buffer: wgpu::Buffer,
     skinning_settings_bind_group: crate::shader::skinning::bind_groups::BindGroup3,
 
-    // TODO: remove this?
-    scissor_rect: [u32; 4],
-
     surface_format: wgpu::TextureFormat,
 }
 
@@ -381,7 +378,6 @@ impl SsbhRenderer {
             overlay_pipeline,
             wireframe_pipeline,
             selected_material_pipeline,
-            scissor_rect: [0, 0, width, height],
             skinning_settings_buffer,
             skinning_settings_bind_group,
             swing_camera_bind_group,
@@ -389,17 +385,6 @@ impl SsbhRenderer {
             floor_grid,
             surface_format,
         }
-    }
-
-    // TODO: Show code examples instead.
-    /// Only fragments within this region will be rendered.
-    /// This functions like a "mask" for the rendered output.
-    ///
-    /// The parameter is organized as `[origin x, origin y, width, height]`.
-    /// A value of `[0, 0, width, height]` will render to the entire surface.
-    /// Smaller regions are useful for creating viewports in applications without excessive overdraw.
-    pub fn set_scissor_rect(&mut self, scissor_rect: [u32; 4]) {
-        self.scissor_rect = scissor_rect;
     }
 
     /// A faster alternative to creating a new [SsbhRenderer] with the desired size.
@@ -412,18 +397,7 @@ impl SsbhRenderer {
     /// This adjusts screen based effects such as bloom to have a more appropriate scale on high DPI screens.
     /// This should usually match the current monitor's scaling factor
     /// in the OS such as `1.5` for 150% scaling. If unsure, use a value of `1.0`.
-    ///
-    /// For the `scissor_rect`, see [SsbhRenderer::set_scissor_rect].
-    pub fn resize(
-        &mut self,
-        device: &wgpu::Device,
-        width: u32,
-        height: u32,
-        scale_factor: f64,
-        scissor_rect: [u32; 4],
-    ) {
-        self.set_scissor_rect(scissor_rect);
-
+    pub fn resize(&mut self, device: &wgpu::Device, width: u32, height: u32, scale_factor: f64) {
         self.pass_info = PassInfo::new(
             device,
             width,
@@ -724,15 +698,6 @@ impl SsbhRenderer {
         }
     }
 
-    fn set_scissor(&self, model_pass: &mut wgpu::RenderPass) {
-        model_pass.set_scissor_rect(
-            self.scissor_rect[0],
-            self.scissor_rect[1],
-            self.scissor_rect[2],
-            self.scissor_rect[3],
-        );
-    }
-
     fn bloom_upscale_pass(&self, encoder: &mut wgpu::CommandEncoder) {
         self.bloom_pass(
             encoder,
@@ -882,8 +847,6 @@ impl SsbhRenderer {
             occlusion_query_set: None,
         });
 
-        self.set_scissor(&mut pass);
-
         // TODO: Investigate sorting.
         self.draw_render_models(render_models.iter(), &mut pass, shader_database, "opaque");
         self.draw_render_models(render_models.iter(), &mut pass, shader_database, "far");
@@ -952,8 +915,6 @@ impl SsbhRenderer {
             occlusion_query_set: None,
         });
 
-        self.set_scissor(&mut pass);
-
         pass.set_pipeline(&self.silhouette_pipeline);
 
         let mut active = false;
@@ -993,8 +954,6 @@ impl SsbhRenderer {
             timestamp_writes: None,
             occlusion_query_set: None,
         });
-
-        self.set_scissor(&mut pass);
 
         if floor_grid {
             self.floor_grid.draw(&mut pass);
@@ -1068,8 +1027,6 @@ impl SsbhRenderer {
             occlusion_query_set: None,
         });
 
-        self.set_scissor(&mut pass);
-
         if draw_bones {
             for model in render_models {
                 model.draw_skeleton(
@@ -1117,8 +1074,6 @@ impl SsbhRenderer {
             occlusion_query_set: None,
         });
 
-        self.set_scissor(&mut pass);
-
         if draw_bones {
             for model in render_models {
                 model.draw_skeleton_silhouette(
@@ -1164,8 +1119,6 @@ impl SsbhRenderer {
             occlusion_query_set: None,
         });
 
-        self.set_scissor(&mut pass);
-
         if enabled {
             pass.set_pipeline(&self.outline_pipeline);
             crate::shader::outline::bind_groups::set_bind_groups(
@@ -1182,8 +1135,6 @@ impl SsbhRenderer {
     }
 
     fn overlay_pass<'a>(&'a self, pass: &mut wgpu::RenderPass<'a>) {
-        self.set_scissor(pass);
-
         pass.set_pipeline(&self.overlay_pipeline);
         crate::shader::overlay::bind_groups::set_bind_groups(
             pass,
@@ -1200,8 +1151,6 @@ impl SsbhRenderer {
         output_view: &wgpu::TextureView,
     ) {
         let mut pass = create_color_pass(encoder, output_view, Some("Post Processing Pass"));
-
-        self.set_scissor(&mut pass);
 
         pass.set_pipeline(&self.post_process_pipeline);
         crate::shader::post_process::bind_groups::set_bind_groups(
