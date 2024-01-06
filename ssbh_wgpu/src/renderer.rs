@@ -10,6 +10,7 @@ use crate::{
     texture::{load_default_lut, uv_pattern, TextureSamplerView},
     CameraTransforms, DeviceBufferExt, QueueExt, RenderModel, ShaderDatabase,
 };
+use glam::UVec4;
 use nutexb_wgpu::NutexbFile;
 use ssbh_data::anim_data::AnimData;
 use wgpu::ComputePassDescriptor;
@@ -160,6 +161,8 @@ impl SsbhRenderer {
     ///
     /// The `surface_format` is used by the final render pass and should match the main window surface.
     /// [wgpu::TextureFormat::Bgra8Unorm] or [wgpu::TextureFormat::Bgra8UnormSrgb] have the best compatibility.
+    /// The final render pass will transform output colors accordingly
+    /// depending on whether `surface_format` is an sRGB format or not.
     pub fn new(
         device: &wgpu::Device,
         queue: &wgpu::Queue,
@@ -1390,8 +1393,13 @@ impl PassInfo {
         let silhouette_outlines = create_texture_sampler(device, width, height, surface_format, 1);
         let outline_bind_group = create_outline_bind_group(device, &silhouette_mask);
 
-        let overlay_bind_group =
-            create_overlay_bind_group(device, &color_final, &silhouette_outlines, &skel_outlines);
+        let overlay_bind_group = create_overlay_bind_group(
+            device,
+            &color_final,
+            &silhouette_outlines,
+            &skel_outlines,
+            surface_format.is_srgb(),
+        );
 
         Self {
             depth,
@@ -1631,8 +1639,16 @@ fn create_overlay_bind_group(
     color_final: &TextureSamplerView,
     outline_texture: &TextureSamplerView,
     skel_outline_texture: &TextureSamplerView,
+    is_srgb: bool,
 ) -> crate::shader::overlay::bind_groups::BindGroup0 {
-    // TODO: This should handle sRGB gamma conversions.
+    let buffer = device.create_buffer_from_data(
+        "Overlay Settings Buffer",
+        &[crate::shader::overlay::OverlaySettings {
+            is_srgb: UVec4::splat(is_srgb as u32),
+        }],
+        wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+    );
+
     crate::shader::overlay::bind_groups::BindGroup0::from_bindings(
         device,
         crate::shader::overlay::bind_groups::BindGroupLayout0 {
@@ -1641,6 +1657,7 @@ fn create_overlay_bind_group(
             outline_texture1: &outline_texture.view,
             outline_texture2: &skel_outline_texture.view,
             outline_sampler: &outline_texture.sampler,
+            settings: buffer.as_entire_buffer_binding(),
         },
     )
 }

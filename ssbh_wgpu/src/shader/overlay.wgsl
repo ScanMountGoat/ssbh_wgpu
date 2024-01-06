@@ -26,6 +26,21 @@ var outline_texture2: texture_2d<f32>;
 @group(0) @binding(4)
 var outline_sampler: sampler;
 
+struct OverlaySettings {
+    is_srgb: vec4<u32>
+}
+
+@group(0) @binding(5)
+var<uniform> settings: OverlaySettings;
+
+fn GetSrgb(colorLinear: f32) -> f32 {
+    if colorLinear <= 0.00031308 {
+        return 12.92 * colorLinear;
+    } else {
+        return 1.055 * pow(colorLinear, (1.0 / 2.4)) - 0.055;
+    }
+}
+
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let color = textureSample(color_texture, color_sampler, in.uvs.xy);
@@ -36,5 +51,11 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     // TODO: Set outline color?
     var output = mix(color.rgb, vec3(0.0, 1.0, 1.0), outline1);
     output = mix(output, vec3(0.0, 0.0, 0.0), outline2);
+
+    // The framebuffer won't always have an sRGB format.
+    if settings.is_srgb.x != 1u {
+        output = vec3(GetSrgb(output.x), GetSrgb(output.y), GetSrgb(output.z));
+    }
+
     return vec4(output, color.a);
 }
