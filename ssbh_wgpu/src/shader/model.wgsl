@@ -430,7 +430,10 @@ fn DiffuseTerm(
     if per_material.lighting_settings.x == 1u {
         directLight = GetLight().color.rgb * directShading;
     }
-    var ambientTerm = (shLighting * ao);
+    var ambientTerm = vec3(ao);
+    if per_material.lighting_settings.y == 1u {
+        ambientTerm = ambientTerm * shLighting;
+    }
 
     // TODO: Does Texture3 also affect specular?
     if per_material.has_texture[3].x == 1u {
@@ -682,14 +685,11 @@ fn vs_main(
     // This could just use PerModel for now based on the model type in the xmb.
     // Stages and fighters use different SH coefficients.
     // TODO: The easiest is to just update a global SH Coefficients buffer for now.
-    out.sh_lighting = vec4(0.0);
-    if per_material.lighting_settings.y == 1u {
-        let shNormal = vec4(normalize(buffer0.normal0.xyz), 1.0);
-        let shAmbientR = dot(shNormal, vec4(0.14186, 0.04903, -0.082, 1.11054));
-        let shAmbientG = dot(shNormal, vec4(0.14717, 0.03699, -0.08283, 1.11036));
-        let shAmbientB = dot(shNormal, vec4(0.1419, 0.04334, -0.08283, 1.11018));
-        out.sh_lighting = vec4(shAmbientR, shAmbientG, shAmbientB, 0.0);
-    }
+    let shNormal = vec4(normalize(buffer0.normal0.xyz), 1.0);
+    let shAmbientR = dot(shNormal, vec4(0.14186, 0.04903, -0.082, 1.11054));
+    let shAmbientG = dot(shNormal, vec4(0.14717, 0.03699, -0.08283, 1.11036));
+    let shAmbientB = dot(shNormal, vec4(0.1419, 0.04334, -0.08283, 1.11018));
+    out.sh_lighting = vec4(shAmbientR, shAmbientG, shAmbientB, 0.0);
 
     // TODO: Also apply transforms to the debug shader?
     var uvTransform1 = vec4(1.0, 1.0, 0.0, 0.0);
