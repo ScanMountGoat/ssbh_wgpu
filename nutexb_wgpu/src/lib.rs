@@ -94,6 +94,10 @@ pub enum CreateTextureError {
     UnalignedHeight { height: u32, block_height: u32 },
 }
 
+/// Converts `nutexb` into a texture with the same format.
+///
+/// sRGB and non sRGB variants of the format are available as view formats.
+/// Using the texture's original format in the view is always available.
 pub fn create_texture(
     nutexb: &NutexbFile,
     device: &wgpu::Device,
@@ -186,7 +190,7 @@ pub fn create_texture(
             usage: wgpu::TextureUsages::COPY_SRC
                 | wgpu::TextureUsages::COPY_DST
                 | wgpu::TextureUsages::TEXTURE_BINDING,
-            view_formats: &[],
+            view_formats: &[format.add_srgb_suffix(), format.remove_srgb_suffix()],
         },
         &data,
     );
@@ -231,7 +235,7 @@ fn wgpu_format(format: nutexb::NutexbFormat) -> wgpu::TextureFormat {
 
 /// The output format of [TextureRenderer::render_to_texture_2d_rgba].
 // TODO: Does it matter if this is srgb or unorm?
-pub const RGBA_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8UnormSrgb;
+pub const RGBA_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8Unorm;
 
 pub struct TextureRenderer {
     pipeline: wgpu::RenderPipeline,
@@ -325,6 +329,8 @@ impl TextureRenderer {
     ///
     /// This allows compressed textures like BC7 to be used as thumbnails in some applications.
     /// Cube maps and 3D textures will only render a single 2D face or slice based on the render settings.
+    ///
+    /// The sRGB suffix is ignored to avoid overly dark textures.
     pub fn render_to_texture_2d_rgba(
         &self,
         device: &wgpu::Device,
@@ -412,8 +418,12 @@ impl TextureRenderer {
         settings: &RenderSettings,
     ) -> BindGroup0 {
         // TODO: How to switch bind groups based on the dimensions?
+        // Remove the sRGB suffix to match the Rgba8Unorm output format.
+        // This avoid sRGB textures rendering darker than intended in thumbnails.
+        // This works since we add the view formats at creation.
         let view = texture.create_view(&wgpu::TextureViewDescriptor {
             dimension: Some(dimension),
+            format: Some(texture.format().remove_srgb_suffix()),
             ..Default::default()
         });
 
