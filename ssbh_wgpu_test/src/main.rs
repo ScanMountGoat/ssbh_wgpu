@@ -69,7 +69,7 @@ fn main() {
     // TODO: Find a way to simplify initialization.
     let surface_format = wgpu::TextureFormat::Bgra8UnormSrgb;
     let shared_data = SharedRenderData::new(&device, &queue);
-    let mut renderer = SsbhRenderer::new(&device, &queue, 512, 512, 1.0, [0.0; 3], surface_format);
+    let mut renderer = SsbhRenderer::new(&device, &queue, 512, 512, 1.0, [0.0; 4], surface_format);
 
     // TODO: Share camera code with ssbh_wgpu?
     // TODO: Document the screen_dimensions struct.

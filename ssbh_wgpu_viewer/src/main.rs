@@ -180,8 +180,8 @@ impl State {
             &queue,
             size.width,
             size.height,
-            window.scale_factor(),
-            [0.0; 3],
+            window.scale_factor() as f32,
+            [0.0, 0.0, 0.0, 1.0],
             surface_format,
         );
 
@@ -227,7 +227,7 @@ impl State {
         }
     }
 
-    pub fn resize(&mut self, new_size: winit::dpi::PhysicalSize<u32>, scale_factor: f64) {
+    pub fn resize(&mut self, new_size: winit::dpi::PhysicalSize<u32>, scale_factor: f32) {
         if new_size.width > 0 && new_size.height > 0 {
             self.size = new_size;
             self.config.width = new_size.width;
@@ -381,7 +381,7 @@ impl State {
 
     // TODO: Module and tests for a viewport camera.
 
-    fn update_camera(&mut self, scale_factor: f64) {
+    fn update_camera(&mut self, scale_factor: f32) {
         let (camera_pos, model_view_matrix, mvp_matrix) =
             calculate_camera_pos_mvp(self.size, self.translation_xyz, self.rotation_xyz);
         let transforms = CameraTransforms {
@@ -392,7 +392,7 @@ impl State {
             screen_dimensions: glam::vec4(
                 self.size.width as f32,
                 self.size.height as f32,
-                scale_factor as f32,
+                scale_factor,
                 0.0,
             ),
         };
@@ -558,7 +558,7 @@ fn main() {
     ));
 
     // Initialize the camera buffer.
-    state.update_camera(window.scale_factor());
+    state.update_camera(window.scale_factor() as f32);
 
     event_loop.run(move |event, _, control_flow| {
         match event {
@@ -579,21 +579,21 @@ fn main() {
                     } => *control_flow = ControlFlow::Exit,
                     WindowEvent::Resized(_) => {
                         // Use the window size to avoid a potential error from size mismatches.
-                        state.resize(window.inner_size(), window.scale_factor());
+                        state.resize(window.inner_size(), window.scale_factor() as f32);
                     }
                     WindowEvent::ScaleFactorChanged {
                         scale_factor,
                         new_inner_size,
                     } => {
                         // new_inner_size is &mut so we have to dereference it twice
-                        state.resize(**new_inner_size, *scale_factor);
+                        state.resize(**new_inner_size, *scale_factor as f32);
                     }
                     _ => {}
                 }
 
                 if state.handle_input(event) {
                     // TODO: Avoid overriding the camera values when pausing?
-                    state.update_camera(window.scale_factor());
+                    state.update_camera(window.scale_factor() as f32);
 
                     state.update_render_settings();
                 }
@@ -603,7 +603,7 @@ fn main() {
                     Ok(_) => {}
                     // Recreate the swap_chain if lost
                     Err(wgpu::SurfaceError::Lost) => {
-                        state.resize(state.size, window.scale_factor())
+                        state.resize(state.size, window.scale_factor() as f32)
                     }
                     // The system is out of memory, we should probably quit
                     Err(wgpu::SurfaceError::OutOfMemory) => *control_flow = ControlFlow::Exit,

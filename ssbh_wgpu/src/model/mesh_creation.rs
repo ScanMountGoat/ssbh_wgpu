@@ -159,7 +159,7 @@ impl<'a> RenderMeshSharedData<'a> {
         // Get light set information from the model.xmb.
         // We don't initialize the light data itself here.
         // This allows lighting to be updated globally for all models.
-        let model_entry = self.model_xmb.and_then(|xmb| xmb.entries.get(0));
+        let model_entry = self.model_xmb.and_then(|xmb| xmb.entries.first());
         let is_stage = model_entry
             .and_then(|e| e.attributes.get("type"))
             .map(|model_type| model_type == "stage")
@@ -305,7 +305,7 @@ impl<'a> RenderMeshSharedData<'a> {
             self.mesh?
                 .objects
                 .iter() // TODO: par_iter?
-                .zip(accesses.into_iter())
+                .zip(accesses)
                 .enumerate()
                 .filter_map(|(i, (mesh_object, access))| {
                     // Some mesh objects have associated triangle adjacency.

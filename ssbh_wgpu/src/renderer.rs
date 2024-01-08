@@ -140,7 +140,7 @@ pub struct SsbhRenderer {
 
     color_lut: TextureSamplerView,
 
-    clear_color: [f64; 3],
+    clear_color: [f64; 4],
 
     render_settings: RenderSettings,
     render_settings_buffer: wgpu::Buffer,
@@ -157,7 +157,7 @@ impl SsbhRenderer {
     /// The `scale_factor` should typically match the monitor scaling in the OS such as `1.5` for 150% scaling.
     /// If unsure, set `scale_factor` to `1.0`.
     ///
-    /// The `clear_color` determines the RGB color of the viewport background.
+    /// The `clear_color` determines the RGBA color of the viewport background.
     ///
     /// The `surface_format` is used by the final render pass and should match the main window surface.
     /// [wgpu::TextureFormat::Bgra8Unorm] or [wgpu::TextureFormat::Bgra8UnormSrgb] have the best compatibility.
@@ -168,8 +168,8 @@ impl SsbhRenderer {
         queue: &wgpu::Queue,
         width: u32,
         height: u32,
-        scale_factor: f64,
-        clear_color: [f64; 3],
+        scale_factor: f32,
+        clear_color: [f64; 4],
         surface_format: wgpu::TextureFormat,
     ) -> Self {
         let shader = crate::shader::post_process::create_shader_module(device);
@@ -400,7 +400,7 @@ impl SsbhRenderer {
     /// This adjusts screen based effects such as bloom to have a more appropriate scale on high DPI screens.
     /// This should usually match the current monitor's scaling factor
     /// in the OS such as `1.5` for 150% scaling. If unsure, use a value of `1.0`.
-    pub fn resize(&mut self, device: &wgpu::Device, width: u32, height: u32, scale_factor: f64) {
+    pub fn resize(&mut self, device: &wgpu::Device, width: u32, height: u32, scale_factor: f32) {
         self.pass_info = PassInfo::new(
             device,
             width,
@@ -499,7 +499,7 @@ impl SsbhRenderer {
     }
 
     /// Sets the viewport background color.
-    pub fn set_clear_color(&mut self, color: [f64; 3]) {
+    pub fn set_clear_color(&mut self, color: [f64; 4]) {
         self.clear_color = color;
     }
 
@@ -984,12 +984,11 @@ impl SsbhRenderer {
     }
 
     fn clear_color(&self) -> wgpu::Color {
-        // Always clear alpha to avoid post processing the background.
         wgpu::Color {
             r: self.clear_color[0],
             g: self.clear_color[1],
             b: self.clear_color[2],
-            a: 0.0,
+            a: self.clear_color[3],
         }
     }
 
@@ -1331,7 +1330,7 @@ impl PassInfo {
         device: &wgpu::Device,
         width: u32,
         height: u32,
-        scale_factor: f64,
+        scale_factor: f32,
         color_lut: &TextureSamplerView,
         surface_format: wgpu::TextureFormat,
     ) -> Self {
@@ -1353,8 +1352,8 @@ impl PassInfo {
         // Some devices like laptops or phones have weak GPUs but high DPI screens.
         // Lowering bloom resolution can reduce performance bottlenecks on these devices.
         let scale_factor = scale_factor.max(1.0);
-        let bloom_width = (width as f64 / scale_factor) as u32;
-        let bloom_height = (height as f64 / scale_factor) as u32;
+        let bloom_width = (width as f32 / scale_factor) as u32;
+        let bloom_height = (height as f32 / scale_factor) as u32;
 
         let (bloom_threshold, bloom_threshold_bind_group) = create_bloom_bind_group(
             device,

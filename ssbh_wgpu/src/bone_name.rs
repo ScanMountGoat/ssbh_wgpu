@@ -36,7 +36,7 @@ impl BoneNameRenderer {
                     Arc::new(font_bytes),
                 )))
             })
-            .unwrap_or_else(|| FontSystem::new());
+            .unwrap_or_else(FontSystem::new);
 
         let cache = SwashCache::new();
         let mut atlas = TextAtlas::new(device, queue, surface_format);
