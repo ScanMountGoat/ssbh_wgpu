@@ -834,7 +834,7 @@ impl SsbhRenderer {
                 view: &self.pass_info.color_msaa.view,
                 resolve_target: Some(&self.pass_info.color.view),
                 ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(self.clear_color()),
+                    load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
                     store: wgpu::StoreOp::Store,
                 },
             })],
@@ -1152,8 +1152,21 @@ impl SsbhRenderer {
         encoder: &mut wgpu::CommandEncoder,
         output_view: &wgpu::TextureView,
     ) {
-        let mut pass = create_color_pass(encoder, output_view, Some("Post Processing Pass"));
-
+        // Set the clear color here to avoid triggering bloom.
+        let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("Post Processing Pass"),
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view: output_view,
+                resolve_target: None,
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(self.clear_color()),
+                    store: wgpu::StoreOp::Store,
+                },
+            })],
+            depth_stencil_attachment: None,
+            timestamp_writes: None,
+            occlusion_query_set: None,
+        });
         pass.set_pipeline(&self.post_process_pipeline);
         crate::shader::post_process::bind_groups::set_bind_groups(
             &mut pass,
