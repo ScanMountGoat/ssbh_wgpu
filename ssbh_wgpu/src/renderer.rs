@@ -1263,9 +1263,14 @@ fn create_screen_pipeline(
             targets: &[Some(wgpu::ColorTargetState {
                 format: target,
                 // Enable blending to allow transparent screenshots.
+                // Use max so an opaque clear color forces opaque output.
                 blend: Some(wgpu::BlendState {
                     color: wgpu::BlendComponent::OVER,
-                    alpha: wgpu::BlendComponent::REPLACE,
+                    alpha: wgpu::BlendComponent {
+                        src_factor: wgpu::BlendFactor::One,
+                        dst_factor: wgpu::BlendFactor::One,
+                        operation: wgpu::BlendOperation::Max,
+                    },
                 }),
                 write_mask: wgpu::ColorWrites::ALL,
             })],
