@@ -51,15 +51,27 @@ impl BoneNameRenderer {
         }
     }
 
-    /// Renders the bone names for skeleton in `skels` for each model in `render_models` to `output_view`.
-    ///
-    /// The `render_pass` should have the format [RGBA_COLOR_FORMAT].
-    /// The pass is not cleared before drawing.
+    /// Convenience function to combine [Self::prepare] and [Self::render].
     pub fn render_bone_names<'a>(
         &'a mut self,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
         render_pass: &mut wgpu::RenderPass<'a>,
+        models: &[RenderModel],
+        width: u32,
+        height: u32,
+        mvp: glam::Mat4,
+        font_size: f32,
+    ) {
+        self.prepare(device, queue, models, width, height, mvp, font_size);
+        self.render(render_pass);
+    }
+
+    /// Prepare bone names for each model in `models` for rendering with [Self::render].
+    pub fn prepare<'a>(
+        &'a mut self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
         models: &[RenderModel],
         width: u32,
         height: u32,
@@ -102,7 +114,12 @@ impl BoneNameRenderer {
                 &mut self.cache,
             )
             .unwrap();
+    }
 
+    /// Render text initialized in [Self::prepare].
+    ///
+    /// The `render_pass` should have the format used in [Self::new].
+    pub fn render<'a>(&'a self, render_pass: &mut wgpu::RenderPass<'a>) {
         self.renderer.render(&self.atlas, render_pass).unwrap();
     }
 
