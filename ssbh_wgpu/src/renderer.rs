@@ -316,7 +316,7 @@ impl SsbhRenderer {
         let uv_pipeline = uv_pipeline(device, surface_format);
         let wireframe_pipeline = wireframe_pipeline(device, surface_format);
 
-        let bone_pipelines = BonePipelines::new(device, surface_format);
+        let bone_pipelines = BonePipelines::new(device, RGBA_COLOR_FORMAT);
         let bone_buffers = BoneBuffers::new(device);
 
         let selected_material_pipeline = selected_material_pipeline(device);
@@ -1356,7 +1356,7 @@ impl PassInfo {
 
         // TODO: Reuse textures for outlines?
         let skel_depth_stencil = create_depth_stencil(device, width, height);
-        let skel_mask = create_texture_sampler(device, width, height, surface_format, 1);
+        let skel_mask = create_texture_sampler(device, width, height, RGBA_COLOR_FORMAT, 1);
         let skel_outlines = create_texture_sampler(device, width, height, surface_format, 1);
         let skel_outline_bind_group = create_outline_bind_group(device, &skel_mask);
 

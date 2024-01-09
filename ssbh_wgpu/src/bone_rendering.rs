@@ -297,7 +297,7 @@ fn skeleton_pipeline(
     let layout = crate::shader::skeleton::create_pipeline_layout(device);
 
     device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-        label: None,
+        label: Some("Skeleton Pipeline"),
         layout: Some(&layout),
         vertex: wgpu::VertexState {
             module: &module,
@@ -328,7 +328,7 @@ fn bone_axes_pipeline(
     let shader = crate::shader::skeleton::create_shader_module(device);
     let layout = crate::shader::skeleton::create_pipeline_layout(device);
     device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-        label: None,
+        label: Some("Bone Axes Pipeline"),
         layout: Some(&layout),
         vertex: wgpu::VertexState {
             module: &shader,
