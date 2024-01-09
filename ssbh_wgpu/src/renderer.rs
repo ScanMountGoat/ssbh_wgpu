@@ -344,7 +344,7 @@ impl SsbhRenderer {
             },
         );
 
-        let floor_grid = FloorGridRenderData::new(device, &camera_buffer, surface_format);
+        let floor_grid = FloorGridRenderData::new(device, &camera_buffer, RGBA_COLOR_FORMAT);
 
         let swing_pipeline = swing_pipeline(device, surface_format);
 
