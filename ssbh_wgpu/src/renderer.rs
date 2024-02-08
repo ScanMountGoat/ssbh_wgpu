@@ -17,7 +17,8 @@ use wgpu::ComputePassDescriptor;
 
 // Used internally for model rendering passes.
 // The final render pass uses a user configurable format.
-pub const RGBA_COLOR_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8Unorm;
+// We need at least 16 bits to avoid banding from gamma correction.
+pub const RGBA_COLOR_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba16Unorm;
 
 // TODO: Adjust this to use less precision.
 // Rgba16Float is widely supported.

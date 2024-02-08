@@ -3,6 +3,7 @@ use crate::{
     animation::AnimationTransforms,
     bone_rendering::*,
     model::{BoneRenderData, SamplerCache},
+    renderer::RGBA_COLOR_FORMAT,
     swing_rendering::SwingRenderData,
     uniforms::{
         default_material_uniforms_bind_group, default_uniforms_buffer,
@@ -449,7 +450,7 @@ impl<'a> RenderMeshSharedData<'a> {
             mesh_object.disable_depth_write,
             mesh_object.disable_depth_test,
             material,
-            wgpu::TextureFormat::Rgba8Unorm,
+            RGBA_COLOR_FORMAT,
         );
 
         pipelines
