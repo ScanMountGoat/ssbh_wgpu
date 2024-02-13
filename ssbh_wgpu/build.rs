@@ -37,6 +37,7 @@ fn main() {
         let file_name = shader_path.with_extension("");
         let shader_name = file_name.file_name().unwrap().to_string_lossy().to_string();
 
+        writeln!(&mut f, "#[allow(dead_code)]").unwrap();
         writeln!(&mut f, "pub mod {shader_name} {{").unwrap();
         writeln!(
             &mut f,

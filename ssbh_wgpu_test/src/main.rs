@@ -59,8 +59,8 @@ fn main() {
     let (device, queue) = block_on(adapter.request_device(
         &DeviceDescriptor {
             label: None,
-            features: REQUIRED_FEATURES,
-            limits: Limits::default(),
+            required_features: REQUIRED_FEATURES,
+            required_limits: Limits::default(),
         },
         None,
     ))

@@ -5,7 +5,7 @@ edition = "2021"
 
 [dependencies]
 futures = "0.3"
-wgpu = "0.18.0"
+wgpu = "0.19.0"
 ssbh_wgpu = { path = "../ssbh_wgpu" }
 log = "0.4.17"
 simple_logger = "2.1.0"

@@ -17,10 +17,12 @@ use ssbh_wgpu::REQUIRED_FEATURES;
 use ssbh_wgpu::{load_model_folders, load_render_models, SsbhRenderer};
 use std::collections::HashSet;
 use std::path::PathBuf;
+use winit::keyboard::KeyCode;
+use winit::keyboard::NamedKey;
 use winit::{
     dpi::PhysicalPosition,
     event::*,
-    event_loop::{ControlFlow, EventLoop},
+    event_loop::EventLoop,
     window::{Window, WindowBuilder},
 };
 
@@ -49,8 +51,8 @@ fn calculate_camera_pos_mvp(
     )
 }
 
-struct State {
-    surface: wgpu::Surface,
+struct State<'a> {
+    surface: wgpu::Surface<'a>,
     device: wgpu::Device,
     queue: wgpu::Queue,
     config: wgpu::SurfaceConfiguration,
@@ -89,9 +91,9 @@ struct State {
     render: RenderSettings,
 }
 
-impl State {
+impl<'a> State<'a> {
     async fn new(
-        window: &Window,
+        window: &'a Window,
         folder: PathBuf,
         anim: Option<PathBuf>,
         prc: Option<PathBuf>,
@@ -103,7 +105,7 @@ impl State {
             backends: wgpu::Backends::all(),
             ..Default::default()
         });
-        let surface = unsafe { instance.create_surface(window).unwrap() };
+        let surface = instance.create_surface(window).unwrap();
         let adapter = instance
             .request_adapter(&wgpu::RequestAdapterOptions {
                 power_preference: wgpu::PowerPreference::HighPerformance,
@@ -116,8 +118,8 @@ impl State {
             .request_device(
                 &wgpu::DeviceDescriptor {
                     label: None,
-                    features: wgpu::Features::default() | REQUIRED_FEATURES,
-                    limits: wgpu::Limits::default(),
+                    required_features: wgpu::Features::default() | REQUIRED_FEATURES,
+                    required_limits: wgpu::Limits::default(),
                 },
                 None, // Trace path
             )
@@ -135,6 +137,7 @@ impl State {
             present_mode: wgpu::PresentMode::Fifo,
             alpha_mode: wgpu::CompositeAlphaMode::Auto,
             view_formats: Vec::new(),
+            desired_maximum_frame_latency: 2,
         };
         surface.configure(&device, &config);
 
@@ -304,73 +307,79 @@ impl State {
                 self.translation_xyz.z = (self.translation_xyz.z + delta_z).min(-1.0);
                 true
             }
-            WindowEvent::KeyboardInput { input, .. } => {
-                if let Some(keycode) = input.virtual_keycode {
-                    // Don't handle the release event to avoid duplicate events.
-                    if matches!(input.state, winit::event::ElementState::Pressed) {
-                        match keycode {
-                            VirtualKeyCode::Up => self.translation_xyz.z += 10.0,
-                            VirtualKeyCode::Down => self.translation_xyz.z -= 10.0,
-                            VirtualKeyCode::Space => self.is_playing = !self.is_playing,
-                            VirtualKeyCode::Key1 => self.render.debug_mode = DebugMode::Shaded,
-                            VirtualKeyCode::Key2 => self.render.debug_mode = DebugMode::ColorSet1,
-                            VirtualKeyCode::Key3 => self.render.debug_mode = DebugMode::ColorSet2,
-                            VirtualKeyCode::Key4 => self.render.debug_mode = DebugMode::ColorSet3,
-                            VirtualKeyCode::Key5 => self.render.debug_mode = DebugMode::ColorSet4,
-                            VirtualKeyCode::Key6 => self.render.debug_mode = DebugMode::ColorSet5,
-                            VirtualKeyCode::Key7 => self.render.debug_mode = DebugMode::ColorSet6,
-                            VirtualKeyCode::Key8 => self.render.debug_mode = DebugMode::ColorSet7,
-                            VirtualKeyCode::Q => self.render.debug_mode = DebugMode::Texture0,
-                            VirtualKeyCode::W => self.render.debug_mode = DebugMode::Texture1,
-                            VirtualKeyCode::E => self.render.debug_mode = DebugMode::Texture2,
-                            VirtualKeyCode::R => self.render.debug_mode = DebugMode::Texture3,
-                            VirtualKeyCode::T => self.render.debug_mode = DebugMode::Texture4,
-                            VirtualKeyCode::Y => self.render.debug_mode = DebugMode::Texture5,
-                            VirtualKeyCode::U => self.render.debug_mode = DebugMode::Texture6,
-                            VirtualKeyCode::I => self.render.debug_mode = DebugMode::Texture7,
-                            VirtualKeyCode::O => self.render.debug_mode = DebugMode::Texture8,
-                            VirtualKeyCode::P => self.render.debug_mode = DebugMode::Texture9,
-                            VirtualKeyCode::A => self.render.debug_mode = DebugMode::Texture10,
-                            VirtualKeyCode::S => self.render.debug_mode = DebugMode::Texture11,
-                            VirtualKeyCode::D => self.render.debug_mode = DebugMode::Texture12,
-                            VirtualKeyCode::F => self.render.debug_mode = DebugMode::Texture13,
-                            VirtualKeyCode::G => self.render.debug_mode = DebugMode::Texture14,
-                            VirtualKeyCode::H => self.render.debug_mode = DebugMode::Texture16,
-                            VirtualKeyCode::J => self.render.debug_mode = DebugMode::Position0,
-                            VirtualKeyCode::K => self.render.debug_mode = DebugMode::Normal0,
-                            VirtualKeyCode::L => self.render.debug_mode = DebugMode::Tangent0,
-                            VirtualKeyCode::Z => self.render.debug_mode = DebugMode::Map1,
-                            VirtualKeyCode::X => self.render.debug_mode = DebugMode::Bake1,
-                            VirtualKeyCode::C => self.render.debug_mode = DebugMode::UvSet,
-                            VirtualKeyCode::V => self.render.debug_mode = DebugMode::UvSet1,
-                            VirtualKeyCode::B => self.render.debug_mode = DebugMode::UvSet2,
-                            VirtualKeyCode::N => self.render.debug_mode = DebugMode::Basic,
-                            VirtualKeyCode::M => self.render.debug_mode = DebugMode::Normals,
-                            VirtualKeyCode::Comma => self.render.debug_mode = DebugMode::Bitangents,
-                            VirtualKeyCode::Period => self.render.debug_mode = DebugMode::Unlit,
-                            VirtualKeyCode::Slash => {
-                                self.render.debug_mode = DebugMode::ShaderComplexity
-                            }
-                            // TODO: Add more steps?
-                            VirtualKeyCode::Numpad0 => self.render.transition_factor = 0.0,
-                            VirtualKeyCode::Numpad1 => self.render.transition_factor = 1.0 / 3.0,
-                            VirtualKeyCode::Numpad2 => self.render.transition_factor = 2.0 / 3.0,
-                            VirtualKeyCode::Numpad3 => self.render.transition_factor = 1.0,
-                            VirtualKeyCode::Numpad4 => {
-                                self.render.transition_material = TransitionMaterial::Ink
-                            }
-                            VirtualKeyCode::Numpad5 => {
-                                self.render.transition_material = TransitionMaterial::MetalBox
-                            }
-                            VirtualKeyCode::Numpad6 => {
-                                self.render.transition_material = TransitionMaterial::Gold
-                            }
-                            VirtualKeyCode::Numpad7 => {
-                                self.render.transition_material = TransitionMaterial::Ditto
-                            }
-                            _ => (),
+            WindowEvent::KeyboardInput { event, .. } => {
+                match &event.physical_key {
+                    winit::keyboard::PhysicalKey::Code(code) => match code {
+                        // TODO: Add more steps?
+                        KeyCode::Numpad0 => self.render.transition_factor = 0.0,
+                        KeyCode::Numpad1 => self.render.transition_factor = 1.0 / 3.0,
+                        KeyCode::Numpad2 => self.render.transition_factor = 2.0 / 3.0,
+                        KeyCode::Numpad3 => self.render.transition_factor = 1.0,
+                        KeyCode::Numpad4 => {
+                            self.render.transition_material = TransitionMaterial::Ink
                         }
-                    }
+                        KeyCode::Numpad5 => {
+                            self.render.transition_material = TransitionMaterial::MetalBox
+                        }
+                        KeyCode::Numpad6 => {
+                            self.render.transition_material = TransitionMaterial::Gold
+                        }
+                        KeyCode::Numpad7 => {
+                            self.render.transition_material = TransitionMaterial::Ditto
+                        }
+                        _ => (),
+                    },
+                    winit::keyboard::PhysicalKey::Unidentified(_) => todo!(),
+                }
+                match &event.logical_key {
+                    winit::keyboard::Key::Named(named) => match named {
+                        NamedKey::ArrowUp => self.translation_xyz.z += 10.0,
+                        NamedKey::ArrowDown => self.translation_xyz.z -= 10.0,
+                        NamedKey::Space => self.is_playing = !self.is_playing,
+                        _ => (),
+                    },
+                    winit::keyboard::Key::Character(c) => match c.as_str() {
+                        "1" => self.render.debug_mode = DebugMode::Shaded,
+                        "2" => self.render.debug_mode = DebugMode::ColorSet1,
+                        "3" => self.render.debug_mode = DebugMode::ColorSet2,
+                        "4" => self.render.debug_mode = DebugMode::ColorSet3,
+                        "5" => self.render.debug_mode = DebugMode::ColorSet4,
+                        "6" => self.render.debug_mode = DebugMode::ColorSet5,
+                        "7" => self.render.debug_mode = DebugMode::ColorSet6,
+                        "8" => self.render.debug_mode = DebugMode::ColorSet7,
+                        "q" => self.render.debug_mode = DebugMode::Texture0,
+                        "w" => self.render.debug_mode = DebugMode::Texture1,
+                        "e" => self.render.debug_mode = DebugMode::Texture2,
+                        "r" => self.render.debug_mode = DebugMode::Texture3,
+                        "t" => self.render.debug_mode = DebugMode::Texture4,
+                        "y" => self.render.debug_mode = DebugMode::Texture5,
+                        "u" => self.render.debug_mode = DebugMode::Texture6,
+                        "i" => self.render.debug_mode = DebugMode::Texture7,
+                        "o" => self.render.debug_mode = DebugMode::Texture8,
+                        "p" => self.render.debug_mode = DebugMode::Texture9,
+                        "a" => self.render.debug_mode = DebugMode::Texture10,
+                        "s" => self.render.debug_mode = DebugMode::Texture11,
+                        "d" => self.render.debug_mode = DebugMode::Texture12,
+                        "f" => self.render.debug_mode = DebugMode::Texture13,
+                        "g" => self.render.debug_mode = DebugMode::Texture14,
+                        "h" => self.render.debug_mode = DebugMode::Texture16,
+                        "j" => self.render.debug_mode = DebugMode::Position0,
+                        "k" => self.render.debug_mode = DebugMode::Normal0,
+                        "l" => self.render.debug_mode = DebugMode::Tangent0,
+                        "z" => self.render.debug_mode = DebugMode::Map1,
+                        "x" => self.render.debug_mode = DebugMode::Bake1,
+                        "c" => self.render.debug_mode = DebugMode::UvSet,
+                        "v" => self.render.debug_mode = DebugMode::UvSet1,
+                        "b" => self.render.debug_mode = DebugMode::UvSet2,
+                        "n" => self.render.debug_mode = DebugMode::Basic,
+                        "m" => self.render.debug_mode = DebugMode::Normals,
+                        "," => self.render.debug_mode = DebugMode::Bitangents,
+                        "." => self.render.debug_mode = DebugMode::Unlit,
+                        "/" => self.render.debug_mode = DebugMode::ShaderComplexity,
+                        _ => (),
+                    },
+                    winit::keyboard::Key::Unidentified(_) => (),
+                    winit::keyboard::Key::Dead(_) => (),
                 }
 
                 true
@@ -541,7 +550,7 @@ fn main() {
     let render_folder_path: Option<PathBuf> = args.opt_value_from_str("--render-folder").unwrap();
     let font_path: Option<PathBuf> = args.opt_value_from_str("--font").unwrap();
 
-    let event_loop = EventLoop::new();
+    let event_loop = EventLoop::new().unwrap();
     let window = WindowBuilder::new()
         .with_title("ssbh_wgpu")
         .build(&event_loop)
@@ -560,63 +569,40 @@ fn main() {
     // Initialize the camera buffer.
     state.update_camera(window.scale_factor() as f32);
 
-    event_loop.run(move |event, _, control_flow| {
-        match event {
+    event_loop
+        .run(|event, target| match event {
             Event::WindowEvent {
                 ref event,
                 window_id,
-            } if window_id == window.id() => {
-                match event {
-                    WindowEvent::CloseRequested
-                    | WindowEvent::KeyboardInput {
-                        input:
-                            KeyboardInput {
-                                state: ElementState::Pressed,
-                                virtual_keycode: Some(VirtualKeyCode::Escape),
-                                ..
-                            },
-                        ..
-                    } => *control_flow = ControlFlow::Exit,
-                    WindowEvent::Resized(_) => {
-                        // Use the window size to avoid a potential error from size mismatches.
-                        state.resize(window.inner_size(), window.scale_factor() as f32);
-                    }
-                    WindowEvent::ScaleFactorChanged {
-                        scale_factor,
-                        new_inner_size,
-                    } => {
-                        // new_inner_size is &mut so we have to dereference it twice
-                        state.resize(**new_inner_size, *scale_factor as f32);
-                    }
-                    _ => {}
+            } if window_id == window.id() => match event {
+                WindowEvent::CloseRequested => target.exit(),
+                WindowEvent::Resized(physical_size) => {
+                    state.resize(*physical_size, window.scale_factor() as f32);
+                    window.request_redraw();
                 }
+                WindowEvent::ScaleFactorChanged { .. } => {}
+                WindowEvent::RedrawRequested => {
+                    match state.render(window.scale_factor()) {
+                        Ok(_) => {}
+                        Err(wgpu::SurfaceError::Lost) => {
+                            state.resize(state.size, window.scale_factor() as f32)
+                        }
+                        Err(wgpu::SurfaceError::OutOfMemory) => target.exit(),
+                        Err(e) => eprintln!("{e:?}"),
+                    }
+                    window.request_redraw();
+                }
+                _ => {
+                    if state.handle_input(event) {
+                        // TODO: Avoid overriding the camera values when pausing?
+                        state.update_camera(window.scale_factor() as f32);
 
-                if state.handle_input(event) {
-                    // TODO: Avoid overriding the camera values when pausing?
-                    state.update_camera(window.scale_factor() as f32);
-
-                    state.update_render_settings();
-                }
-            }
-            Event::RedrawRequested(_) => {
-                match state.render(window.scale_factor()) {
-                    Ok(_) => {}
-                    // Recreate the swap_chain if lost
-                    Err(wgpu::SurfaceError::Lost) => {
-                        state.resize(state.size, window.scale_factor() as f32)
+                        state.update_render_settings();
                     }
-                    // The system is out of memory, we should probably quit
-                    Err(wgpu::SurfaceError::OutOfMemory) => *control_flow = ControlFlow::Exit,
-                    // All other errors (Outdated, Timeout) should be resolved by the next frame
-                    Err(e) => eprintln!("{:?}", e),
+                    window.request_redraw();
                 }
-            }
-            Event::MainEventsCleared => {
-                // RedrawRequested will only trigger once, unless we manually
-                // request it.
-                window.request_redraw();
-            }
-            _ => {}
-        }
-    });
+            },
+            _ => (),
+        })
+        .unwrap();
 }

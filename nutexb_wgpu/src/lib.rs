@@ -12,6 +12,7 @@ use wgpu::{
     TextureViewDimension,
 };
 
+#[allow(dead_code)]
 mod shader {
     include!(concat!(env!("OUT_DIR"), "/shader.rs"));
 }
@@ -192,6 +193,7 @@ pub fn create_texture(
                 | wgpu::TextureUsages::TEXTURE_BINDING,
             view_formats: &[format.add_srgb_suffix(), format.remove_srgb_suffix()],
         },
+        wgpu::util::TextureDataOrder::LayerMajor,
         &data,
     );
 
@@ -518,6 +520,7 @@ fn default_texture_2d(device: &wgpu::Device, queue: &wgpu::Queue) -> wgpu::Textu
                 usage: TextureUsages::COPY_DST | TextureUsages::TEXTURE_BINDING,
                 view_formats: &[],
             },
+            wgpu::util::TextureDataOrder::LayerMajor,
             &[0; 4],
         )
         .create_view(&wgpu::TextureViewDescriptor {
@@ -545,6 +548,7 @@ fn default_texture_3d(device: &wgpu::Device, queue: &wgpu::Queue) -> wgpu::Textu
                 usage: TextureUsages::COPY_DST | TextureUsages::TEXTURE_BINDING,
                 view_formats: &[],
             },
+            wgpu::util::TextureDataOrder::LayerMajor,
             &[0; 4],
         )
         .create_view(&wgpu::TextureViewDescriptor {
@@ -572,6 +576,7 @@ fn default_texture_cube(device: &wgpu::Device, queue: &wgpu::Queue) -> wgpu::Tex
                 usage: TextureUsages::COPY_DST | TextureUsages::TEXTURE_BINDING,
                 view_formats: &[],
             },
+            wgpu::util::TextureDataOrder::LayerMajor,
             &[0; 4 * 6],
         )
         .create_view(&wgpu::TextureViewDescriptor {

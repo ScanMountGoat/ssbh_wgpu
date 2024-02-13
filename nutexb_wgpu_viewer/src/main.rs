@@ -4,12 +4,12 @@ use futures::executor::block_on;
 use nutexb_wgpu::{NutexbFile, RenderSettings, TextureRenderer};
 use winit::{
     event::*,
-    event_loop::{ControlFlow, EventLoop},
+    event_loop::EventLoop,
     window::{Window, WindowBuilder},
 };
 
-struct State {
-    surface: wgpu::Surface,
+struct State<'a> {
+    surface: wgpu::Surface<'a>,
     device: wgpu::Device,
     queue: wgpu::Queue,
     size: winit::dpi::PhysicalSize<u32>,
@@ -19,13 +19,13 @@ struct State {
     _mipmap: f32,
 }
 
-impl State {
-    async fn new<P: AsRef<Path>>(window: &Window, path: P, layer: u32, mipmap: f32) -> Self {
+impl<'a> State<'a> {
+    async fn new<P: AsRef<Path>>(window: &'a Window, path: P, layer: u32, mipmap: f32) -> Self {
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
             backends: wgpu::Backends::all(),
             ..Default::default()
         });
-        let surface = unsafe { instance.create_surface(window).unwrap() };
+        let surface = instance.create_surface(window).unwrap();
         let adapter = instance
             .request_adapter(&wgpu::RequestAdapterOptions {
                 power_preference: wgpu::PowerPreference::default(),
@@ -39,8 +39,8 @@ impl State {
             .request_device(
                 &wgpu::DeviceDescriptor {
                     label: None,
-                    features: wgpu::Features::TEXTURE_COMPRESSION_BC,
-                    limits: wgpu::Limits::default(),
+                    required_features: wgpu::Features::TEXTURE_COMPRESSION_BC,
+                    required_limits: wgpu::Limits::default(),
                 },
                 None,
             )
@@ -57,6 +57,7 @@ impl State {
             present_mode: wgpu::PresentMode::Fifo,
             alpha_mode: wgpu::CompositeAlphaMode::Auto,
             view_formats: Vec::new(),
+            desired_maximum_frame_latency: 2,
         };
         surface.configure(&device, &config);
 
@@ -173,7 +174,7 @@ fn main() {
     let layer: u32 = args.get(2).and_then(|a| a.parse().ok()).unwrap_or(0);
     let mipmap: f32 = args.get(3).and_then(|a| a.parse().ok()).unwrap_or(0.0);
 
-    let event_loop = EventLoop::new();
+    let event_loop = EventLoop::new().unwrap();
     let window = WindowBuilder::new()
         .with_title(image_path.file_name().unwrap().to_string_lossy())
         .build(&event_loop)
@@ -181,38 +182,32 @@ fn main() {
 
     // TODO: change the mipmap or layer using keyboard shortcuts.
     let mut state = block_on(State::new(&window, &image_path, layer, mipmap));
-    event_loop.run(move |event, _, control_flow| match event {
-        Event::WindowEvent {
-            ref event,
-            window_id,
-        } if window_id == window.id() => match event {
-            WindowEvent::CloseRequested
-            | WindowEvent::KeyboardInput {
-                input:
-                    KeyboardInput {
-                        state: ElementState::Pressed,
-                        virtual_keycode: Some(VirtualKeyCode::Escape),
-                        ..
-                    },
-                ..
-            } => *control_flow = ControlFlow::Exit,
-            WindowEvent::Resized(physical_size) => {
-                state.resize(*physical_size);
-            }
-            WindowEvent::ScaleFactorChanged { new_inner_size, .. } => {
-                state.resize(**new_inner_size);
-            }
-            _ => {}
-        },
-        Event::RedrawRequested(_) => match state.render() {
-            Ok(_) => {}
-            Err(wgpu::SurfaceError::Lost) => state.resize(state.size),
-            Err(wgpu::SurfaceError::OutOfMemory) => *control_flow = ControlFlow::Exit,
-            Err(e) => eprintln!("{e:?}"),
-        },
-        Event::MainEventsCleared => {
-            window.request_redraw();
-        }
-        _ => {}
-    });
+    event_loop
+        .run(|event, target| match event {
+            Event::WindowEvent {
+                ref event,
+                window_id,
+            } if window_id == window.id() => match event {
+                WindowEvent::CloseRequested => target.exit(),
+                WindowEvent::Resized(physical_size) => {
+                    state.resize(*physical_size);
+                    window.request_redraw();
+                }
+                WindowEvent::ScaleFactorChanged { .. } => {}
+                WindowEvent::RedrawRequested => {
+                    match state.render() {
+                        Ok(_) => {}
+                        Err(wgpu::SurfaceError::Lost) => state.resize(state.size),
+                        Err(wgpu::SurfaceError::OutOfMemory) => target.exit(),
+                        Err(e) => eprintln!("{e:?}"),
+                    }
+                    window.request_redraw();
+                }
+                _ => {
+                    window.request_redraw();
+                }
+            },
+            _ => (),
+        })
+        .unwrap();
 }

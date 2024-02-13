@@ -104,6 +104,7 @@ pub fn load_default_spec_cube(device: &Device, queue: &Queue) -> (Texture, Sampl
             usage: TextureUsages::COPY_DST | TextureUsages::TEXTURE_BINDING,
             view_formats: &[],
         },
+        wgpu::util::TextureDataOrder::LayerMajor,
         include_bytes!("resources/stage_cube_surface.bin"),
     );
 
@@ -138,6 +139,7 @@ pub fn load_default_lut(device: &Device, queue: &wgpu::Queue) -> TextureSamplerV
             usage: TextureUsages::COPY_DST | TextureUsages::TEXTURE_BINDING,
             view_formats: &[],
         },
+        wgpu::util::TextureDataOrder::LayerMajor,
         &default_lut,
     );
 
@@ -331,6 +333,7 @@ pub fn solid_color_texture_2d(
             usage: TextureUsages::COPY_DST | TextureUsages::TEXTURE_BINDING,
             view_formats: &[],
         },
+        wgpu::util::TextureDataOrder::LayerMajor,
         bytemuck::cast_slice(&[color; 4 * 4]),
     );
 
@@ -360,6 +363,7 @@ pub fn default_diffuse2(
             usage: TextureUsages::COPY_DST | TextureUsages::TEXTURE_BINDING,
             view_formats: &[],
         },
+        wgpu::util::TextureDataOrder::LayerMajor,
         include_bytes!("resources/default_diffuse2_surface.bin"),
     );
 
@@ -395,6 +399,7 @@ pub fn uv_pattern(device: &Device, queue: &wgpu::Queue) -> Texture {
             usage: TextureUsages::COPY_DST | TextureUsages::TEXTURE_BINDING,
             view_formats: &[],
         },
+        wgpu::util::TextureDataOrder::LayerMajor,
         data.to_rgba8().as_bytes(),
     );
 

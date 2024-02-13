@@ -555,7 +555,6 @@ impl<'a> RenderMeshSharedData<'a> {
                 draw_model: true,
                 cast_shadow: true,
             }),
-            sort_bias: mesh_object.sort_bias,
             skinning_bind_group,
             skinning_transforms_bind_group,
             mesh_object_info_bind_group,

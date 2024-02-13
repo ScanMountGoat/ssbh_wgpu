@@ -70,7 +70,6 @@ pub struct RenderMesh {
     meshex_flags: EntryFlags, // TODO: How to update these?
     material_label: String,
     shader_label: String,
-    sort_bias: i32,
     renormal_bind_group: crate::shader::renormal::bind_groups::BindGroup0,
     skinning_bind_group: crate::shader::skinning::bind_groups::BindGroup0,
     skinning_transforms_bind_group: crate::shader::skinning::bind_groups::BindGroup1,

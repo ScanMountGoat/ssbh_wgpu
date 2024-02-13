@@ -32,9 +32,7 @@ pub const MSAA_SAMPLE_COUNT: u32 = 4;
 pub const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
 pub const DEPTH_STENCIL_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32FloatStencil8;
 
-// TODO: The in game format is R16G16_UNORM
-// TODO: Find a way to get this working without filtering samplers?
-const VARIANCE_SHADOW_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rg32Float;
+const VARIANCE_SHADOW_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rg16Unorm;
 
 const SHADOW_MAP_WIDTH: u32 = 1024;
 const SHADOW_MAP_HEIGHT: u32 = 1024;
