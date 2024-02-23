@@ -766,11 +766,9 @@ impl SsbhRenderer {
             occlusion_query_set: None,
         });
         variance_shadow_pass.set_pipeline(&self.variance_shadow_pipeline);
-        crate::shader::variance_shadow::bind_groups::set_bind_groups(
+        crate::shader::variance_shadow::set_bind_groups(
             &mut variance_shadow_pass,
-            crate::shader::variance_shadow::bind_groups::BindGroups {
-                bind_group0: &self.variance_bind_group,
-            },
+            &self.variance_bind_group,
         );
         variance_shadow_pass.draw(0..3, 0..1);
     }
@@ -1122,12 +1120,7 @@ impl SsbhRenderer {
 
         if enabled {
             pass.set_pipeline(&self.outline_pipeline);
-            crate::shader::outline::bind_groups::set_bind_groups(
-                &mut pass,
-                crate::shader::outline::bind_groups::BindGroups {
-                    bind_group0: mask_bind_group,
-                },
-            );
+            crate::shader::outline::set_bind_groups(&mut pass, mask_bind_group);
             // The stencil is cleared to 0xFF and the object is drawn with 0x00.
             // Mask out the inner black regions to keep the outline.
             pass.set_stencil_reference(0xff);
@@ -1137,12 +1130,7 @@ impl SsbhRenderer {
 
     fn overlay_pass<'a>(&'a self, pass: &mut wgpu::RenderPass<'a>) {
         pass.set_pipeline(&self.overlay_pipeline);
-        crate::shader::overlay::bind_groups::set_bind_groups(
-            pass,
-            crate::shader::overlay::bind_groups::BindGroups {
-                bind_group0: &self.pass_info.overlay_bind_group,
-            },
-        );
+        crate::shader::overlay::set_bind_groups(pass, &self.pass_info.overlay_bind_group);
         pass.draw(0..3, 0..1);
     }
 
@@ -1167,11 +1155,9 @@ impl SsbhRenderer {
             occlusion_query_set: None,
         });
         pass.set_pipeline(&self.post_process_pipeline);
-        crate::shader::post_process::bind_groups::set_bind_groups(
+        crate::shader::post_process::set_bind_groups(
             &mut pass,
-            crate::shader::post_process::bind_groups::BindGroups {
-                bind_group0: &self.pass_info.post_process_bind_group,
-            },
+            &self.pass_info.post_process_bind_group,
         );
         pass.draw(0..3, 0..1);
     }
@@ -1184,11 +1170,9 @@ impl SsbhRenderer {
         );
 
         pass.set_pipeline(&self.bloom_combine_pipeline);
-        crate::shader::bloom_combine::bind_groups::set_bind_groups(
+        crate::shader::bloom_combine::set_bind_groups(
             &mut pass,
-            crate::shader::bloom_combine::bind_groups::BindGroups {
-                bind_group0: &self.pass_info.bloom_combine_bind_group,
-            },
+            &self.pass_info.bloom_combine_bind_group,
         );
         pass.draw(0..3, 0..1);
     }
@@ -1230,12 +1214,7 @@ impl SsbhRenderer {
         let mut pass = create_color_pass(encoder, view, Some(name));
 
         pass.set_pipeline(pipeline);
-        crate::shader::bloom::bind_groups::set_bind_groups(
-            &mut pass,
-            crate::shader::bloom::bind_groups::BindGroups {
-                bind_group0: bind_group,
-            },
-        );
+        crate::shader::bloom::set_bind_groups(&mut pass, bind_group);
         pass.draw(0..3, 0..1);
     }
 }

@@ -172,7 +172,9 @@ impl ModelFolder {
             anims: read_files(&files, "nuanmb", AnimData::from_file),
             adjs: read_files(&files, "adjb", AdjData::from_file),
             hlpbs: read_files(&files, "nuhlpb", HlpbData::from_file),
-            nutexbs: read_files(&files, "nutexb", NutexbFile::read_from_file),
+            nutexbs: read_files(&files, "nutexb", |p| {
+                NutexbFile::read_from_file(p).map_err(Into::into)
+            }),
             xmbs: read_files(&files, "xmb", XmbFile::from_file),
         }
     }

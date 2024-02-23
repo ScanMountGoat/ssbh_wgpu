@@ -5,8 +5,8 @@ ssbh_wgpu is a lightweight and portable Smash Ultimate model and texture rendere
 Add the following lines to the `Cargo.toml`. This library is still highly experimental. Specify the commit tag or commit the `Cargo.lock` file to version control to avoid any versioning issues. For an example of an application using this renderer, see [ssbh_editor](https://github.com/ScanMountGoat/ssbh_editor).
 
 ```
-ssbh_wgpu = { git = "https://github.com/ScanMountGoat/ssbh_wgpu" }
-nutexb_wgpu = { git = "https://github.com/ScanMountGoat/ssbh_wgpu" }
+ssbh_wgpu = { git = "https://github.com/ScanMountGoat/ssbh_wgpu", rev = "hash" }
+nutexb_wgpu = { git = "https://github.com/ScanMountGoat/ssbh_wgpu", rev = "hash" }
 ```
 
 ## Overview

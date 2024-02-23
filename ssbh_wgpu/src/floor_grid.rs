@@ -100,12 +100,7 @@ impl FloorGridRenderData {
     pub fn draw<'a>(&'a self, pass: &mut wgpu::RenderPass<'a>) {
         pass.set_pipeline(&self.pipeline);
 
-        crate::shader::floor_grid::bind_groups::set_bind_groups(
-            pass,
-            crate::shader::floor_grid::bind_groups::BindGroups {
-                bind_group0: &self.bind_group,
-            },
-        );
+        crate::shader::floor_grid::set_bind_groups(pass, &self.bind_group);
 
         self.buffers.set(pass);
 

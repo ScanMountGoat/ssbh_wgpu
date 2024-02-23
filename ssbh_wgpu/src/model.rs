@@ -418,13 +418,11 @@ impl RenderModel {
         buffers.set(render_pass);
 
         for bind_group2 in &self.bone_render_data.bone_bind_groups {
-            crate::shader::skeleton::bind_groups::set_bind_groups(
+            crate::shader::skeleton::set_bind_groups(
                 render_pass,
-                crate::shader::skeleton::bind_groups::BindGroups::<'a> {
-                    bind_group0: camera_bind_group,
-                    bind_group1: bone_data_bind_group,
-                    bind_group2,
-                },
+                camera_bind_group,
+                bone_data_bind_group,
+                bind_group2,
             );
             render_pass.draw_indexed(0..buffers.index_count, 0, 0..1);
         }
@@ -457,13 +455,11 @@ impl RenderModel {
     ) {
         // Prevent potential validation error from empty meshes.
         if mesh.vertex_index_count > 0 {
-            crate::shader::model::bind_groups::set_bind_groups(
+            crate::shader::model::set_bind_groups(
                 render_pass,
-                crate::shader::model::bind_groups::BindGroups::<'a> {
-                    bind_group0,
-                    bind_group1,
-                    bind_group2,
-                },
+                bind_group0,
+                bind_group1,
+                bind_group2,
             );
 
             self.set_mesh_buffers(render_pass, mesh);
@@ -671,12 +667,7 @@ pub fn dispatch_renormal<'a>(meshes: &'a [RenderMesh], compute_pass: &mut wgpu::
         .iter()
         .filter(|m| m.material_label.contains("RENORMAL"))
     {
-        crate::shader::renormal::bind_groups::set_bind_groups(
-            compute_pass,
-            crate::shader::renormal::bind_groups::BindGroups::<'a> {
-                bind_group0: &mesh.renormal_bind_group,
-            },
-        );
+        crate::shader::renormal::set_bind_groups(compute_pass, &mesh.renormal_bind_group);
 
         // Round up with ceil to avoid skipping vertices.
         let [workgroup_x, _, _] = crate::shader::renormal::compute::MAIN_WORKGROUP_SIZE;
@@ -692,14 +683,12 @@ pub fn dispatch_skinning<'a>(
 ) {
     // Assume the pipeline is already set.
     for mesh in meshes {
-        crate::shader::skinning::bind_groups::set_bind_groups(
+        crate::shader::skinning::set_bind_groups(
             compute_pass,
-            crate::shader::skinning::bind_groups::BindGroups::<'a> {
-                bind_group0: &mesh.skinning_bind_group,
-                bind_group1: &mesh.skinning_transforms_bind_group,
-                bind_group2: &mesh.mesh_object_info_bind_group,
-                bind_group3,
-            },
+            &mesh.skinning_bind_group,
+            &mesh.skinning_transforms_bind_group,
+            &mesh.mesh_object_info_bind_group,
+            bind_group3,
         );
 
         // Round up with ceil to avoid skipping vertices.

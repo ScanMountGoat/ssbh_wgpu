@@ -492,13 +492,11 @@ fn draw_shape<'a>(
     shape: &'a ShapeRenderData,
     buffers: &IndexedMeshBuffers,
 ) {
-    crate::shader::swing::bind_groups::set_bind_groups(
+    crate::shader::swing::set_bind_groups(
         pass,
-        crate::shader::swing::bind_groups::BindGroups {
-            bind_group0: swing_camera_bind_group,
-            bind_group1,
-            bind_group2: &shape.bind_group,
-        },
+        swing_camera_bind_group,
+        bind_group1,
+        &shape.bind_group,
     );
     pass.draw_indexed(0..buffers.index_count, 0, 0..1);
 }

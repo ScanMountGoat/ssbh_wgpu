@@ -335,7 +335,11 @@ impl<'a> State<'a> {
                     winit::keyboard::Key::Named(named) => match named {
                         NamedKey::ArrowUp => self.translation_xyz.z += 10.0,
                         NamedKey::ArrowDown => self.translation_xyz.z -= 10.0,
-                        NamedKey::Space => self.is_playing = !self.is_playing,
+                        NamedKey::Space => {
+                            if event.state == ElementState::Released {
+                                self.is_playing = !self.is_playing;
+                            }
+                        }
                         _ => (),
                     },
                     winit::keyboard::Key::Character(c) => match c.as_str() {

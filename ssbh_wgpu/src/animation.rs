@@ -212,7 +212,7 @@ pub fn animate_skel<'a>(
 
 pub fn animate_skel_inner(
     result: &mut AnimationTransforms,
-    bones: &mut Vec<(usize, AnimatedBone)>,
+    bones: &mut [(usize, AnimatedBone)],
     skel_bones: &[BoneData],
     hlpb: Option<&HlpbData>,
 ) {

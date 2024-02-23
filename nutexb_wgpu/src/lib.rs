@@ -1,10 +1,8 @@
 use log::warn;
 pub use nutexb::NutexbFile;
 use shader::bind_groups::BindGroup0;
-use shader::{
-    bind_groups::{set_bind_groups, BindGroups},
-    create_pipeline_layout, create_shader_module,
-};
+use shader::set_bind_groups;
+use shader::{create_pipeline_layout, create_shader_module};
 use thiserror::Error;
 use wgpu::{util::DeviceExt, Limits};
 use wgpu::{
@@ -492,12 +490,7 @@ fn draw_textured_triangle<'a>(
     texture_bind_group: &'a BindGroup0,
 ) {
     render_pass.set_pipeline(pipeline);
-    set_bind_groups(
-        render_pass,
-        BindGroups {
-            bind_group0: texture_bind_group,
-        },
-    );
+    set_bind_groups(render_pass, texture_bind_group);
     render_pass.draw(0..3, 0..1);
 }
 
