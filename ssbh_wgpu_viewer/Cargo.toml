@@ -11,5 +11,5 @@ log = "0.4.17"
 simple_logger = "2.1.0"
 glam = { version = "0.25.0", features = ["bytemuck"] }
 ssbh_wgpu = { path = "../ssbh_wgpu" }
-ssbh_data = { git = "https://github.com/ultimate-research/ssbh_lib", rev = "1a014fa", features = ["strum"] }
+ssbh_data = { version = "0.18.0", features = ["strum"] }
 pico-args = "0.5.0"
