@@ -313,7 +313,7 @@ impl SsbhRenderer {
         let silhouette_pipeline = silhouette_pipeline(device, surface_format);
         let outline_pipeline = create_outline_pipeline(device, surface_format);
         let uv_pipeline = uv_pipeline(device, surface_format);
-        let wireframe_pipeline = wireframe_pipeline(device, surface_format);
+        let wireframe_pipeline = wireframe_pipeline(device);
 
         let bone_pipelines = BonePipelines::new(device, RGBA_COLOR_FORMAT);
         let bone_buffers = BoneBuffers::new(device);

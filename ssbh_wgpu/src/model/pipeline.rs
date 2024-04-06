@@ -217,10 +217,7 @@ pub fn silhouette_pipeline(
     })
 }
 
-pub fn wireframe_pipeline(
-    device: &wgpu::Device,
-    surface_format: wgpu::TextureFormat,
-) -> wgpu::RenderPipeline {
+pub fn wireframe_pipeline(device: &wgpu::Device) -> wgpu::RenderPipeline {
     let module = crate::shader::model::create_shader_module(device);
     let render_pipeline_layout = crate::shader::model::create_pipeline_layout(device);
 
@@ -237,7 +234,7 @@ pub fn wireframe_pipeline(
         fragment: Some(wgpu::FragmentState {
             module: &module,
             entry_point: "fs_solid",
-            targets: &[Some(surface_format.into())],
+            targets: &[Some(RGBA_COLOR_FORMAT.into())],
         }),
         primitive: wgpu::PrimitiveState {
             polygon_mode: wgpu::PolygonMode::Line,
