@@ -4,7 +4,7 @@ use libfuzzer_sys::fuzz_target;
 use once_cell::sync::Lazy;
 use ssbh_wgpu::{
     load_render_models, ModelFolder, ModelRenderOptions, RenderModel, ShaderDatabase,
-    SharedRenderData, SsbhRenderer, REQUIRED_FEATURES, RGBA_COLOR_FORMAT,
+    SharedRenderData, SsbhRenderer, REQUIRED_FEATURES,
 };
 use wgpu::{
     Device, DeviceDescriptor, Extent3d, Limits, PowerPreference, Queue, RequestAdapterOptions,
@@ -28,8 +28,8 @@ static SHARED: Lazy<(Device, Queue, SharedRenderData, SsbhRenderer, TextureView)
         let (device, queue) = block_on(adapter.request_device(
             &DeviceDescriptor {
                 label: None,
-                features: REQUIRED_FEATURES,
-                limits: Limits::default(),
+                required_features: REQUIRED_FEATURES,
+                required_limits: Limits::default(),
             },
             None,
         ))
@@ -37,7 +37,15 @@ static SHARED: Lazy<(Device, Queue, SharedRenderData, SsbhRenderer, TextureView)
 
         let shared_data = SharedRenderData::new(&device, &queue);
 
-        let renderer = SsbhRenderer::new(&device, &queue, 8, 8, 1.0, [0.0; 3], &[]);
+        let renderer = SsbhRenderer::new(
+            &device,
+            &queue,
+            8,
+            8,
+            1.0,
+            [0.0; 4],
+            wgpu::TextureFormat::Rgba8Unorm,
+        );
 
         let texture_desc = TextureDescriptor {
             size: Extent3d {
@@ -48,7 +56,7 @@ static SHARED: Lazy<(Device, Queue, SharedRenderData, SsbhRenderer, TextureView)
             mip_level_count: 1,
             sample_count: 1,
             dimension: TextureDimension::D2,
-            format: RGBA_COLOR_FORMAT,
+            format: wgpu::TextureFormat::Rgba8Unorm,
             usage: TextureUsages::COPY_SRC | TextureUsages::RENDER_ATTACHMENT,
             label: None,
             view_formats: &[],
