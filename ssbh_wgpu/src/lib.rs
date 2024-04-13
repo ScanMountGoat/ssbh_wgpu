@@ -23,6 +23,7 @@ mod floor_grid;
 mod model;
 mod render_settings;
 mod renderer;
+mod sampler;
 mod shader;
 mod shader_database;
 mod shape;

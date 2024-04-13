@@ -1,11 +1,13 @@
 use image::EncodableLayout;
-use ssbh_data::matl_data::{MagFilter, MinFilter, ParamId, SamplerData, WrapMode};
+use ssbh_data::matl_data::{ParamId, SamplerData};
 use std::path::Path;
 use wgpu::{
     util::DeviceExt, Device, Queue, Sampler, SamplerDescriptor, Texture, TextureDescriptor,
     TextureDimension, TextureFormat, TextureUsages, TextureView, TextureViewDescriptor,
     TextureViewDimension,
 };
+
+use crate::sampler::sampler_descriptor;
 
 pub enum LoadTextureError {
     PathNotFound,
@@ -55,15 +57,7 @@ pub fn load_texture(
 pub fn create_sampler(device: &Device, param_id: ParamId, data: &SamplerData) -> Sampler {
     device.create_sampler(&SamplerDescriptor {
         label: Some(&param_id.to_string()),
-        address_mode_u: address_mode(data.wraps),
-        address_mode_v: address_mode(data.wrapt),
-        address_mode_w: address_mode(data.wrapr),
-        mag_filter: mag_filter_mode(data.mag_filter),
-        min_filter: min_filter_mode(data.min_filter),
-        mipmap_filter: mip_filter_mode(data.min_filter),
-        anisotropy_clamp: data.max_anisotropy.map(|m| m as u16).unwrap_or(1),
-        // TODO: Set other options?
-        ..Default::default()
+        ..sampler_descriptor(data)
     })
 }
 
@@ -157,40 +151,6 @@ pub fn load_default_lut(device: &Device, queue: &wgpu::Queue) -> TextureSamplerV
     });
 
     TextureSamplerView { view, sampler }
-}
-
-fn mip_filter_mode(filter: MinFilter) -> wgpu::FilterMode {
-    // wgpu separates the min filter and mipmap filter.
-    match filter {
-        MinFilter::Nearest => wgpu::FilterMode::Nearest,
-        MinFilter::LinearMipmapLinear => wgpu::FilterMode::Linear,
-        MinFilter::LinearMipmapLinear2 => wgpu::FilterMode::Linear,
-    }
-}
-
-fn min_filter_mode(filter: MinFilter) -> wgpu::FilterMode {
-    match filter {
-        MinFilter::Nearest => wgpu::FilterMode::Nearest,
-        MinFilter::LinearMipmapLinear => wgpu::FilterMode::Linear,
-        MinFilter::LinearMipmapLinear2 => wgpu::FilterMode::Linear,
-    }
-}
-
-fn mag_filter_mode(filter: MagFilter) -> wgpu::FilterMode {
-    match filter {
-        MagFilter::Nearest => wgpu::FilterMode::Nearest,
-        MagFilter::Linear => wgpu::FilterMode::Linear,
-        MagFilter::Linear2 => wgpu::FilterMode::Linear,
-    }
-}
-
-fn address_mode(wrap_mode: WrapMode) -> wgpu::AddressMode {
-    match wrap_mode {
-        WrapMode::Repeat => wgpu::AddressMode::Repeat,
-        WrapMode::ClampToEdge => wgpu::AddressMode::ClampToEdge,
-        WrapMode::MirroredRepeat => wgpu::AddressMode::MirrorRepeat,
-        WrapMode::ClampToBorder => wgpu::AddressMode::ClampToBorder,
-    }
 }
 
 pub fn create_default_textures(

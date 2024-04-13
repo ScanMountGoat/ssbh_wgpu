@@ -498,7 +498,8 @@ impl<'a> State<'a> {
             &ModelRenderOptions {
                 draw_bones: false,
                 draw_bone_axes: false,
-                draw_floor_grid: false,
+                draw_floor_grid: true,
+                draw_wireframe: true,
                 ..Default::default()
             },
         );
