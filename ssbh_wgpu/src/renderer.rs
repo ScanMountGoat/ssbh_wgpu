@@ -955,10 +955,6 @@ impl SsbhRenderer {
             occlusion_query_set: None,
         });
 
-        if floor_grid {
-            self.floor_grid.draw(&mut pass);
-        }
-
         pass.set_pipeline(&self.debug_pipeline);
         for model in render_models.iter().filter(|m| m.is_visible) {
             model.draw_meshes_debug(&mut pass, &self.per_frame_bind_group);
@@ -978,6 +974,11 @@ impl SsbhRenderer {
             mask_model_index,
             mask_material_label,
         );
+
+        // Draw this last to avoid obscuring models or masks.
+        if floor_grid {
+            self.floor_grid.draw(&mut pass);
+        }
     }
 
     fn clear_color(&self) -> wgpu::Color {
