@@ -227,6 +227,7 @@ impl SsbhRenderer {
             "Camera Buffer",
             &[crate::shader::model::CameraTransforms {
                 model_view_matrix: glam::Mat4::IDENTITY,
+                projection_matrix: glam::Mat4::IDENTITY,
                 mvp_matrix: glam::Mat4::IDENTITY,
                 mvp_inv_matrix: glam::Mat4::IDENTITY,
                 camera_pos: glam::vec4(0.0, 0.0, -1.0, 1.0),

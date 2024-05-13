@@ -24,13 +24,13 @@ impl CameraAnimValues {
 
         let aspect_ratio = width as f32 / height as f32;
 
-        let perspective_matrix = Mat4::perspective_rh(
+        let projection_matrix = Mat4::perspective_rh(
             self.fov_y_radians,
             aspect_ratio,
             self.near_clip,
             self.far_clip,
         );
-        let mvp_matrix = perspective_matrix * model_view_matrix;
+        let mvp_matrix = projection_matrix * model_view_matrix;
 
         let camera_pos = model_view_matrix.inverse().col(3);
 
@@ -38,6 +38,7 @@ impl CameraAnimValues {
 
         CameraTransforms {
             model_view_matrix,
+            projection_matrix,
             mvp_matrix,
             mvp_inv_matrix: mvp_matrix.inverse(),
             camera_pos,

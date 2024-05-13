@@ -12,23 +12,25 @@ use wgpu::{
     TextureDimension, TextureUsages,
 };
 
-fn calculate_camera_pos_mvp(
+// TODO: Just return camera transforms?
+fn calculate_camera(
     translation: glam::Vec3,
     rotation: glam::Vec3,
-) -> (glam::Vec4, glam::Mat4, glam::Mat4) {
+) -> (glam::Vec4, glam::Mat4, glam::Mat4, glam::Mat4) {
     let aspect = 1.0;
     let model_view_matrix = glam::Mat4::from_translation(translation)
         * glam::Mat4::from_rotation_x(rotation.x)
         * glam::Mat4::from_rotation_y(rotation.y);
     // Use a large far clip distance to include stage skyboxes.
-    let perspective_matrix = glam::Mat4::perspective_rh(0.5, aspect, 1.0, 400000.0);
+    let projection_matrix = glam::Mat4::perspective_rh(0.5, aspect, 1.0, 400000.0);
 
     let camera_pos = model_view_matrix.inverse().col(3);
 
     (
         camera_pos,
         model_view_matrix,
-        perspective_matrix * model_view_matrix,
+        projection_matrix,
+        projection_matrix * model_view_matrix,
     )
 }
 
@@ -82,10 +84,11 @@ fn main() {
         glam::Vec3::ZERO
     };
 
-    let (camera_pos, model_view_matrix, mvp_matrix) =
-        calculate_camera_pos_mvp(glam::vec3(0.0, -8.0, -60.0), rotation);
+    let (camera_pos, model_view_matrix, projection_matrix, mvp_matrix) =
+        calculate_camera(glam::vec3(0.0, -8.0, -60.0), rotation);
     let transforms = CameraTransforms {
         model_view_matrix,
+        projection_matrix,
         mvp_matrix,
         mvp_inv_matrix: mvp_matrix.inverse(),
         camera_pos,

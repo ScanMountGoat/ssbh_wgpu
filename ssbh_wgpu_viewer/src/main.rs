@@ -30,24 +30,26 @@ const FOV_Y: f32 = 0.5;
 const NEAR_CLIP: f32 = 1.0;
 const FAR_CLIP: f32 = 400000.0;
 
-fn calculate_camera_pos_mvp(
+// TODO: Just return camera transforms?
+fn calculate_camera(
     size: winit::dpi::PhysicalSize<u32>,
     translation: glam::Vec3,
     rotation: glam::Vec3,
-) -> (glam::Vec4, glam::Mat4, glam::Mat4) {
+) -> (glam::Vec4, glam::Mat4, glam::Mat4, glam::Mat4) {
     let aspect = size.width as f32 / size.height as f32;
     let model_view_matrix = glam::Mat4::from_translation(translation)
         * glam::Mat4::from_rotation_x(rotation.x)
         * glam::Mat4::from_rotation_y(rotation.y);
     // Use a large far clip distance to include stage skyboxes.
-    let perspective_matrix = glam::Mat4::perspective_rh(FOV_Y, aspect, NEAR_CLIP, FAR_CLIP);
+    let projection_matrix = glam::Mat4::perspective_rh(FOV_Y, aspect, NEAR_CLIP, FAR_CLIP);
 
     let camera_pos = model_view_matrix.inverse().col(3);
 
     (
         camera_pos,
         model_view_matrix,
-        perspective_matrix * model_view_matrix,
+        projection_matrix,
+        projection_matrix * model_view_matrix,
     )
 }
 
@@ -395,10 +397,11 @@ impl<'a> State<'a> {
     // TODO: Module and tests for a viewport camera.
 
     fn update_camera(&mut self, scale_factor: f32) {
-        let (camera_pos, model_view_matrix, mvp_matrix) =
-            calculate_camera_pos_mvp(self.size, self.translation_xyz, self.rotation_xyz);
+        let (camera_pos, model_view_matrix, projection_matrix, mvp_matrix) =
+            calculate_camera(self.size, self.translation_xyz, self.rotation_xyz);
         let transforms = CameraTransforms {
             model_view_matrix,
+            projection_matrix,
             mvp_matrix,
             mvp_inv_matrix: mvp_matrix.inverse(),
             camera_pos,
@@ -512,8 +515,7 @@ impl<'a> State<'a> {
 
         // TODO: make name rendering optional.
         // TODO: Avoid recalculating this?
-        let (_, _, mvp) =
-            calculate_camera_pos_mvp(self.size, self.translation_xyz, self.rotation_xyz);
+        let (_, _, _, mvp) = calculate_camera(self.size, self.translation_xyz, self.rotation_xyz);
 
         // TODO: This doesn't work properly with camera animations.
         self.name_renderer.render_bone_names(
