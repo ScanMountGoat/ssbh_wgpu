@@ -240,7 +240,7 @@ fn TransformUv(uv: vec2<f32>, transform: vec4<f32>) -> vec2<f32> {
     // TODO: dUdV Map.
     // Remap [0,1] to [-1,1].
     // let textureOffset = textureSample(texture4, sampler4, uv * 2.0).xy * 2.0 - 1.0;
-    // result = result + textureOffset * per_material.custom_float[4].x;
+    // result += textureOffset * per_material.custom_float[4].x;
 
     // UV transform code ported from Mario's eye shader in game.
     // TODO: Is it worth porting the checks for NaN and 0.0 on transform.xy?
@@ -317,7 +317,7 @@ fn GetAlbedoColor(uv1: vec2<f32>, uv2: vec2<f32>, uv3: vec2<f32>, R: vec3<f32>, 
     }
     if per_material.has_texture[12].x == 1u {
         // TODO: Is the blending always additive?
-        outRgb = outRgb + textureSample(texture12, sampler12, uvLayer3).rgb;
+        outRgb += textureSample(texture12, sampler12, uvLayer3).rgb;
     }
 
     return vec4(outRgb, outAlpha);
@@ -432,26 +432,26 @@ fn DiffuseTerm(
     }
     var ambientTerm = vec3(ao);
     if per_material.lighting_settings.y == 1u {
-        ambientTerm = ambientTerm * shLighting;
+        ambientTerm *= shLighting;
     }
 
     // TODO: Does Texture3 also affect specular?
     if per_material.has_texture[3].x == 1u {
-        ambientTerm = ambientTerm * textureSample(texture3, sampler3, bake1).rgb;
+        ambientTerm *= textureSample(texture3, sampler3, bake1).rgb;
     }
 
     if per_material.has_texture[9].x == 1u {
         // The alpha channel masks direct lighting to act as baked shadows.
         let bakedLitColor = textureSample(texture9, sampler9, bake1).rgba;
-        directLight = directLight * bakedLitColor.a;
+        directLight *= bakedLitColor.a;
 
         // The RGB channels control the ambient lighting color.
         // Baked lighting maps are not affected by ambient occlusion.
-        ambientTerm = ambientTerm + (bakedLitColor.rgb * 8.0);
+        ambientTerm += (bakedLitColor.rgb * 8.0);
     }
 
     // Assume the mix factor is 0.0 if the material doesn't have CustomVector11.
-    ambientTerm = ambientTerm * mix(albedo, sss_color, sss_blend);
+    ambientTerm *= mix(albedo, sss_color, sss_blend);
 
     var result = directLight * shadow + ambientTerm;
 
@@ -459,7 +459,7 @@ fn DiffuseTerm(
     // TODO: How is this different from colorSet1?
     // TODO: Check the king model on zelda_tower.
     if per_material.has_color_set1234.y == 1u && render_settings.render_vertex_color.x == 1u {
-        result = result * colorSet2.rgb;
+        result *= colorSet2.rgb;
     }
 
     return result;
@@ -543,8 +543,7 @@ fn SpecularBrdf(tangent: vec3<f32>, bitangent: vec3<f32>, nDotH: f32, nDotL: f32
 }
 
 fn SpecularTerm(tangent: vec3<f32>, bitangent: vec3<f32>, nDotH: f32, nDotL: f32, nDotV: f32, halfAngle: vec3<f32>, roughness: f32, specularIbl: vec3<f32>, kDirect: vec3<f32>, kIndirect: vec3<f32>) -> vec3<f32> {
-    var directSpecular = vec3(4.0);
-    directSpecular = directSpecular * SpecularBrdf(tangent, bitangent, nDotH, nDotL, nDotV, halfAngle, roughness);
+    var directSpecular = vec3(4.0) * SpecularBrdf(tangent, bitangent, nDotH, nDotL, nDotV, halfAngle, roughness);
     if per_material.has_boolean[3].x == 1u && per_material.custom_boolean[3].x == 0u {
         directSpecular = vec3(0.0);
     }
@@ -559,11 +558,11 @@ fn SpecularTerm(tangent: vec3<f32>, bitangent: vec3<f32>, nDotH: f32, nDotL: f32
     return specularTerm;
 }
 
-fn EmissionTerm(emissionColor: vec4<f32>) -> vec3<f32> {
-    var result = emissionColor.rgb;
+fn EmissionTerm(emissionColor: vec4<f32>) -> vec4<f32> {
+    var result = emissionColor;
     // TODO: Check all channels?
     if per_material.has_vector[3].x == 1u {
-        result = result * per_material.custom_vector[3].rgb;
+        result *= per_material.custom_vector[3];
     }
 
     return result;
@@ -942,7 +941,7 @@ fn fs_debug(in: VertexOutput) -> @location(0) vec4<f32> {
     let viewVector = normalize(camera.camera_pos.xyz - in.position.xyz);
 
     var reflectionVector = reflect(viewVector, normal);
-    reflectionVector.y = reflectionVector.y * -1.0;
+    reflectionVector.y *= -1.0;
 
     // TODO: Apply normal maps and convert to view space.
     var fragmentNormal = normal;
@@ -1200,7 +1199,7 @@ fn GetPbrParams(in: VertexOutput, is_front: bool) -> PbrParams {
 
     // TODO: Is it just the metal material that uses the fragment normal?
     var reflectionVector = reflect(viewVector, normal);
-    reflectionVector.y = reflectionVector.y * -1.0;
+    reflectionVector.y *= -1.0;
 
     // TODO: Mario's eyes don't render properly for the metal/gold materials.
     var out: PbrParams;
@@ -1245,7 +1244,7 @@ fn GetPbrParams(in: VertexOutput, is_front: bool) -> PbrParams {
 
     // TODO: Investigate lighting for double sided materials with culling disabled.
     if !is_front {
-        fragmentNormal = fragmentNormal * -1.0;
+        fragmentNormal *= -1.0;
     }
 
     out.normal = fragmentNormal;
@@ -1441,17 +1440,19 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) is_front: bool) -> @location
     var outColor = vec3(0.0, 0.0, 0.0);
     if render_settings.render_diffuse.x == 1u {
         let kDiffuse = max(vec3(1.0 - params.metalness), vec3(0.0));
-        outColor = outColor + (diffusePass * kDiffuse) / 3.14159;
+        outColor += (diffusePass * kDiffuse) / 3.14159;
     }
 
     // Assume materials without PRM omit the specular code entirely.
     if render_settings.render_specular.x == 1u && params.has_specular {
-        outColor = outColor + specularPass * params.ambient_occlusion;
+        outColor += specularPass * params.ambient_occlusion;
     }
 
     if render_settings.render_emission.x == 1u {
         // TODO: Emission is weakened somehow?
-        outColor = outColor + EmissionTerm(params.emission) * 0.5;
+        let emission = EmissionTerm(params.emission);
+        outColor += emission.rgb * 0.5;
+        outAlpha *= emission.a;
     }
 
     // TODO: What affects rim lighting intensity?
@@ -1461,20 +1462,19 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) is_front: bool) -> @location
 
     // TODO: Check all channels?
     if per_material.has_vector[8].x == 1u {
-        outColor = outColor * per_material.custom_vector[8].rgb;
-        outAlpha = outAlpha * per_material.custom_vector[8].a;
+        outColor *= per_material.custom_vector[8].rgb;
+        outAlpha *= per_material.custom_vector[8].a;
     }
 
     if per_material.has_color_set1234.x == 1u && render_settings.render_vertex_color.x == 1u {
-        outColor = outColor * colorSet1.rgb;
-        outAlpha = outAlpha * colorSet1.a;
+        outColor *= colorSet1.rgb;
+        outAlpha *= colorSet1.a;
     }
 
     if per_material.has_color_set1234.z == 1u && render_settings.render_vertex_color.x == 1u {
-        outColor = outColor * colorSet3.rgb;
-        outAlpha = outAlpha * colorSet3.a;
+        outColor *= colorSet3.rgb;
+        outAlpha *= colorSet3.a;
     }
-
 
     // TODO: Use FinalColorGain and FinalColorOffset like the in game shaders.
     // TODO: Finish analyzing the in game code for fog.
@@ -1497,7 +1497,7 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) is_front: bool) -> @location
 
     // Premultiplied alpha.
     if per_material.shader_settings.y == 1u {
-        outColor = outColor * outAlpha;
+        outColor *= outAlpha;
     }
 
     // Alpha override.
