@@ -673,14 +673,11 @@ fn vs_main(
 ) -> VertexOutput {
     var out: VertexOutput;
     out.position = buffer0.position0;
-
-    var model_view_position = camera.model_view_matrix * vec4(buffer0.position0.xyz, 1.0);
-
-    // Assume the z offset defaults to 0.0.
-    model_view_position.z += per_material.custom_float[16].x;
-
-    out.clip_position = camera.projection_matrix * model_view_position;
-
+    out.clip_position = camera.mvp_matrix * vec4(buffer0.position0.xyz, 1.0);
+    if per_material.has_float[16].x == 1u {
+        // Z offset used for the ore club item.
+        out.clip_position.z -= per_material.custom_float[16].x / out.clip_position.w;
+    }
     out.normal = buffer0.normal0;
     out.tangent = buffer0.tangent0;
 
