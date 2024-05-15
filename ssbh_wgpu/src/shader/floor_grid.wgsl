@@ -18,6 +18,7 @@ struct FragmentOutput {
 
 struct CameraTransforms {
     model_view_matrix: mat4x4<f32>,
+    projection_matrix: mat4x4<f32>,
     mvp_matrix: mat4x4<f32>,
     mvp_inv_matrix: mat4x4<f32>,
     camera_pos: vec4<f32>,
