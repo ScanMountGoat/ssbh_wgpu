@@ -19,6 +19,7 @@ use wgpu::ComputePassDescriptor;
 // The final render pass uses a user configurable format.
 // TODO: We need at least 16 bits to avoid banding from gamma correction.
 // TODO: Switch to Rgba16Unorm once validation issues are resolved.
+// TODO: Try and get R10G10B10A2 working without banding like in game.
 pub const RGBA_COLOR_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgb10a2Unorm;
 
 // TODO: Adjust this to use less precision.
@@ -31,7 +32,7 @@ const BLOOM_COLOR_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba16Float
 pub const MSAA_SAMPLE_COUNT: u32 = 4;
 
 pub const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
-pub const DEPTH_STENCIL_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32FloatStencil8;
+pub const DEPTH_STENCIL_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth24PlusStencil8;
 
 // Modified from Rg16Unorm for better compatibility.
 // TODO: Switch to Rg16Unorm once validation issues are resolved.

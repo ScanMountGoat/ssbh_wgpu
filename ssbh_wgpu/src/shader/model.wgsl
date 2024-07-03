@@ -643,10 +643,13 @@ fn GetShadow(light_position: vec4<f32>) -> f32 {
     // TODO: This assumes depth is in the range 0.0 to 1.0 in the texture.
     let currentDepth = light_position.z * projCorrection;
 
+    // TODO: This shouldn't be necessary with Rg16Unorm.
+    let adjust_offset = 10.0;
+
     // Translated variance shadow mapping from in game.
     let m1 = textureSample(texture_shadow, default_sampler, light_local).r;
     let m2 = textureSample(texture_shadow, default_sampler, light_local).g;
-    let sigma2 = clamp(m2 - m1 * m1 + 0.0001, 0.0, 1.0);
+    let sigma2 = clamp(m2 - m1 * m1 + 0.0001 * adjust_offset, 0.0, 1.0);
     let tDif = max(currentDepth - m1, 0.0);
     // Approximate Pr(x >= t) using one of Chebychev's inqequalities.
     var shadow = sigma2 / (sigma2 + tDif * tDif);

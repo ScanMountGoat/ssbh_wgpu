@@ -52,7 +52,8 @@ fn fs_threshold(in: VertexOutput) -> @location(0) vec4<f32> {
     // Ported bloom code from fighter shaders.
     // Uniform values are hardcoded for now.
     // TODO: Where do these uniform buffer values come from?
-    let color = textureSample(color_texture, color_sampler, in.uvs.xy);
+    var color = textureSample(color_texture, color_sampler, in.uvs.xy);
+    color = clamp(color, vec4(0.0), vec4(1.0)); // TODO: use unorm format
     let componentMax = max(max(color.r, max(color.g, color.b)), 0.001);
     let scale = 1.0 / componentMax;
     let scale2 = max(0.925 * -0.5 + componentMax, 0.0);

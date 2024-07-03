@@ -65,7 +65,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 
     // Don't post process the background but still allow bloom.
     // TODO: Investigate how this is handled in game.
-    output = mix(output, GetPostProcessingResult(output.rgb), color.a);
+    output = mix(output, GetPostProcessingResult(output.rgb), clamp(color.a, 0.0, 1.0));
 
     // Assume an sRGB frame buffer and don't gamma correct here.
     // Set alpha to allow for transparent screenshots.
