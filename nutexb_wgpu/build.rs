@@ -6,7 +6,8 @@ fn main() {
     let text = &wgsl_to_wgpu::create_shader_module_embedded(
         &wgsl_source,
         wgsl_to_wgpu::WriteOptions {
-            derive_bytemuck: true,
+            derive_bytemuck_vertex: true,
+            derive_bytemuck_host_shareable: true,
             ..Default::default()
         },
     )

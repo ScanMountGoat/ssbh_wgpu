@@ -17,8 +17,9 @@ use wgpu::ComputePassDescriptor;
 
 // Used internally for model rendering passes.
 // The final render pass uses a user configurable format.
-// We need at least 16 bits to avoid banding from gamma correction.
-pub const RGBA_COLOR_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba16Unorm;
+// TODO: We need at least 16 bits to avoid banding from gamma correction.
+// TODO: Switch to Rgba16Unorm once validation issues are resolved.
+pub const RGBA_COLOR_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgb10a2Unorm;
 
 // TODO: Adjust this to use less precision.
 // Rgba16Float is widely supported.
@@ -32,7 +33,9 @@ pub const MSAA_SAMPLE_COUNT: u32 = 4;
 pub const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
 pub const DEPTH_STENCIL_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32FloatStencil8;
 
-const VARIANCE_SHADOW_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rg16Unorm;
+// Modified from Rg16Unorm for better compatibility.
+// TODO: Switch to Rg16Unorm once validation issues are resolved.
+const VARIANCE_SHADOW_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rg16Float;
 
 const SHADOW_MAP_WIDTH: u32 = 1024;
 const SHADOW_MAP_HEIGHT: u32 = 1024;
@@ -1236,6 +1239,7 @@ fn create_screen_pipeline(
             module,
             entry_point: "vs_main",
             buffers: &[],
+            compilation_options: wgpu::PipelineCompilationOptions::default(),
         },
         fragment: Some(wgpu::FragmentState {
             module,
@@ -1254,6 +1258,7 @@ fn create_screen_pipeline(
                 }),
                 write_mask: wgpu::ColorWrites::ALL,
             })],
+            compilation_options: wgpu::PipelineCompilationOptions::default(),
         }),
         primitive: wgpu::PrimitiveState::default(),
         depth_stencil: None,
@@ -1686,11 +1691,13 @@ fn create_outline_pipeline(
             module: &module,
             entry_point: "vs_main",
             buffers: &[],
+            compilation_options: wgpu::PipelineCompilationOptions::default(),
         },
         fragment: Some(wgpu::FragmentState {
             module: &module,
             entry_point: "fs_main",
             targets: &[Some(surface_format.into())],
+            compilation_options: wgpu::PipelineCompilationOptions::default(),
         }),
         primitive: wgpu::PrimitiveState::default(),
         depth_stencil: Some(wgpu::DepthStencilState {

@@ -5,8 +5,9 @@ fn write_shader_module(wgsl_source: &str, shader_name: &str) {
     let text = wgsl_to_wgpu::create_shader_module_embedded(
         wgsl_source,
         wgsl_to_wgpu::WriteOptions {
-            derive_bytemuck: true,
-            derive_encase: true,
+            derive_bytemuck_vertex: true,
+            derive_bytemuck_host_shareable: true,
+            derive_encase_host_shareable: true,
             matrix_vector_types: wgsl_to_wgpu::MatrixVectorTypes::Glam,
             ..Default::default()
         },

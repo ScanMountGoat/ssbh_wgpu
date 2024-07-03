@@ -98,6 +98,7 @@ pub fn pipeline(
                 blend: pipeline_key.blend,
                 write_mask: wgpu::ColorWrites::ALL,
             })],
+            compilation_options: wgpu::PipelineCompilationOptions::default(),
         }),
         // TODO: RasterizerState settings.
         primitive: wgpu::PrimitiveState {
@@ -209,6 +210,7 @@ pub fn silhouette_pipeline(
             module: &module,
             entry_point: "fs_solid",
             targets: &[Some(surface_format.into())],
+            compilation_options: wgpu::PipelineCompilationOptions::default(),
         }),
         primitive: wgpu::PrimitiveState::default(),
         depth_stencil: Some(INVERTED_STENCIL_MASK_STATE),
@@ -235,6 +237,7 @@ pub fn wireframe_pipeline(device: &wgpu::Device) -> wgpu::RenderPipeline {
             module: &module,
             entry_point: "fs_solid",
             targets: &[Some(RGBA_COLOR_FORMAT.into())],
+            compilation_options: wgpu::PipelineCompilationOptions::default(),
         }),
         primitive: wgpu::PrimitiveState {
             polygon_mode: wgpu::PolygonMode::Line,
@@ -272,11 +275,13 @@ pub fn model_pipeline_from_entry(
                     wgpu::VertexStepMode::Vertex,
                 ),
             ],
+            compilation_options: wgpu::PipelineCompilationOptions::default(),
         },
         fragment: Some(wgpu::FragmentState {
             module: &module,
             entry_point,
             targets: &[Some(RGBA_COLOR_FORMAT.into())],
+            compilation_options: wgpu::PipelineCompilationOptions::default(),
         }),
         primitive: wgpu::PrimitiveState {
             // Force culling to prevent z-fighting on some double sided mehes.
@@ -328,6 +333,7 @@ pub fn uv_pipeline(
             module: &module,
             entry_point: "fs_uv",
             targets: &[Some(surface_format.into())],
+            compilation_options: wgpu::PipelineCompilationOptions::default(),
         }),
         primitive: wgpu::PrimitiveState {
             // Use wireframe rendering to show UV edges.

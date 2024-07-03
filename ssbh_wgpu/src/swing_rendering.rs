@@ -518,6 +518,7 @@ pub fn swing_pipeline(
             buffers: &[crate::shader::swing::VertexInput::vertex_buffer_layout(
                 wgpu::VertexStepMode::Vertex,
             )],
+            compilation_options: wgpu::PipelineCompilationOptions::default(),
         },
         fragment: Some(wgpu::FragmentState {
             module: &shader,
@@ -538,6 +539,7 @@ pub fn swing_pipeline(
                 }),
                 write_mask: wgpu::ColorWrites::ALL,
             })],
+            compilation_options: wgpu::PipelineCompilationOptions::default(),
         }),
         primitive: wgpu::PrimitiveState {
             cull_mode: Some(wgpu::Face::Back),

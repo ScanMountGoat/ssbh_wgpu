@@ -230,7 +230,7 @@ impl<'a> RenderMeshSharedData<'a> {
 
         // DynamicStorageBuffer ensures mesh object offsets are properly aligned.
         let mut model_buffer0_data = DynamicStorageBuffer::new(Vec::new());
-        let mut model_buffer1_data = DynamicStorageBuffer::new(Vec::new());
+        let mut model_buffer1_data = Vec::new();
         let mut model_skin_weights_data = DynamicStorageBuffer::new(Vec::new());
 
         let mut model_indices = Vec::new();
@@ -265,7 +265,7 @@ impl<'a> RenderMeshSharedData<'a> {
         let combined_mesh_buffers = combined_mesh_buffers(
             device,
             &model_buffer0_data.into_inner(),
-            &model_buffer1_data.into_inner(),
+            &model_buffer1_data,
             &model_skin_weights_data.into_inner(),
             &model_indices,
         );
@@ -656,7 +656,7 @@ impl BufferAccess {
 
 fn append_mesh_object_buffer_data(
     model_buffer0_data: &mut DynamicStorageBuffer<Vec<u8>>,
-    model_buffer1_data: &mut DynamicStorageBuffer<Vec<u8>>,
+    model_buffer1_data: &mut Vec<u8>,
     model_skin_weights_data: &mut DynamicStorageBuffer<Vec<u8>>,
     model_index_data: &mut Vec<u32>,
     mesh_object: &MeshObjectData,
@@ -664,10 +664,20 @@ fn append_mesh_object_buffer_data(
 ) -> Result<MeshBufferAccess, ssbh_data::mesh_data::error::Error> {
     // DynamicStorageBuffer enforces the offset alignment for each mesh.
     let buffer0_vertices = buffer0(mesh_object)?;
-    let buffer0_offset = model_buffer0_data.write(&buffer0_vertices).unwrap();
+    let buffer0_vertices: &[crate::shader::skinning::VertexInput0] =
+        bytemuck::cast_slice(&buffer0_vertices);
+    let buffer0_offset = model_buffer0_data
+        .write(bytemuck::cast_slice::<
+            _,
+            crate::shader::skinning::VertexInput0,
+        >(&buffer0_vertices))
+        .unwrap();
 
+    // Only buffer0 vertices are used as a storage buffer.
     let buffer1_vertices = buffer1(mesh_object)?;
-    let buffer1_offset = model_buffer1_data.write(&buffer1_vertices).unwrap();
+    let buffer1_data: &[u8] = bytemuck::cast_slice(&buffer1_vertices);
+    let buffer1_offset = model_buffer1_data.len() as u64;
+    model_buffer1_data.extend_from_slice(bytemuck::cast_slice(buffer1_data));
 
     let skin_weights = skin_weights(mesh_object, shared_data.skel)?;
     let weights_offset = model_skin_weights_data.write(&skin_weights).unwrap();
@@ -683,7 +693,7 @@ fn append_mesh_object_buffer_data(
         },
         buffer1: BufferAccess {
             start: buffer1_offset,
-            size: buffer1_vertices.size().get(),
+            size: buffer1_data.len() as u64,
         },
         weights: BufferAccess {
             start: weights_offset,

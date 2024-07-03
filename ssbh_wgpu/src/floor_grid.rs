@@ -29,6 +29,7 @@ impl FloorGridRenderData {
                         wgpu::VertexStepMode::Vertex,
                     ),
                 ],
+                compilation_options: wgpu::PipelineCompilationOptions::default(),
             },
             fragment: Some(wgpu::FragmentState {
                 module: &shader,
@@ -50,6 +51,7 @@ impl FloorGridRenderData {
                     }),
                     write_mask: wgpu::ColorWrites::ALL,
                 })],
+                compilation_options: wgpu::PipelineCompilationOptions::default(),
             }),
             primitive: wgpu::PrimitiveState::default(),
             // TODO: Create a constant for this?

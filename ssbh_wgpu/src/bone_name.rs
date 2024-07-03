@@ -3,14 +3,15 @@ use std::sync::Arc;
 use crate::{viewport::world_to_screen, RenderModel};
 use glam::Vec4Swizzles;
 use glyphon::{
-    Attrs, Buffer, Color, FontSystem, Metrics, Resolution, Shaping, SwashCache, TextArea,
-    TextAtlas, TextBounds, TextRenderer,
+    Attrs, Buffer, Cache, Color, FontSystem, Metrics, Resolution, Shaping, SwashCache, TextArea,
+    TextAtlas, TextBounds, TextRenderer, Viewport,
 };
 
 pub struct BoneNameRenderer {
     font_system: FontSystem,
-    cache: SwashCache,
+    swash_cache: SwashCache,
     atlas: TextAtlas,
+    viewport: Viewport,
     renderer: TextRenderer,
 }
 
@@ -38,16 +39,21 @@ impl BoneNameRenderer {
             })
             .unwrap_or_else(FontSystem::new);
 
-        let cache = SwashCache::new();
-        let mut atlas = TextAtlas::new(device, queue, surface_format);
+        let cache = Cache::new(device);
+        let swash_cache = SwashCache::new();
+
+        let mut atlas = TextAtlas::new(device, queue, &cache, surface_format);
         let renderer =
             TextRenderer::new(&mut atlas, device, wgpu::MultisampleState::default(), None);
 
+        let viewport = Viewport::new(device, &cache);
+
         Self {
             font_system,
-            cache,
+            swash_cache,
             atlas,
             renderer,
+            viewport,
         }
     }
 
@@ -102,6 +108,8 @@ impl BoneNameRenderer {
             default_color: Color::rgb(255, 255, 255),
         });
 
+        self.viewport.update(queue, Resolution { width, height });
+
         // TODO: Is it worth only calling prepare when something changes?
         self.renderer
             .prepare(
@@ -109,9 +117,9 @@ impl BoneNameRenderer {
                 queue,
                 &mut self.font_system,
                 &mut self.atlas,
-                Resolution { width, height },
+                &self.viewport,
                 text_areas,
-                &mut self.cache,
+                &mut self.swash_cache,
             )
             .unwrap();
     }
@@ -120,7 +128,9 @@ impl BoneNameRenderer {
     ///
     /// The `render_pass` should have the format used in [Self::new].
     pub fn render<'a>(&'a self, render_pass: &mut wgpu::RenderPass<'a>) {
-        self.renderer.render(&self.atlas, render_pass).unwrap();
+        self.renderer
+            .render(&self.atlas, &self.viewport, render_pass)
+            .unwrap();
     }
 
     // TODO: Should these be cached and stored?
@@ -143,7 +153,7 @@ impl BoneNameRenderer {
         // TODO: Account for window scale factor?
         buffer.set_size(&mut self.font_system, width as f32, height as f32);
         buffer.set_text(&mut self.font_system, text, Attrs::new(), Shaping::Advanced);
-        buffer.shape_until_scroll(&mut self.font_system);
+        buffer.shape_until_scroll(&mut self.font_system, false);
 
         let position = transform * glam::vec4(0.0, 0.0, 0.0, 1.0);
         let (left, top) = world_to_screen(position.xyz(), mvp, width, height);
