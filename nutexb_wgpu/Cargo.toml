@@ -9,7 +9,6 @@ nutexb = "0.7.0"
 log = "0.4.17"
 bytemuck = { version = "1.7", features = [ "derive" ] }
 thiserror = "1.0"
-memoffset = "0.9.0"
 
 [build-dependencies]
 wgsl_to_wgpu = "0.8.1"
