@@ -535,6 +535,7 @@ mod tests {
                     rasterizer_states: Vec::new(),
                     samplers: Vec::new(),
                     textures: Vec::new(),
+                    uv_transforms: Vec::new()
                 },
                 &ShaderDatabase::from_iter(std::iter::empty())
             )
@@ -591,6 +592,7 @@ mod tests {
                         param_id: ParamId::Sampler0,
                         data: String::new()
                     }],
+                    uv_transforms: Vec::new()
                 },
                 &ShaderDatabase::from_iter(std::iter::empty())
             )
@@ -673,6 +675,7 @@ mod tests {
                         param_id: ParamId::Texture1,
                         data: String::new()
                     }],
+                    uv_transforms: Vec::new()
                 },
                 &ShaderDatabase::from_iter(
                     [(
