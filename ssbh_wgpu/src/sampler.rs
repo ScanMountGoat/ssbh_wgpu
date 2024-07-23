@@ -15,7 +15,7 @@ pub fn sampler_descriptor(data: &SamplerData) -> SamplerDescriptor {
             // This must be 1 if all filter modes are not linear.
             1
         } else {
-            data.max_anisotropy.map(|m| m as u16).unwrap_or(1)
+            data.max_anisotropy as u16
         },
         // TODO: Set other options?
         ..Default::default()
@@ -89,7 +89,7 @@ mod tests {
                     a: 0.0
                 },
                 lod_bias: 0.0,
-                max_anisotropy: Some(MaxAnisotropy::Two)
+                max_anisotropy: MaxAnisotropy::Two
             })
         )
     }
@@ -122,7 +122,7 @@ mod tests {
                     a: 0.0
                 },
                 lod_bias: 0.0,
-                max_anisotropy: Some(MaxAnisotropy::Two)
+                max_anisotropy: MaxAnisotropy::Two
             })
         )
     }
@@ -154,7 +154,7 @@ mod tests {
                     a: 0.0
                 },
                 lod_bias: 0.0,
-                max_anisotropy: None
+                max_anisotropy: MaxAnisotropy::One
             })
         )
     }
