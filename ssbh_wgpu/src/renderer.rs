@@ -20,7 +20,7 @@ use wgpu::ComputePassDescriptor;
 // TODO: We need at least 16 bits to avoid banding from gamma correction.
 // TODO: Switch to Rgba16Unorm once validation issues are resolved.
 // TODO: Try and get R10G10B10A2 working without banding like in game.
-pub const RGBA_COLOR_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgb10a2Unorm;
+pub const RGBA_COLOR_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba16Float;
 
 // TODO: Adjust this to use less precision.
 // Rgba16Float is widely supported.

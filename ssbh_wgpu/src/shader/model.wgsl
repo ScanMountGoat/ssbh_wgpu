@@ -156,8 +156,6 @@ var sampler14: sampler;
 // TODO: use naming convention to indicate frequency like PerMaterial
 // Align everything to 16 bytes to avoid alignment issues.
 // Smash Ultimate's shaders also use this alignment.
-// TODO: Investigate std140/std430
-// TODO: Does wgsl/wgpu require a specific layout/alignment?
 struct PerMaterial {
     custom_vector: array<vec4<f32>, 64>,
     // TODO: Place the has_ values in an unused vector component?
