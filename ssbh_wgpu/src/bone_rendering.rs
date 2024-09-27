@@ -320,6 +320,7 @@ fn skeleton_pipeline(
         depth_stencil: Some(INVERTED_STENCIL_MASK_STATE),
         multisample: wgpu::MultisampleState::default(),
         multiview: None,
+        cache: None,
     })
 }
 
@@ -360,5 +361,6 @@ fn bone_axes_pipeline(
         }),
         multisample: wgpu::MultisampleState::default(),
         multiview: None,
+        cache: None,
     })
 }

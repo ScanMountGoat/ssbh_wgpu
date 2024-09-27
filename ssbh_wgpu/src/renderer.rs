@@ -1265,6 +1265,7 @@ fn create_screen_pipeline(
         depth_stencil: None,
         multisample: wgpu::MultisampleState::default(),
         multiview: None,
+        cache: None,
     })
 }
 
@@ -1711,5 +1712,6 @@ fn create_outline_pipeline(
         }),
         multisample: wgpu::MultisampleState::default(),
         multiview: None,
+        cache: None,
     })
 }

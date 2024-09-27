@@ -63,6 +63,7 @@ fn main() {
             label: None,
             required_features: REQUIRED_FEATURES,
             required_limits: Limits::default(),
+            memory_hints: wgpu::MemoryHints::default(),
         },
         None,
     ))

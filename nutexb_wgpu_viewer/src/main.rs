@@ -41,6 +41,7 @@ impl<'a> State<'a> {
                     label: None,
                     required_features: wgpu::Features::TEXTURE_COMPRESSION_BC,
                     required_limits: wgpu::Limits::default(),
+                    memory_hints: wgpu::MemoryHints::default(),
                 },
                 None,
             )

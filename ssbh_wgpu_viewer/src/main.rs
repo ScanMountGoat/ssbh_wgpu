@@ -122,8 +122,9 @@ impl<'a> State<'a> {
                     label: None,
                     required_features: wgpu::Features::default() | REQUIRED_FEATURES,
                     required_limits: wgpu::Limits::default(),
+                    memory_hints: wgpu::MemoryHints::default(),
                 },
-                None, // Trace path
+                None,
             )
             .await
             .unwrap();

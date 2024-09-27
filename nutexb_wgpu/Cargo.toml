@@ -4,11 +4,11 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-wgpu = "0.20.1"
+wgpu = "22.1.0"
 nutexb = "0.7.0"
 log = "0.4.17"
 bytemuck = { version = "1.7", features = [ "derive" ] }
 thiserror = "1.0"
 
 [build-dependencies]
-wgsl_to_wgpu = "0.8.1"
+wgsl_to_wgpu = "0.10.1"

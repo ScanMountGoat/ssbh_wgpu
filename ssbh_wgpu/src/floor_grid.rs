@@ -67,6 +67,7 @@ impl FloorGridRenderData {
                 ..Default::default()
             },
             multiview: None,
+            cache: None,
         });
 
         let bind_group = crate::shader::floor_grid::bind_groups::BindGroup0::from_bindings(

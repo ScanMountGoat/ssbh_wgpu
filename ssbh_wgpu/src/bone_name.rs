@@ -74,8 +74,8 @@ impl BoneNameRenderer {
     }
 
     /// Prepare bone names for each model in `models` for rendering with [Self::render].
-    pub fn prepare<'a>(
-        &'a mut self,
+    pub fn prepare(
+        &mut self,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
         models: &[RenderModel],
@@ -106,6 +106,7 @@ impl BoneNameRenderer {
                 bottom: height as i32,
             },
             default_color: Color::rgb(255, 255, 255),
+            custom_glyphs: &[],
         });
 
         self.viewport.update(queue, Resolution { width, height });
@@ -151,7 +152,11 @@ impl BoneNameRenderer {
             },
         );
         // TODO: Account for window scale factor?
-        buffer.set_size(&mut self.font_system, width as f32, height as f32);
+        buffer.set_size(
+            &mut self.font_system,
+            Some(width as f32),
+            Some(height as f32),
+        );
         buffer.set_text(&mut self.font_system, text, Attrs::new(), Shaping::Advanced);
         buffer.shape_until_scroll(&mut self.font_system, false);
 

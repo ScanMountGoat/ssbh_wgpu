@@ -358,16 +358,10 @@ impl<'a> RenderMeshSharedData<'a> {
             .filter_map(|(name, nutexb)| {
                 let nutexb = nutexb
                     .as_ref()
-                    .map_err(|e| {
-                        error!("Failed to read nutexb file {}: {}", name, e);
-                        e
-                    })
+                    .inspect_err(|e| error!("Failed to read nutexb file {}: {}", name, e))
                     .ok()?;
                 let (texture, dim) = nutexb_wgpu::create_texture(nutexb, device, queue)
-                    .map_err(|e| {
-                        error!("Failed to create nutexb texture {}: {}", name, e);
-                        e
-                    })
+                    .inspect_err(|e| error!("Failed to create nutexb texture {}: {}", name, e))
                     .ok()?;
                 Some((name.clone(), texture, dim))
             })
@@ -670,7 +664,7 @@ fn append_mesh_object_buffer_data(
         .write(bytemuck::cast_slice::<
             _,
             crate::shader::skinning::VertexInput0,
-        >(&buffer0_vertices))
+        >(buffer0_vertices))
         .unwrap();
 
     // Only buffer0 vertices are used as a storage buffer.

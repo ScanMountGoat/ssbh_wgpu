@@ -122,6 +122,7 @@ pub fn pipeline(
             ..Default::default()
         },
         multiview: None,
+        cache: None,
     })
 }
 
@@ -155,6 +156,7 @@ pub fn depth_pipeline(device: &wgpu::Device) -> wgpu::RenderPipeline {
         depth_stencil: Some(depth_stencil_state(true, true)),
         multisample: wgpu::MultisampleState::default(),
         multiview: None,
+        cache: None,
     })
 }
 
@@ -216,6 +218,7 @@ pub fn silhouette_pipeline(
         depth_stencil: Some(INVERTED_STENCIL_MASK_STATE),
         multisample: wgpu::MultisampleState::default(),
         multiview: None,
+        cache: None,
     })
 }
 
@@ -249,6 +252,7 @@ pub fn wireframe_pipeline(device: &wgpu::Device) -> wgpu::RenderPipeline {
             ..Default::default()
         },
         multiview: None,
+        cache: None,
     })
 }
 
@@ -294,6 +298,7 @@ pub fn model_pipeline_from_entry(
             ..Default::default()
         },
         multiview: None,
+        cache: None,
     })
 }
 
@@ -343,6 +348,7 @@ pub fn uv_pipeline(
         depth_stencil: Some(depth_stencil_state(true, true)),
         multisample: wgpu::MultisampleState::default(),
         multiview: None,
+        cache: None,
     })
 }
 
