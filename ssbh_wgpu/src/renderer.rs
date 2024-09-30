@@ -647,7 +647,7 @@ impl SsbhRenderer {
 
     /// Completes rendering by drawing the models and any overlays to `render_pass`.
     /// The `render_pass` should use the color format used for creation with no depth attachment.
-    pub fn end_render_models<'a>(&'a self, render_pass: &mut wgpu::RenderPass<'a>) {
+    pub fn end_render_models(&self, render_pass: &mut wgpu::RenderPass<'_>) {
         // TODO: This can be combined with post processing?
         // Composite the outlines onto the result of the debug or shaded passes.
         self.overlay_pass(render_pass);
@@ -672,10 +672,10 @@ impl SsbhRenderer {
     ///
     /// Collision data should be initialized first using [RenderModel::recreate_swing_collisions].
     /// Pass an empty set to show all collisions.
-    pub fn render_swing<'a>(
-        &'a self,
-        render_pass: &mut wgpu::RenderPass<'a>,
-        render_model: &'a RenderModel,
+    pub fn render_swing(
+        &self,
+        render_pass: &mut wgpu::RenderPass<'_>,
+        render_model: &RenderModel,
         hidden_collisions: &HashSet<u64>,
     ) {
         render_model.draw_swing(
@@ -1134,7 +1134,7 @@ impl SsbhRenderer {
         }
     }
 
-    fn overlay_pass<'a>(&'a self, pass: &mut wgpu::RenderPass<'a>) {
+    fn overlay_pass(&self, pass: &mut wgpu::RenderPass<'_>) {
         pass.set_pipeline(&self.overlay_pipeline);
         crate::shader::overlay::set_bind_groups(pass, &self.pass_info.overlay_bind_group);
         pass.draw(0..3, 0..1);

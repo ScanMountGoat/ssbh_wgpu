@@ -293,7 +293,7 @@ impl TextureRenderer {
         }
     }
 
-    pub fn render<'a>(&'a self, render_pass: &mut wgpu::RenderPass<'a>) {
+    pub fn render(&self, render_pass: &mut wgpu::RenderPass<'_>) {
         // Draw the texture to the screen.
         // TODO: How to handle cube maps and 3d textures?
         if let Some(bind_group) = &self.bindgroup {
@@ -487,10 +487,10 @@ fn create_render_pipeline(
     })
 }
 
-fn draw_textured_triangle<'a>(
-    render_pass: &mut wgpu::RenderPass<'a>,
-    pipeline: &'a wgpu::RenderPipeline,
-    texture_bind_group: &'a BindGroup0,
+fn draw_textured_triangle(
+    render_pass: &mut wgpu::RenderPass<'_>,
+    pipeline: &wgpu::RenderPipeline,
+    texture_bind_group: &BindGroup0,
 ) {
     render_pass.set_pipeline(pipeline);
     set_bind_groups(render_pass, texture_bind_group);

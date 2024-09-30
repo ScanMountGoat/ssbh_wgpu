@@ -428,11 +428,11 @@ impl RenderModel {
         }
     }
 
-    pub(crate) fn draw_swing<'a>(
-        &'a self,
-        render_pass: &mut wgpu::RenderPass<'a>,
-        swing_pipeline: &'a wgpu::RenderPipeline,
-        swing_camera_bind_group: &'a crate::shader::swing::bind_groups::BindGroup0,
+    pub(crate) fn draw_swing(
+        &self,
+        render_pass: &mut wgpu::RenderPass<'_>,
+        swing_pipeline: &wgpu::RenderPipeline,
+        swing_camera_bind_group: &crate::shader::swing::bind_groups::BindGroup0,
         hidden_collisions: &HashSet<u64>,
     ) {
         // TODO: Is it noticeably more efficient to batch shapes together?

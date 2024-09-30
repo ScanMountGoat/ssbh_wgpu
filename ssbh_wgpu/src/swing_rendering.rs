@@ -394,11 +394,11 @@ fn bone_index(skel: Option<&SkelData>, name: Hash40) -> i32 {
 }
 
 // TODO: Is it worth making a SwingRenderer type?
-pub fn draw_swing_collisions<'a>(
-    render_data: &'a SwingRenderData,
-    pass: &mut wgpu::RenderPass<'a>,
-    swing_pipeline: &'a wgpu::RenderPipeline,
-    swing_camera_bind_group: &'a crate::shader::swing::bind_groups::BindGroup0,
+pub fn draw_swing_collisions(
+    render_data: &SwingRenderData,
+    pass: &mut wgpu::RenderPass<'_>,
+    swing_pipeline: &wgpu::RenderPipeline,
+    swing_camera_bind_group: &crate::shader::swing::bind_groups::BindGroup0,
     hidden_collisions: &HashSet<u64>,
 ) {
     pass.set_pipeline(swing_pipeline);
@@ -452,12 +452,12 @@ pub fn draw_swing_collisions<'a>(
     );
 }
 
-fn draw_shapes<'a>(
-    pass: &mut wgpu::RenderPass<'a>,
-    buffers: &'a IndexedMeshBuffers,
-    shapes: &'a [ShapeRenderData],
-    bind_group1: &'a crate::shader::swing::bind_groups::BindGroup1,
-    swing_camera_bind_group: &'a crate::shader::swing::bind_groups::BindGroup0,
+fn draw_shapes(
+    pass: &mut wgpu::RenderPass<'_>,
+    buffers: &IndexedMeshBuffers,
+    shapes: &[ShapeRenderData],
+    bind_group1: &crate::shader::swing::bind_groups::BindGroup1,
+    swing_camera_bind_group: &crate::shader::swing::bind_groups::BindGroup0,
     hidden_collisions: &HashSet<u64>,
 ) {
     buffers.set(pass);
@@ -469,11 +469,11 @@ fn draw_shapes<'a>(
     }
 }
 
-fn draw_shapes_with_buffers<'a>(
-    pass: &mut wgpu::RenderPass<'a>,
-    shapes: &'a [(IndexedMeshBuffers, ShapeRenderData)],
-    bind_group1: &'a crate::shader::swing::bind_groups::BindGroup1,
-    swing_camera_bind_group: &'a crate::shader::swing::bind_groups::BindGroup0,
+fn draw_shapes_with_buffers(
+    pass: &mut wgpu::RenderPass<'_>,
+    shapes: &[(IndexedMeshBuffers, ShapeRenderData)],
+    bind_group1: &crate::shader::swing::bind_groups::BindGroup1,
+    swing_camera_bind_group: &crate::shader::swing::bind_groups::BindGroup0,
     hidden_collisions: &HashSet<u64>,
 ) {
     for (buffers, shape) in shapes
@@ -485,11 +485,11 @@ fn draw_shapes_with_buffers<'a>(
     }
 }
 
-fn draw_shape<'a>(
-    pass: &mut wgpu::RenderPass<'a>,
-    swing_camera_bind_group: &'a crate::shader::swing::bind_groups::BindGroup0,
-    bind_group1: &'a crate::shader::swing::bind_groups::BindGroup1,
-    shape: &'a ShapeRenderData,
+fn draw_shape(
+    pass: &mut wgpu::RenderPass<'_>,
+    swing_camera_bind_group: &crate::shader::swing::bind_groups::BindGroup0,
+    bind_group1: &crate::shader::swing::bind_groups::BindGroup1,
+    shape: &ShapeRenderData,
     buffers: &IndexedMeshBuffers,
 ) {
     crate::shader::swing::set_bind_groups(

@@ -11,7 +11,7 @@ pub struct IndexedMeshBuffers {
 }
 
 impl IndexedMeshBuffers {
-    pub fn set<'a>(&'a self, pass: &mut wgpu::RenderPass<'a>) {
+    pub fn set(&self, pass: &mut wgpu::RenderPass<'_>) {
         pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
         pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
     }
