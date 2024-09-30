@@ -14,6 +14,8 @@ pub struct ShaderProgram {
     pub sh: bool,
     /// `true` if the fragment shader uses the light set directional lighting.
     pub lighting: bool,
+    /// `true` if the fragment shader rotates the tangent and bitangent vectors for anisotropic shading.
+    pub anisotropic_rotation: bool,
     /// The collection of required mesh vertex attributes and their accessed channels.
     pub vertex_attributes: Vec<String>,
     /// The collection of required material parameters and their accessed channels.
@@ -122,6 +124,7 @@ impl ShaderDatabase {
                         receives_shadow: program["receives_shadow"].as_bool().unwrap(),
                         sh: program["sh"].as_bool().unwrap(),
                         lighting: program["lighting"].as_bool().unwrap(),
+                        anisotropic_rotation: program["anisotropic_rotation"].as_bool().unwrap(),
                         vertex_attributes: program["attrs"]
                             .as_array()
                             .unwrap()

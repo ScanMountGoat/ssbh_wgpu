@@ -167,7 +167,7 @@ struct PerMaterial {
     has_vector: array<vec4<u32>, 64>,
     has_color_set1234: vec4<u32>,
     has_color_set567: vec4<u32>,
-    shader_settings: vec4<u32>, // discard, premultiplied, 0, 0
+    shader_settings: vec4<u32>, // discard, premultiplied, anisotropic_rotation, 0
     lighting_settings: vec4<u32>, // lighting, sh, receives_shadow, 0
     shader_complexity: vec4<f32>
 };
@@ -539,12 +539,12 @@ fn SpecularBrdf(normal: vec3<f32>, tangent: vec3<f32>, bitangent: vec3<f32>, nDo
         var tangent = tangent;
         var bitangent = bitangent;
 
-        // Anisotropic rotation using the prm alpha channel.
-        // TODO: This isn't rotated properly for Zelda's hair?
-        // TODO: How to detect when to use this?
-        let prm_term = prm_alpha * 2.0 - 1.0;
-        bitangent = normalize(tangent * prm_term + bitangent * sqrt(1.0 - prm_term * prm_term));
-        tangent = normalize(cross(normal, bitangent));
+        if per_material.shader_settings.z == 1u {
+            // Anisotropic rotation using the PRM alpha channel.
+            let prm_term = prm_alpha * 2.0 - 1.0;
+            tangent = normalize(tangent * prm_term + bitangent * sqrt(1.0 - prm_term * prm_term));
+            bitangent = normalize(cross(normal, tangent));
+        }
 
         return GgxAnisotropic(nDotH, halfAngle, nDotL, nDotV, tangent, bitangent, roughness, per_material.custom_float[10].x);
     } else {

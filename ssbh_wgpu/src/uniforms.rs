@@ -279,7 +279,14 @@ pub fn per_material(material: &MatlEntryData, database: &ShaderDatabase) -> PerM
     };
 
     let shader_settings = program
-        .map(|program| glam::UVec4::new(program.discard as u32, program.premultiplied as u32, 0, 0))
+        .map(|program| {
+            glam::UVec4::new(
+                program.discard as u32,
+                program.premultiplied as u32,
+                program.anisotropic_rotation as u32,
+                0,
+            )
+        })
         .unwrap_or_default();
 
     let lighting_settings = program
@@ -687,6 +694,7 @@ mod tests {
                             receives_shadow: false,
                             lighting: false,
                             sh: false,
+                            anisotropic_rotation: false,
                             vertex_attributes: Vec::new(),
                             material_parameters: vec![
                                 "Texture0.xyz".to_owned(),
