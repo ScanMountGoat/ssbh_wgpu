@@ -531,18 +531,30 @@ fn GgxAnisotropic(nDotH: f32, h: vec3<f32>, nDotL: f32, nDotV: f32, tangent: vec
     return nDotL / PI * shadowing / normalization / PI / PI;
 }
 
-fn SpecularBrdf(tangent: vec3<f32>, bitangent: vec3<f32>, nDotH: f32, nDotL: f32, nDotV: f32, halfAngle: vec3<f32>, roughness: f32) -> f32 {
-    // TODO: How to calculate tangents and bitangents for prm.a anisotropic rotation?
+fn SpecularBrdf(normal: vec3<f32>, tangent: vec3<f32>, bitangent: vec3<f32>, nDotH: f32, nDotL: f32, nDotV: f32, halfAngle: vec3<f32>,
+    roughness: f32, prm_alpha: f32) -> f32 {
+
     // The two BRDFs look very different so don't just use anisotropic for everything.
     if per_material.has_float[10].x == 1u {
+        var tangent = tangent;
+        var bitangent = bitangent;
+
+        // Anisotropic rotation using the prm alpha channel.
+        // TODO: This isn't rotated properly for Zelda's hair?
+        // TODO: How to detect when to use this?
+        let prm_term = prm_alpha * 2.0 - 1.0;
+        bitangent = normalize(tangent * prm_term + bitangent * sqrt(1.0 - prm_term * prm_term));
+        tangent = normalize(cross(normal, bitangent));
+
         return GgxAnisotropic(nDotH, halfAngle, nDotL, nDotV, tangent, bitangent, roughness, per_material.custom_float[10].x);
     } else {
         return Ggx(nDotH, nDotL, nDotV, roughness);
     }
 }
 
-fn SpecularTerm(tangent: vec3<f32>, bitangent: vec3<f32>, nDotH: f32, nDotL: f32, nDotV: f32, halfAngle: vec3<f32>, roughness: f32, specularIbl: vec3<f32>, kDirect: vec3<f32>, kIndirect: vec3<f32>) -> vec3<f32> {
-    var directSpecular = vec3(4.0) * SpecularBrdf(tangent, bitangent, nDotH, nDotL, nDotV, halfAngle, roughness);
+fn SpecularTerm(normal: vec3<f32>, tangent: vec3<f32>, bitangent: vec3<f32>, nDotH: f32, nDotL: f32, nDotV: f32, halfAngle: vec3<f32>,
+    roughness: f32, prm_alpha: f32, specularIbl: vec3<f32>, kDirect: vec3<f32>, kIndirect: vec3<f32>) -> vec3<f32> {
+    var directSpecular = vec3(4.0) * SpecularBrdf(normal, tangent, bitangent, nDotH, nDotL, nDotV, halfAngle, roughness, prm_alpha);
     if per_material.has_boolean[3].x == 1u && per_material.custom_boolean[3].x == 0u {
         directSpecular = vec3(0.0);
     }
@@ -1165,6 +1177,7 @@ struct PbrParams {
     roughness: f32,
     ambient_occlusion: f32,
     specular_f0: f32,
+    prm_alpha: f32,
     // Flags
     has_specular: bool,
     // Vectors
@@ -1351,7 +1364,9 @@ fn GetPbrParams(in: VertexOutput, is_front: bool) -> PbrParams {
     out.metalness = mix(prm.r, transitionPrm.r, transitionFactor);
     out.roughness = mix(prm.g, transitionPrm.g, transitionFactor);
     out.ambient_occlusion = prm.b;
-    out.specular_f0 = GetF0FromSpecular(mix(prm.a, transitionPrm.a, transitionFactor));
+    let prm_alpha = mix(prm.a, transitionPrm.a, transitionFactor);
+    out.specular_f0 = GetF0FromSpecular(prm_alpha);
+    out.prm_alpha = prm_alpha;
 
     // TODO: combine with sss params?
     out.sss_blend = out.sss_blend * prm.r;
@@ -1439,7 +1454,7 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) is_front: bool) -> @location
     let kDirect = kSpecular * shadow * params.nor.a;
     // TODO: Is this correct for masking environment reflections?
     let kIndirect = FresnelSchlick(nDotV, kSpecular) * params.nor.a * 0.5; // TODO: Why is 0.5 needed here?
-    let specularPass = SpecularTerm(tangent, bitangent, nDotH, max(nDotL, 0.0), nDotV, halfAngle, params.roughness, specularIbl, kDirect, kIndirect);
+    let specularPass = SpecularTerm(normal, tangent, bitangent, nDotH, max(nDotL, 0.0), nDotV, halfAngle, params.roughness, params.prm_alpha, specularIbl, kDirect, kIndirect);
 
     var outColor = vec3(0.0, 0.0, 0.0);
     if render_settings.render_diffuse.x == 1u {
