@@ -128,7 +128,7 @@ impl BoneNameRenderer {
     /// Render text initialized in [Self::prepare].
     ///
     /// The `render_pass` should have the format used in [Self::new].
-    pub fn render<'a>(&'a self, render_pass: &mut wgpu::RenderPass<'a>) {
+    pub fn render(&self, render_pass: &mut wgpu::RenderPass<'_>) {
         self.renderer
             .render(&self.atlas, &self.viewport, render_pass)
             .unwrap();

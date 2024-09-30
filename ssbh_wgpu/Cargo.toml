@@ -20,7 +20,7 @@ prc-rs = "1.6.1"
 topological-sort = "0.2.2"
 encase = { version = "0.9.0", features = ["glam"] }
 indexmap = "1.9.2"
-glyphon = "0.6.0"
+glyphon = { git = "https://github.com/Selicre/glyphon", rev = "507db98" }
 
 [dev-dependencies]
 approx = "0.5.1"
