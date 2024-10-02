@@ -11,4 +11,4 @@ bytemuck = { version = "1.7", features = [ "derive" ] }
 thiserror = "1.0"
 
 [build-dependencies]
-wgsl_to_wgpu = "0.10.1"
+wgsl_to_wgpu = { git = "https://github.com/ScanMountGoat/wgsl_to_wgpu", rev = "ae15748" }
