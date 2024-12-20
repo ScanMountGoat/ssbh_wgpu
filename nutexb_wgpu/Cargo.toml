@@ -4,11 +4,11 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-wgpu = "22.1.0"
+wgpu = "23.0.1"
 nutexb = "0.7.0"
 log = "0.4.17"
 bytemuck = { version = "1.7", features = [ "derive" ] }
 thiserror = "1.0"
 
 [build-dependencies]
-wgsl_to_wgpu = { git = "https://github.com/ScanMountGoat/wgsl_to_wgpu", rev = "ae15748" }
+wgsl_to_wgpu = "0.12.0"

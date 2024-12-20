@@ -301,7 +301,7 @@ fn skeleton_pipeline(
         layout: Some(&layout),
         vertex: wgpu::VertexState {
             module: &module,
-            entry_point: vertex_entry,
+            entry_point: Some(vertex_entry),
             buffers: &[crate::shader::skeleton::VertexInput::vertex_buffer_layout(
                 wgpu::VertexStepMode::Vertex,
             )],
@@ -309,7 +309,7 @@ fn skeleton_pipeline(
         },
         fragment: Some(wgpu::FragmentState {
             module: &module,
-            entry_point: fragment_entry,
+            entry_point: Some(fragment_entry),
             targets: &[Some(surface_format.into())],
             compilation_options: wgpu::PipelineCompilationOptions::default(),
         }),
@@ -335,7 +335,7 @@ fn bone_axes_pipeline(
         layout: Some(&layout),
         vertex: wgpu::VertexState {
             module: &shader,
-            entry_point: "vs_axes",
+            entry_point: Some("vs_axes"),
             buffers: &[crate::shader::skeleton::VertexInput::vertex_buffer_layout(
                 wgpu::VertexStepMode::Vertex,
             )],
@@ -343,7 +343,7 @@ fn bone_axes_pipeline(
         },
         fragment: Some(wgpu::FragmentState {
             module: &shader,
-            entry_point: "fs_axes",
+            entry_point: Some("fs_axes"),
             targets: &[Some(surface_format.into())],
             compilation_options: wgpu::PipelineCompilationOptions::default(),
         }),

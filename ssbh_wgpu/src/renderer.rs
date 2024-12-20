@@ -1238,13 +1238,13 @@ fn create_screen_pipeline(
         layout: Some(layout),
         vertex: wgpu::VertexState {
             module,
-            entry_point: "vs_main",
+            entry_point: Some("vs_main"),
             buffers: &[],
             compilation_options: wgpu::PipelineCompilationOptions::default(),
         },
         fragment: Some(wgpu::FragmentState {
             module,
-            entry_point: fs_main,
+            entry_point: Some(fs_main),
             targets: &[Some(wgpu::ColorTargetState {
                 format: target,
                 // Enable blending to allow transparent screenshots.
@@ -1691,13 +1691,13 @@ fn create_outline_pipeline(
         layout: Some(&render_pipeline_layout),
         vertex: wgpu::VertexState {
             module: &module,
-            entry_point: "vs_main",
+            entry_point: Some("vs_main"),
             buffers: &[],
             compilation_options: wgpu::PipelineCompilationOptions::default(),
         },
         fragment: Some(wgpu::FragmentState {
             module: &module,
-            entry_point: "fs_main",
+            entry_point: Some("fs_main"),
             targets: &[Some(surface_format.into())],
             compilation_options: wgpu::PipelineCompilationOptions::default(),
         }),

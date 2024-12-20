@@ -23,7 +23,7 @@ impl FloorGridRenderData {
             layout: Some(&layout),
             vertex: wgpu::VertexState {
                 module: &shader,
-                entry_point: "vs_main",
+                entry_point: Some("vs_main"),
                 buffers: &[
                     crate::shader::floor_grid::VertexInput::vertex_buffer_layout(
                         wgpu::VertexStepMode::Vertex,
@@ -33,7 +33,7 @@ impl FloorGridRenderData {
             },
             fragment: Some(wgpu::FragmentState {
                 module: &shader,
-                entry_point: "fs_main",
+                entry_point: Some("fs_main"),
                 // TODO: Why doesn't this blend properly from below?
                 targets: &[Some(wgpu::ColorTargetState {
                     format: surface_format,

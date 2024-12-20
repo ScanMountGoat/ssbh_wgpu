@@ -514,7 +514,7 @@ pub fn swing_pipeline(
         layout: Some(&layout),
         vertex: wgpu::VertexState {
             module: &shader,
-            entry_point: "vs_main",
+            entry_point: Some("vs_main"),
             buffers: &[crate::shader::swing::VertexInput::vertex_buffer_layout(
                 wgpu::VertexStepMode::Vertex,
             )],
@@ -522,7 +522,7 @@ pub fn swing_pipeline(
         },
         fragment: Some(wgpu::FragmentState {
             module: &shader,
-            entry_point: "fs_main",
+            entry_point: Some("fs_main"),
             targets: &[Some(wgpu::ColorTargetState {
                 format: surface_format,
                 blend: Some(wgpu::BlendState {

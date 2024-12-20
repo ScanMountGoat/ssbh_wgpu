@@ -92,7 +92,7 @@ pub fn pipeline(
         ),
         fragment: Some(wgpu::FragmentState {
             module: &pipeline_data.shader,
-            entry_point: "fs_main",
+            entry_point: Some("fs_main"),
             targets: &[Some(wgpu::ColorTargetState {
                 format: pipeline_key.surface_format,
                 blend: pipeline_key.blend,
@@ -210,7 +210,7 @@ pub fn silhouette_pipeline(
         ),
         fragment: Some(wgpu::FragmentState {
             module: &module,
-            entry_point: "fs_solid",
+            entry_point: Some("fs_solid"),
             targets: &[Some(surface_format.into())],
             compilation_options: wgpu::PipelineCompilationOptions::default(),
         }),
@@ -238,7 +238,7 @@ pub fn wireframe_pipeline(device: &wgpu::Device) -> wgpu::RenderPipeline {
         ),
         fragment: Some(wgpu::FragmentState {
             module: &module,
-            entry_point: "fs_solid",
+            entry_point: Some("fs_solid"),
             targets: &[Some(RGBA_COLOR_FORMAT.into())],
             compilation_options: wgpu::PipelineCompilationOptions::default(),
         }),
@@ -270,7 +270,7 @@ pub fn model_pipeline_from_entry(
         layout: Some(&render_pipeline_layout),
         vertex: wgpu::VertexState {
             module: &module,
-            entry_point: vertex_entry,
+            entry_point: Some(vertex_entry),
             buffers: &[
                 crate::shader::model::VertexInput0::vertex_buffer_layout(
                     wgpu::VertexStepMode::Vertex,
@@ -283,7 +283,7 @@ pub fn model_pipeline_from_entry(
         },
         fragment: Some(wgpu::FragmentState {
             module: &module,
-            entry_point,
+            entry_point: Some(entry_point),
             targets: &[Some(RGBA_COLOR_FORMAT.into())],
             compilation_options: wgpu::PipelineCompilationOptions::default(),
         }),
@@ -336,7 +336,7 @@ pub fn uv_pipeline(
         ),
         fragment: Some(wgpu::FragmentState {
             module: &module,
-            entry_point: "fs_uv",
+            entry_point: Some("fs_uv"),
             targets: &[Some(surface_format.into())],
             compilation_options: wgpu::PipelineCompilationOptions::default(),
         }),
