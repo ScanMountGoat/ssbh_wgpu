@@ -103,7 +103,7 @@ impl<'a> State<'a> {
         render_folder: Option<PathBuf>,
         font_path: Option<PathBuf>,
     ) -> Self {
-        let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
+        let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
             backends: wgpu::Backends::all(),
             ..Default::default()
         });

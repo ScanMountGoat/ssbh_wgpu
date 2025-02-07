@@ -6,5 +6,5 @@ edition = "2021"
 [dependencies]
 winit = "0.29"
 futures = "0.3"
-wgpu = "23.0.1"
+wgpu = "24.0.1"
 nutexb_wgpu = { path = "../nutexb_wgpu" }
