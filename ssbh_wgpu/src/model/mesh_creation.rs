@@ -695,7 +695,7 @@ fn append_mesh_object_buffer_data(
         },
         indices: BufferAccess {
             start: index_offset,
-            size: (model_index_data.len() * std::mem::size_of::<u32>()) as u64,
+            size: (mesh_object.vertex_indices.len() * std::mem::size_of::<u32>()) as u64,
         },
     })
 }
