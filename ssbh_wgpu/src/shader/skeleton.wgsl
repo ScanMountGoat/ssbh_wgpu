@@ -67,15 +67,21 @@ fn vs_bone(in: VertexInput) -> VertexOutput {
     let bone_index = per_bone.indices.x;
     var out: VertexOutput;
     if bone_index >= 0 && bone_index < 512 {
-        let bone_pos = world_transforms.transforms[per_bone.indices.x] * vec4(0.0, 0.0, 0.0, 1.0);
+        var world_transform = world_transforms.transforms[per_bone.indices.x];
+        // Quick fix to disable bone scale for some skeletons like Kirby.
+        world_transform[0] = vec4(normalize(world_transform[0].xyz), world_transform[0].w);
+        world_transform[1] = vec4(normalize(world_transform[1].xyz), world_transform[1].w);
+        world_transform[2] = vec4(normalize(world_transform[2].xyz), world_transform[2].w);
+
+        let bone_pos = world_transform * vec4(0.0, 0.0, 0.0, 1.0);
 
         // Keep a constant size in pixels on screen.
         let scale_factor = distance(bone_pos.xyz, camera.camera_pos.xyz) * 0.0025;
         let position = vec4(in.position.xyz * scale_factor, 1.0);
 
-        out.clip_position = camera.mvp_matrix * world_transforms.transforms[per_bone.indices.x] * position;
+        out.clip_position = camera.mvp_matrix * world_transform * position;
         out.position = in.position;
-        out.normal = world_transforms.transforms[per_bone.indices.x] * vec4(in.normal.xyz, 0.0);
+        out.normal = world_transform * vec4(in.normal.xyz, 0.0);
     }
     return out;
 }
