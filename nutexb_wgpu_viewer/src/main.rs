@@ -21,7 +21,7 @@ struct State<'a> {
 
 impl<'a> State<'a> {
     async fn new<P: AsRef<Path>>(window: &'a Window, path: P, layer: u32, mipmap: f32) -> Self {
-        let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
+        let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
             backends: wgpu::Backends::all(),
             ..Default::default()
         });
@@ -36,15 +36,10 @@ impl<'a> State<'a> {
             .unwrap();
 
         let (device, queue) = adapter
-            .request_device(
-                &wgpu::DeviceDescriptor {
-                    label: None,
-                    required_features: wgpu::Features::TEXTURE_COMPRESSION_BC,
-                    required_limits: wgpu::Limits::default(),
-                    memory_hints: wgpu::MemoryHints::default(),
-                },
-                None,
-            )
+            .request_device(&wgpu::DeviceDescriptor {
+                required_features: wgpu::Features::TEXTURE_COMPRESSION_BC,
+                ..Default::default()
+            })
             .await
             .unwrap();
 

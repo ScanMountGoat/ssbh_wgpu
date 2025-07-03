@@ -2,7 +2,7 @@ use std::fmt::Write;
 
 fn write_shader_module(wgsl_source: &str, shader_name: &str) {
     // Generate the Rust bindings and write to a file.
-    let text = wgsl_to_wgpu::create_shader_module_embedded(
+    let text = wgsl_to_wgpu::create_shader_modules(
         wgsl_source,
         wgsl_to_wgpu::WriteOptions {
             derive_bytemuck_vertex: true,
@@ -11,6 +11,7 @@ fn write_shader_module(wgsl_source: &str, shader_name: &str) {
             matrix_vector_types: wgsl_to_wgpu::MatrixVectorTypes::Glam,
             ..Default::default()
         },
+        wgsl_to_wgpu::demangle_identity,
     )
     .unwrap();
 
@@ -35,8 +36,11 @@ fn main() {
 
     // Create each shader module and add it to shader.rs.
     for shader_path in shader_paths {
+        
         let file_name = shader_path.with_extension("");
         let shader_name = file_name.file_name().unwrap().to_string_lossy().to_string();
+
+        println!("cargo:rerun-if-changed=src/shader/{shader_name}.wgsl");
 
         writeln!(&mut f, "#[allow(dead_code)]").unwrap();
         writeln!(&mut f, "pub mod {shader_name} {{").unwrap();

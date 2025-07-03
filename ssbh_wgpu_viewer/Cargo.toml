@@ -5,11 +5,11 @@ edition = "2021"
 
 [dependencies]
 winit = "0.29"
-wgpu = "24.0.1"
+wgpu.workspace = true
 futures = "0.3"
 log = "0.4.17"
 simple_logger = "2.1.0"
-glam = { version = "0.28.0", features = ["bytemuck"] }
+glam = { workspace = true, features = ["bytemuck"] }
 ssbh_wgpu = { path = "../ssbh_wgpu" }
-ssbh_data = { version = "0.19.0", features = ["strum"] }
+ssbh_data = { workspace = true, features = ["strum"] }
 pico-args = "0.5.0"

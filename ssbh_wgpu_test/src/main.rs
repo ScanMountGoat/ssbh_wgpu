@@ -8,7 +8,7 @@ use ssbh_wgpu::{
     SsbhRenderer, REQUIRED_FEATURES,
 };
 use wgpu::{
-    DeviceDescriptor, Extent3d, Limits, PowerPreference, RequestAdapterOptions, TextureDescriptor,
+    DeviceDescriptor, Extent3d, PowerPreference, RequestAdapterOptions, TextureDescriptor,
     TextureDimension, TextureUsages,
 };
 
@@ -35,7 +35,7 @@ fn calculate_camera(
 }
 
 fn main() {
-    // TODO: use pico-args for this.
+    // TODO: use clap for this.
     let args: Vec<_> = std::env::args().collect();
     let source_folder = &args[1];
     let fighter_anim = args.get(2).map(|s| s.as_str()) == Some("--fighter-anim");
@@ -49,7 +49,7 @@ fn main() {
 
     // Load models in headless mode without a surface.
     // This simplifies testing for stability and performance.
-    let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
+    let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
         backends: wgpu::Backends::all(),
         ..Default::default()
     });
@@ -58,15 +58,10 @@ fn main() {
         ..Default::default()
     }))
     .unwrap();
-    let (device, queue) = block_on(adapter.request_device(
-        &DeviceDescriptor {
-            label: None,
-            required_features: REQUIRED_FEATURES,
-            required_limits: Limits::default(),
-            memory_hints: wgpu::MemoryHints::default(),
-        },
-        None,
-    ))
+    let (device, queue) = block_on(adapter.request_device(&DeviceDescriptor {
+        required_features: REQUIRED_FEATURES,
+        ..Default::default()
+    }))
     .unwrap();
 
     // TODO: Find a way to simplify initialization.
@@ -192,7 +187,7 @@ fn main() {
 
         // Clean up resources.
         queue.submit(std::iter::empty());
-        device.poll(wgpu::Maintain::Wait);
+        device.poll(wgpu::PollType::Wait).unwrap();
     }
 
     println!("Completed in {:?}", start.elapsed());
@@ -221,15 +216,15 @@ fn render_screenshot(
         &ModelRenderOptions::default(),
     );
     encoder.copy_texture_to_buffer(
-        wgpu::ImageCopyTexture {
+        wgpu::TexelCopyTextureInfo {
             aspect: wgpu::TextureAspect::All,
             texture: output,
             mip_level: 0,
             origin: wgpu::Origin3d::ZERO,
         },
-        wgpu::ImageCopyBuffer {
+        wgpu::TexelCopyBufferInfo {
             buffer: output_buffer,
-            layout: wgpu::ImageDataLayout {
+            layout: wgpu::TexelCopyBufferLayout {
                 offset: 0,
                 bytes_per_row: Some(512 * 4),
                 rows_per_image: Some(512),
@@ -250,7 +245,7 @@ fn render_screenshot(
         buffer_slice.map_async(wgpu::MapMode::Read, move |result| {
             tx.send(result).unwrap();
         });
-        device.poll(wgpu::Maintain::Wait);
+        device.poll(wgpu::PollType::Wait).unwrap();
         block_on(rx.receive()).unwrap().unwrap();
 
         let data = buffer_slice.get_mapped_range();

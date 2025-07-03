@@ -11,7 +11,6 @@ use std::{
 use walkdir::WalkDir;
 use wgpu::util::DeviceExt;
 use xmb_lib::XmbFile;
-// TODO: Use rayon to speed up load times?
 
 // TODO: Rework this public API and improve docs.
 pub use nutexb_wgpu::NutexbFile;
@@ -47,14 +46,12 @@ pub use texture::{create_default_textures, load_default_spec_cube};
 // TODO: Find a way to avoid using the format features for filterable f32 textures.
 /// Required WGPU features for using this library.
 /// This library currently only supports WGPU on native desktop platforms.
-pub const REQUIRED_FEATURES: wgpu::Features = wgpu::Features::from_bits_truncate(
-    wgpu::Features::TEXTURE_COMPRESSION_BC.bits()
-        | wgpu::Features::ADDRESS_MODE_CLAMP_TO_BORDER.bits()
-        | wgpu::Features::TEXTURE_ADAPTER_SPECIFIC_FORMAT_FEATURES.bits()
-        | wgpu::Features::POLYGON_MODE_LINE.bits()
-        | wgpu::Features::DEPTH32FLOAT_STENCIL8.bits()
-        | wgpu::Features::TEXTURE_FORMAT_16BIT_NORM.bits(),
-);
+pub const REQUIRED_FEATURES: wgpu::Features = wgpu::Features::TEXTURE_COMPRESSION_BC
+    .union(wgpu::Features::ADDRESS_MODE_CLAMP_TO_BORDER)
+    .union(wgpu::Features::TEXTURE_ADAPTER_SPECIFIC_FORMAT_FEATURES)
+    .union(wgpu::Features::POLYGON_MODE_LINE)
+    .union(wgpu::Features::DEPTH32FLOAT_STENCIL8)
+    .union(wgpu::Features::TEXTURE_FORMAT_16BIT_NORM);
 
 // TODO: Better name?
 pub struct SharedRenderData {
