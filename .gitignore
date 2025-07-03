@@ -12,3 +12,7 @@ Cargo.lock
 # Don't accidentally distribute game assets
 *.nutexb
 *.nuanmb
+
+# Development files
+*.bat
+*.sh
