@@ -2,6 +2,7 @@ use std::path::{Path, PathBuf};
 
 use futures::executor::block_on;
 use image::ImageBuffer;
+use rayon::prelude::*;
 use ssbh_data::prelude::*;
 use ssbh_wgpu::{
     load_render_models, CameraTransforms, ModelFolder, ModelRenderOptions, SharedRenderData,
@@ -109,86 +110,85 @@ fn main() {
     let output = device.create_texture(&texture_desc);
     let output_view = output.create_view(&Default::default());
 
-    let output_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-        size: 512 * 512 * 4,
-        usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
-        label: None,
-        mapped_at_creation: false,
-    });
-
     // Load and render folders individually to save on memory.
     let source_folder = Path::new(source_folder);
-    let model_paths = globwalk::GlobWalkerBuilder::from_patterns(source_folder, &["*.{numshb}"])
-        .build()
-        .unwrap()
-        .into_iter()
-        .filter_map(Result::ok);
 
     // Render each model folder.
     let start = std::time::Instant::now();
-    for (folder_path, model) in model_paths.into_iter().filter_map(|p| {
-        let parent = p.path().parent()?;
-        if fighter_anim && !parent.components().any(|c| c.as_os_str() == "body") {
-            // Only folders like /fighter/mario/body/c00 will have a wait animation.
-            None
-        } else {
-            Some((parent.to_owned(), ModelFolder::load_folder(parent)))
-        }
-    }) {
-        // Convert fighter/mario/model/body/c00 to mario_model_body_c00.
-        let output_path = folder_path
-            .strip_prefix(source_folder)
-            .unwrap()
-            .components()
-            .into_iter()
-            .map(|c| c.as_os_str().to_string_lossy())
-            .collect::<Vec<_>>()
-            .join("_");
-        let output_path = source_folder.join(output_path).with_extension("png");
-        println!("{:?}", output_path);
+    globwalk::GlobWalkerBuilder::from_patterns(source_folder, &["*.{numshb}"])
+        .build()
+        .unwrap()
+        .par_bridge()
+        .filter_map(Result::ok)
+        .filter_map(|p| {
+            let parent = p.path().parent()?;
+            if fighter_anim && !parent.components().any(|c| c.as_os_str() == "body") {
+                // Only folders like /fighter/mario/body/c00 will have a wait animation.
+                None
+            } else {
+                Some(parent.to_owned())
+            }
+        })
+        .for_each(|folder_path| {
+            // Create a unique buffer to avoid mapping a buffer from multiple threads.
+            let output_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+                size: 512 * 512 * 4,
+                usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+                label: None,
+                mapped_at_creation: false,
+            });
 
-        let models = [model];
-        let mut render_models = load_render_models(&device, &queue, &models, &shared_data);
+            // Convert fighter/mario/model/body/c00 to mario_model_body_c00.
+            let output_path = folder_path
+                .strip_prefix(source_folder)
+                .unwrap()
+                .components()
+                .into_iter()
+                .map(|c| c.as_os_str().to_string_lossy())
+                .collect::<Vec<_>>()
+                .join("_");
+            let output_path = source_folder.join(output_path).with_extension("png");
 
-        if fighter_anim {
-            // Try and load an idle animation if possible.
-            // TODO: Make this an optional argument.
-            let anim_folder =
-                PathBuf::from(folder_path.to_string_lossy().replace("model", "motion"));
-            if let Ok(anim) = AnimData::from_file(anim_folder.join("a00wait2.nuanmb"))
-                .or_else(|_| AnimData::from_file(anim_folder.join("a00wait3.nuanmb")))
-            {
-                for render_model in &mut render_models {
-                    render_model.apply_anims(
-                        &queue,
-                        std::iter::once(&anim),
-                        models[0].find_skel(),
-                        models[0].find_matl(),
-                        models[0].find_hlpb(),
-                        &shared_data,
-                        0.0,
-                    );
+            let model = ModelFolder::load_folder(&folder_path);
+
+            let models = [model];
+            let mut render_models = load_render_models(&device, &queue, &models, &shared_data);
+
+            if fighter_anim {
+                // Try and load an idle animation if possible.
+                // TODO: Make this an optional argument.
+                let anim_folder =
+                    PathBuf::from(folder_path.to_string_lossy().replace("model", "motion"));
+                if let Ok(anim) = AnimData::from_file(anim_folder.join("a00wait2.nuanmb"))
+                    .or_else(|_| AnimData::from_file(anim_folder.join("a00wait3.nuanmb")))
+                {
+                    for render_model in &mut render_models {
+                        render_model.apply_anims(
+                            &queue,
+                            std::iter::once(&anim),
+                            models[0].find_skel(),
+                            models[0].find_matl(),
+                            models[0].find_hlpb(),
+                            &shared_data,
+                            0.0,
+                        );
+                    }
                 }
             }
-        }
 
-        render_screenshot(
-            &device,
-            &renderer,
-            &output_view,
-            &render_models,
-            &shared_data,
-            &output,
-            &output_buffer,
-            texture_desc.size,
-            &queue,
-            output_path,
-        );
-
-        // Clean up resources.
-        queue.submit(std::iter::empty());
-        device.poll(wgpu::PollType::Wait).unwrap();
-    }
+            render_screenshot(
+                &device,
+                &renderer,
+                &output_view,
+                &render_models,
+                &shared_data,
+                &output,
+                &output_buffer,
+                texture_desc.size,
+                &queue,
+                output_path,
+            );
+        });
 
     println!("Completed in {:?}", start.elapsed());
 }
