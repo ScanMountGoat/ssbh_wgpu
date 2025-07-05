@@ -2,6 +2,7 @@ use bytemuck::Pod;
 use encase::{internal::WriteInto, ShaderSize, ShaderType, StorageBuffer};
 use log::{error, info};
 use model::pipeline::PipelineData;
+use rayon::prelude::*;
 use ssbh_data::prelude::*;
 use std::{
     error::Error,
@@ -115,7 +116,7 @@ impl SharedRenderData {
     }
 }
 
-pub type ModelFiles<T> = Vec<(String, Result<T, Box<dyn Error>>)>;
+pub type ModelFiles<T> = Vec<(String, Option<T>)>;
 
 /// A collection of supported rendering related files in a model or animation folder.
 ///
@@ -182,7 +183,7 @@ impl ModelFolder {
         self.modls
             .iter()
             .find(|(f, _)| f == "model.numdlb")
-            .and_then(|(_, m)| m.as_ref().ok())
+            .and_then(|(_, m)| m.as_ref())
     }
 
     /// Finds the `"model.numatb"` file in [matls](#structfield.matls).
@@ -190,7 +191,7 @@ impl ModelFolder {
         self.matls
             .iter()
             .find(|(f, _)| f == "model.numatb")
-            .and_then(|(_, m)| m.as_ref().ok())
+            .and_then(|(_, m)| m.as_ref())
     }
 
     /// Finds the `"model.nusktb"` file in [skels](#structfield.skels).
@@ -198,7 +199,7 @@ impl ModelFolder {
         self.skels
             .iter()
             .find(|(f, _)| f == "model.nusktb")
-            .and_then(|(_, m)| m.as_ref().ok())
+            .and_then(|(_, m)| m.as_ref())
     }
 
     /// Finds the `"model.nuanmb"` file in [anims](#structfield.anims).
@@ -206,7 +207,7 @@ impl ModelFolder {
         self.anims
             .iter()
             .find(|(f, _)| f == "model.nuanmb")
-            .and_then(|(_, m)| m.as_ref().ok())
+            .and_then(|(_, m)| m.as_ref())
     }
 
     /// Finds the `"model.nuhlpb"` file in [hlpbs](#structfield.hlpbs).
@@ -214,7 +215,7 @@ impl ModelFolder {
         self.hlpbs
             .iter()
             .find(|(f, _)| f == "model.nuhlpb")
-            .and_then(|(_, m)| m.as_ref().ok())
+            .and_then(|(_, m)| m.as_ref())
     }
 
     /// Finds the `"model.numshb"` file in [meshes](#structfield.meshes).
@@ -222,7 +223,7 @@ impl ModelFolder {
         self.meshes
             .iter()
             .find(|(f, _)| f == "model.numshb")
-            .and_then(|(_, m)| m.as_ref().ok())
+            .and_then(|(_, m)| m.as_ref())
     }
 
     /// Finds the `"model.numshexb"` file in [meshexes](#structfield.meshexes).
@@ -230,7 +231,7 @@ impl ModelFolder {
         self.meshexes
             .iter()
             .find(|(f, _)| f == "model.numshexb")
-            .and_then(|(_, m)| m.as_ref().ok())
+            .and_then(|(_, m)| m.as_ref())
     }
 
     /// Finds the `"model.adjb"` file in [adjs](#structfield.adjs).
@@ -238,7 +239,7 @@ impl ModelFolder {
         self.adjs
             .iter()
             .find(|(f, _)| f == "model.adjb")
-            .and_then(|(_, m)| m.as_ref().ok())
+            .and_then(|(_, m)| m.as_ref())
     }
 
     /// Finds the `"model.nuhlpb"` file in [hlpbs](#structfield.hlpbs).
@@ -246,7 +247,7 @@ impl ModelFolder {
         self.hlpbs
             .iter()
             .find(|(f, _)| f == "model.nuhlpb")
-            .and_then(|(_, m)| m.as_ref().ok())
+            .and_then(|(_, m)| m.as_ref())
     }
 
     /// Finds the `"model.xmb"` file in [xmbs](#structfield.xmbs).
@@ -254,7 +255,7 @@ impl ModelFolder {
         self.xmbs
             .iter()
             .find(|(f, _)| f == "model.xmb")
-            .and_then(|(_, m)| m.as_ref().ok())
+            .and_then(|(_, m)| m.as_ref())
     }
 
     // Returns `true` if the folder has no supported files.
@@ -324,18 +325,20 @@ pub fn load_model_folders<P: AsRef<Path>>(root: P) -> Vec<(PathBuf, ModelFolder)
 
 fn read_files<T, F>(files: &[PathBuf], extension: &str, read_t: F) -> ModelFiles<T>
 where
-    F: Fn(PathBuf) -> Result<T, Box<dyn Error>>,
+    T: Send,
+    F: Fn(PathBuf) -> Result<T, Box<dyn Error>> + Sync,
 {
+    // Threading optimizes loading many animations and doesn't negatively impact other files.
     files
         .iter()
         .filter(|p| p.extension().and_then(|p| p.to_str()) == Some(extension))
+        .par_bridge()
         .filter_map(|p| {
             Some((
                 p.file_name()?.to_string_lossy().to_string(),
-                read_t(p.clone()).map_err(|e| {
-                    error!("Error reading {:?}: {}", p, e);
-                    e
-                }),
+                read_t(p.clone())
+                    .inspect_err(|e| error!("Error reading {:?}: {}", p, e))
+                    .ok(),
             ))
         })
         .collect()

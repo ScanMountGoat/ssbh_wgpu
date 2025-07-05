@@ -356,10 +356,7 @@ impl<'a> RenderMeshSharedData<'a> {
         self.nutexbs
             .iter()
             .filter_map(|(name, nutexb)| {
-                let nutexb = nutexb
-                    .as_ref()
-                    .inspect_err(|e| error!("Failed to read nutexb file {}: {}", name, e))
-                    .ok()?;
+                let nutexb = nutexb.as_ref()?;
                 let (texture, dim) = nutexb_wgpu::create_texture(nutexb, device, queue)
                     .inspect_err(|e| error!("Failed to create nutexb texture {}: {}", name, e))
                     .ok()?;
