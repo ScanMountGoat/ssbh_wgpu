@@ -460,6 +460,9 @@ impl<'a> State<'a> {
         // Apply animations for each model.
         // This is more efficient than animating per mesh since state is shared between render meshes.
         if self.is_playing {
+            self.renderer
+                .update_current_frame(&self.queue, self.current_frame);
+
             // TODO: Combine these into one list?
             for (i, model) in self.render_models.iter_mut().enumerate() {
                 model.apply_anims(

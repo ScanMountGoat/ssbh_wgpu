@@ -10,7 +10,7 @@ use crate::{
     texture::{load_default_lut, uv_pattern, TextureSamplerView},
     CameraTransforms, DeviceBufferExt, QueueExt, RenderModel, ShaderDatabase,
 };
-use glam::UVec4;
+use glam::{vec4, Mat4, UVec4, Vec4};
 use nutexb_wgpu::NutexbFile;
 use ssbh_data::anim_data::AnimData;
 use wgpu::ComputePassDescriptor;
@@ -152,6 +152,8 @@ pub struct SsbhRenderer {
     skinning_settings_bind_group: crate::shader::skinning::bind_groups::BindGroup3,
 
     surface_format: wgpu::TextureFormat,
+
+    current_frame_buffer: wgpu::Buffer,
 }
 
 impl SsbhRenderer {
@@ -230,12 +232,12 @@ impl SsbhRenderer {
         let camera_buffer = device.create_buffer_from_data(
             "Camera Buffer",
             &[crate::shader::model::CameraTransforms {
-                model_view_matrix: glam::Mat4::IDENTITY,
-                projection_matrix: glam::Mat4::IDENTITY,
-                mvp_matrix: glam::Mat4::IDENTITY,
-                mvp_inv_matrix: glam::Mat4::IDENTITY,
-                camera_pos: glam::vec4(0.0, 0.0, -1.0, 1.0),
-                screen_dimensions: glam::vec4(1.0, 1.0, 1.0, 1.0),
+                model_view_matrix: Mat4::IDENTITY,
+                projection_matrix: Mat4::IDENTITY,
+                mvp_matrix: Mat4::IDENTITY,
+                mvp_inv_matrix: Mat4::IDENTITY,
+                camera_pos: vec4(0.0, 0.0, -1.0, 1.0),
+                screen_dimensions: vec4(1.0, 1.0, 1.0, 1.0),
             }],
             wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         );
@@ -289,6 +291,12 @@ impl SsbhRenderer {
             ..Default::default()
         });
 
+        let current_frame_buffer = device.create_buffer_from_data(
+            "Current Frame Buffer",
+            &[Vec4::ZERO],
+            wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        );
+
         let per_frame_bind_group = crate::shader::model::bind_groups::BindGroup0::from_bindings(
             device,
             crate::shader::model::bind_groups::BindGroupLayout0 {
@@ -298,6 +306,7 @@ impl SsbhRenderer {
                 render_settings: render_settings_buffer.as_entire_buffer_binding(),
                 stage_uniforms: stage_uniforms_buffer.as_entire_buffer_binding(),
                 uv_pattern: &uv_pattern.create_view(&wgpu::TextureViewDescriptor::default()),
+                current_frame: current_frame_buffer.as_entire_buffer_binding(),
             },
         );
 
@@ -391,6 +400,7 @@ impl SsbhRenderer {
             swing_pipeline,
             floor_grid,
             surface_format,
+            current_frame_buffer,
         }
     }
 
@@ -419,6 +429,14 @@ impl SsbhRenderer {
     /// Updates the camera transforms.
     pub fn update_camera(&mut self, queue: &wgpu::Queue, transforms: CameraTransforms) {
         queue.write_data(&self.camera_buffer, &[transforms]);
+    }
+
+    /// Updates the current frame for material animations.
+    pub fn update_current_frame(&mut self, queue: &wgpu::Queue, current_frame: f32) {
+        queue.write_data(
+            &self.current_frame_buffer,
+            &[vec4(current_frame, 0.0, 0.0, 0.0)],
+        );
     }
 
     /// Updates the render settings.

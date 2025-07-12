@@ -69,6 +69,9 @@ var<uniform> stage_uniforms: StageUniforms;
 @group(0) @binding(6)
 var uv_pattern: texture_2d<f32>;
 
+@group(0) @binding(7)
+var<uniform> current_frame: vec4<f32>;
+
 struct PerModel {
     light_set_index: vec4<u32> // is_stage, light_set, 0, 0
 }
@@ -736,16 +739,16 @@ fn vs_main(
     if per_material.has_vector[18].x == 1u {
         let columnCount = round(per_material.custom_vector[18].x);
         let rowCount = round(per_material.custom_vector[18].y);
+        let framesPerSprite = round(per_material.custom_vector[18].z);
         let spriteCount = round(per_material.custom_vector[18].w);
-        var spriteIndex = 1.0;
+        var spriteIndex = 0.0;
 
         if per_material.custom_boolean[9].x == 1u {
             map1 /= round(per_material.custom_vector[18].xy);
-            spriteIndex = (round(per_material.custom_vector[18].z) - 1.0) % spriteCount;
+            spriteIndex = (framesPerSprite - 1.0) % spriteCount;
+        } else {
+            spriteIndex = floor(current_frame.x / framesPerSprite) % spriteCount;
         }
-        // else {
-        //     spriteIndex = (round(per_material.custom_vector[18].z) / floor(currentFrame)) % spriteCount;
-        // }
 
         map1.x += (1.0 / columnCount) * (spriteIndex % columnCount);
         map1.y += (1.0 / rowCount) * floor(spriteIndex / columnCount);
