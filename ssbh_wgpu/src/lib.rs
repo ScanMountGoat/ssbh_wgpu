@@ -492,20 +492,15 @@ pub fn next_frame(
 
     let mut next_frame = current_frame + (delta_t_frames as f32 * playback_speed);
 
-    if next_frame > final_frame_index {
-        if should_loop {
-            // Wrap around to loop the animation.
-            // This may not be seamless if the animations have different lengths.
-            next_frame = if final_frame_index > 0.0 {
-                next_frame.rem_euclid(final_frame_index)
-            } else {
-                // Use 0.0 instead of NaN for empty animations.
-                0.0
-            };
+    if next_frame > final_frame_index && should_loop {
+        // Wrap around to loop the animation.
+        // This may not be seamless if the animations have different lengths.
+        next_frame = if final_frame_index > 0.0 {
+            next_frame.rem_euclid(final_frame_index)
         } else {
-            // Reduce chances of overflow.
-            next_frame = final_frame_index;
-        }
+            // Use 0.0 instead of NaN for empty animations.
+            0.0
+        };
     }
 
     next_frame

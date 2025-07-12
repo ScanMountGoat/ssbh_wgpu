@@ -714,16 +714,28 @@ fn vs_main(
     // TODO: Check all channels?
     if per_material.has_vector[6].x == 1u {
         uvTransform1 = per_material.custom_vector[6];
+        if per_material.custom_boolean[5].x == 1u {
+            // This uses elapsed time in seconds.
+            uvTransform1 = vec4(uvTransform1.xy, uvTransform1.zw * current_frame.x / 60.0);
+        }
     }
 
     var uvTransform2 = vec4(1.0, 1.0, 0.0, 0.0);
     if per_material.has_vector[31].x == 1u {
         uvTransform2 = per_material.custom_vector[31];
+        if per_material.custom_boolean[6].x == 1u {
+            // This uses elapsed time in seconds.
+            uvTransform2 = vec4(uvTransform2.xy, uvTransform2.zw * current_frame.x / 60.0);
+        }
     }
 
     var uvTransform3 = vec4(1.0, 1.0, 0.0, 0.0);
     if per_material.has_vector[32].x == 1u {
         uvTransform3 = per_material.custom_vector[32];
+        if per_material.custom_boolean[7].x == 1u {
+            // This uses elapsed time in seconds.
+            uvTransform3 = vec4(uvTransform3.xy, uvTransform3.zw * current_frame.x / 60.0);
+        }
     }
 
     var uvTransformDualNormal = vec4(1.0, 1.0, 0.0, 0.0);
