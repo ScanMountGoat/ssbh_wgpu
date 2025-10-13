@@ -11,4 +11,4 @@ bytemuck = { version = "1.7", features = [ "derive" ] }
 thiserror = "1.0"
 
 [build-dependencies]
-wgsl_to_wgpu = "0.15.0"
+wgsl_to_wgpu = "0.16.0"

@@ -765,6 +765,7 @@ impl SsbhRenderer {
                         load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
                         store: wgpu::StoreOp::Store,
                     },
+                    depth_slice: None,
                 })],
                 depth_stencil_attachment: None,
                 timestamp_writes: None,
@@ -783,6 +784,7 @@ impl SsbhRenderer {
                     load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
                     store: wgpu::StoreOp::Store,
                 },
+                depth_slice: None,
             })],
             depth_stencil_attachment: None,
             timestamp_writes: None,
@@ -857,6 +859,7 @@ impl SsbhRenderer {
                     load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
                     store: wgpu::StoreOp::Store,
                 },
+                depth_slice: None,
             })],
             depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
                 view: &self.pass_info.depth.view,
@@ -922,6 +925,7 @@ impl SsbhRenderer {
                     load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
                     store: wgpu::StoreOp::Store,
                 },
+                depth_slice: None,
             })],
             depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
                 view: &self.pass_info.silhouette_stencil.view,
@@ -965,6 +969,7 @@ impl SsbhRenderer {
                     load: wgpu::LoadOp::Clear(self.clear_color()),
                     store: wgpu::StoreOp::Store,
                 },
+                depth_slice: None,
             })],
             depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
                 view: &self.pass_info.depth.view,
@@ -1032,6 +1037,7 @@ impl SsbhRenderer {
                     load: wgpu::LoadOp::Load,
                     store: wgpu::StoreOp::Store,
                 },
+                depth_slice: None,
             })],
             // TODO: Make a function or constant for this since it is shared.
             // TODO: Avoid writing to stencil here?
@@ -1080,6 +1086,7 @@ impl SsbhRenderer {
                     load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
                     store: wgpu::StoreOp::Store,
                 },
+                depth_slice: None,
             })],
             // TODO: Make a function or constant for this since it is shared.
             depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
@@ -1129,6 +1136,7 @@ impl SsbhRenderer {
                     load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
                     store: wgpu::StoreOp::Store,
                 },
+                depth_slice: None,
             })],
             depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
                 view: depth_stencil,
@@ -1173,6 +1181,7 @@ impl SsbhRenderer {
                     load: wgpu::LoadOp::Clear(self.clear_color()),
                     store: wgpu::StoreOp::Store,
                 },
+                depth_slice: None,
             })],
             depth_stencil_attachment: None,
             timestamp_writes: None,
@@ -1301,6 +1310,7 @@ fn create_color_pass<'a>(
                 load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
                 store: wgpu::StoreOp::Store,
             },
+            depth_slice: None,
         })],
         depth_stencil_attachment: None,
         timestamp_writes: None,

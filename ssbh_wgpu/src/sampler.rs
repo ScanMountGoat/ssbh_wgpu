@@ -1,7 +1,7 @@
 use ssbh_data::matl_data::{MagFilter, MinFilter, SamplerData, WrapMode};
 use wgpu::SamplerDescriptor;
 
-pub fn sampler_descriptor(data: &SamplerData) -> SamplerDescriptor {
+pub fn sampler_descriptor(data: &SamplerData) -> SamplerDescriptor<'_> {
     SamplerDescriptor {
         address_mode_u: address_mode(data.wraps),
         address_mode_v: address_mode(data.wrapt),
