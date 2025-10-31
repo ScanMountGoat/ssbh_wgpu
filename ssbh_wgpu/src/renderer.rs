@@ -587,14 +587,7 @@ impl SsbhRenderer {
             self.variance_shadow_pass(encoder);
 
             // Draw the models to the initial color texture.
-            self.model_pass(
-                encoder,
-                render_models,
-                shader_database,
-                options.mask_model_index,
-                &options.mask_material_label,
-                options.draw_floor_grid,
-            );
+            self.model_pass(encoder, render_models, shader_database);
 
             // TODO: Will these be faster as compute passes?
             // Extract the portions of the image that contribute to bloom.
@@ -609,8 +602,14 @@ impl SsbhRenderer {
             // Upscale with bilinear filtering to smooth the result.
             self.bloom_upscale_pass(encoder);
 
-            // TODO: Models with _near should be drawn after bloom but before post processing?
-            // TODO: How does this impact the depth buffer?
+            self.model_near_pass(
+                encoder,
+                render_models,
+                shader_database,
+                options.mask_model_index,
+                &options.mask_material_label,
+                options.draw_floor_grid,
+            );
 
             // Combine the model and bloom contributions and apply color grading.
             self.post_processing_pass(encoder, &self.pass_info.color_final.view);
@@ -843,9 +842,6 @@ impl SsbhRenderer {
         encoder: &mut wgpu::CommandEncoder,
         render_models: &[RenderModel],
         shader_database: &ShaderDatabase,
-        mask_model_index: usize,
-        mask_material_label: &str,
-        floor_grid: bool,
     ) {
         // TODO: Force having a color attachment for each fragment shader output in wgsl_to_wgpu?
         // TODO: Should this pass draw to a floating point target?
@@ -877,6 +873,46 @@ impl SsbhRenderer {
         self.draw_render_models(render_models.iter(), &mut pass, shader_database, "opaque");
         self.draw_render_models(render_models.iter(), &mut pass, shader_database, "far");
         self.draw_render_models(render_models.iter(), &mut pass, shader_database, "sort");
+    }
+
+    fn model_near_pass(
+        &self,
+        encoder: &mut wgpu::CommandEncoder,
+        render_models: &[RenderModel],
+        shader_database: &ShaderDatabase,
+        mask_model_index: usize,
+        mask_material_label: &str,
+        floor_grid: bool,
+    ) {
+        // TODO: Force having a color attachment for each fragment shader output in wgsl_to_wgpu?
+        // TODO: Should this pass draw to a floating point target?
+        // The in game format isn't 8-bit yet.
+        let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("Model Near Pass"),
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view: &self.pass_info.color_msaa.view,
+                resolve_target: Some(&self.pass_info.color.view),
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Load,
+                    store: wgpu::StoreOp::Store,
+                },
+                depth_slice: None,
+            })],
+            depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                view: &self.pass_info.depth.view,
+                depth_ops: Some(wgpu::Operations {
+                    load: wgpu::LoadOp::Load,
+                    store: wgpu::StoreOp::Store,
+                }),
+                stencil_ops: None,
+            }),
+            timestamp_writes: None,
+            occlusion_query_set: None,
+        });
+
+        // Models with _near should be drawn after bloom but before post processing?
+        // TODO: How does this impact the depth buffer?
+        // TODO: Investigate sorting.
         self.draw_render_models(render_models.iter(), &mut pass, shader_database, "near");
 
         self.draw_material_mask(
