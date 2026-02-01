@@ -1,7 +1,6 @@
 use std::path::{Path, PathBuf};
 
 use futures::executor::block_on;
-use image::ImageBuffer;
 use rayon::prelude::*;
 use ssbh_data::prelude::*;
 use ssbh_wgpu::{
@@ -115,13 +114,13 @@ fn main() {
 
     // Render each model folder.
     let start = std::time::Instant::now();
-    globwalk::GlobWalkerBuilder::from_patterns(source_folder, &["*.{numshb}"])
+    let paths: Vec<_> = globwalk::GlobWalkerBuilder::from_patterns(source_folder, &["*.{numshb}"])
         .build()
         .unwrap()
-        .par_bridge()
         .filter_map(Result::ok)
+        .map(|e| e.path().to_path_buf())
         .filter_map(|p| {
-            let parent = p.path().parent()?;
+            let parent = p.parent()?;
             if fighter_anim && !parent.components().any(|c| c.as_os_str() == "body") {
                 // Only folders like /fighter/mario/body/c00 will have a wait animation.
                 None
@@ -129,66 +128,68 @@ fn main() {
                 Some(parent.to_owned())
             }
         })
-        .for_each(|folder_path| {
-            // Create a unique buffer to avoid mapping a buffer from multiple threads.
-            let output_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-                size: 512 * 512 * 4,
-                usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
-                label: None,
-                mapped_at_creation: false,
-            });
+        .collect();
 
-            // Convert fighter/mario/model/body/c00 to mario_model_body_c00.
-            let output_path = folder_path
-                .strip_prefix(source_folder)
-                .unwrap()
-                .components()
-                .into_iter()
-                .map(|c| c.as_os_str().to_string_lossy())
-                .collect::<Vec<_>>()
-                .join("_");
-            let output_path = source_folder.join(output_path).with_extension("png");
+    paths.par_iter().for_each(|folder_path| {
+        // Create a unique buffer to avoid mapping a buffer from multiple threads.
+        let output_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            size: 512 * 512 * 4,
+            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+            label: None,
+            mapped_at_creation: false,
+        });
 
-            let model = ModelFolder::load_folder(&folder_path);
+        // Convert fighter/mario/model/body/c00 to mario_model_body_c00.
+        let output_path = folder_path
+            .strip_prefix(source_folder)
+            .unwrap()
+            .components()
+            .into_iter()
+            .map(|c| c.as_os_str().to_string_lossy())
+            .collect::<Vec<_>>()
+            .join("_");
+        let output_path = source_folder.join(output_path).with_extension("png");
 
-            let models = [model];
-            let mut render_models = load_render_models(&device, &queue, &models, &shared_data);
+        let model = ModelFolder::load_folder(&folder_path);
 
-            if fighter_anim {
-                // Try and load an idle animation if possible.
-                // TODO: Make this an optional argument.
-                let anim_folder =
-                    PathBuf::from(folder_path.to_string_lossy().replace("model", "motion"));
-                if let Ok(anim) = AnimData::from_file(anim_folder.join("a00wait2.nuanmb"))
-                    .or_else(|_| AnimData::from_file(anim_folder.join("a00wait3.nuanmb")))
-                {
-                    for render_model in &mut render_models {
-                        render_model.apply_anims(
-                            &queue,
-                            std::iter::once(&anim),
-                            models[0].find_skel(),
-                            models[0].find_matl(),
-                            models[0].find_hlpb(),
-                            &shared_data,
-                            0.0,
-                        );
-                    }
+        let models = [model];
+        let mut render_models = load_render_models(&device, &queue, &models, &shared_data);
+
+        if fighter_anim {
+            // Try and load an idle animation if possible.
+            // TODO: Make this an optional argument.
+            let anim_folder =
+                PathBuf::from(folder_path.to_string_lossy().replace("model", "motion"));
+            if let Ok(anim) = AnimData::from_file(anim_folder.join("a00wait2.nuanmb"))
+                .or_else(|_| AnimData::from_file(anim_folder.join("a00wait3.nuanmb")))
+            {
+                for render_model in &mut render_models {
+                    render_model.apply_anims(
+                        &queue,
+                        std::iter::once(&anim),
+                        models[0].find_skel(),
+                        models[0].find_matl(),
+                        models[0].find_hlpb(),
+                        &shared_data,
+                        0.0,
+                    );
                 }
             }
+        }
 
-            render_screenshot(
-                &device,
-                &renderer,
-                &output_view,
-                &render_models,
-                &shared_data,
-                &output,
-                &output_buffer,
-                texture_desc.size,
-                &queue,
-                output_path,
-            );
-        });
+        render_screenshot(
+            &device,
+            &renderer,
+            &output_view,
+            &render_models,
+            &shared_data,
+            &output,
+            &output_buffer,
+            texture_desc.size,
+            &queue,
+            output_path,
+        );
+    });
 
     println!("Completed in {:?}", start.elapsed());
 }
@@ -232,29 +233,25 @@ fn render_screenshot(
         },
         size,
     );
+
+    let buffer = output_buffer.clone();
+    encoder.map_buffer_on_submit(&output_buffer, wgpu::MapMode::Read, 0.., move |result| {
+        if let Ok(()) = result {
+            save_screenshot(&buffer, output_path);
+        }
+    });
     queue.submit([encoder.finish()]);
-    // TODO: Move this functionality to ssbh_wgpu for taking screenshots?
+}
+
+fn save_screenshot(output_buffer: &wgpu::Buffer, output_path: PathBuf) {
     // Save the output texture.
-    // Adapted from WGPU Example https://github.com/gfx-rs/wgpu/tree/master/wgpu/examples/capture
-    {
-        // TODO: Find ways to optimize this?
-        let buffer_slice = output_buffer.slice(..);
-
-        // TODO: Reuse the channel?
-        let (tx, rx) = futures_intrusive::channel::shared::oneshot_channel();
-        buffer_slice.map_async(wgpu::MapMode::Read, move |result| {
-            tx.send(result).unwrap();
-        });
-        device.poll(wgpu::PollType::wait_indefinitely()).unwrap();
-        block_on(rx.receive()).unwrap().unwrap();
-
-        let data = buffer_slice.get_mapped_range();
-        let mut buffer =
-            ImageBuffer::<image::Rgba<u8>, _>::from_raw(512, 512, data.to_owned()).unwrap();
+    let buffer_slice = output_buffer.slice(..);
+    let data = buffer_slice.get_mapped_range();
+    rayon::spawn(move || {
+        let mut buffer = image::RgbaImage::from_raw(512, 512, data.to_owned()).unwrap();
         // Convert BGRA to RGBA.
         buffer.pixels_mut().for_each(|p| p.0.swap(0, 2));
 
         buffer.save(output_path).unwrap();
-    }
-    output_buffer.unmap();
+    });
 }
