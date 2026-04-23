@@ -162,6 +162,7 @@ impl BoneNameRenderer {
             text,
             &Attrs::new(),
             Shaping::Advanced,
+            None,
         );
         buffer.shape_until_scroll(&mut self.font_system, false);
 

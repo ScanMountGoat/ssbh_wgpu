@@ -319,7 +319,7 @@ fn skeleton_pipeline(
         },
         depth_stencil: Some(INVERTED_STENCIL_MASK_STATE),
         multisample: wgpu::MultisampleState::default(),
-        multiview: None,
+        multiview_mask: None,
         cache: None,
     })
 }
@@ -354,13 +354,13 @@ fn bone_axes_pipeline(
         }, // TODO: Just disable the depth?
         depth_stencil: Some(wgpu::DepthStencilState {
             format: crate::renderer::DEPTH_STENCIL_FORMAT,
-            depth_write_enabled: true,
-            depth_compare: wgpu::CompareFunction::LessEqual,
+            depth_write_enabled: Some(true),
+            depth_compare: Some(wgpu::CompareFunction::LessEqual),
             stencil: wgpu::StencilState::default(),
             bias: wgpu::DepthBiasState::default(),
         }),
         multisample: wgpu::MultisampleState::default(),
-        multiview: None,
+        multiview_mask: None,
         cache: None,
     })
 }

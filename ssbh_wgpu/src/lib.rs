@@ -54,6 +54,12 @@ pub const REQUIRED_FEATURES: wgpu::Features = wgpu::Features::TEXTURE_COMPRESSIO
     .union(wgpu::Features::DEPTH32FLOAT_STENCIL8)
     .union(wgpu::Features::TEXTURE_FORMAT_16BIT_NORM);
 
+// TODO: Find a way to use default limits.
+pub const REQUIRED_LIMITS: wgpu::Limits = wgpu::Limits {
+    max_sampled_textures_per_shader_stage: 17,
+    ..wgpu::Limits::defaults()
+};
+
 // TODO: Better name?
 pub struct SharedRenderData {
     pipeline_data: PipelineData,

@@ -14,7 +14,7 @@ pub struct CameraAnimValues {
 
 impl CameraAnimValues {
     /// Convert the animation values into the format expected by [SsbhRenderer](crate::SsbhRenderer).
-    pub fn to_transforms(&self, width: u32, height: u32, scale_factor: f64) -> CameraTransforms {
+    pub fn to_transforms(&self, width: u32, height: u32, scale_factor: f32) -> CameraTransforms {
         let translation = Mat4::from_translation(self.translation);
         let rotation = Mat4::from_quat(self.rotation);
         let scale = Mat4::from_scale(self.scale);
@@ -34,7 +34,7 @@ impl CameraAnimValues {
 
         let camera_pos = model_view_matrix.inverse().col(3);
 
-        let screen_dimensions = vec4(width as f32, height as f32, scale_factor as f32, 0.0);
+        let screen_dimensions = vec4(width as f32, height as f32, scale_factor, 0.0);
 
         CameraTransforms {
             model_view_matrix,

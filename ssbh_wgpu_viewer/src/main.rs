@@ -1,3 +1,5 @@
+use anyhow::Context;
+use futures::executor::block_on;
 use pico_args::Arguments;
 use ssbh_data::prelude::*;
 use ssbh_wgpu::animation::camera::animate_camera;
@@ -14,17 +16,15 @@ use ssbh_wgpu::RenderSettings;
 use ssbh_wgpu::SharedRenderData;
 use ssbh_wgpu::TransitionMaterial;
 use ssbh_wgpu::REQUIRED_FEATURES;
+use ssbh_wgpu::REQUIRED_LIMITS;
 use ssbh_wgpu::{load_model_folders, load_render_models, SsbhRenderer};
 use std::collections::HashSet;
 use std::path::PathBuf;
+use std::sync::Arc;
+use winit::application::ApplicationHandler;
 use winit::keyboard::KeyCode;
 use winit::keyboard::NamedKey;
-use winit::{
-    dpi::PhysicalPosition,
-    event::*,
-    event_loop::EventLoop,
-    window::{Window, WindowBuilder},
-};
+use winit::{dpi::PhysicalPosition, event::*, event_loop::EventLoop, window::Window};
 
 const FOV_Y: f32 = 0.5;
 const NEAR_CLIP: f32 = 1.0;
@@ -53,8 +53,9 @@ fn calculate_camera(
     )
 }
 
-struct State<'a> {
-    surface: wgpu::Surface<'a>,
+struct State {
+    window: Arc<Window>,
+    surface: wgpu::Surface<'static>,
     device: wgpu::Device,
     queue: wgpu::Queue,
     config: wgpu::SurfaceConfiguration,
@@ -93,36 +94,40 @@ struct State<'a> {
     render: RenderSettings,
 }
 
-impl<'a> State<'a> {
+impl State {
     async fn new(
-        window: &'a Window,
+        window: Window,
         folder: PathBuf,
         anim: Option<PathBuf>,
         prc: Option<PathBuf>,
         camera_anim: Option<PathBuf>,
         render_folder: Option<PathBuf>,
         font_path: Option<PathBuf>,
-    ) -> Self {
-        let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
+        event_loop: &winit::event_loop::ActiveEventLoop,
+    ) -> anyhow::Result<Self> {
+        let window = Arc::new(window);
+
+        let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
             backends: wgpu::Backends::all(),
-            ..Default::default()
+            ..wgpu::InstanceDescriptor::new_with_display_handle(Box::new(
+                event_loop.owned_display_handle(),
+            ))
         });
-        let surface = instance.create_surface(window).unwrap();
+        let surface = instance.create_surface(window.clone())?;
         let adapter = instance
             .request_adapter(&wgpu::RequestAdapterOptions {
                 power_preference: wgpu::PowerPreference::HighPerformance,
                 ..Default::default()
             })
-            .await
-            .unwrap();
+            .await?;
 
         let (device, queue) = adapter
             .request_device(&wgpu::DeviceDescriptor {
                 required_features: REQUIRED_FEATURES,
+                required_limits: REQUIRED_LIMITS,
                 ..Default::default()
             })
-            .await
-            .unwrap();
+            .await?;
 
         let size = window.inner_size();
 
@@ -187,22 +192,20 @@ impl<'a> State<'a> {
         );
 
         if let Some(nutexb) = render_folder.as_ref().and_then(|f| {
-            NutexbFile::read_from_file(
-                f.parent()
-                    .unwrap()
-                    .join("lut")
-                    .join("color_grading_lut.nutexb"),
-            )
-            .ok()
+            NutexbFile::read_from_file(f.parent()?.join("lut").join("color_grading_lut.nutexb"))
+                .ok()
         }) {
             renderer.update_color_lut(&device, &queue, &nutexb);
         }
 
-        let font_bytes = font_path.map(|font_path| std::fs::read(font_path).unwrap());
+        let font_bytes = font_path
+            .map(|font_path| std::fs::read(font_path))
+            .transpose()?;
 
         let name_renderer = BoneNameRenderer::new(&device, &queue, font_bytes, surface_format);
 
-        Self {
+        Ok(Self {
+            window,
             surface,
             device,
             queue,
@@ -225,7 +228,7 @@ impl<'a> State<'a> {
             is_playing: false,
             render: RenderSettings::default(),
             name_renderer,
-        }
+        })
     }
 
     pub fn resize(&mut self, new_size: winit::dpi::PhysicalSize<u32>, scale_factor: f32) {
@@ -416,7 +419,7 @@ impl<'a> State<'a> {
             .update_render_settings(&self.queue, &self.render);
     }
 
-    fn render(&mut self, scale_factor: f64) -> Result<(), wgpu::SurfaceError> {
+    fn render(&mut self, output: wgpu::SurfaceTexture, scale_factor: f32) {
         let current_frame_start = std::time::Instant::now();
         if self.is_playing {
             self.current_frame = next_frame(
@@ -446,7 +449,6 @@ impl<'a> State<'a> {
 
         // Bind groups are preconfigured outside the render loop for performance.
         // This means only the output view needs to be set for each pass.
-        let output = self.surface.get_current_texture()?;
         let output_view = output
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
@@ -534,12 +536,98 @@ impl<'a> State<'a> {
 
         // Actually draw the frame.
         output.present();
-
-        Ok(())
     }
 }
 
-fn main() {
+struct App {
+    state: Option<State>,
+
+    // TODO: cli struct with clap
+    folder: PathBuf,
+    anim_path: Option<PathBuf>,
+    prc_path: Option<PathBuf>,
+    camera_anim_path: Option<PathBuf>,
+    render_folder_path: Option<PathBuf>,
+    font_path: Option<PathBuf>,
+}
+
+impl ApplicationHandler<()> for App {
+    fn resumed(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
+        if self.state.is_some() {
+            return;
+        }
+
+        let window = event_loop
+            .create_window(Window::default_attributes().with_title("ssbh_wgpu_viewer"))
+            .unwrap();
+
+        self.state = block_on(State::new(
+            window,
+            self.folder.clone(),
+            self.anim_path.clone(),
+            self.prc_path.clone(),
+            self.camera_anim_path.clone(),
+            self.render_folder_path.clone(),
+            self.font_path.clone(),
+            event_loop,
+        ))
+        .ok();
+    }
+
+    fn window_event(
+        &mut self,
+        event_loop: &winit::event_loop::ActiveEventLoop,
+        window_id: winit::window::WindowId,
+        event: WindowEvent,
+    ) {
+        if event == WindowEvent::CloseRequested {
+            event_loop.exit();
+            return;
+        };
+
+        // Window specific event handling.
+        if let Some(state) = self.state.as_mut() {
+            if window_id != state.window.id() {
+                return;
+            }
+
+            let scale_factor = state.window.scale_factor() as f32;
+            match event {
+                WindowEvent::Resized(physical_size) => {
+                    state.resize(physical_size, scale_factor);
+                    state.update_camera(scale_factor);
+                    state.window.request_redraw();
+                }
+                WindowEvent::ScaleFactorChanged { .. } => {}
+                WindowEvent::RedrawRequested => {
+                    match state.surface.get_current_texture() {
+                        wgpu::CurrentSurfaceTexture::Success(output) => {
+                            state.render(output, scale_factor)
+                        }
+                        wgpu::CurrentSurfaceTexture::Suboptimal(_) => {
+                            state.resize(state.size, scale_factor)
+                        }
+                        wgpu::CurrentSurfaceTexture::Timeout => {}
+                        wgpu::CurrentSurfaceTexture::Occluded => {}
+                        wgpu::CurrentSurfaceTexture::Outdated => {
+                            state.resize(state.size, scale_factor)
+                        }
+                        wgpu::CurrentSurfaceTexture::Lost => state.resize(state.size, scale_factor),
+                        wgpu::CurrentSurfaceTexture::Validation => {}
+                    }
+                    state.window.request_redraw();
+                }
+                _ => {
+                    state.handle_input(&event);
+                    state.update_camera(state.window.scale_factor() as f32);
+                    state.update_render_settings();
+                }
+            }
+        }
+    }
+}
+
+fn main() -> anyhow::Result<()> {
     // Ignore most wgpu logs to avoid flooding the console.
     simple_logger::SimpleLogger::new()
         .with_level(log::LevelFilter::Warn)
@@ -556,59 +644,21 @@ fn main() {
     let render_folder_path: Option<PathBuf> = args.opt_value_from_str("--render-folder").unwrap();
     let font_path: Option<PathBuf> = args.opt_value_from_str("--font").unwrap();
 
-    let event_loop = EventLoop::new().unwrap();
-    let window = WindowBuilder::new()
-        .with_title("ssbh_wgpu")
-        .build(&event_loop)
-        .unwrap();
+    // TODO: move model loading here for better error reporting.
 
-    let mut state = futures::executor::block_on(State::new(
-        &window,
+    let event_loop = EventLoop::new()?;
+    let mut app = App {
+        state: None,
         folder,
         anim_path,
         prc_path,
         camera_anim_path,
         render_folder_path,
         font_path,
-    ));
-
-    // Initialize the camera buffer.
-    state.update_camera(window.scale_factor() as f32);
+    };
 
     event_loop
-        .run(|event, target| match event {
-            Event::WindowEvent {
-                ref event,
-                window_id,
-            } if window_id == window.id() => match event {
-                WindowEvent::CloseRequested => target.exit(),
-                WindowEvent::Resized(physical_size) => {
-                    state.resize(*physical_size, window.scale_factor() as f32);
-                    window.request_redraw();
-                }
-                WindowEvent::ScaleFactorChanged { .. } => {}
-                WindowEvent::RedrawRequested => {
-                    match state.render(window.scale_factor()) {
-                        Ok(_) => {}
-                        Err(wgpu::SurfaceError::Lost) => {
-                            state.resize(state.size, window.scale_factor() as f32)
-                        }
-                        Err(wgpu::SurfaceError::OutOfMemory) => target.exit(),
-                        Err(e) => eprintln!("{e:?}"),
-                    }
-                    window.request_redraw();
-                }
-                _ => {
-                    if state.handle_input(event) {
-                        // TODO: Avoid overriding the camera values when pausing?
-                        state.update_camera(window.scale_factor() as f32);
-
-                        state.update_render_settings();
-                    }
-                    window.request_redraw();
-                }
-            },
-            _ => (),
-        })
-        .unwrap();
+        .run_app(&mut app)
+        .with_context(|| "failed to complete event loop")?;
+    Ok(())
 }

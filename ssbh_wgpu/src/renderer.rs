@@ -47,8 +47,8 @@ const VARIANCE_SHADOW_HEIGHT: u32 = 512;
 
 pub const INVERTED_STENCIL_MASK_STATE: wgpu::DepthStencilState = wgpu::DepthStencilState {
     format: crate::renderer::DEPTH_STENCIL_FORMAT,
-    depth_write_enabled: true,
-    depth_compare: wgpu::CompareFunction::LessEqual,
+    depth_write_enabled: Some(true),
+    depth_compare: Some(wgpu::CompareFunction::LessEqual),
     // Assume the stencil mask is cleared to 0xFF.
     // Write zeros for the object to create an inverted mask.
     stencil: wgpu::StencilState {
@@ -769,6 +769,7 @@ impl SsbhRenderer {
                 depth_stencil_attachment: None,
                 timestamp_writes: None,
                 occlusion_query_set: None,
+                multiview_mask: None,
             });
         }
     }
@@ -788,6 +789,7 @@ impl SsbhRenderer {
             depth_stencil_attachment: None,
             timestamp_writes: None,
             occlusion_query_set: None,
+            multiview_mask: None,
         });
         variance_shadow_pass.set_pipeline(&self.variance_shadow_pipeline);
         crate::shader::variance_shadow::set_bind_groups(
@@ -867,6 +869,7 @@ impl SsbhRenderer {
             }),
             timestamp_writes: None,
             occlusion_query_set: None,
+            multiview_mask: None,
         });
 
         // TODO: Investigate sorting.
@@ -908,6 +911,7 @@ impl SsbhRenderer {
             }),
             timestamp_writes: None,
             occlusion_query_set: None,
+            multiview_mask: None,
         });
 
         // Models with _near should be drawn after bloom but before post processing?
@@ -976,6 +980,7 @@ impl SsbhRenderer {
             }),
             timestamp_writes: None,
             occlusion_query_set: None,
+            multiview_mask: None,
         });
 
         pass.set_pipeline(&self.silhouette_pipeline);
@@ -1017,6 +1022,7 @@ impl SsbhRenderer {
             }),
             timestamp_writes: None,
             occlusion_query_set: None,
+            multiview_mask: None,
         });
 
         pass.set_pipeline(&self.debug_pipeline);
@@ -1090,6 +1096,7 @@ impl SsbhRenderer {
             }),
             timestamp_writes: None,
             occlusion_query_set: None,
+            multiview_mask: None,
         });
 
         if draw_bones {
@@ -1138,6 +1145,7 @@ impl SsbhRenderer {
             }),
             timestamp_writes: None,
             occlusion_query_set: None,
+            multiview_mask: None,
         });
 
         if draw_bones {
@@ -1184,6 +1192,7 @@ impl SsbhRenderer {
             }),
             timestamp_writes: None,
             occlusion_query_set: None,
+            multiview_mask: None,
         });
 
         if enabled {
@@ -1222,6 +1231,7 @@ impl SsbhRenderer {
             depth_stencil_attachment: None,
             timestamp_writes: None,
             occlusion_query_set: None,
+            multiview_mask: None,
         });
         pass.set_pipeline(&self.post_process_pipeline);
         crate::shader::post_process::set_bind_groups(
@@ -1264,6 +1274,7 @@ impl SsbhRenderer {
             }),
             timestamp_writes: None,
             occlusion_query_set: None,
+            multiview_mask: None,
         });
 
         pass.set_pipeline(&self.shadow_pipeline);
@@ -1327,7 +1338,7 @@ fn create_screen_pipeline(
         primitive: wgpu::PrimitiveState::default(),
         depth_stencil: None,
         multisample: wgpu::MultisampleState::default(),
-        multiview: None,
+        multiview_mask: None,
         cache: None,
     })
 }
@@ -1351,6 +1362,7 @@ fn create_color_pass<'a>(
         depth_stencil_attachment: None,
         timestamp_writes: None,
         occlusion_query_set: None,
+        multiview_mask: None,
     })
 }
 
@@ -1524,7 +1536,7 @@ fn create_depth(
         address_mode_v: wgpu::AddressMode::ClampToEdge,
         mag_filter: wgpu::FilterMode::Linear,
         min_filter: wgpu::FilterMode::Linear,
-        mipmap_filter: wgpu::FilterMode::Nearest,
+        mipmap_filter: wgpu::MipmapFilterMode::Nearest,
         compare: None,
         ..Default::default()
     });
@@ -1556,7 +1568,7 @@ fn create_depth_stencil(device: &wgpu::Device, width: u32, height: u32) -> Textu
         address_mode_v: wgpu::AddressMode::ClampToEdge,
         mag_filter: wgpu::FilterMode::Linear,
         min_filter: wgpu::FilterMode::Linear,
-        mipmap_filter: wgpu::FilterMode::Nearest,
+        mipmap_filter: wgpu::MipmapFilterMode::Nearest,
         compare: None,
         ..Default::default()
     });
@@ -1594,7 +1606,7 @@ fn create_texture_sampler(
         address_mode_v: wgpu::AddressMode::ClampToEdge,
         mag_filter: wgpu::FilterMode::Linear,
         min_filter: wgpu::FilterMode::Linear,
-        mipmap_filter: wgpu::FilterMode::Nearest,
+        mipmap_filter: wgpu::MipmapFilterMode::Nearest,
         ..Default::default()
     });
 
@@ -1768,14 +1780,14 @@ fn create_outline_pipeline(
         primitive: wgpu::PrimitiveState::default(),
         depth_stencil: Some(wgpu::DepthStencilState {
             format: DEPTH_STENCIL_FORMAT,
-            depth_write_enabled: false,
-            depth_compare: wgpu::CompareFunction::Always,
+            depth_write_enabled: Some(false),
+            depth_compare: Some(wgpu::CompareFunction::Always),
             // Use the mask from earlier only keep the blurred outline.
             stencil: STENCIL_COMPARE_EQUAL,
             bias: wgpu::DepthBiasState::default(),
         }),
         multisample: wgpu::MultisampleState::default(),
-        multiview: None,
+        multiview_mask: None,
         cache: None,
     })
 }

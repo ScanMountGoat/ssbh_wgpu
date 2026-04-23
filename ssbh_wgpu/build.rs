@@ -20,7 +20,7 @@ fn write_shader_module(wgsl_source: &str, shader_name: &str) {
 }
 
 fn main() {
-    // TODO: Only rerun if the shaders change?
+    // TODO: Use wesl for shared camera module.
     let mut shader_paths: Vec<_> = std::fs::read_dir("src/shader")
         .unwrap()
         .filter_map(|p| Some(p.ok()?.path()))
@@ -36,7 +36,6 @@ fn main() {
 
     // Create each shader module and add it to shader.rs.
     for shader_path in shader_paths {
-        
         let file_name = shader_path.with_extension("");
         let shader_name = file_name.file_name().unwrap().to_string_lossy().to_string();
 

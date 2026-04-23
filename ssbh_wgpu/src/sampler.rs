@@ -22,12 +22,12 @@ pub fn sampler_descriptor(data: &SamplerData) -> SamplerDescriptor<'_> {
     }
 }
 
-fn mip_filter_mode(filter: MinFilter) -> wgpu::FilterMode {
+fn mip_filter_mode(filter: MinFilter) -> wgpu::MipmapFilterMode {
     // wgpu separates the min filter and mipmap filter.
     match filter {
-        MinFilter::Nearest => wgpu::FilterMode::Nearest,
-        MinFilter::LinearMipmapLinear => wgpu::FilterMode::Linear,
-        MinFilter::LinearMipmapLinear2 => wgpu::FilterMode::Linear,
+        MinFilter::Nearest => wgpu::MipmapFilterMode::Nearest,
+        MinFilter::LinearMipmapLinear => wgpu::MipmapFilterMode::Linear,
+        MinFilter::LinearMipmapLinear2 => wgpu::MipmapFilterMode::Linear,
     }
 }
 
@@ -72,7 +72,7 @@ mod tests {
                 address_mode_w: wgpu::AddressMode::ClampToBorder,
                 mag_filter: wgpu::FilterMode::Linear,
                 min_filter: wgpu::FilterMode::Linear,
-                mipmap_filter: wgpu::FilterMode::Linear,
+                mipmap_filter: wgpu::MipmapFilterMode::Linear,
                 anisotropy_clamp: 2,
                 ..Default::default()
             },
@@ -105,7 +105,7 @@ mod tests {
                 address_mode_w: wgpu::AddressMode::ClampToBorder,
                 mag_filter: wgpu::FilterMode::Linear,
                 min_filter: wgpu::FilterMode::Nearest,
-                mipmap_filter: wgpu::FilterMode::Nearest,
+                mipmap_filter: wgpu::MipmapFilterMode::Nearest,
                 anisotropy_clamp: 1,
                 ..Default::default()
             },
@@ -137,7 +137,7 @@ mod tests {
                 address_mode_w: wgpu::AddressMode::ClampToEdge,
                 mag_filter: wgpu::FilterMode::Linear,
                 min_filter: wgpu::FilterMode::Linear,
-                mipmap_filter: wgpu::FilterMode::Linear,
+                mipmap_filter: wgpu::MipmapFilterMode::Linear,
                 anisotropy_clamp: 1,
                 ..Default::default()
             },

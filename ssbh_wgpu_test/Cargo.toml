@@ -8,7 +8,7 @@ futures = "0.3"
 wgpu.workspace = true
 ssbh_wgpu = { path = "../ssbh_wgpu" }
 log = "0.4.17"
-simple_logger = "2.1.0"
+simple_logger.workspace = true
 globwalk = "0.8.0"
 image = "0.25.1"
 glam.workspace = true

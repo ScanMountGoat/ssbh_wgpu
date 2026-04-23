@@ -5,7 +5,7 @@ use rayon::prelude::*;
 use ssbh_data::prelude::*;
 use ssbh_wgpu::{
     load_render_models, CameraTransforms, ModelFolder, ModelRenderOptions, SharedRenderData,
-    SsbhRenderer, REQUIRED_FEATURES,
+    SsbhRenderer, REQUIRED_FEATURES, REQUIRED_LIMITS,
 };
 use wgpu::{
     DeviceDescriptor, Extent3d, PowerPreference, RequestAdapterOptions, TextureDescriptor,
@@ -49,9 +49,9 @@ fn main() {
 
     // Load models in headless mode without a surface.
     // This simplifies testing for stability and performance.
-    let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
+    let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
         backends: wgpu::Backends::all(),
-        ..Default::default()
+        ..wgpu::InstanceDescriptor::new_without_display_handle()
     });
     let adapter = block_on(instance.request_adapter(&RequestAdapterOptions {
         power_preference: PowerPreference::HighPerformance,
@@ -60,6 +60,7 @@ fn main() {
     .unwrap();
     let (device, queue) = block_on(adapter.request_device(&DeviceDescriptor {
         required_features: REQUIRED_FEATURES,
+        required_limits: REQUIRED_LIMITS,
         ..Default::default()
     }))
     .unwrap();

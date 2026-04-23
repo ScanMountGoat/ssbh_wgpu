@@ -105,7 +105,7 @@ pub fn load_default_spec_cube(device: &Device, queue: &Queue) -> (Texture, Sampl
     let sampler = device.create_sampler(&SamplerDescriptor {
         mag_filter: wgpu::FilterMode::Linear,
         min_filter: wgpu::FilterMode::Linear,
-        mipmap_filter: wgpu::FilterMode::Linear,
+        mipmap_filter: wgpu::MipmapFilterMode::Linear,
         ..Default::default()
     });
 

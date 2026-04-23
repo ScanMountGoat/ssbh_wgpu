@@ -121,7 +121,7 @@ pub fn pipeline(
             alpha_to_coverage_enabled: pipeline_key.alpha_to_coverage_enabled,
             ..Default::default()
         },
-        multiview: None,
+        multiview_mask: None,
         cache: None,
     })
 }
@@ -133,10 +133,10 @@ pub fn depth_pipeline(device: &wgpu::Device) -> wgpu::RenderPipeline {
     let render_pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
         label: None,
         bind_group_layouts: &[
-            &crate::shader::model::bind_groups::BindGroup0::get_bind_group_layout(device),
-            &crate::shader::model::bind_groups::BindGroup1::get_bind_group_layout(device),
+            Some(&crate::shader::model::bind_groups::BindGroup0::get_bind_group_layout(device)),
+            Some(&crate::shader::model::bind_groups::BindGroup1::get_bind_group_layout(device)),
         ],
-        push_constant_ranges: &[],
+        immediate_size: 0,
     });
 
     // TODO: Some of these values should come from wgsl_to_wgpu
@@ -155,7 +155,7 @@ pub fn depth_pipeline(device: &wgpu::Device) -> wgpu::RenderPipeline {
         primitive: wgpu::PrimitiveState::default(),
         depth_stencil: Some(depth_stencil_state(true, true)),
         multisample: wgpu::MultisampleState::default(),
-        multiview: None,
+        multiview_mask: None,
         cache: None,
     })
 }
@@ -217,7 +217,7 @@ pub fn silhouette_pipeline(
         primitive: wgpu::PrimitiveState::default(),
         depth_stencil: Some(INVERTED_STENCIL_MASK_STATE),
         multisample: wgpu::MultisampleState::default(),
-        multiview: None,
+        multiview_mask: None,
         cache: None,
     })
 }
@@ -251,7 +251,7 @@ pub fn wireframe_pipeline(device: &wgpu::Device) -> wgpu::RenderPipeline {
             count: MSAA_SAMPLE_COUNT,
             ..Default::default()
         },
-        multiview: None,
+        multiview_mask: None,
         cache: None,
     })
 }
@@ -297,7 +297,7 @@ pub fn model_pipeline_from_entry(
             count: MSAA_SAMPLE_COUNT,
             ..Default::default()
         },
-        multiview: None,
+        multiview_mask: None,
         cache: None,
     })
 }
@@ -306,11 +306,11 @@ pub fn model_pipeline_from_entry(
 pub fn depth_stencil_state(depth_write: bool, depth_test: bool) -> wgpu::DepthStencilState {
     wgpu::DepthStencilState {
         format: crate::renderer::DEPTH_FORMAT,
-        depth_write_enabled: depth_write,
+        depth_write_enabled: Some(depth_write),
         depth_compare: if depth_test {
-            wgpu::CompareFunction::LessEqual
+            Some(wgpu::CompareFunction::LessEqual)
         } else {
-            wgpu::CompareFunction::Always
+            Some(wgpu::CompareFunction::Always)
         },
         stencil: wgpu::StencilState::default(),
         bias: wgpu::DepthBiasState::default(),
@@ -347,7 +347,7 @@ pub fn uv_pipeline(
         },
         depth_stencil: Some(depth_stencil_state(true, true)),
         multisample: wgpu::MultisampleState::default(),
-        multiview: None,
+        multiview_mask: None,
         cache: None,
     })
 }

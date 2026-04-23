@@ -4,7 +4,7 @@ use libfuzzer_sys::fuzz_target;
 use once_cell::sync::Lazy;
 use ssbh_wgpu::{
     load_render_models, ModelFolder, ModelRenderOptions, RenderModel, ShaderDatabase,
-    SharedRenderData, SsbhRenderer, REQUIRED_FEATURES,
+    SharedRenderData, SsbhRenderer, REQUIRED_FEATURES, REQUIRED_LIMITS,
 };
 use wgpu::{
     Device, DeviceDescriptor, Extent3d, Limits, PowerPreference, Queue, RequestAdapterOptions,
@@ -29,7 +29,7 @@ static SHARED: Lazy<(Device, Queue, SharedRenderData, SsbhRenderer, TextureView)
             &DeviceDescriptor {
                 label: None,
                 required_features: REQUIRED_FEATURES,
-                required_limits: Limits::default(),
+                required_limits: REQUIRED_LIMITS,
             },
             None,
         ))
