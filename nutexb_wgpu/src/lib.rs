@@ -141,13 +141,13 @@ pub fn create_texture(
 
     let format = wgpu_format(nutexb.footer.image_format);
     let (block_width, block_height) = format.block_dimensions();
-    if size.width % block_width != 0 {
+    if !size.width.is_multiple_of(block_width) {
         return Err(CreateTextureError::UnalignedWidth {
             width: size.width,
             block_width,
         });
     }
-    if size.height % block_height != 0 {
+    if !size.height.is_multiple_of(block_height) {
         return Err(CreateTextureError::UnalignedHeight {
             height: size.height,
             block_height,

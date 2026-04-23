@@ -146,7 +146,7 @@ impl State {
 
         // TODO: Frame bounding spheres?
         let animation = anim.map(|anim_path| AnimData::from_file(anim_path).unwrap());
-        let swing_prc = prc.and_then(|prc_path| SwingPrc::from_file(prc_path));
+        let swing_prc = prc.and_then(SwingPrc::from_file);
         let camera_animation =
             camera_anim.map(|camera_anim_path| AnimData::from_file(camera_anim_path).unwrap());
 
@@ -198,9 +198,7 @@ impl State {
             renderer.update_color_lut(&device, &queue, &nutexb);
         }
 
-        let font_bytes = font_path
-            .map(|font_path| std::fs::read(font_path))
-            .transpose()?;
+        let font_bytes = font_path.map(std::fs::read).transpose()?;
 
         let name_renderer = BoneNameRenderer::new(&device, &queue, font_bytes, surface_format);
 
@@ -336,10 +334,8 @@ impl State {
                     winit::keyboard::Key::Named(named) => match named {
                         NamedKey::ArrowUp => self.translation_xyz.z += 10.0,
                         NamedKey::ArrowDown => self.translation_xyz.z -= 10.0,
-                        NamedKey::Space => {
-                            if event.state == ElementState::Released {
-                                self.is_playing = !self.is_playing;
-                            }
+                        NamedKey::Space if event.state == ElementState::Released => {
+                            self.is_playing = !self.is_playing;
                         }
                         _ => (),
                     },

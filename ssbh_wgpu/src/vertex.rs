@@ -50,11 +50,7 @@ pub fn buffer0(mesh_data: &MeshObjectData) -> Result<Vec<VertexInput0>, Error> {
         })
         .unwrap_or_else(|| vec![[0.0, 0.0, 0.0, 1.0]; vertex_count]);
 
-    for ((position, normal), tangent) in positions
-        .into_iter()
-        .zip(normals.into_iter())
-        .zip(tangents.into_iter())
-    {
+    for ((position, normal), tangent) in positions.into_iter().zip(normals).zip(tangents) {
         vertices.push(VertexInput0 {
             position0: position.into(),
             normal0: normal.into(),

@@ -145,13 +145,12 @@ fn main() {
             .strip_prefix(source_folder)
             .unwrap()
             .components()
-            .into_iter()
             .map(|c| c.as_os_str().to_string_lossy())
             .collect::<Vec<_>>()
             .join("_");
         let output_path = source_folder.join(output_path).with_extension("png");
 
-        let model = ModelFolder::load_folder(&folder_path);
+        let model = ModelFolder::load_folder(folder_path);
 
         let models = [model];
         let mut render_models = load_render_models(&device, &queue, &models, &shared_data);
@@ -236,7 +235,7 @@ fn render_screenshot(
     );
 
     let buffer = output_buffer.clone();
-    encoder.map_buffer_on_submit(&output_buffer, wgpu::MapMode::Read, 0.., move |result| {
+    encoder.map_buffer_on_submit(output_buffer, wgpu::MapMode::Read, 0.., move |result| {
         if let Ok(()) = result {
             save_screenshot(&buffer, output_path);
         }
