@@ -462,9 +462,9 @@ impl RenderModel {
                 bind_group2,
             );
 
-            self.set_mesh_buffers(render_pass, mesh);
-
-            render_pass.draw_indexed(0..mesh.vertex_index_count as u32, 0, 0..1);
+            if self.set_mesh_buffers(render_pass, mesh).is_some() {
+                render_pass.draw_indexed(0..mesh.vertex_index_count as u32, 0, 0..1);
+            }
         }
     }
 
@@ -618,19 +618,29 @@ impl RenderModel {
         })
     }
 
-    fn set_mesh_buffers<'a>(&'a self, render_pass: &mut wgpu::RenderPass<'a>, mesh: &RenderMesh) {
+    fn set_mesh_buffers<'a>(
+        &'a self,
+        render_pass: &mut wgpu::RenderPass<'a>,
+        mesh: &RenderMesh,
+    ) -> Option<()> {
+        // TODO: report error for empty meshes?
         render_pass.set_vertex_buffer(
             0,
-            mesh.access.buffer0.slice(&self.mesh_buffers.vertex_buffer0),
+            mesh.access
+                .buffer0
+                .slice(&self.mesh_buffers.vertex_buffer0)?,
         );
         render_pass.set_vertex_buffer(
             1,
-            mesh.access.buffer1.slice(&self.mesh_buffers.vertex_buffer1),
+            mesh.access
+                .buffer1
+                .slice(&self.mesh_buffers.vertex_buffer1)?,
         );
         render_pass.set_index_buffer(
-            mesh.access.indices.slice(&self.mesh_buffers.index_buffer),
+            mesh.access.indices.slice(&self.mesh_buffers.index_buffer)?,
             wgpu::IndexFormat::Uint32,
         );
+        Some(())
     }
 
     pub(crate) fn draw_meshes_depth<'a>(
@@ -650,9 +660,9 @@ impl RenderModel {
         {
             // Prevent potential validation error from empty meshes.
             if mesh.vertex_index_count > 0 {
-                self.set_mesh_buffers(render_pass, mesh);
-
-                render_pass.draw_indexed(0..mesh.vertex_index_count as u32, 0, 0..1);
+                if self.set_mesh_buffers(render_pass, mesh).is_some() {
+                    render_pass.draw_indexed(0..mesh.vertex_index_count as u32, 0, 0..1);
+                }
             }
         }
     }

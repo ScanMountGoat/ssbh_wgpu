@@ -640,8 +640,12 @@ impl BufferAccess {
         })
     }
 
-    pub fn slice<'a>(&self, buffer: &'a wgpu::Buffer) -> wgpu::BufferSlice<'a> {
-        buffer.slice(self.start..self.start + self.size)
+    pub fn slice<'a>(&self, buffer: &'a wgpu::Buffer) -> Option<wgpu::BufferSlice<'a>> {
+        if self.size > 0 {
+            Some(buffer.slice(self.start..self.start + self.size))
+        } else {
+            None
+        }
     }
 }
 

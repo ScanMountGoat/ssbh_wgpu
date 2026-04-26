@@ -148,16 +148,16 @@ impl<'a> arbitrary::Arbitrary<'a> for ModelFolder {
     fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
         // TODO: Use option to make some files missing?
         Ok(Self {
-            meshes: vec![("model.numshb".to_owned(), Ok(u.arbitrary()?))],
-            skels: vec![("model.nusktb".to_owned(), Ok(u.arbitrary()?))],
-            matls: vec![("model.numatb".to_owned(), Ok(u.arbitrary()?))],
-            modls: vec![("model.numdlb".to_owned(), Ok(u.arbitrary()?))],
-            adjs: vec![(u.arbitrary()?, Ok(u.arbitrary()?))],
-            anims: vec![(u.arbitrary()?, Ok(u.arbitrary()?))],
-            hlpbs: vec![(u.arbitrary()?, Ok(u.arbitrary()?))],
+            meshes: vec![("model.numshb".to_owned(), Some(u.arbitrary()?))],
+            skels: vec![("model.nusktb".to_owned(), Some(u.arbitrary()?))],
+            matls: vec![("model.numatb".to_owned(), Some(u.arbitrary()?))],
+            modls: vec![("model.numdlb".to_owned(), Some(u.arbitrary()?))],
+            adjs: vec![(u.arbitrary()?, Some(u.arbitrary()?))],
+            anims: vec![(u.arbitrary()?, Some(u.arbitrary()?))],
+            hlpbs: vec![(u.arbitrary()?, Some(u.arbitrary()?))],
             nutexbs: vec![], // TODO: Createy arbitrary nutexbs
-            meshexes: vec![("model.numshexb".to_owned(), Ok(u.arbitrary()?))],
-            xmbs: vec![("model.xmb".to_owned(), Ok(u.arbitrary()?))],
+            meshexes: vec![("model.numshexb".to_owned(), Some(u.arbitrary()?))],
+            xmbs: vec![("model.xmb".to_owned(), Some(u.arbitrary()?))],
         })
     }
 }

@@ -7,7 +7,7 @@ use ssbh_wgpu::{
     SharedRenderData, SsbhRenderer, REQUIRED_FEATURES, REQUIRED_LIMITS,
 };
 use wgpu::{
-    Device, DeviceDescriptor, Extent3d, Limits, PowerPreference, Queue, RequestAdapterOptions,
+    Device, DeviceDescriptor, Extent3d, PowerPreference, Queue, RequestAdapterOptions,
     TextureDescriptor, TextureDimension, TextureUsages, TextureView,
 };
 
@@ -16,23 +16,19 @@ static SHARED: Lazy<(Device, Queue, SharedRenderData, SsbhRenderer, TextureView)
         // Load models in headless mode without a surface.
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
             backends: wgpu::Backends::all(),
-            ..Default::default()
+            ..wgpu::InstanceDescriptor::new_without_display_handle()
         });
         let adapter = block_on(instance.request_adapter(&RequestAdapterOptions {
             power_preference: PowerPreference::HighPerformance,
-            compatible_surface: None,
-            force_fallback_adapter: false,
+            ..Default::default()
         }))
         .unwrap();
 
-        let (device, queue) = block_on(adapter.request_device(
-            &DeviceDescriptor {
-                label: None,
-                required_features: REQUIRED_FEATURES,
-                required_limits: REQUIRED_LIMITS,
-            },
-            None,
-        ))
+        let (device, queue) = block_on(adapter.request_device(&DeviceDescriptor {
+            required_features: REQUIRED_FEATURES,
+            required_limits: REQUIRED_LIMITS,
+            ..Default::default()
+        }))
         .unwrap();
 
         let shared_data = SharedRenderData::new(&device, &queue);
