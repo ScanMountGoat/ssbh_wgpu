@@ -104,7 +104,7 @@ pub fn split_param(param: &str) -> (&str, &str) {
 
 static SHADER_JSON: &str = include_str!("resources/shaders.json");
 
-pub struct ShaderDatabase(HashMap<String, ShaderProgram>);
+pub struct ShaderDatabase(pub HashMap<String, ShaderProgram>);
 
 impl ShaderDatabase {
     /// Creates the shader database used for Smash Ultimate.
