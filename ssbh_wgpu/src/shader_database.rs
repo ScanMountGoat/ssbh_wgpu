@@ -1,5 +1,5 @@
 use serde_json::Value;
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
 #[derive(Debug, Default)]
 pub struct ShaderProgram {
@@ -104,7 +104,7 @@ pub fn split_param(param: &str) -> (&str, &str) {
 
 static SHADER_JSON: &str = include_str!("resources/shaders.json");
 
-pub struct ShaderDatabase(pub HashMap<String, ShaderProgram>);
+pub struct ShaderDatabase(pub BTreeMap<String, ShaderProgram>);
 
 impl ShaderDatabase {
     /// Creates the shader database used for Smash Ultimate.
@@ -160,7 +160,7 @@ impl Default for ShaderDatabase {
 
 impl FromIterator<(String, ShaderProgram)> for ShaderDatabase {
     fn from_iter<T: IntoIterator<Item = (String, ShaderProgram)>>(iter: T) -> Self {
-        Self(HashMap::from_iter(iter))
+        Self(BTreeMap::from_iter(iter))
     }
 }
 
