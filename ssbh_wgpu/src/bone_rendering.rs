@@ -1,6 +1,5 @@
 use crate::{
     animation::AnimationTransforms,
-    renderer::INVERTED_STENCIL_MASK_STATE,
     shape::{sphere_indices, sphere_vertices, IndexedMeshBuffers},
     DeviceBufferExt,
 };
@@ -13,6 +12,8 @@ pub struct BonePipelines {
     pub bone_pipeline: wgpu::RenderPipeline,
     pub joint_pipeline: wgpu::RenderPipeline,
     pub bone_axes_pipeline: wgpu::RenderPipeline,
+    pub bone_silhouette_pipeline: wgpu::RenderPipeline,
+    pub joint_silhouette_pipeline: wgpu::RenderPipeline,
 }
 
 impl BonePipelines {
@@ -34,10 +35,27 @@ impl BonePipelines {
         );
         let bone_axes_pipeline = bone_axes_pipeline(device, surface_format);
 
+        let bone_silhouette_pipeline = skeleton_silhouette_pipeline(
+            device,
+            "vs_bone",
+            "fs_silhouette",
+            wgpu::Face::Back,
+            surface_format,
+        );
+        let joint_silhouette_pipeline = skeleton_silhouette_pipeline(
+            device,
+            "vs_joint",
+            "fs_silhouette",
+            wgpu::Face::Back,
+            surface_format,
+        );
+
         Self {
             bone_pipeline,
             joint_pipeline,
             bone_axes_pipeline,
+            bone_silhouette_pipeline,
+            joint_silhouette_pipeline,
         }
     }
 }
@@ -317,7 +335,51 @@ fn skeleton_pipeline(
             cull_mode: Some(cull_face),
             ..Default::default()
         },
-        depth_stencil: Some(INVERTED_STENCIL_MASK_STATE),
+        depth_stencil: Some(wgpu::DepthStencilState {
+            format: crate::renderer::DEPTH_FORMAT,
+            depth_write_enabled: Some(true),
+            depth_compare: Some(wgpu::CompareFunction::LessEqual),
+            stencil: wgpu::StencilState::default(),
+            bias: wgpu::DepthBiasState::default(),
+        }),
+        multisample: wgpu::MultisampleState::default(),
+        multiview_mask: None,
+        cache: None,
+    })
+}
+
+fn skeleton_silhouette_pipeline(
+    device: &wgpu::Device,
+    vertex_entry: &str,
+    fragment_entry: &str,
+    cull_face: wgpu::Face,
+    surface_format: wgpu::TextureFormat,
+) -> wgpu::RenderPipeline {
+    let module = crate::shader::skeleton::create_shader_module(device);
+    let layout = crate::shader::skeleton::create_pipeline_layout(device);
+
+    device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+        label: Some("Skeleton Silhouette Pipeline"),
+        layout: Some(&layout),
+        vertex: wgpu::VertexState {
+            module: &module,
+            entry_point: Some(vertex_entry),
+            buffers: &[crate::shader::skeleton::VertexInput::vertex_buffer_layout(
+                wgpu::VertexStepMode::Vertex,
+            )],
+            compilation_options: wgpu::PipelineCompilationOptions::default(),
+        },
+        fragment: Some(wgpu::FragmentState {
+            module: &module,
+            entry_point: Some(fragment_entry),
+            targets: &[Some(surface_format.into())],
+            compilation_options: wgpu::PipelineCompilationOptions::default(),
+        }),
+        primitive: wgpu::PrimitiveState {
+            cull_mode: Some(cull_face),
+            ..Default::default()
+        },
+        depth_stencil: None,
         multisample: wgpu::MultisampleState::default(),
         multiview_mask: None,
         cache: None,
@@ -351,9 +413,10 @@ fn bone_axes_pipeline(
             polygon_mode: wgpu::PolygonMode::Line,
             topology: wgpu::PrimitiveTopology::LineList,
             ..Default::default()
-        }, // TODO: Just disable the depth?
+        },
+        // TODO: Just disable the depth?
         depth_stencil: Some(wgpu::DepthStencilState {
-            format: crate::renderer::DEPTH_STENCIL_FORMAT,
+            format: crate::renderer::DEPTH_FORMAT,
             depth_write_enabled: Some(true),
             depth_compare: Some(wgpu::CompareFunction::LessEqual),
             stencil: wgpu::StencilState::default(),

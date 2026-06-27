@@ -1,6 +1,6 @@
 use ssbh_data::matl_data::{BlendFactor, BlendStateData, MatlEntryData};
 
-use crate::renderer::{INVERTED_STENCIL_MASK_STATE, MSAA_SAMPLE_COUNT, RGBA_COLOR_FORMAT};
+use crate::renderer::{MSAA_SAMPLE_COUNT, RGBA_COLOR_FORMAT};
 
 // Create some helper structs to simplify the function signatures.
 pub struct PipelineData {
@@ -215,7 +215,7 @@ pub fn silhouette_pipeline(
             compilation_options: wgpu::PipelineCompilationOptions::default(),
         }),
         primitive: wgpu::PrimitiveState::default(),
-        depth_stencil: Some(INVERTED_STENCIL_MASK_STATE),
+        depth_stencil: None,
         multisample: wgpu::MultisampleState::default(),
         multiview_mask: None,
         cache: None,

@@ -344,7 +344,7 @@ impl RenderModel {
             bone_buffers,
             render_pass,
             camera_bind_group,
-            &bone_pipelines.joint_pipeline,
+            &bone_pipelines.joint_silhouette_pipeline,
         );
 
         // Draw the bones after to cover up the geometry at the ends of the joints.
@@ -352,7 +352,7 @@ impl RenderModel {
             bone_buffers,
             render_pass,
             camera_bind_group,
-            &bone_pipelines.bone_pipeline,
+            &bone_pipelines.bone_silhouette_pipeline,
         );
     }
 
@@ -659,10 +659,9 @@ impl RenderModel {
             .filter(|m| m.is_visible && m.meshex_flags.cast_shadow)
         {
             // Prevent potential validation error from empty meshes.
-            if mesh.vertex_index_count > 0
-                && self.set_mesh_buffers(render_pass, mesh).is_some() {
-                    render_pass.draw_indexed(0..mesh.vertex_index_count as u32, 0, 0..1);
-                }
+            if mesh.vertex_index_count > 0 && self.set_mesh_buffers(render_pass, mesh).is_some() {
+                render_pass.draw_indexed(0..mesh.vertex_index_count as u32, 0, 0..1);
+            }
         }
     }
 }

@@ -32,7 +32,6 @@ const BLOOM_COLOR_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba16Float
 pub const MSAA_SAMPLE_COUNT: u32 = 4;
 
 pub const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
-pub const DEPTH_STENCIL_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth24PlusStencil8;
 
 // Modified from Rg16Unorm for better compatibility.
 // TODO: Switch to Rg16Unorm once validation issues are resolved.
@@ -44,52 +43,6 @@ const SHADOW_MAP_HEIGHT: u32 = 1024;
 // Halve the dimensions for additional smoothing.
 const VARIANCE_SHADOW_WIDTH: u32 = 512;
 const VARIANCE_SHADOW_HEIGHT: u32 = 512;
-
-pub const INVERTED_STENCIL_MASK_STATE: wgpu::DepthStencilState = wgpu::DepthStencilState {
-    format: crate::renderer::DEPTH_STENCIL_FORMAT,
-    depth_write_enabled: Some(true),
-    depth_compare: Some(wgpu::CompareFunction::LessEqual),
-    // Assume the stencil mask is cleared to 0xFF.
-    // Write zeros for the object to create an inverted mask.
-    stencil: wgpu::StencilState {
-        front: wgpu::StencilFaceState {
-            compare: wgpu::CompareFunction::Always,
-            fail_op: wgpu::StencilOperation::Zero,
-            depth_fail_op: wgpu::StencilOperation::Keep,
-            pass_op: wgpu::StencilOperation::Zero,
-        },
-        back: wgpu::StencilFaceState {
-            compare: wgpu::CompareFunction::Always,
-            fail_op: wgpu::StencilOperation::Zero,
-            depth_fail_op: wgpu::StencilOperation::Keep,
-            pass_op: wgpu::StencilOperation::Zero,
-        },
-        read_mask: 0xff,
-        write_mask: 0xff,
-    },
-    bias: wgpu::DepthBiasState {
-        constant: 0,
-        slope_scale: 0.0,
-        clamp: 0.0,
-    },
-};
-
-const STENCIL_COMPARE_EQUAL: wgpu::StencilState = wgpu::StencilState {
-    front: wgpu::StencilFaceState {
-        compare: wgpu::CompareFunction::Equal,
-        fail_op: wgpu::StencilOperation::Keep,
-        depth_fail_op: wgpu::StencilOperation::Keep,
-        pass_op: wgpu::StencilOperation::Keep,
-    },
-    back: wgpu::StencilFaceState {
-        compare: wgpu::CompareFunction::Equal,
-        fail_op: wgpu::StencilOperation::Keep,
-        depth_fail_op: wgpu::StencilOperation::Keep,
-        pass_op: wgpu::StencilOperation::Keep,
-    },
-    read_mask: 0xff,
-    write_mask: 0xff,
-};
 
 /// A renderer for drawing a collection of [RenderModel].
 ///
@@ -615,11 +568,8 @@ impl SsbhRenderer {
             self.post_processing_pass(encoder, &self.pass_info.color_final.view);
         }
 
-        // The skeleton pass needs to happen before the silhouettes.
-        // This allows reusing the depth/stencil textures.
-        // TODO: How to also use this for silhouettes?
+        // TODO: Should this also use multisampling?
         // TODO: Disable this pass if not needed.
-        // TODO: The stencil doesn't need to be set in both the skel and skel silhouette passes.
         self.skeleton_pass(
             encoder,
             render_models.iter(),
@@ -636,12 +586,11 @@ impl SsbhRenderer {
             options.draw_bones,
         );
 
-        // Draw selected meshes to silhouette texture and stencil texture.
+        // Draw selected meshes to silhouette textures.
         // TODO: This can be combined with the model and model debug pass.
         rendered_silhouette |= self.model_silhouette_pass(encoder, render_models.iter());
 
-        // Expand silhouettes to create outlines using stencil texture.
-        // Use the inverted stencil mask to just leave the outline.
+        // Expand silhouettes to create outlines.
         // TODO: Will this be faster as a compute shader?
         // TODO: Benchmark this on integrated graphics.
         // TODO: Only run this pass if needed.
@@ -649,7 +598,6 @@ impl SsbhRenderer {
             encoder,
             rendered_silhouette,
             &self.pass_info.silhouette_outlines.view,
-            &self.pass_info.silhouette_stencil.view,
             &self.pass_info.outline_bind_group,
         );
 
@@ -657,7 +605,6 @@ impl SsbhRenderer {
             encoder,
             rendered_silhouette,
             &self.pass_info.skel_outlines.view,
-            &self.pass_info.skel_depth_stencil.view,
             &self.pass_info.skel_outline_bind_group,
         );
     }
@@ -967,17 +914,7 @@ impl SsbhRenderer {
                 },
                 depth_slice: None,
             })],
-            depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                view: &self.pass_info.silhouette_stencil.view,
-                depth_ops: Some(wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(1.0),
-                    store: wgpu::StoreOp::Store,
-                }),
-                stencil_ops: Some(wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(0xff),
-                    store: wgpu::StoreOp::Store,
-                }),
-            }),
+            depth_stencil_attachment: None,
             timestamp_writes: None,
             occlusion_query_set: None,
             multiview_mask: None,
@@ -1081,18 +1018,13 @@ impl SsbhRenderer {
                 },
                 depth_slice: None,
             })],
-            // TODO: Make a function or constant for this since it is shared.
-            // TODO: Avoid writing to stencil here?
             depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                view: &self.pass_info.skel_depth_stencil.view,
+                view: &self.pass_info.skel_depth.view,
                 depth_ops: Some(wgpu::Operations {
                     load: wgpu::LoadOp::Clear(1.0),
                     store: wgpu::StoreOp::Store,
                 }),
-                stencil_ops: Some(wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(0x00),
-                    store: wgpu::StoreOp::Discard,
-                }),
+                stencil_ops: None,
             }),
             timestamp_writes: None,
             occlusion_query_set: None,
@@ -1121,7 +1053,7 @@ impl SsbhRenderer {
     ) -> bool {
         // TODO: Force having a color attachment for each fragment shader output in wgsl_to_wgpu?
         let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-            label: Some("Skeleton Pass"),
+            label: Some("Skeleton Silhouette Pass"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                 view,
                 resolve_target: None,
@@ -1131,18 +1063,7 @@ impl SsbhRenderer {
                 },
                 depth_slice: None,
             })],
-            // TODO: Make a function or constant for this since it is shared.
-            depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                view: &self.pass_info.skel_depth_stencil.view,
-                depth_ops: Some(wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(1.0),
-                    store: wgpu::StoreOp::Store,
-                }),
-                stencil_ops: Some(wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(0xff),
-                    store: wgpu::StoreOp::Store,
-                }),
-            }),
+            depth_stencil_attachment: None,
             timestamp_writes: None,
             occlusion_query_set: None,
             multiview_mask: None,
@@ -1167,7 +1088,6 @@ impl SsbhRenderer {
         encoder: &mut wgpu::CommandEncoder,
         enabled: bool,
         output: &wgpu::TextureView,
-        depth_stencil: &wgpu::TextureView,
         mask_bind_group: &crate::shader::outline::bind_groups::BindGroup0,
     ) {
         // Always clear the outlines even if nothing is selected.
@@ -1182,14 +1102,7 @@ impl SsbhRenderer {
                 },
                 depth_slice: None,
             })],
-            depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                view: depth_stencil,
-                depth_ops: None,
-                stencil_ops: Some(wgpu::Operations {
-                    load: wgpu::LoadOp::Load,
-                    store: wgpu::StoreOp::Discard,
-                }),
-            }),
+            depth_stencil_attachment: None,
             timestamp_writes: None,
             occlusion_query_set: None,
             multiview_mask: None,
@@ -1198,9 +1111,6 @@ impl SsbhRenderer {
         if enabled {
             pass.set_pipeline(&self.outline_pipeline);
             crate::shader::outline::set_bind_groups(&mut pass, mask_bind_group);
-            // The stencil is cleared to 0xFF and the object is drawn with 0x00.
-            // Mask out the inner black regions to keep the outline.
-            pass.set_stencil_reference(0xff);
             pass.draw(0..3, 0..1);
         }
     }
@@ -1374,7 +1284,7 @@ struct PassInfo {
     depth: TextureSamplerView,
 
     // TODO: Most of these textures can just be cleared and reused.
-    skel_depth_stencil: TextureSamplerView,
+    skel_depth: TextureSamplerView,
     skel_mask: TextureSamplerView,
     skel_outlines: TextureSamplerView,
     skel_outline_bind_group: crate::shader::outline::bind_groups::BindGroup0,
@@ -1384,7 +1294,6 @@ struct PassInfo {
 
     bloom_threshold: TextureSamplerView,
 
-    silhouette_stencil: TextureSamplerView,
     silhouette_mask: TextureSamplerView,
     silhouette_outlines: TextureSamplerView,
     outline_bind_group: crate::shader::outline::bind_groups::BindGroup0,
@@ -1417,8 +1326,8 @@ impl PassInfo {
     ) -> Self {
         let depth = create_depth(device, width, height, MSAA_SAMPLE_COUNT);
 
-        // TODO: Reuse textures for outlines?
-        let skel_depth_stencil = create_depth_stencil(device, width, height);
+        // TODO: Use msaa for skeleton drawing?
+        let skel_depth = create_depth(device, width, height, 1);
         let skel_mask = create_texture_sampler(device, width, height, RGBA_COLOR_FORMAT, 1);
         let skel_outlines = create_texture_sampler(device, width, height, surface_format, 1);
         let skel_outline_bind_group = create_outline_bind_group(device, &skel_mask);
@@ -1468,7 +1377,6 @@ impl PassInfo {
         let post_process_bind_group =
             create_post_process_bind_group(device, &color, &bloom_upscaled, color_lut);
 
-        let silhouette_stencil = create_depth_stencil(device, width, height);
         let silhouette_mask = create_texture_sampler(device, width, height, surface_format, 1);
         let silhouette_outlines = create_texture_sampler(device, width, height, surface_format, 1);
         let outline_bind_group = create_outline_bind_group(device, &silhouette_mask);
@@ -1483,7 +1391,7 @@ impl PassInfo {
 
         Self {
             depth,
-            skel_depth_stencil,
+            skel_depth,
             skel_mask,
             skel_outlines,
             color,
@@ -1497,7 +1405,6 @@ impl PassInfo {
             bloom_upscaled,
             bloom_upscale_bind_group,
             post_process_bind_group,
-            silhouette_stencil,
             silhouette_mask,
             silhouette_outlines,
             overlay_bind_group,
@@ -1525,38 +1432,6 @@ fn create_depth(
         sample_count,
         dimension: wgpu::TextureDimension::D2,
         format: DEPTH_FORMAT,
-        usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
-        view_formats: &[],
-    };
-    let texture = device.create_texture(&desc);
-
-    let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
-    let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
-        address_mode_u: wgpu::AddressMode::ClampToEdge,
-        address_mode_v: wgpu::AddressMode::ClampToEdge,
-        mag_filter: wgpu::FilterMode::Linear,
-        min_filter: wgpu::FilterMode::Linear,
-        mipmap_filter: wgpu::MipmapFilterMode::Nearest,
-        compare: None,
-        ..Default::default()
-    });
-
-    TextureSamplerView { view, sampler }
-}
-
-fn create_depth_stencil(device: &wgpu::Device, width: u32, height: u32) -> TextureSamplerView {
-    let size = wgpu::Extent3d {
-        width,
-        height,
-        depth_or_array_layers: 1,
-    };
-    let desc = wgpu::TextureDescriptor {
-        label: Some("Depth Stencil Texture"),
-        size,
-        mip_level_count: 1,
-        sample_count: 1,
-        dimension: wgpu::TextureDimension::D2,
-        format: DEPTH_STENCIL_FORMAT,
         usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
         view_formats: &[],
     };
@@ -1778,14 +1653,7 @@ fn create_outline_pipeline(
             compilation_options: wgpu::PipelineCompilationOptions::default(),
         }),
         primitive: wgpu::PrimitiveState::default(),
-        depth_stencil: Some(wgpu::DepthStencilState {
-            format: DEPTH_STENCIL_FORMAT,
-            depth_write_enabled: Some(false),
-            depth_compare: Some(wgpu::CompareFunction::Always),
-            // Use the mask from earlier only keep the blurred outline.
-            stencil: STENCIL_COMPARE_EQUAL,
-            bias: wgpu::DepthBiasState::default(),
-        }),
+        depth_stencil: None,
         multisample: wgpu::MultisampleState::default(),
         multiview_mask: None,
         cache: None,

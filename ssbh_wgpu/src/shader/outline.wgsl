@@ -39,6 +39,12 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let bottom1 = textureLoad(color_texture, texel + vec2(0, -1), 0).a;
     let bottom2 = textureLoad(color_texture, texel + vec2(0, -2), 0).a;
 
-    let expanded = left2 + left1 + center + right1 + right2 + top2 + top1 + bottom1 + bottom2;
-    return vec4(expanded);
+    if center > 0.5 {
+        // Create an outline by not including any pixels within the mask.
+        // This is simpler than using stencil testing and achieves identical quality.
+        return vec4(0.0);
+    } else {
+        let expanded = left2 + left1 + center + right1 + right2 + top2 + top1 + bottom1 + bottom2;
+        return vec4(expanded);
+    }
 }

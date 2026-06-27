@@ -122,3 +122,8 @@ fn fs_axes(in: VertexOutput) -> @location(0) vec4<f32> {
     // Use the normals as vertex color.
     return vec4(in.normal.xyz, 1.0);
 }
+
+@fragment
+fn fs_silhouette(in: VertexOutput) -> @location(0) vec4<f32> {
+    return vec4(1.0);
+}
