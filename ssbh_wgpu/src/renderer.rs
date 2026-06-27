@@ -1640,18 +1640,14 @@ fn create_outline_pipeline(
     device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
         label: Some("Outline"),
         layout: Some(&render_pipeline_layout),
-        vertex: wgpu::VertexState {
-            module: &module,
-            entry_point: Some("vs_main"),
-            buffers: &[],
-            compilation_options: wgpu::PipelineCompilationOptions::default(),
-        },
-        fragment: Some(wgpu::FragmentState {
-            module: &module,
-            entry_point: Some("fs_main"),
-            targets: &[Some(surface_format.into())],
-            compilation_options: wgpu::PipelineCompilationOptions::default(),
-        }),
+        vertex: crate::shader::outline::vertex_state(
+            &module,
+            &crate::shader::outline::vs_main_entry(),
+        ),
+        fragment: Some(crate::shader::outline::fragment_state(
+            &module,
+            &crate::shader::outline::fs_main_entry([Some(surface_format.into())]),
+        )),
         primitive: wgpu::PrimitiveState::default(),
         depth_stencil: None,
         multisample: wgpu::MultisampleState::default(),

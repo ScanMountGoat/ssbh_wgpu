@@ -463,24 +463,17 @@ fn create_render_pipeline(
     device: &wgpu::Device,
     surface_format: wgpu::TextureFormat,
 ) -> wgpu::RenderPipeline {
-    let shader = create_shader_module(device);
+    let module = create_shader_module(device);
     let render_pipeline_layout = create_pipeline_layout(device);
 
     device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
         label: Some("nutexb_wgpu Render Pipeline"),
         layout: Some(&render_pipeline_layout),
-        vertex: wgpu::VertexState {
-            module: &shader,
-            entry_point: Some("vs_main"),
-            buffers: &[],
-            compilation_options: wgpu::PipelineCompilationOptions::default(),
-        },
-        fragment: Some(wgpu::FragmentState {
-            module: &shader,
-            entry_point: Some("fs_main"),
-            targets: &[Some(surface_format.into())],
-            compilation_options: wgpu::PipelineCompilationOptions::default(),
-        }),
+        vertex: shader::vertex_state(&module, &shader::vs_main_entry()),
+        fragment: Some(shader::fragment_state(
+            &module,
+            &shader::fs_main_entry([Some(surface_format.into())]),
+        )),
         primitive: wgpu::PrimitiveState::default(),
         depth_stencil: None,
         multisample: wgpu::MultisampleState::default(),

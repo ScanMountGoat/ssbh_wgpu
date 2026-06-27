@@ -403,12 +403,10 @@ fn bone_axes_pipeline(
             )],
             compilation_options: wgpu::PipelineCompilationOptions::default(),
         },
-        fragment: Some(wgpu::FragmentState {
-            module: &shader,
-            entry_point: Some("fs_axes"),
-            targets: &[Some(surface_format.into())],
-            compilation_options: wgpu::PipelineCompilationOptions::default(),
-        }),
+        fragment: Some(crate::shader::skeleton::fragment_state(
+            &shader,
+            &crate::shader::skeleton::fs_axes_entry([Some(surface_format.into())]),
+        )),
         primitive: wgpu::PrimitiveState {
             polygon_mode: wgpu::PolygonMode::Line,
             topology: wgpu::PrimitiveTopology::LineList,

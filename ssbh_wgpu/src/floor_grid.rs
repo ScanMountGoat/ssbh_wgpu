@@ -21,22 +21,15 @@ impl FloorGridRenderData {
         let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: None,
             layout: Some(&layout),
-            vertex: wgpu::VertexState {
-                module: &shader,
-                entry_point: Some("vs_main"),
-                buffers: &[
-                    crate::shader::floor_grid::VertexInput::vertex_buffer_layout(
-                        wgpu::VertexStepMode::Vertex,
-                    ),
-                ],
-                compilation_options: wgpu::PipelineCompilationOptions::default(),
-            },
-            fragment: Some(wgpu::FragmentState {
-                module: &shader,
-                entry_point: Some("fs_main"),
-                // TODO: Why doesn't this blend properly from below?
-                targets: &[Some(wgpu::ColorTargetState {
+            vertex: crate::shader::floor_grid::vertex_state(
+                &shader,
+                &crate::shader::floor_grid::vs_main_entry(wgpu::VertexStepMode::Vertex),
+            ),
+            fragment: Some(crate::shader::floor_grid::fragment_state(
+                &shader,
+                &crate::shader::floor_grid::fs_main_entry([Some(wgpu::ColorTargetState {
                     format: surface_format,
+                    // TODO: Why doesn't this blend properly from below?
                     blend: Some(wgpu::BlendState {
                         color: wgpu::BlendComponent {
                             src_factor: wgpu::BlendFactor::One,
@@ -50,9 +43,8 @@ impl FloorGridRenderData {
                         },
                     }),
                     write_mask: wgpu::ColorWrites::ALL,
-                })],
-                compilation_options: wgpu::PipelineCompilationOptions::default(),
-            }),
+                })]),
+            )),
             primitive: wgpu::PrimitiveState::default(),
             // TODO: Create a constant for this?
             depth_stencil: Some(wgpu::DepthStencilState {

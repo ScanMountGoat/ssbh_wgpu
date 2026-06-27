@@ -90,16 +90,14 @@ pub fn pipeline(
                 wgpu::VertexStepMode::Vertex,
             ),
         ),
-        fragment: Some(wgpu::FragmentState {
-            module: &pipeline_data.shader,
-            entry_point: Some("fs_main"),
-            targets: &[Some(wgpu::ColorTargetState {
+        fragment: Some(crate::shader::model::fragment_state(
+            &pipeline_data.shader,
+            &crate::shader::model::fs_main_entry([Some(wgpu::ColorTargetState {
                 format: pipeline_key.surface_format,
                 blend: pipeline_key.blend,
                 write_mask: wgpu::ColorWrites::ALL,
-            })],
-            compilation_options: wgpu::PipelineCompilationOptions::default(),
-        }),
+            })]),
+        )),
         // TODO: RasterizerState settings.
         primitive: wgpu::PrimitiveState {
             topology: wgpu::PrimitiveTopology::TriangleList,
@@ -208,12 +206,10 @@ pub fn silhouette_pipeline(
                 wgpu::VertexStepMode::Vertex,
             ),
         ),
-        fragment: Some(wgpu::FragmentState {
-            module: &module,
-            entry_point: Some("fs_solid"),
-            targets: &[Some(surface_format.into())],
-            compilation_options: wgpu::PipelineCompilationOptions::default(),
-        }),
+        fragment: Some(crate::shader::model::fragment_state(
+            &module,
+            &crate::shader::model::fs_solid_entry([Some(surface_format.into())]),
+        )),
         primitive: wgpu::PrimitiveState::default(),
         depth_stencil: None,
         multisample: wgpu::MultisampleState::default(),
@@ -236,12 +232,10 @@ pub fn wireframe_pipeline(device: &wgpu::Device) -> wgpu::RenderPipeline {
                 wgpu::VertexStepMode::Vertex,
             ),
         ),
-        fragment: Some(wgpu::FragmentState {
-            module: &module,
-            entry_point: Some("fs_solid"),
-            targets: &[Some(RGBA_COLOR_FORMAT.into())],
-            compilation_options: wgpu::PipelineCompilationOptions::default(),
-        }),
+        fragment: Some(crate::shader::model::fragment_state(
+            &module,
+            &crate::shader::model::fs_solid_entry([Some(RGBA_COLOR_FORMAT.into())]),
+        )),
         primitive: wgpu::PrimitiveState {
             polygon_mode: wgpu::PolygonMode::Line,
             ..Default::default()
@@ -334,12 +328,10 @@ pub fn uv_pipeline(
                 wgpu::VertexStepMode::Vertex,
             ),
         ),
-        fragment: Some(wgpu::FragmentState {
-            module: &module,
-            entry_point: Some("fs_uv"),
-            targets: &[Some(surface_format.into())],
-            compilation_options: wgpu::PipelineCompilationOptions::default(),
-        }),
+        fragment: Some(crate::shader::model::fragment_state(
+            &module,
+            &crate::shader::model::fs_uv_entry([Some(surface_format.into())]),
+        )),
         primitive: wgpu::PrimitiveState {
             // Use wireframe rendering to show UV edges.
             polygon_mode: wgpu::PolygonMode::Line,

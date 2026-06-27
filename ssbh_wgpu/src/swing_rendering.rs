@@ -512,18 +512,13 @@ pub fn swing_pipeline(
     device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
         label: None,
         layout: Some(&layout),
-        vertex: wgpu::VertexState {
-            module: &shader,
-            entry_point: Some("vs_main"),
-            buffers: &[crate::shader::swing::VertexInput::vertex_buffer_layout(
-                wgpu::VertexStepMode::Vertex,
-            )],
-            compilation_options: wgpu::PipelineCompilationOptions::default(),
-        },
-        fragment: Some(wgpu::FragmentState {
-            module: &shader,
-            entry_point: Some("fs_main"),
-            targets: &[Some(wgpu::ColorTargetState {
+        vertex: crate::shader::swing::vertex_state(
+            &shader,
+            &crate::shader::swing::vs_main_entry(wgpu::VertexStepMode::Vertex),
+        ),
+        fragment: Some(crate::shader::swing::fragment_state(
+            &shader,
+            &crate::shader::swing::fs_main_entry([Some(wgpu::ColorTargetState {
                 format: surface_format,
                 blend: Some(wgpu::BlendState {
                     color: wgpu::BlendComponent {
@@ -538,9 +533,8 @@ pub fn swing_pipeline(
                     },
                 }),
                 write_mask: wgpu::ColorWrites::ALL,
-            })],
-            compilation_options: wgpu::PipelineCompilationOptions::default(),
-        }),
+            })]),
+        )),
         primitive: wgpu::PrimitiveState {
             cull_mode: Some(wgpu::Face::Back),
             ..Default::default()
