@@ -1,30 +1,26 @@
 use anyhow::Context;
+use clap::Parser;
 use futures::executor::block_on;
-use pico_args::Arguments;
 use ssbh_data::prelude::*;
-use ssbh_wgpu::animation::camera::animate_camera;
-use ssbh_wgpu::next_frame;
-use ssbh_wgpu::swing::SwingPrc;
-use ssbh_wgpu::BoneNameRenderer;
-use ssbh_wgpu::CameraTransforms;
-use ssbh_wgpu::DebugMode;
-use ssbh_wgpu::ModelFolder;
-use ssbh_wgpu::ModelRenderOptions;
-use ssbh_wgpu::NutexbFile;
-use ssbh_wgpu::RenderModel;
-use ssbh_wgpu::RenderSettings;
-use ssbh_wgpu::SharedRenderData;
-use ssbh_wgpu::TransitionMaterial;
-use ssbh_wgpu::REQUIRED_FEATURES;
-use ssbh_wgpu::REQUIRED_LIMITS;
-use ssbh_wgpu::{load_model_folders, load_render_models, SsbhRenderer};
-use std::collections::HashSet;
-use std::path::PathBuf;
-use std::sync::Arc;
-use winit::application::ApplicationHandler;
-use winit::keyboard::KeyCode;
-use winit::keyboard::NamedKey;
-use winit::{dpi::PhysicalPosition, event::*, event_loop::EventLoop, window::Window};
+use ssbh_wgpu::{
+    animation::camera::animate_camera, load_model_folders, load_render_models, next_frame,
+    swing::SwingPrc, BoneNameRenderer, CameraTransforms, DebugMode, ModelFolder,
+    ModelRenderOptions, NutexbFile, RenderModel, RenderSettings, SharedRenderData, SsbhRenderer,
+    TransitionMaterial, REQUIRED_FEATURES, REQUIRED_LIMITS,
+};
+use std::{
+    collections::HashSet,
+    path::{Path, PathBuf},
+    sync::Arc,
+};
+use winit::{
+    application::ApplicationHandler,
+    dpi::PhysicalPosition,
+    event::*,
+    event_loop::EventLoop,
+    keyboard::{KeyCode, NamedKey},
+    window::Window,
+};
 
 const FOV_Y: f32 = 0.5;
 const NEAR_CLIP: f32 = 1.0;
@@ -92,17 +88,15 @@ struct State {
     is_playing: bool,
 
     render: RenderSettings,
+
+    draw_bones: bool,
+    draw_bone_names: bool,
 }
 
 impl State {
     async fn new(
         window: Window,
-        folder: PathBuf,
-        anim: Option<PathBuf>,
-        prc: Option<PathBuf>,
-        camera_anim: Option<PathBuf>,
-        render_folder: Option<PathBuf>,
-        font_path: Option<PathBuf>,
+        cli: &Cli,
         event_loop: &winit::event_loop::ActiveEventLoop,
     ) -> anyhow::Result<Self> {
         let window = Arc::new(window);
@@ -145,32 +139,39 @@ impl State {
         surface.configure(&device, &config);
 
         // TODO: Frame bounding spheres?
-        let animation = anim.map(|anim_path| AnimData::from_file(anim_path).unwrap());
-        let swing_prc = prc.and_then(SwingPrc::from_file);
-        let camera_animation =
-            camera_anim.map(|camera_anim_path| AnimData::from_file(camera_anim_path).unwrap());
+        let animation = cli
+            .anim
+            .as_ref()
+            .map(|anim_path| AnimData::from_file(anim_path).unwrap());
+        let swing_prc = cli.swing.as_ref().and_then(SwingPrc::from_file);
+        let camera_animation = cli
+            .camera_anim
+            .as_ref()
+            .map(|camera_anim_path| AnimData::from_file(camera_anim_path).unwrap());
 
         // Try different possible paths.
-        let light_animation = render_folder
+        let light_animation = cli
+            .render_folder
             .as_ref()
-            .and_then(|f| AnimData::from_file(f.join("light").join("light00.nuanmb")).ok())
+            .and_then(|f| {
+                AnimData::from_file(Path::new(f).join("light").join("light00.nuanmb")).ok()
+            })
             .or_else(|| {
-                render_folder
-                    .as_ref()
-                    .and_then(|f| AnimData::from_file(f.join("light").join("light_00.nuanmb")).ok())
+                cli.render_folder.as_ref().and_then(|f| {
+                    AnimData::from_file(Path::new(f).join("light").join("light_00.nuanmb")).ok()
+                })
             });
 
         let mut shared_data = SharedRenderData::new(&device, &queue);
 
         // Update the cube map first since it's used in model loading for texture assignments.
-        if let Some(nutexb) = render_folder
-            .as_ref()
-            .and_then(|f| NutexbFile::read_from_file(f.join("reflection_cubemap.nutexb")).ok())
-        {
+        if let Some(nutexb) = cli.render_folder.as_ref().and_then(|f| {
+            NutexbFile::read_from_file(Path::new(f).join("reflection_cubemap.nutexb")).ok()
+        }) {
             shared_data.update_stage_cube_map(&device, &queue, &nutexb);
         }
 
-        let models = load_model_folders(folder);
+        let models = load_model_folders(&cli.folder);
         let mut render_models =
             load_render_models(&device, &queue, models.iter().map(|(_, m)| m), &shared_data);
 
@@ -191,14 +192,19 @@ impl State {
             surface_format,
         );
 
-        if let Some(nutexb) = render_folder.as_ref().and_then(|f| {
-            NutexbFile::read_from_file(f.parent()?.join("lut").join("color_grading_lut.nutexb"))
-                .ok()
+        if let Some(nutexb) = cli.render_folder.as_ref().and_then(|f| {
+            NutexbFile::read_from_file(
+                Path::new(f)
+                    .parent()?
+                    .join("lut")
+                    .join("color_grading_lut.nutexb"),
+            )
+            .ok()
         }) {
             renderer.update_color_lut(&device, &queue, &nutexb);
         }
 
-        let font_bytes = font_path.map(std::fs::read).transpose()?;
+        let font_bytes = cli.font.as_ref().map(std::fs::read).transpose()?;
 
         let name_renderer = BoneNameRenderer::new(&device, &queue, font_bytes, surface_format);
 
@@ -226,6 +232,8 @@ impl State {
             is_playing: false,
             render: RenderSettings::default(),
             name_renderer,
+            draw_bones: cli.bones,
+            draw_bone_names: cli.bone_names,
         })
     }
 
@@ -496,7 +504,7 @@ impl State {
             &self.render_models,
             self.shared_data.database(),
             &ModelRenderOptions {
-                draw_bones: false,
+                draw_bones: self.draw_bones,
                 draw_bone_axes: false,
                 draw_floor_grid: true,
                 draw_wireframe: true,
@@ -510,21 +518,23 @@ impl State {
                 .render_swing(&mut final_pass, model, &HashSet::new());
         }
 
-        // TODO: make name rendering optional.
-        // TODO: Avoid recalculating this?
-        let (_, _, _, mvp) = calculate_camera(self.size, self.translation_xyz, self.rotation_xyz);
+        if self.draw_bone_names {
+            // TODO: This doesn't work properly with camera animations.
+            // TODO: Avoid recalculating this?
+            let (_, _, _, mvp) =
+                calculate_camera(self.size, self.translation_xyz, self.rotation_xyz);
 
-        // TODO: This doesn't work properly with camera animations.
-        self.name_renderer.render_bone_names(
-            &self.device,
-            &self.queue,
-            &mut final_pass,
-            &self.render_models,
-            self.size.width,
-            self.size.height,
-            mvp,
-            18.0,
-        );
+            self.name_renderer.render_bone_names(
+                &self.device,
+                &self.queue,
+                &mut final_pass,
+                &self.render_models,
+                self.size.width,
+                self.size.height,
+                mvp,
+                18.0,
+            );
+        }
 
         drop(final_pass);
 
@@ -537,14 +547,7 @@ impl State {
 
 struct App {
     state: Option<State>,
-
-    // TODO: cli struct with clap
-    folder: PathBuf,
-    anim_path: Option<PathBuf>,
-    prc_path: Option<PathBuf>,
-    camera_anim_path: Option<PathBuf>,
-    render_folder_path: Option<PathBuf>,
-    font_path: Option<PathBuf>,
+    cli: Cli,
 }
 
 impl ApplicationHandler<()> for App {
@@ -557,17 +560,7 @@ impl ApplicationHandler<()> for App {
             .create_window(Window::default_attributes().with_title("ssbh_wgpu_viewer"))
             .unwrap();
 
-        self.state = block_on(State::new(
-            window,
-            self.folder.clone(),
-            self.anim_path.clone(),
-            self.prc_path.clone(),
-            self.camera_anim_path.clone(),
-            self.render_folder_path.clone(),
-            self.font_path.clone(),
-            event_loop,
-        ))
-        .ok();
+        self.state = block_on(State::new(window, &self.cli, event_loop)).ok();
     }
 
     fn window_event(
@@ -623,6 +616,34 @@ impl ApplicationHandler<()> for App {
     }
 }
 
+#[derive(Parser)]
+#[command(author, version, about)]
+#[command(propagate_version = true)]
+struct Cli {
+    folder: String,
+
+    #[arg(long)]
+    anim: Option<String>,
+
+    #[arg(long)]
+    swing: Option<String>,
+
+    #[arg(long)]
+    camera_anim: Option<String>,
+
+    #[arg(long)]
+    render_folder: Option<String>,
+
+    #[arg(long)]
+    font: Option<String>,
+
+    #[arg(long)]
+    bones: bool,
+
+    #[arg(long)]
+    bone_names: bool,
+}
+
 fn main() -> anyhow::Result<()> {
     // Ignore most wgpu logs to avoid flooding the console.
     simple_logger::SimpleLogger::new()
@@ -631,27 +652,14 @@ fn main() -> anyhow::Result<()> {
         .init()
         .unwrap();
 
-    let mut args = Arguments::from_env();
+    let cli = Cli::parse();
+
     // TODO: Support loading multiple folders.
-    let folder: PathBuf = args.free_from_str().unwrap();
-    let anim_path: Option<PathBuf> = args.opt_value_from_str("--anim").unwrap();
-    let prc_path: Option<PathBuf> = args.opt_value_from_str("--swing").unwrap();
-    let camera_anim_path: Option<PathBuf> = args.opt_value_from_str("--camera-anim").unwrap();
-    let render_folder_path: Option<PathBuf> = args.opt_value_from_str("--render-folder").unwrap();
-    let font_path: Option<PathBuf> = args.opt_value_from_str("--font").unwrap();
 
     // TODO: move model loading here for better error reporting.
 
     let event_loop = EventLoop::new()?;
-    let mut app = App {
-        state: None,
-        folder,
-        anim_path,
-        prc_path,
-        camera_anim_path,
-        render_folder_path,
-        font_path,
-    };
+    let mut app = App { state: None, cli };
 
     event_loop
         .run_app(&mut app)

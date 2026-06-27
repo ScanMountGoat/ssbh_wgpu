@@ -12,5 +12,5 @@ simple_logger.workspace = true
 glam = { workspace = true, features = ["bytemuck"] }
 ssbh_wgpu = { path = "../ssbh_wgpu" }
 ssbh_data = { workspace = true, features = ["strum"] }
-pico-args = "0.5.0"
+clap = { workspace = true, features = ["derive"] }
 anyhow.workspace = true
