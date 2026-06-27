@@ -1,4 +1,4 @@
-use glam::Vec4Swizzles;
+use glam::{vec4, EulerRot, Mat4, Quat, Vec4Swizzles};
 use ssbh_data::{hlpb_data::*, skel_data::BoneData};
 
 fn interp(a: f32, b: f32, f: f32) -> f32 {
@@ -8,28 +8,24 @@ fn interp(a: f32, b: f32, f: f32) -> f32 {
 // TODO: Improve tests.
 // TODO: Fix evaluation order when siblings are constrained to each other?
 pub fn apply_aim_constraint(
-    world_transforms: &[glam::Mat4],
+    world_transforms: &[Mat4],
     bones: &[BoneData],
     constraint: &AimConstraintData,
-    target_transform: glam::Mat4,
-) -> Option<glam::Mat4> {
+    target_transform: Mat4,
+) -> Option<Mat4> {
     // TODO: Investigate the remaining bone name fields.
     let source = bones
         .iter()
         .position(|b| b.name == constraint.aim_bone_name1)?;
 
     // We want the target bone to point at the source bone.
-    let source_world = *world_transforms
-        .get(source)
-        .unwrap_or(&glam::Mat4::IDENTITY);
+    let source_world = *world_transforms.get(source).unwrap_or(&Mat4::IDENTITY);
 
     let target = bones
         .iter()
         .position(|b| b.name == constraint.target_bone_name1)?;
 
-    let target_world = *world_transforms
-        .get(target)
-        .unwrap_or(&glam::Mat4::IDENTITY);
+    let target_world = *world_transforms.get(target).unwrap_or(&Mat4::IDENTITY);
 
     // TODO: Can a bone not affected by the anim be the source?
     // TODO: Will the target of a constraint ever be animated?
@@ -37,9 +33,8 @@ pub fn apply_aim_constraint(
     let target_pos = target_world.col(3);
 
     // Get the local axes of the bone to constrain.
-    let aim = (target_world
-        * glam::vec4(constraint.aim.x, constraint.aim.y, constraint.aim.z, 0.0))
-    .xyz();
+    let aim =
+        (target_world * vec4(constraint.aim.x, constraint.aim.y, constraint.aim.z, 0.0)).xyz();
 
     // Get the vector pointing to the desired bone.
     let v = src_pos.xyz() - target_pos.xyz();
@@ -48,20 +43,20 @@ pub fn apply_aim_constraint(
     // Apply an additional rotation to orient the local axes towards the desired bone.
     // TODO: How to also incorporate the up vector?
     let (target_s, mut target_r, target_t) = target_transform.to_scale_rotation_translation();
-    target_r *= glam::Quat::from_rotation_arc(aim.normalize(), v.normalize());
+    target_r *= Quat::from_rotation_arc(aim.normalize(), v.normalize());
 
-    Some(glam::Mat4::from_scale_rotation_translation(
+    Some(Mat4::from_scale_rotation_translation(
         target_s, target_r, target_t,
     ))
 }
 
 // TODO: Improve tests.
 pub fn apply_orient_constraint(
-    world_transforms: &[glam::Mat4],
+    world_transforms: &[Mat4],
     bones: &[BoneData],
     constraint: &OrientConstraintData,
-    target_transform: glam::Mat4,
-) -> Option<glam::Mat4> {
+    target_transform: Mat4,
+) -> Option<Mat4> {
     // TODO: Investigate the remaining bone name fields.
     // TODO: What's the difference between root and bone name?
     // TODO: Do the unk types matter?
@@ -77,57 +72,53 @@ pub fn apply_orient_constraint(
     let source_parent = bones[source].parent_index;
     let target_parent = bones[target].parent_index;
 
-    let source_world = *world_transforms
-        .get(source)
-        .unwrap_or(&glam::Mat4::IDENTITY);
-    let _target_world = *world_transforms
-        .get(target)
-        .unwrap_or(&glam::Mat4::IDENTITY);
+    let source_world = *world_transforms.get(source).unwrap_or(&Mat4::IDENTITY);
+    let _target_world = *world_transforms.get(target).unwrap_or(&Mat4::IDENTITY);
     // TODO: Do we need the source parent world?
     let _source_parent_world = source_parent
-        .map(|p| world_transforms.get(p).unwrap_or(&glam::Mat4::IDENTITY))
-        .unwrap_or(&glam::Mat4::IDENTITY);
+        .map(|p| world_transforms.get(p).unwrap_or(&Mat4::IDENTITY))
+        .unwrap_or(&Mat4::IDENTITY);
     let target_parent_world = target_parent
-        .map(|p| world_transforms.get(p).unwrap_or(&glam::Mat4::IDENTITY))
-        .unwrap_or(&glam::Mat4::IDENTITY);
+        .map(|p| world_transforms.get(p).unwrap_or(&Mat4::IDENTITY))
+        .unwrap_or(&Mat4::IDENTITY);
 
     // TODO: These angles correct twists for some models?
-    let _quat1 = glam::Quat::from_array(constraint.quat1.to_array());
-    let _quat2 = glam::Quat::from_array(constraint.quat2.to_array());
+    let _quat1 = Quat::from_array(constraint.quat1.to_array());
+    let _quat2 = Quat::from_array(constraint.quat2.to_array());
 
     let _target_bone = bones
         .iter()
         .find(|b| b.name == constraint.target_bone_name)?;
 
+    // TODO: Is this ever done with local space?
     // Calculate the source bone's world orientation.
-    // Convert to be relative to the target's parent using the inverse.
     // TODO: Create a test case that checks for the matrix multiplication order here.
-    let source_transform = target_parent_world.inverse() * source_world;
-    let (_, source_r, _) = (source_transform).to_scale_rotation_translation();
+    let source_transform = source_world;
+    let (_, source_r, _) = source_transform.to_scale_rotation_translation();
 
     // Apply rotations in the order X -> Y -> Z.
-    let (source_rot_z, source_rot_y, source_rot_x) = source_r.to_euler(glam::EulerRot::ZYX);
+    let (source_rot_z, source_rot_y, source_rot_x) = source_r.to_euler(EulerRot::ZYX);
 
     // TODO: Is it correct to assume the target transform is always relative to the target parent?
-    let (target_s, target_r, target_t) = target_transform.to_scale_rotation_translation();
+    let (target_s, target_r, target_t) =
+        (*target_parent_world * target_transform).to_scale_rotation_translation();
 
-    let (target_rot_z, target_rot_y, target_rot_x) = target_r.to_euler(glam::EulerRot::ZYX);
+    let (target_rot_z, target_rot_y, target_rot_x) = target_r.to_euler(EulerRot::ZYX);
 
     // The first angle is Z, the second angle is Y, and the third angle is X.
-    let interp_rotation = glam::Quat::from_euler(
-        glam::EulerRot::ZYX,
-        interp(target_rot_z, source_rot_z, constraint.constraint_axes.z),
-        interp(target_rot_y, source_rot_y, constraint.constraint_axes.y),
-        interp(target_rot_x, source_rot_x, constraint.constraint_axes.x),
-    );
+    let interp_rot_z = interp(target_rot_z, source_rot_z, constraint.constraint_axes.z);
+    let interp_rot_y = interp(target_rot_y, source_rot_y, constraint.constraint_axes.y);
+    let interp_rot_x = interp(target_rot_x, source_rot_x, constraint.constraint_axes.x);
 
-    Some(glam::Mat4::from_scale_rotation_translation(
-        target_s,
-        interp_rotation,
-        target_t,
-    ))
+    // TODO: Should these values be limited?
+    // TODO: tests limits in game.
+    let interp_rotation = Quat::from_euler(EulerRot::ZYX, interp_rot_z, interp_rot_y, interp_rot_x);
+
+    let new_transform = Mat4::from_scale_rotation_translation(target_s, interp_rotation, target_t);
+    Some(target_parent_world.inverse() * new_transform)
 }
 
+// TODO: create a colored bone axes model to test constraints more thoroughly in game?
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -136,6 +127,7 @@ mod tests {
         animation::{animate_skel_inner, AnimTransform, AnimatedBone, AnimationTransforms},
         assert_quat_relative_eq, assert_vector_relative_eq,
     };
+    use glam::{vec3, Vec3};
     use ssbh_data::{
         anim_data::TransformFlags,
         skel_data::{BillboardType, BoneData},
@@ -157,17 +149,13 @@ mod tests {
         }
     }
 
-    fn relative_rotation(
-        result: &AnimationTransforms,
-        skel_bones: &[BoneData],
-        i: usize,
-    ) -> glam::Quat {
+    fn relative_rotation(result: &AnimationTransforms, skel_bones: &[BoneData], i: usize) -> Quat {
         // Get the transform relative to its parent and extract its rotation.
         // Hlpb constraints only affect rotation, so ignore translation and scale.
         (skel_bones[i]
             .parent_index
             .map(|p| result.world_transforms[p].inverse())
-            .unwrap_or(glam::Mat4::IDENTITY)
+            .unwrap_or(Mat4::IDENTITY)
             * result.world_transforms[i])
             .to_scale_rotation_translation()
             .1
@@ -177,12 +165,12 @@ mod tests {
         result: &AnimationTransforms,
         skel_bones: &[BoneData],
         i: usize,
-    ) -> glam::Vec3 {
+    ) -> Vec3 {
         // Get the transform relative to its parent and extract its translation.
         (skel_bones[i]
             .parent_index
             .map(|p| result.world_transforms[p].inverse())
-            .unwrap_or(glam::Mat4::IDENTITY)
+            .unwrap_or(Mat4::IDENTITY)
             * result.world_transforms[i])
             .to_scale_rotation_translation()
             .2
@@ -243,12 +231,12 @@ mod tests {
             AnimatedBone {
                 bone: &skel_bones[0],
                 anim_transform: Some(AnimTransform {
-                    translation: glam::Vec3::ZERO,
-                    rotation: glam::Quat::from_axis_angle(
-                        glam::vec3(1.0, 2.0, 3.0).normalize(),
+                    translation: Vec3::ZERO,
+                    rotation: Quat::from_axis_angle(
+                        vec3(1.0, 2.0, 3.0).normalize(),
                         std::f32::consts::PI / 4.0,
                     ),
-                    scale: glam::Vec3::ONE,
+                    scale: Vec3::ONE,
                 }),
                 compensate_scale: false,
                 flags: TransformFlags::default(),
@@ -304,9 +292,9 @@ mod tests {
             AnimatedBone {
                 bone: &skel_bones[0],
                 anim_transform: Some(AnimTransform {
-                    translation: glam::Vec3::ZERO,
-                    rotation: glam::Quat::from_euler(glam::EulerRot::ZYX, 0.3, 0.2, 0.1),
-                    scale: glam::Vec3::ONE,
+                    translation: Vec3::ZERO,
+                    rotation: Quat::from_euler(EulerRot::ZYX, 0.3, 0.2, 0.1),
+                    scale: Vec3::ONE,
                 }),
                 compensate_scale: false,
                 flags: TransformFlags::default(),
@@ -348,7 +336,7 @@ mod tests {
         );
 
         assert_quat_relative_eq!(
-            glam::Quat::from_euler(glam::EulerRot::ZYX, 0.15, 0.1, 0.05).to_array(),
+            Quat::from_euler(EulerRot::ZYX, 0.15, 0.1, 0.05).to_array(),
             relative_rotation(&result, &skel_bones, 1).to_array()
         );
     }
@@ -365,9 +353,9 @@ mod tests {
             AnimatedBone {
                 bone: &skel_bones[0],
                 anim_transform: Some(AnimTransform {
-                    translation: glam::vec3(0.0, 0.0, 0.0),
-                    rotation: glam::Quat::from_rotation_z(0.0f32.to_radians()),
-                    scale: glam::Vec3::ONE,
+                    translation: vec3(0.0, 0.0, 0.0),
+                    rotation: Quat::from_rotation_z(0.0f32.to_radians()),
+                    scale: Vec3::ONE,
                 }),
                 compensate_scale: false,
                 flags: TransformFlags::default(),
@@ -375,9 +363,9 @@ mod tests {
             AnimatedBone {
                 bone: &skel_bones[1],
                 anim_transform: Some(AnimTransform {
-                    translation: glam::vec3(-1.0, 0.0, 0.0),
-                    rotation: glam::Quat::from_rotation_z(90.0f32.to_radians()),
-                    scale: glam::Vec3::ONE,
+                    translation: vec3(-1.0, 0.0, 0.0),
+                    rotation: Quat::from_rotation_z(90.0f32.to_radians()),
+                    scale: Vec3::ONE,
                 }),
                 compensate_scale: false,
                 flags: TransformFlags::default(),
@@ -385,9 +373,9 @@ mod tests {
             AnimatedBone {
                 bone: &skel_bones[2],
                 anim_transform: Some(AnimTransform {
-                    translation: glam::vec3(1.0, 0.0, 0.0),
-                    rotation: glam::Quat::from_rotation_z(0.0f32.to_radians()),
-                    scale: glam::Vec3::ONE,
+                    translation: vec3(1.0, 0.0, 0.0),
+                    rotation: Quat::from_rotation_z(0.0f32.to_radians()),
+                    scale: Vec3::ONE,
                 }),
                 compensate_scale: false,
                 flags: TransformFlags::default(),
@@ -454,9 +442,9 @@ mod tests {
             AnimatedBone {
                 bone: &skel_bones[0],
                 anim_transform: Some(AnimTransform {
-                    translation: glam::vec3(-1.0, 0.0, 0.0),
-                    rotation: glam::Quat::from_rotation_z(90.0f32.to_radians()),
-                    scale: glam::Vec3::ONE,
+                    translation: vec3(-1.0, 0.0, 0.0),
+                    rotation: Quat::from_rotation_z(90.0f32.to_radians()),
+                    scale: Vec3::ONE,
                 }),
                 compensate_scale: false,
                 flags: TransformFlags::default(),
@@ -464,9 +452,9 @@ mod tests {
             AnimatedBone {
                 bone: &skel_bones[1],
                 anim_transform: Some(AnimTransform {
-                    translation: glam::vec3(0.0, 1.0, 0.0),
-                    rotation: glam::Quat::from_rotation_z(-90.0f32.to_radians()),
-                    scale: glam::Vec3::ONE,
+                    translation: vec3(0.0, 1.0, 0.0),
+                    rotation: Quat::from_rotation_z(-90.0f32.to_radians()),
+                    scale: Vec3::ONE,
                 }),
                 compensate_scale: false,
                 flags: TransformFlags::default(),
@@ -474,9 +462,9 @@ mod tests {
             AnimatedBone {
                 bone: &skel_bones[2],
                 anim_transform: Some(AnimTransform {
-                    translation: glam::vec3(0.0, 1.0, 0.0),
-                    rotation: glam::Quat::from_rotation_z(0.0f32.to_radians()),
-                    scale: glam::Vec3::ONE,
+                    translation: vec3(0.0, 1.0, 0.0),
+                    rotation: Quat::from_rotation_z(0.0f32.to_radians()),
+                    scale: Vec3::ONE,
                 }),
                 compensate_scale: false,
                 flags: TransformFlags::default(),
@@ -484,9 +472,9 @@ mod tests {
             AnimatedBone {
                 bone: &skel_bones[3],
                 anim_transform: Some(AnimTransform {
-                    translation: glam::vec3(1.0, 0.0, 0.0),
-                    rotation: glam::Quat::from_rotation_z(-90.0f32.to_radians()),
-                    scale: glam::Vec3::ONE,
+                    translation: vec3(1.0, 0.0, 0.0),
+                    rotation: Quat::from_rotation_z(-90.0f32.to_radians()),
+                    scale: Vec3::ONE,
                 }),
                 compensate_scale: false,
                 flags: TransformFlags::default(),
@@ -494,10 +482,10 @@ mod tests {
             AnimatedBone {
                 bone: &skel_bones[4],
                 anim_transform: Some(AnimTransform {
-                    translation: glam::vec3(0.0, 1.0, 0.0),
+                    translation: vec3(0.0, 1.0, 0.0),
                     // TODO: What should this be without constraints?
-                    rotation: glam::Quat::from_rotation_z(0.0f32.to_radians()),
-                    scale: glam::Vec3::ONE,
+                    rotation: Quat::from_rotation_z(0.0f32.to_radians()),
+                    scale: Vec3::ONE,
                 }),
                 compensate_scale: false,
                 flags: TransformFlags::default(),
@@ -505,9 +493,9 @@ mod tests {
             AnimatedBone {
                 bone: &skel_bones[5],
                 anim_transform: Some(AnimTransform {
-                    translation: glam::vec3(0.0, 1.0, 0.0),
-                    rotation: glam::Quat::from_rotation_z(0.0f32.to_radians()),
-                    scale: glam::Vec3::ONE,
+                    translation: vec3(0.0, 1.0, 0.0),
+                    rotation: Quat::from_rotation_z(0.0f32.to_radians()),
+                    scale: Vec3::ONE,
                 }),
                 compensate_scale: false,
                 flags: TransformFlags::default(),
@@ -601,9 +589,9 @@ mod tests {
             AnimatedBone {
                 bone: &skel_bones[0],
                 anim_transform: Some(AnimTransform {
-                    translation: glam::vec3(0.0, 0.0, 0.0),
-                    rotation: glam::Quat::IDENTITY,
-                    scale: glam::Vec3::ONE,
+                    translation: vec3(0.0, 0.0, 0.0),
+                    rotation: Quat::IDENTITY,
+                    scale: Vec3::ONE,
                 }),
                 compensate_scale: false,
                 flags: TransformFlags::default(),
@@ -611,9 +599,9 @@ mod tests {
             AnimatedBone {
                 bone: &skel_bones[1],
                 anim_transform: Some(AnimTransform {
-                    translation: glam::vec3(1.0, 0.0, 1.0),
-                    rotation: glam::Quat::IDENTITY,
-                    scale: glam::Vec3::ONE,
+                    translation: vec3(1.0, 0.0, 1.0),
+                    rotation: Quat::IDENTITY,
+                    scale: Vec3::ONE,
                 }),
                 compensate_scale: false,
                 flags: TransformFlags::default(),
@@ -656,7 +644,7 @@ mod tests {
             relative_translation(&result, &skel_bones, 0).to_array()
         );
         assert_quat_relative_eq!(
-            glam::Quat::from_rotation_y(-45.0f32.to_radians()).to_array(),
+            Quat::from_rotation_y(-45.0f32.to_radians()).to_array(),
             relative_rotation(&result, &skel_bones, 0).to_array()
         );
 
@@ -679,9 +667,9 @@ mod tests {
             AnimatedBone {
                 bone: &skel_bones[0],
                 anim_transform: Some(AnimTransform {
-                    translation: glam::vec3(0.0, 0.0, 0.0),
-                    rotation: glam::Quat::IDENTITY,
-                    scale: glam::Vec3::ONE,
+                    translation: vec3(0.0, 0.0, 0.0),
+                    rotation: Quat::IDENTITY,
+                    scale: Vec3::ONE,
                 }),
                 compensate_scale: false,
                 flags: TransformFlags::default(),
@@ -689,9 +677,9 @@ mod tests {
             AnimatedBone {
                 bone: &skel_bones[1],
                 anim_transform: Some(AnimTransform {
-                    translation: glam::vec3(1.0, 0.0, 1.0),
-                    rotation: glam::Quat::IDENTITY,
-                    scale: glam::Vec3::ONE,
+                    translation: vec3(1.0, 0.0, 1.0),
+                    rotation: Quat::IDENTITY,
+                    scale: Vec3::ONE,
                 }),
                 compensate_scale: false,
                 flags: TransformFlags::default(),
