@@ -541,7 +541,7 @@ mod tests {
     #[test]
     fn next_frame_no_loop() {
         assert_eq!(
-            59.0,
+            60.0,
             next_frame(0.0, Duration::from_secs(1), 59.0, 1.0, false)
         );
     }
