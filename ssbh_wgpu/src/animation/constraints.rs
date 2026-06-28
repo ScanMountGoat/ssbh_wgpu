@@ -96,23 +96,30 @@ pub fn apply_orient_constraint(
     let source_transform = source_world;
     let (_, source_r, _) = source_transform.to_scale_rotation_translation();
 
-    // Apply rotations in the order X -> Y -> Z.
-    let (source_rot_z, source_rot_y, source_rot_x) = source_r.to_euler(EulerRot::ZYX);
-
     // TODO: Is it correct to assume the target transform is always relative to the target parent?
     let (target_s, target_r, target_t) =
         (*target_parent_world * target_transform).to_scale_rotation_translation();
 
-    let (target_rot_z, target_rot_y, target_rot_x) = target_r.to_euler(EulerRot::ZYX);
+    // TODO: is it correct to skip euler angles if the axes are identical?
+    let factors = constraint.constraint_axes;
+    let interp_rotation = if factors.x == factors.y && factors.y == factors.z {
+        target_r.lerp(source_r, constraint.constraint_axes.x)
+    } else {
+        // Apply rotations in the order X -> Y -> Z.
+        let euler = EulerRot::ZYX;
 
-    // The first angle is Z, the second angle is Y, and the third angle is X.
-    let interp_rot_z = interp(target_rot_z, source_rot_z, constraint.constraint_axes.z);
-    let interp_rot_y = interp(target_rot_y, source_rot_y, constraint.constraint_axes.y);
-    let interp_rot_x = interp(target_rot_x, source_rot_x, constraint.constraint_axes.x);
+        let (source_rot_z, source_rot_y, source_rot_x) = source_r.to_euler(euler);
+        let (target_rot_z, target_rot_y, target_rot_x) = target_r.to_euler(euler);
 
-    // TODO: Should these values be limited?
-    // TODO: tests limits in game.
-    let interp_rotation = Quat::from_euler(EulerRot::ZYX, interp_rot_z, interp_rot_y, interp_rot_x);
+        // The first angle is Z, the second angle is Y, and the third angle is X.
+        let interp_rot_z = interp(target_rot_z, source_rot_z, constraint.constraint_axes.z);
+        let interp_rot_y = interp(target_rot_y, source_rot_y, constraint.constraint_axes.y);
+        let interp_rot_x = interp(target_rot_x, source_rot_x, constraint.constraint_axes.x);
+
+        // TODO: Should these values be limited?
+        // TODO: tests limits in game.
+        Quat::from_euler(euler, interp_rot_z, interp_rot_y, interp_rot_x)
+    };
 
     let new_transform = Mat4::from_scale_rotation_translation(target_s, interp_rotation, target_t);
     Some(target_parent_world.inverse() * new_transform)
