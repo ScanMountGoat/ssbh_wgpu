@@ -91,6 +91,7 @@ struct State {
 
     draw_bones: bool,
     draw_bone_names: bool,
+    draw_bone_axes: bool,
 }
 
 impl State {
@@ -234,6 +235,7 @@ impl State {
             name_renderer,
             draw_bones: cli.bones,
             draw_bone_names: cli.bone_names,
+            draw_bone_axes: cli.bone_axes,
         })
     }
 
@@ -505,7 +507,7 @@ impl State {
             self.shared_data.database(),
             &ModelRenderOptions {
                 draw_bones: self.draw_bones,
-                draw_bone_axes: false,
+                draw_bone_axes: self.draw_bone_axes,
                 draw_floor_grid: true,
                 draw_wireframe: true,
                 ..Default::default()
@@ -639,6 +641,9 @@ struct Cli {
 
     #[arg(long)]
     bones: bool,
+
+    #[arg(long)]
+    bone_axes: bool,
 
     #[arg(long)]
     bone_names: bool,
