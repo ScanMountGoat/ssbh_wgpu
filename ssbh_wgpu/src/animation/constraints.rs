@@ -1,4 +1,4 @@
-use glam::{vec4, EulerRot, Mat4, Quat, Vec4Swizzles};
+use glam::{vec4, EulerRot, Mat4, Quat, Vec3, Vec4Swizzles};
 use ssbh_data::{hlpb_data::*, skel_data::BoneData};
 
 fn interp(a: f32, b: f32, f: f32) -> f32 {
@@ -33,21 +33,38 @@ pub fn apply_aim_constraint(
     let target_pos = target_world.col(3);
 
     // Get the local axes of the bone to constrain.
-    let aim =
-        (target_world * vec4(constraint.aim.x, constraint.aim.y, constraint.aim.z, 0.0)).xyz();
+    let aim = (target_world * vec4(constraint.aim.x, constraint.aim.y, constraint.aim.z, 0.0))
+        .xyz()
+        .normalize();
+    let up = (target_world * vec4(constraint.up.x, constraint.up.y, constraint.up.z, 0.0))
+        .xyz()
+        .normalize();
+
+    let reference_up = (target_world * vec4(0.0, 1.0, 0.0, 0.0)).xyz().normalize();
 
     // Get the vector pointing to the desired bone.
-    let v = src_pos.xyz() - target_pos.xyz();
+    let v = (src_pos.xyz() - target_pos.xyz()).normalize();
 
     // TODO: Is it correct to assume the target transform is always relative to the target parent?
     // Apply an additional rotation to orient the local axes towards the desired bone.
-    // TODO: How to also incorporate the up vector?
     let (target_s, mut target_r, target_t) = target_transform.to_scale_rotation_translation();
-    target_r *= Quat::from_rotation_arc(aim.normalize(), v.normalize());
+    target_r *= Quat::from_rotation_arc(aim, v);
+
+    // Apply a rotation based on the up vector.
+    // TODO: What space should the reference up vector use?
+    // This won't always work perfectly in general for all aim and up vectors.
+    // Rotate along the vector v to "roll" the bone while still aiming at the desired bone.
+    let angle = signed_angle(up, reference_up, v);
+    target_r *= Quat::from_axis_angle(v, angle);
 
     Some(Mat4::from_scale_rotation_translation(
         target_s, target_r, target_t,
     ))
+}
+
+fn signed_angle(a: Vec3, b: Vec3, axis: Vec3) -> f32 {
+    // Find the signed angle between a and b relative to axis.
+    f32::atan2(a.cross(b).dot(axis), a.dot(b))
 }
 
 // TODO: Improve tests.
