@@ -1,8 +1,14 @@
 use glam::{vec4, EulerRot, Mat4, Quat, Vec3, Vec4Swizzles};
 use ssbh_data::{hlpb_data::*, skel_data::BoneData};
 
-fn interp(a: f32, b: f32, f: f32) -> f32 {
-    (1.0 - f) * a + f * b
+fn interp_angle(a: f32, b: f32, f: f32) -> f32 {
+    // Large value differences may actually be similar angles like 179, -180.
+    // Standard linear interpolation may take a longer path than necessary.
+    // Find the shortest angle distance: https://gist.github.com/shaunlebron/8832585
+    let max_angle = 2.0 * std::f32::consts::PI;
+    let diff = (b - a) % max_angle;
+    let shortest_angle_distance = ((2.0 * diff) % max_angle) - diff;
+    a + shortest_angle_distance * f
 }
 
 // TODO: Improve tests.
@@ -117,26 +123,20 @@ pub fn apply_orient_constraint(
     let (target_s, target_r, target_t) =
         (*target_parent_world * target_transform).to_scale_rotation_translation();
 
-    // TODO: is it correct to skip euler angles if the axes are identical?
-    let factors = constraint.constraint_axes;
-    let interp_rotation = if factors.x == factors.y && factors.y == factors.z {
-        target_r.lerp(source_r, constraint.constraint_axes.x)
-    } else {
-        // Apply rotations in the order X -> Y -> Z.
-        let euler = EulerRot::ZYX;
+    // Apply rotations in the order X -> Y -> Z.
+    let euler = EulerRot::ZYX;
 
-        let (source_rot_z, source_rot_y, source_rot_x) = source_r.to_euler(euler);
-        let (target_rot_z, target_rot_y, target_rot_x) = target_r.to_euler(euler);
+    let (source_rot_z, source_rot_y, source_rot_x) = source_r.to_euler(euler);
+    let (target_rot_z, target_rot_y, target_rot_x) = target_r.to_euler(euler);
 
-        // The first angle is Z, the second angle is Y, and the third angle is X.
-        let interp_rot_z = interp(target_rot_z, source_rot_z, constraint.constraint_axes.z);
-        let interp_rot_y = interp(target_rot_y, source_rot_y, constraint.constraint_axes.y);
-        let interp_rot_x = interp(target_rot_x, source_rot_x, constraint.constraint_axes.x);
+    // The first angle is Z, the second angle is Y, and the third angle is X.
+    let interp_rot_z = interp_angle(target_rot_z, source_rot_z, constraint.constraint_axes.z);
+    let interp_rot_y = interp_angle(target_rot_y, source_rot_y, constraint.constraint_axes.y);
+    let interp_rot_x = interp_angle(target_rot_x, source_rot_x, constraint.constraint_axes.x);
 
-        // TODO: Should these values be limited?
-        // TODO: tests limits in game.
-        Quat::from_euler(euler, interp_rot_z, interp_rot_y, interp_rot_x)
-    };
+    // TODO: Should these values be limited?
+    // TODO: tests limits in game.
+    let interp_rotation = Quat::from_euler(euler, interp_rot_z, interp_rot_y, interp_rot_x);
 
     let new_transform = Mat4::from_scale_rotation_translation(target_s, interp_rotation, target_t);
     Some(target_parent_world.inverse() * new_transform)
@@ -198,6 +198,20 @@ mod tests {
             * result.world_transforms[i])
             .to_scale_rotation_translation()
             .2
+    }
+
+    #[test]
+    fn interpolate_angles() {
+        assert_eq!(
+            180f32.to_radians(),
+            interp_angle(180f32.to_radians(), -180f32.to_radians(), 0.5)
+        );
+        assert_eq!(
+            60f32.to_radians(),
+            interp_angle(30f32.to_radians(), 90f32.to_radians(), 0.5)
+        );
+        assert_eq!(0.1, interp_angle(0.1, 0.2, 0.0));
+        assert_eq!(0.2, interp_angle(0.1, 0.2, 1.0));
     }
 
     #[test]
