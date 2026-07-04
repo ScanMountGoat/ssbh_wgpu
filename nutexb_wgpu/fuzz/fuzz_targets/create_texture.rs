@@ -5,7 +5,7 @@ use libfuzzer_sys::fuzz_target;
 use nutexb::NutexbFile;
 use nutexb_wgpu::create_texture;
 use once_cell::sync::Lazy;
-use wgpu::{Device, DeviceDescriptor, Limits, PowerPreference, Queue, RequestAdapterOptions};
+use wgpu::{Device, DeviceDescriptor, PowerPreference, Queue, RequestAdapterOptions};
 
 static SHARED: Lazy<(Device, Queue)> = Lazy::new(|| {
     // Load models in headless mode without a surface.

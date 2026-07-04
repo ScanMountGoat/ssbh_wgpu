@@ -5,7 +5,7 @@ edition = "2021"
 
 [dependencies]
 wgpu.workspace = true
-nutexb = "0.7.0"
+nutexb = { git = "https://github.com/jam1garner/nutexb", rev = "7db7c08" }
 log = "0.4.17"
 bytemuck = { version = "1.7", features = [ "derive" ] }
 thiserror = "1.0"

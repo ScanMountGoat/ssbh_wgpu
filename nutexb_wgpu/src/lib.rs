@@ -175,6 +175,11 @@ pub fn create_texture(
         .deswizzled_data()
         .map_err(|_| CreateTextureError::SwizzleError)?;
 
+    // TODO: Why is this separate size check needed?
+    if data.is_empty() {
+        return Err(CreateTextureError::ZeroSizedDimension);
+    }
+
     let texture = device.create_texture_with_data(
         queue,
         &wgpu::TextureDescriptor {
