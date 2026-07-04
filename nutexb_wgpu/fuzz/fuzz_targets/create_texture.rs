@@ -11,7 +11,7 @@ static SHARED: Lazy<(Device, Queue)> = Lazy::new(|| {
     // Load models in headless mode without a surface.
     let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
         backends: wgpu::Backends::all(),
-        ..Default::default()
+        ..wgpu::InstanceDescriptor::new_without_display_handle()
     });
     let adapter = block_on(instance.request_adapter(&RequestAdapterOptions {
         power_preference: PowerPreference::HighPerformance,
@@ -20,14 +20,10 @@ static SHARED: Lazy<(Device, Queue)> = Lazy::new(|| {
     }))
     .unwrap();
 
-    let (device, queue) = block_on(adapter.request_device(
-        &DeviceDescriptor {
-            label: None,
-            features: wgpu::Features::TEXTURE_COMPRESSION_BC,
-            limits: Limits::default(),
-        },
-        None,
-    ))
+    let (device, queue) = block_on(adapter.request_device(&DeviceDescriptor {
+        required_features: wgpu::Features::TEXTURE_COMPRESSION_BC,
+        ..Default::default()
+    }))
     .unwrap();
 
     (device, queue)
@@ -43,7 +39,7 @@ fuzz_target!(|data: &[u8]| {
         data: u.arbitrary().unwrap(),
         layer_mipmaps: Vec::new(),
         footer: nutexb::NutexbFooter {
-            string: Vec::new().into(),
+            string: String::new().into(),
             width: u.arbitrary().unwrap(),
             height: u.arbitrary().unwrap(),
             depth: u.arbitrary().unwrap(),
@@ -60,5 +56,5 @@ fuzz_target!(|data: &[u8]| {
     // TODO: How to free up WGPU memory?
     let _texture = create_texture(&nutexb, &device, &queue);
 
-    device.poll(wgpu::Maintain::Wait);
+    device.poll(wgpu::PollType::wait_indefinitely()).unwrap();
 });
