@@ -482,7 +482,7 @@ impl SsbhRenderer {
     // TODO: Simplify parameters?
     /// Renders the `render_models` to `output_view` using the standard rendering passes for Smash Ultimate.
     ///
-    /// The `output_view` should have the format [surface_format].
+    /// The `output_view` should have the format used for [Self::new].
     /// The output is cleared before drawing.
     ///
     /// Returns the final color pass with no depth attachment.

@@ -24,7 +24,7 @@ struct BoneText {
 impl BoneNameRenderer {
     /// Initializes the renderer from the given `font_bytes` or tries to use system fonts if `None`.
     /// The `surface_format` is used by the final render pass and should match the main window surface.
-    /// [wgpu::TextureFormat::Bgra8Unorm] or [wgpu::TextureFormat::Bgra8Srgb] have the best compatibility.
+    /// [wgpu::TextureFormat::Bgra8Unorm] or [wgpu::TextureFormat::Bgra8UnormSrgb] have the best compatibility.
     pub fn new(
         device: &wgpu::Device,
         queue: &wgpu::Queue,
