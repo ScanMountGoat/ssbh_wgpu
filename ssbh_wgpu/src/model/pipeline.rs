@@ -1,18 +1,20 @@
 use ssbh_data::matl_data::{BlendFactor, BlendStateData, MatlEntryData};
 
-use crate::renderer::{MSAA_SAMPLE_COUNT, RGBA_COLOR_FORMAT};
+use crate::{
+    renderer::{MSAA_SAMPLE_COUNT, RGBA_COLOR_FORMAT},
+    shadergen::ShaderWgsl,
+    SharedRenderData,
+};
 
 // Create some helper structs to simplify the function signatures.
 pub struct PipelineData {
     pub layout: wgpu::PipelineLayout,
-    pub shader: wgpu::ShaderModule,
 }
 
 impl PipelineData {
     pub fn new(device: &wgpu::Device) -> Self {
-        let shader = crate::shader::model::create_shader_module(device);
         let layout = crate::shader::model::create_pipeline_layout(device);
-        Self { layout, shader }
+        Self { layout }
     }
 }
 
@@ -20,7 +22,7 @@ impl PipelineData {
 // Depth state is set per mesh rather than per material.
 // This means we can't always have one pipeline per material.
 // In practice, there will usually be one pipeline per material.
-#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub struct PipelineKey {
     enable_depth_write: bool,
     enable_depth_test: bool,
@@ -29,6 +31,7 @@ pub struct PipelineKey {
     polygon_mode: wgpu::PolygonMode,
     alpha_to_coverage_enabled: bool,
     surface_format: wgpu::TextureFormat,
+    shader_label: String,
 }
 
 impl PipelineKey {
@@ -45,6 +48,8 @@ impl PipelineKey {
             material.and_then(|m| m.rasterizer_states.first().map(|p| &p.data));
         let blend_state_data = material.and_then(|m| m.blend_states.first().map(|p| &p.data));
 
+        let shader_label = material.map(|m| m.shader_label.clone()).unwrap_or_default();
+
         Self {
             enable_depth_write: !disable_depth_write,
             enable_depth_test: !disable_depth_test,
@@ -59,6 +64,7 @@ impl PipelineKey {
                 .map(|b| b.alpha_sample_to_coverage)
                 .unwrap_or(false),
             surface_format,
+            shader_label,
         }
     }
 
@@ -74,27 +80,35 @@ impl PipelineKey {
 
 pub fn pipeline(
     device: &wgpu::Device,
-    pipeline_data: &PipelineData,
-    pipeline_key: &PipelineKey,
+    shared_data: &SharedRenderData,
+    key: &PipelineKey,
 ) -> wgpu::RenderPipeline {
-    // Each model pipeline uses the same WGSL code.
-    // Use the shader from the pipeline_data to ensure it's only compiled once.
-    // This greatly speeds up pipeline creation.
+    let program = shared_data.database.get(&key.shader_label);
+
+    // TODO: Use fs_main instead if program is missing or compilation fails.
+    let shader_wgsl = ShaderWgsl::new(program);
+    let source = shader_wgsl.create_model_shader();
+
+    let module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+        label: None,
+        source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Owned(source)),
+    });
+
     device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
         label: Some("Render Pipeline"),
-        layout: Some(&pipeline_data.layout),
+        layout: Some(&shared_data.pipeline_data.layout),
         vertex: crate::shader::model::vertex_state(
-            &pipeline_data.shader,
+            &module,
             &crate::shader::model::vs_main_entry(
                 wgpu::VertexStepMode::Vertex,
                 wgpu::VertexStepMode::Vertex,
             ),
         ),
         fragment: Some(crate::shader::model::fragment_state(
-            &pipeline_data.shader,
-            &crate::shader::model::fs_main_entry([Some(wgpu::ColorTargetState {
-                format: pipeline_key.surface_format,
-                blend: pipeline_key.blend,
+            &module,
+            &crate::shader::model::fs_generated_entry([Some(wgpu::ColorTargetState {
+                format: key.surface_format,
+                blend: key.blend,
                 write_mask: wgpu::ColorWrites::ALL,
             })]),
         )),
@@ -103,20 +117,20 @@ pub fn pipeline(
             topology: wgpu::PrimitiveTopology::TriangleList,
             strip_index_format: None,
             front_face: wgpu::FrontFace::Ccw,
-            cull_mode: pipeline_key.cull_mode,
+            cull_mode: key.cull_mode,
             // Setting this to anything other than Fill requires Features::NON_FILL_POLYGON_MODE
             polygon_mode: wgpu::PolygonMode::Fill, // TODO: set by rasterizer state
             conservative: false,
             unclipped_depth: false,
         },
         depth_stencil: Some(depth_stencil_state(
-            pipeline_key.enable_depth_write,
-            pipeline_key.enable_depth_test,
+            key.enable_depth_write,
+            key.enable_depth_test,
         )),
         multisample: wgpu::MultisampleState {
             // MSAA is required for alpha to coverage to work on metal.
             count: MSAA_SAMPLE_COUNT,
-            alpha_to_coverage_enabled: pipeline_key.alpha_to_coverage_enabled,
+            alpha_to_coverage_enabled: key.alpha_to_coverage_enabled,
             ..Default::default()
         },
         multiview_mask: None,

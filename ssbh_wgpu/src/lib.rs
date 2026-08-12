@@ -26,6 +26,7 @@ mod renderer;
 mod sampler;
 mod shader;
 mod shader_database;
+mod shadergen;
 mod shape;
 pub mod swing;
 mod swing_rendering;

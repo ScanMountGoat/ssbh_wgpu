@@ -683,10 +683,7 @@ fn VertexLightMap(colorSet2: vec4<f32>, colorSet2_1: vec4<f32>, colorSet2_2: vec
 }
 
 @vertex
-fn vs_main(
-    buffer0: VertexInput0,
-    buffer1: VertexInput1
-) -> VertexOutput {
+fn vs_main(buffer0: VertexInput0, buffer1: VertexInput1) -> VertexOutput {
     var out: VertexOutput;
     out.position = buffer0.position0;
     out.clip_position = camera.mvp_matrix * vec4(buffer0.position0.xyz, 1.0);
@@ -1539,4 +1536,17 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) is_front: bool) -> @location
     }
 
     return vec4(outColor, outAlpha);
+}
+
+// TODO: vs_generated since attributes like UVs shouldn't be transformed
+
+@fragment
+fn fs_generated(in: VertexOutput, @builtin(front_facing) is_front: bool) -> @location(0) vec4<f32> {
+    // TODO: rework the uniform buffers to match the in game naming (convert to snake_case?)
+    // TODO: Make entirely separate entry for the generated code since vertex attributes are handled differently?
+    let ASSIGN_VARS_GENERATED = 0.0;
+
+    var output = vec4(0.0);
+    let ASSIGN_OUT_COLOR_GENERATED = 0.0;
+    return output;
 }

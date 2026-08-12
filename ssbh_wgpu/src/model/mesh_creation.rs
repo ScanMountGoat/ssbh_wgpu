@@ -444,9 +444,10 @@ impl<'a> RenderMeshSharedData<'a> {
             RGBA_COLOR_FORMAT,
         );
 
+        // TODO: Compile pipelines in parallel.
         pipelines
-            .entry(pipeline_key)
-            .or_insert_with(|| pipeline(device, &self.shared_data.pipeline_data, &pipeline_key));
+            .entry(pipeline_key.clone())
+            .or_insert_with(|| pipeline(device, self.shared_data, &pipeline_key));
 
         let vertex_count = mesh_object.vertex_count()?;
 

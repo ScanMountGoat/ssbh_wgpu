@@ -178,9 +178,9 @@ impl RenderModel {
                     .filter(|m| m.material_label == material.material_label)
                 {
                     let pipeline_key = mesh.pipeline_key.with_material(Some(material));
-                    self.pipelines.entry(pipeline_key).or_insert_with(|| {
-                        pipeline(device, &shared_data.pipeline_data, &pipeline_key)
-                    });
+                    self.pipelines
+                        .entry(pipeline_key.clone())
+                        .or_insert_with(|| pipeline(device, shared_data, &pipeline_key));
 
                     // Update the pipeline key for associated RenderMeshes.
                     mesh.pipeline_key = pipeline_key;
