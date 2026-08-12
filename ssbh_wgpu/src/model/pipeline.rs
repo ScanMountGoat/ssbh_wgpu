@@ -99,7 +99,7 @@ pub fn pipeline(
         layout: Some(&shared_data.pipeline_data.layout),
         vertex: crate::shader::model::vertex_state(
             &module,
-            &crate::shader::model::vs_main_entry(
+            &crate::shader::model::vs_generated_entry(
                 wgpu::VertexStepMode::Vertex,
                 wgpu::VertexStepMode::Vertex,
             ),

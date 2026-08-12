@@ -152,6 +152,12 @@ fn write_sampler_2d(
 }
 
 fn write_attribute(wgsl: &mut String, a: &smush_shader::Attribute) -> Option<()> {
+    // TODO: Handle undef during database creation?
+    if a.name == "undef" {
+        write!(wgsl, "0").unwrap();
+        return Some(());
+    }
+
     // TODO: Support remaining attributes.
     let name = match a.name.as_str() {
         "IN_Position" => Some("in.position"),
@@ -192,6 +198,41 @@ fn write_parameter(wgsl: &mut String, p: &Parameter) -> Option<()> {
                 error!("Unrecognized field {}", p.field);
                 return None;
             }
+        }
+        "PerObject" => {
+            write!(wgsl, "per_object.{}", p.field.to_snake()).unwrap();
+            write_index(wgsl, p.index);
+            write_channel(wgsl, p.channel);
+        }
+        "ForPass" => {
+            write!(wgsl, "for_pass.{}", p.field.to_snake()).unwrap();
+            write_index(wgsl, p.index);
+            write_channel(wgsl, p.channel);
+        }
+        "PerFrame" => {
+            let field = match p.field.as_str() {
+                "g_IBL_ColorGain" => "g_ibl_color_gain".to_string(),
+                "g_IBL_Scale" => "g_ibl_scale".to_string(),
+                f => f.to_snake(),
+            };
+            write!(wgsl, "per_frame.{field}").unwrap();
+            write_index(wgsl, p.index);
+            write_channel(wgsl, p.channel);
+        }
+        "nuPerViewCBuffer" => {
+            let field = match p.field.as_str() {
+                "inverseScreenSize2D" => "inverse_screen_size_2d".to_string(),
+                "rtScaleFactor3d" => "rt_scale_factor_3d".to_string(),
+                f => f.to_snake(),
+            };
+            write!(wgsl, "per_view.{field}").unwrap();
+            write_index(wgsl, p.index);
+            write_channel(wgsl, p.channel);
+        }
+        "nuPerWorldCBuffer" => {
+            write!(wgsl, "per_world.{}", p.field.to_snake()).unwrap();
+            write_index(wgsl, p.index);
+            write_channel(wgsl, p.channel);
         }
         _ => {
             error!("Unrecognized uniform {p}");
