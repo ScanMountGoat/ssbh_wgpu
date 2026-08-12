@@ -1697,11 +1697,10 @@ fn fs_generated(in: VertexOutput, @builtin(front_facing) is_front: bool) -> @loc
     _unused = per_world.world_matrix[0].x;
     let REMOVE_END = 0.0;
 
-    // TODO: rework the uniform buffers to match the in game naming (convert to snake_case?)
-    // TODO: Make entirely separate entry for the generated code since vertex attributes are handled differently?
     let ASSIGN_VARS_GENERATED = 0.0;
 
     var output = vec4(0.0);
     let ASSIGN_OUT_COLOR_GENERATED = 0.0;
+    // TODO: generate discard condition for alpha testing
     return output;
 }

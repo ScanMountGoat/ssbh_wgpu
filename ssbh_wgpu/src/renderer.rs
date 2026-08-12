@@ -107,6 +107,9 @@ pub struct SsbhRenderer {
     surface_format: wgpu::TextureFormat,
 
     current_frame_buffer: wgpu::Buffer,
+
+    // TODO: Store this in the model itself and update during animations?
+    per_object_buffer: wgpu::Buffer,
 }
 
 impl SsbhRenderer {
@@ -250,38 +253,9 @@ impl SsbhRenderer {
             wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         );
 
-        // Data taken from mario c00 face on training stage.
-        // TODO: How much of this needs to be updated dynamically?
-        // TODO: updates from lightSet values?
         let per_object_buffer = device.create_buffer_from_data(
             "PerObject Buffer",
-            &[crate::shader::model::PerObject {
-                light_map_matrix: Mat4::IDENTITY,
-                blink_color: vec4(1.0, 1.0, 1.0, 0.0),
-                g_constant_volume: vec4(1.0, 1.0, 1.0, 1.0),
-                g_constant_offset: vec4(0.0, 0.0, 0.0, 0.0),
-                uv_scroll_counter: vec4(0.0, 0.0, 0.0, 0.0),
-                spycloak_params: vec4(0.0, 0.0, 0.0, 0.0),
-                compress_param: vec4(1.0, 0.0, 0.0, 1.0),
-                g_fresnel_color: vec4(1.5, 1.5, 1.5, 1.0),
-                costume_skin_color: vec4(1.0, 0.82745, 0.67843, 0.0),
-                outline_color: vec4(0.0, 0.0, 0.0, 0.0),
-                light_dir_color1: vec4(4.0, 4.0, 4.0, 1.0),
-                light_dir1: vec4(0.38302, -0.86603, -0.32139, 0.0),
-                shadow_map_param: vec4(0.001, 0.0, 0.0, 0.0),
-                char_shadow_color: vec4(1.0, 1.0, 1.0, 0.0),
-                bg_shadow_color: vec4(0.70, 0.70, 0.70, 0.0),
-                silhouette_far_color: vec3(0.25, 0.25, 0.25),
-                pad: 0.0,
-                c_ar: vec4(0.14186, 0.04903, -0.082, 1.11054),
-                c_ag: vec4(0.14717, 0.03699, -0.08283, 1.11036),
-                c_ab: vec4(0.1419, 0.04334, -0.08283, 1.11018),
-                change_metal: vec4(0.0, 0.0, 1.0, 0.0),
-                burn_color: vec4(2.0, 0.20, 0.10, 0.0),
-                ink_color: vec4(0.0, 0.0, 0.0, 0.0),
-                flashing_param: vec4(1.0, 0.0, 0.0, 1.0),
-                char_color_grading: vec4(1.0, 1.0, 50.0, 1.0),
-            }],
+            &[per_object(0.0)],
             wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         );
 
@@ -293,139 +267,21 @@ impl SsbhRenderer {
             wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         );
 
-        // TODO: the tex size is 1 / resolution
         let per_frame_buffer = device.create_buffer_from_data(
             "PerFrame Buffer",
-            &[crate::shader::model::PerFrame {
-                depth_of_field0: vec4(0.0, 0.0, 0.0, 0.0),
-                depth_of_field1: vec4(0.0, 0.0, 0.0, 0.0),
-                depth_of_field_tex_size: vec4(0.00104, 0.00185, 0.0, 0.0),
-                sun_shaft_light_param0: vec4(0.0, 0.0, 0.0, 0.0),
-                sun_shaft_light_param1: vec4(0.0, 0.0, 0.0, 0.0),
-                sun_shaft_blur_param: [vec4(0.0, 0.0, 1.0, 1.0), vec4(0.0, 0.0, 0.0, 0.0)],
-                sun_shaft_composite_param: vec4(0.0, 0.0, 0.0, 0.0),
-                glare_abstract_param: vec4(0.925, 3.0, 0.0, 0.0),
-                glare_blend_ratio: vec4(0.32, 0.10, 0.20, 0.25),
-                render_target_tex_size: vec4(0.00052, 0.00093, 0.00052, 0.00093),
-                light_any_param: vec4(0.0, 0.0, 0.0, 0.0),
-                rim_light_dir: vec4(0.0, 0.0, 1.0, 0.99495),
-                lens_flare_param: vec4(0.0, 0.0, 0.0, 0.0),
-                outline_param: vec4(0.25, 0.40, 0.0, 0.0),
-                multi_shadow_matrix: [
-                    Mat4::from_cols_array_2d(&[
-                        [0.0, 0.0, 0.0, 0.0],
-                        [0.0, 0.0, 0.0, 0.0],
-                        [0.0, 0.0, 0.0, 0.0],
-                        [100.0, 100.0, 0.0, 1.00],
-                    ]),
-                    Mat4::from_cols_array_2d(&[
-                        [0.0, 0.0, 0.0, 0.0],
-                        [0.0, 0.0, 0.0, 0.0],
-                        [0.0, 0.0, 0.0, 0.0],
-                        [100.0, 100.0, 0.0, 1.00],
-                    ]),
-                    Mat4::from_cols_array_2d(&[
-                        [0.0, 0.0, 0.0, 0.0],
-                        [0.0, 0.0, 0.0, 0.0],
-                        [0.0, 0.0, 0.0, 0.0],
-                        [100.0, 100.0, 0.0, 1.00],
-                    ]),
-                    Mat4::from_cols_array_2d(&[
-                        [0.0, 0.0, 0.0, 0.0],
-                        [0.0, 0.0, 0.0, 0.0],
-                        [0.0, 0.0, 0.0, 0.0],
-                        [100.0, 100.0, 0.0, 1.00],
-                    ]),
-                ],
-                shadow_map_matrix: Mat4::from_cols_array_2d(&[
-                    [0.01125, 0.00143, 0.00251, 0.0],
-                    [0.00229, -0.00703, -0.01237, 0.0],
-                    [0.0, 0.01249, -0.00725, 0.0],
-                    [0.64666, 0.55785, 0.60843, 1.0],
-                ]),
-                effect_light_param0: vec4(0.10, 0.10, -15.0, 0.0),
-                effect_light_param1: vec4(30.0, 12.0, 29.0, 11.0),
-                effect_light_param2: vec4(499.50, 360.0, 0.0, 0.0),
-                bg_rot_inv: Mat4::IDENTITY,
-                g_fog_color: vec4(0.30, 0.45, 1.0, 1.0),
-                g_fog_params: vec4(0.001, 0.0, 2.0, 1.0),
-                g_fog_height_params: vec4(0.0, 1000.0, 1.0, 0.20),
-                g_fog_color_sun_dir: vec4(0.80, 0.40, 0.30, 0.0),
-                g_sun_fog_dir: vec4(0.09966, -0.20195, -0.97431, 1.0),
-                g_fog_sky_params: vec4(8.0, 0.20, 50000.0, 0.0),
-                g_light_map_gain: vec4(1.0, 1.0, 1.0, 1.0),
-                g_ibl_color_gain: vec4(1.0, 1.0, 1.0, 1.0),
-                g_fog_new_params: vec4(0.0, 100000.0, 1.0, -0.79355),
-                g_ibl_scale: vec4(1.0, 1.0, 1.0, 1.0),
-                dbg_material_id: vec4(0.0, 1.0, 0.0, 0.0),
-                stage_color_grading: vec4(1.0, 1.0, 0.0, -1.0),
-                g_light_map_mix_weight: vec4(1.0, 0.0, 0.0, 0.0),
-                g_far_color_gain: vec4(1.0, 1.0, 1.0, 1.0),
-                g_far_color_offset: vec4(0.0, 0.0, 0.0, 0.0),
-                c_ar_reflection: vec4(0.00053, 0.23903, 0.00716, 0.55124),
-                c_ag_reflection: vec4(0.00053, 0.2324, 0.00053, 0.55124),
-                c_ab_reflection: vec4(0.00053, 0.2324, 0.00053, 0.54551),
-            }],
+            &[per_frame(width, height)],
             wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         );
 
-        // TODO: are these matrices just the camera matrices?
-        // TODO: use the actual render resolution
         let per_view_buffer = device.create_buffer_from_data(
             "PerViewCBuffer Buffer",
-            &[crate::shader::model::PerViewCBuffer {
-                view_matrix: [
-                    Mat4::from_cols_array_2d(&[
-                        [1.0, 0.0, 0.0, 0.0],
-                        [0.0, 1.0, 0.0, 0.0],
-                        [0.0, 0.0, 1.0, 0.0],
-                        [30.0, -7.76, -221.88028, 1.0],
-                    ]),
-                    Mat4::IDENTITY,
-                ],
-                view_inverse_matrix: Mat4::from_cols_array_2d(&[
-                    [1.0, 0.0, 0.0, 0.0],
-                    [0.0, 1.0, 0.0, 0.0],
-                    [0.0, 0.0, 1.0, 0.0],
-                    [-30.0, 7.76, 221.88028, 1.0],
-                ]),
-                projection_matrix: Mat4::from_cols_array_2d(&[
-                    [0.05806, 0.0, 0.0, 0.0],
-                    [0.0, 0.10323, 0.0, 0.0],
-                    [0.0, 0.0, -0.00045, 0.0],
-                    [0.0, 0.0, -0.0009, 1.0],
-                ]),
-                projection_inverse_matrix: Mat4::from_cols_array_2d(&[
-                    [17.22223, 0.0, 0.0, 0.0],
-                    [0.0, 9.6875, 0.0, 0.0],
-                    [0.0, 0.0, -2219.88037, 0.0],
-                    [0.0, 0.0, -2.0, 1.0],
-                ]),
-                screen_size: vec2(1920.0, 1080.0),
-                inverse_screen_size_2d: vec2(0.00052, 0.00093),
-                rt_scale_factor: vec2(1.0, 1.0),
-                rt_scale_factor_3d: vec2(1.0, 1.0),
-            }],
+            &[per_view(width, height)],
             wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         );
 
         let per_world_buffer = device.create_buffer_from_data(
             "PerWorldCBuffer Buffer",
-            &[crate::shader::model::PerWorldCBuffer {
-                world_matrix: Mat4::from_cols_array_2d(&[
-                    [-0.03869, 0.99923, -0.00633, 0.0],
-                    [0.78148, 0.0342, 0.623, 0.0],
-                    [0.62273, 0.01916, -0.7822, 0.0],
-                    [-29.053, 9.42791, 0.5574, 1.0],
-                ]),
-                world_inverse_matrix: Mat4::from_cols_array_2d(&[
-                    [-0.03869, 0.78148, 0.62273, 0.0],
-                    [0.99923, 0.0342, 0.01916, 0.0],
-                    [-0.00633, 0.623, -0.7822, 0.0],
-                    [-10.54127, 22.03453, 18.34759, 1.0],
-                ]),
-                m_is_shadow_caster: ivec4(0, 0, 0, 0),
-            }],
+            &[per_world()],
             wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         );
 
@@ -538,6 +394,7 @@ impl SsbhRenderer {
             floor_grid,
             surface_format,
             current_frame_buffer,
+            per_object_buffer,
         }
     }
 
@@ -574,6 +431,7 @@ impl SsbhRenderer {
             &self.current_frame_buffer,
             &[vec4(current_frame, 0.0, 0.0, 0.0)],
         );
+        queue.write_data(&self.per_object_buffer, &[per_object(current_frame)]);
     }
 
     /// Updates the render settings.
@@ -1390,6 +1248,174 @@ impl SsbhRenderer {
         pass.set_pipeline(pipeline);
         crate::shader::bloom::set_bind_groups(&mut pass, bind_group);
         pass.draw(0..3, 0..1);
+    }
+}
+
+// Data taken from mario c00 face on training stage.
+// TODO: How much of this needs to be updated dynamically?
+// TODO: updates from lightSet values?
+fn per_object(current_frame: f32) -> crate::shader::model::PerObject {
+    // Advancing by 1 frame in training mode increases the value by 1.0 / 60.0.
+    // TODO: This is only not zero for models with UV scroll animations.
+    // TODO: Should this take the playback speed into account?
+    let current_time_seconds = current_frame / 60.0;
+
+    crate::shader::model::PerObject {
+        light_map_matrix: Mat4::IDENTITY,
+        blink_color: vec4(1.0, 1.0, 1.0, 0.0),
+        g_constant_volume: vec4(1.0, 1.0, 1.0, 1.0),
+        g_constant_offset: vec4(0.0, 0.0, 0.0, 0.0),
+        uv_scroll_counter: vec4(current_time_seconds, 0.0, 0.0, 0.0),
+        spycloak_params: vec4(0.0, 0.0, 0.0, 0.0),
+        compress_param: vec4(1.0, 0.0, 0.0, 1.0),
+        g_fresnel_color: vec4(1.5, 1.5, 1.5, 1.0),
+        costume_skin_color: vec4(1.0, 0.82745, 0.67843, 0.0),
+        outline_color: vec4(0.0, 0.0, 0.0, 0.0),
+        light_dir_color1: vec4(4.0, 4.0, 4.0, 1.0),
+        light_dir1: vec4(0.38302, -0.86603, -0.32139, 0.0),
+        shadow_map_param: vec4(0.001, 0.0, 0.0, 0.0),
+        char_shadow_color: vec4(1.0, 1.0, 1.0, 0.0),
+        bg_shadow_color: vec4(0.70, 0.70, 0.70, 0.0),
+        silhouette_far_color: vec3(0.25, 0.25, 0.25),
+        pad: 0.0,
+        c_ar: vec4(0.14186, 0.04903, -0.082, 1.11054),
+        c_ag: vec4(0.14717, 0.03699, -0.08283, 1.11036),
+        c_ab: vec4(0.1419, 0.04334, -0.08283, 1.11018),
+        change_metal: vec4(0.0, 0.0, 1.0, 0.0),
+        burn_color: vec4(2.0, 0.20, 0.10, 0.0),
+        ink_color: vec4(0.0, 0.0, 0.0, 0.0),
+        flashing_param: vec4(1.0, 0.0, 0.0, 1.0),
+        char_color_grading: vec4(1.0, 1.0, 50.0, 1.0),
+    }
+}
+
+fn per_world() -> crate::shader::model::PerWorldCBuffer {
+    // TODO: Where do these matrices come from?
+    crate::shader::model::PerWorldCBuffer {
+        world_matrix: Mat4::from_cols_array_2d(&[
+            [-0.03869, 0.99923, -0.00633, 0.0],
+            [0.78148, 0.0342, 0.623, 0.0],
+            [0.62273, 0.01916, -0.7822, 0.0],
+            [-29.053, 9.42791, 0.5574, 1.0],
+        ]),
+        world_inverse_matrix: Mat4::from_cols_array_2d(&[
+            [-0.03869, 0.78148, 0.62273, 0.0],
+            [0.99923, 0.0342, 0.01916, 0.0],
+            [-0.00633, 0.623, -0.7822, 0.0],
+            [-10.54127, 22.03453, 18.34759, 1.0],
+        ]),
+        m_is_shadow_caster: ivec4(0, 0, 0, 0),
+    }
+}
+
+fn per_view(width: u32, height: u32) -> crate::shader::model::PerViewCBuffer {
+    // TODO: are these matrices just the camera matrices?
+    let view_matrix = Mat4::from_cols_array_2d(&[
+        [1.0, 0.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0, 0.0],
+        [0.0, 0.0, 1.0, 0.0],
+        [30.0, -7.76, -221.88028, 1.0],
+    ]);
+    crate::shader::model::PerViewCBuffer {
+        view_matrix: [view_matrix, Mat4::IDENTITY],
+        view_inverse_matrix: view_matrix.inverse(),
+        projection_matrix: Mat4::from_cols_array_2d(&[
+            [0.05806, 0.0, 0.0, 0.0],
+            [0.0, 0.10323, 0.0, 0.0],
+            [0.0, 0.0, -0.00045, 0.0],
+            [0.0, 0.0, -0.0009, 1.0],
+        ]),
+        projection_inverse_matrix: Mat4::from_cols_array_2d(&[
+            [17.22223, 0.0, 0.0, 0.0],
+            [0.0, 9.6875, 0.0, 0.0],
+            [0.0, 0.0, -2219.88037, 0.0],
+            [0.0, 0.0, -2.0, 1.0],
+        ]),
+        screen_size: vec2(width as f32, height as f32),
+        inverse_screen_size_2d: vec2(1.0 / width as f32, 1.0 / height as f32),
+        rt_scale_factor: vec2(1.0, 1.0),
+        rt_scale_factor_3d: vec2(1.0, 1.0),
+    }
+}
+
+fn per_frame(width: u32, height: u32) -> crate::shader::model::PerFrame {
+    // TODO: Where does this shadow matrix come from?
+    let shadow_map_matrix = Mat4::from_cols_array_2d(&[
+        [0.01125, 0.00143, 0.00251, 0.0],
+        [0.00229, -0.00703, -0.01237, 0.0],
+        [0.0, 0.01249, -0.00725, 0.0],
+        [0.64666, 0.55785, 0.60843, 1.0],
+    ]);
+    // TODO: What is the depth of field texture?
+    crate::shader::model::PerFrame {
+        depth_of_field0: vec4(0.0, 0.0, 0.0, 0.0),
+        depth_of_field1: vec4(0.0, 0.0, 0.0, 0.0),
+        depth_of_field_tex_size: vec4(0.00104, 0.00185, 0.0, 0.0), // TODO: 1 / (2*width), 1 / (2 * height)
+        sun_shaft_light_param0: vec4(0.0, 0.0, 0.0, 0.0),
+        sun_shaft_light_param1: vec4(0.0, 0.0, 0.0, 0.0),
+        sun_shaft_blur_param: [vec4(0.0, 0.0, 1.0, 1.0), vec4(0.0, 0.0, 0.0, 0.0)],
+        sun_shaft_composite_param: vec4(0.0, 0.0, 0.0, 0.0),
+        glare_abstract_param: vec4(0.925, 3.0, 0.0, 0.0),
+        glare_blend_ratio: vec4(0.32, 0.10, 0.20, 0.25),
+        render_target_tex_size: vec4(
+            1.0 / width as f32,
+            1.0 / height as f32,
+            1.0 / width as f32,
+            1.0 / height as f32,
+        ),
+        light_any_param: vec4(0.0, 0.0, 0.0, 0.0),
+        rim_light_dir: vec4(0.0, 0.0, 1.0, 0.99495),
+        lens_flare_param: vec4(0.0, 0.0, 0.0, 0.0),
+        outline_param: vec4(0.25, 0.40, 0.0, 0.0),
+        multi_shadow_matrix: [
+            Mat4::from_cols_array_2d(&[
+                [0.0, 0.0, 0.0, 0.0],
+                [0.0, 0.0, 0.0, 0.0],
+                [0.0, 0.0, 0.0, 0.0],
+                [100.0, 100.0, 0.0, 1.00],
+            ]),
+            Mat4::from_cols_array_2d(&[
+                [0.0, 0.0, 0.0, 0.0],
+                [0.0, 0.0, 0.0, 0.0],
+                [0.0, 0.0, 0.0, 0.0],
+                [100.0, 100.0, 0.0, 1.00],
+            ]),
+            Mat4::from_cols_array_2d(&[
+                [0.0, 0.0, 0.0, 0.0],
+                [0.0, 0.0, 0.0, 0.0],
+                [0.0, 0.0, 0.0, 0.0],
+                [100.0, 100.0, 0.0, 1.00],
+            ]),
+            Mat4::from_cols_array_2d(&[
+                [0.0, 0.0, 0.0, 0.0],
+                [0.0, 0.0, 0.0, 0.0],
+                [0.0, 0.0, 0.0, 0.0],
+                [100.0, 100.0, 0.0, 1.00],
+            ]),
+        ],
+        shadow_map_matrix,
+        effect_light_param0: vec4(0.10, 0.10, -15.0, 0.0),
+        effect_light_param1: vec4(30.0, 12.0, 29.0, 11.0),
+        effect_light_param2: vec4(499.50, 360.0, 0.0, 0.0),
+        bg_rot_inv: Mat4::IDENTITY,
+        g_fog_color: vec4(0.30, 0.45, 1.0, 1.0),
+        g_fog_params: vec4(0.001, 0.0, 2.0, 1.0),
+        g_fog_height_params: vec4(0.0, 1000.0, 1.0, 0.20),
+        g_fog_color_sun_dir: vec4(0.80, 0.40, 0.30, 0.0),
+        g_sun_fog_dir: vec4(0.09966, -0.20195, -0.97431, 1.0),
+        g_fog_sky_params: vec4(8.0, 0.20, 50000.0, 0.0),
+        g_light_map_gain: vec4(1.0, 1.0, 1.0, 1.0),
+        g_ibl_color_gain: vec4(1.0, 1.0, 1.0, 1.0),
+        g_fog_new_params: vec4(0.0, 100000.0, 1.0, -0.79355),
+        g_ibl_scale: vec4(1.0, 1.0, 1.0, 1.0),
+        dbg_material_id: vec4(0.0, 1.0, 0.0, 0.0),
+        stage_color_grading: vec4(1.0, 1.0, 0.0, -1.0),
+        g_light_map_mix_weight: vec4(1.0, 0.0, 0.0, 0.0),
+        g_far_color_gain: vec4(1.0, 1.0, 1.0, 1.0),
+        g_far_color_offset: vec4(0.0, 0.0, 0.0, 0.0),
+        c_ar_reflection: vec4(0.00053, 0.23903, 0.00716, 0.55124),
+        c_ag_reflection: vec4(0.00053, 0.2324, 0.00053, 0.55124),
+        c_ab_reflection: vec4(0.00053, 0.2324, 0.00053, 0.54551),
     }
 }
 

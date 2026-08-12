@@ -165,6 +165,13 @@ fn write_attribute(wgsl: &mut String, a: &smush_shader::Attribute) -> Option<()>
         "IN_Tangent" => Some("in.tangent"),
         "IN_map1" => Some("in.map1.xy"),
         "IN_uvSet" => Some("in.uv_set_uv_set1.xy"),
+        "IN_colorSet1" => Some("in.color_set1"),
+        "IN_colorSet2" => Some("in.color_set2_combined"),
+        "IN_colorSet3" => Some("in.color_set3"),
+        "IN_colorSet4" => Some("in.color_set4"),
+        "IN_colorSet5" => Some("in.color_set5"),
+        "IN_colorSet6" => Some("in.color_set6"),
+        "IN_colorSet7" => Some("in.color_set7"),
         _ => {
             error!("Unrecognized attribute {a}");
             None
