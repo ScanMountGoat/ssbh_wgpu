@@ -3,11 +3,11 @@ use std::str::FromStr;
 use crate::{
     model::SamplerCache,
     shader::model::PerMaterial,
-    split_param,
     texture::{create_sampler, load_default, load_texture, LoadTextureError},
     DeviceBufferExt, ShaderDatabase,
 };
 use log::warn;
+use smush_shader::split_param;
 use ssbh_data::matl_data::*;
 use wgpu::SamplerDescriptor;
 
@@ -239,7 +239,7 @@ pub fn per_material(material: &MatlEntryData, database: &ShaderDatabase) -> PerM
     let mut has_float = [glam::UVec4::ZERO; 20];
     let mut has_vector = [glam::UVec4::ZERO; 64];
     if let Some(program) = database.get(&material.shader_label) {
-        for param_name in &program.material_parameters {
+        for param_name in &program.parameters {
             // TODO: This is redundant to split twice.
             let (param, _) = split_param(param_name);
             // It's safe to assume the database has valid parameters.
@@ -488,9 +488,9 @@ pub fn boolean_index(param: ParamId) -> Option<usize> {
 
 #[cfg(test)]
 mod tests {
-    use crate::ShaderProgram;
-
     use super::*;
+
+    use smush_shader::ShaderProgram;
     use ssbh_data::Vector4;
 
     #[test]
@@ -695,14 +695,15 @@ mod tests {
                             lighting: false,
                             sh: false,
                             anisotropic_rotation: false,
-                            vertex_attributes: Vec::new(),
-                            material_parameters: vec![
-                                "Texture0.xyz".to_owned(),
-                                "CustomBoolean1".to_owned(),
-                                "CustomFloat2".to_owned(),
-                                "CustomVector8.xw".to_owned()
+                            attributes: Vec::new(),
+                            parameters: vec![
+                                "Texture0.xyz".into(),
+                                "CustomBoolean1".into(),
+                                "CustomFloat2".into(),
+                                "CustomVector8.xw".into()
                             ],
-                            complexity: 0.0
+                            complexity: 0.0,
+                            exprs: Default::default()
                         }
                     )]
                     .into_iter()

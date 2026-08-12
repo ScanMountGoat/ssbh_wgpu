@@ -41,7 +41,7 @@ pub use render_settings::{
 };
 pub use renderer::SsbhRenderer;
 pub use shader::model::CameraTransforms;
-pub use shader_database::{split_param, ShaderDatabase, ShaderProgram};
+pub use shader_database::ShaderDatabase;
 pub use texture::{create_default_textures, load_default_spec_cube};
 
 // TODO: Find a way to avoid using the format features for filterable f32 textures.

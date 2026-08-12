@@ -22,6 +22,7 @@ encase = { version = "0.9.0", features = ["glam"] }
 indexmap = "1.9.2"
 glyphon = "0.11.0"
 rayon.workspace = true
+smush_shader = { git = "https://github.com/ScanMountGoat/Smush-Material-Research", rev = "c05c6bd" }
 
 [dev-dependencies]
 approx = "0.5.1"
