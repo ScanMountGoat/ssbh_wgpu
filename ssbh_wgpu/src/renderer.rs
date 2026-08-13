@@ -96,6 +96,10 @@ pub struct SsbhRenderer {
 
     color_lut: TextureSamplerView,
 
+    width: u32,
+    height: u32,
+    camera_transforms: CameraTransforms,
+
     clear_color: [f64; 4],
 
     render_settings: RenderSettings,
@@ -107,6 +111,8 @@ pub struct SsbhRenderer {
     surface_format: wgpu::TextureFormat,
 
     current_frame_buffer: wgpu::Buffer,
+
+    per_view_buffer: wgpu::Buffer,
 
     // TODO: Store this in the model itself and update during animations?
     per_object_buffer: wgpu::Buffer,
@@ -185,16 +191,17 @@ impl SsbhRenderer {
         );
 
         // Assume the user will update the camera, so these values don't matter.
+        let camera_transforms = crate::shader::model::CameraTransforms {
+            model_view_matrix: Mat4::IDENTITY,
+            projection_matrix: Mat4::IDENTITY,
+            mvp_matrix: Mat4::IDENTITY,
+            mvp_inv_matrix: Mat4::IDENTITY,
+            camera_pos: vec4(0.0, 0.0, -1.0, 1.0),
+            screen_dimensions: vec4(1.0, 1.0, 1.0, 1.0),
+        };
         let camera_buffer = device.create_buffer_from_data(
             "Camera Buffer",
-            &[crate::shader::model::CameraTransforms {
-                model_view_matrix: Mat4::IDENTITY,
-                projection_matrix: Mat4::IDENTITY,
-                mvp_matrix: Mat4::IDENTITY,
-                mvp_inv_matrix: Mat4::IDENTITY,
-                camera_pos: vec4(0.0, 0.0, -1.0, 1.0),
-                screen_dimensions: vec4(1.0, 1.0, 1.0, 1.0),
-            }],
+            &[camera_transforms],
             wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         );
 
@@ -275,7 +282,7 @@ impl SsbhRenderer {
 
         let per_view_buffer = device.create_buffer_from_data(
             "PerViewCBuffer Buffer",
-            &[per_view(width, height)],
+            &[per_view(width, height, &camera_transforms)],
             wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         );
 
@@ -394,7 +401,11 @@ impl SsbhRenderer {
             floor_grid,
             surface_format,
             current_frame_buffer,
+            per_view_buffer,
             per_object_buffer,
+            width,
+            height,
+            camera_transforms,
         }
     }
 
@@ -408,7 +419,14 @@ impl SsbhRenderer {
     /// This adjusts screen based effects such as bloom to have a more appropriate scale on high DPI screens.
     /// This should usually match the current monitor's scaling factor
     /// in the OS such as `1.5` for 150% scaling. If unsure, use a value of `1.0`.
-    pub fn resize(&mut self, device: &wgpu::Device, width: u32, height: u32, scale_factor: f32) {
+    pub fn resize(
+        &mut self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        width: u32,
+        height: u32,
+        scale_factor: f32,
+    ) {
         self.pass_info = PassInfo::new(
             device,
             width,
@@ -417,12 +435,25 @@ impl SsbhRenderer {
             &self.color_lut,
             self.surface_format,
         );
+        self.width = width;
+        self.height = height;
+
+        queue.write_data(
+            &self.per_view_buffer,
+            &[per_view(self.width, self.height, &self.camera_transforms)],
+        );
     }
 
     // TODO: Document that anything that takes a device reference shouldn't be called each frame.
     /// Updates the camera transforms.
     pub fn update_camera(&mut self, queue: &wgpu::Queue, transforms: CameraTransforms) {
+        self.camera_transforms = transforms;
+
         queue.write_data(&self.camera_buffer, &[transforms]);
+        queue.write_data(
+            &self.per_view_buffer,
+            &[per_view(self.width, self.height, &transforms)],
+        );
     }
 
     /// Updates the current frame for material animations.
@@ -1291,46 +1322,24 @@ fn per_object(current_frame: f32) -> crate::shader::model::PerObject {
 
 fn per_world() -> crate::shader::model::PerWorldCBuffer {
     // TODO: Where do these matrices come from?
+    let world_matrix = Mat4::IDENTITY;
     crate::shader::model::PerWorldCBuffer {
-        world_matrix: Mat4::from_cols_array_2d(&[
-            [-0.03869, 0.99923, -0.00633, 0.0],
-            [0.78148, 0.0342, 0.623, 0.0],
-            [0.62273, 0.01916, -0.7822, 0.0],
-            [-29.053, 9.42791, 0.5574, 1.0],
-        ]),
-        world_inverse_matrix: Mat4::from_cols_array_2d(&[
-            [-0.03869, 0.78148, 0.62273, 0.0],
-            [0.99923, 0.0342, 0.01916, 0.0],
-            [-0.00633, 0.623, -0.7822, 0.0],
-            [-10.54127, 22.03453, 18.34759, 1.0],
-        ]),
+        world_matrix,
+        world_inverse_matrix: world_matrix.inverse(),
         m_is_shadow_caster: ivec4(0, 0, 0, 0),
     }
 }
 
-fn per_view(width: u32, height: u32) -> crate::shader::model::PerViewCBuffer {
-    // TODO: are these matrices just the camera matrices?
-    let view_matrix = Mat4::from_cols_array_2d(&[
-        [1.0, 0.0, 0.0, 0.0],
-        [0.0, 1.0, 0.0, 0.0],
-        [0.0, 0.0, 1.0, 0.0],
-        [30.0, -7.76, -221.88028, 1.0],
-    ]);
+fn per_view(
+    width: u32,
+    height: u32,
+    camera: &CameraTransforms,
+) -> crate::shader::model::PerViewCBuffer {
     crate::shader::model::PerViewCBuffer {
-        view_matrix: [view_matrix, Mat4::IDENTITY],
-        view_inverse_matrix: view_matrix.inverse(),
-        projection_matrix: Mat4::from_cols_array_2d(&[
-            [0.05806, 0.0, 0.0, 0.0],
-            [0.0, 0.10323, 0.0, 0.0],
-            [0.0, 0.0, -0.00045, 0.0],
-            [0.0, 0.0, -0.0009, 1.0],
-        ]),
-        projection_inverse_matrix: Mat4::from_cols_array_2d(&[
-            [17.22223, 0.0, 0.0, 0.0],
-            [0.0, 9.6875, 0.0, 0.0],
-            [0.0, 0.0, -2219.88037, 0.0],
-            [0.0, 0.0, -2.0, 1.0],
-        ]),
+        view_matrix: [camera.model_view_matrix, Mat4::IDENTITY],
+        view_inverse_matrix: camera.model_view_matrix.inverse(),
+        projection_matrix: camera.projection_matrix,
+        projection_inverse_matrix: camera.projection_matrix.inverse(),
         screen_size: vec2(width as f32, height as f32),
         inverse_screen_size_2d: vec2(1.0 / width as f32, 1.0 / height as f32),
         rt_scale_factor: vec2(1.0, 1.0),

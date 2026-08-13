@@ -249,8 +249,13 @@ impl State {
             self.update_camera(scale_factor);
 
             // We also need to recreate the attachments if the size changes.
-            self.renderer
-                .resize(&self.device, new_size.width, new_size.height, scale_factor);
+            self.renderer.resize(
+                &self.device,
+                &self.queue,
+                new_size.width,
+                new_size.height,
+                scale_factor,
+            );
         }
     }
 
