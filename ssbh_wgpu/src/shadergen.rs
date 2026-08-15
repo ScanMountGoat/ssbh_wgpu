@@ -2,6 +2,7 @@ use std::{fmt::Write, str::FromStr, sync::LazyLock};
 
 use aho_corasick::AhoCorasick;
 use case::CaseExt;
+use indoc::formatdoc;
 use log::error;
 use smol_str::format_smolstr;
 use smush_shader::{Operation, OutputExpr, Parameter, ShaderProgram, Value};
@@ -16,6 +17,7 @@ static WGSL_REPLACEMENTS: LazyLock<AhoCorasick> = LazyLock::new(|| {
     AhoCorasick::new([
         "let ASSIGN_VARS_GENERATED = 0.0;",
         "let ASSIGN_OUT_COLOR_GENERATED = 0.0;",
+        "let FRAGMENT_DISCARD_GENERATED = 0.0;",
     ])
     .unwrap()
 });
@@ -25,6 +27,7 @@ static WGSL_REPLACEMENTS: LazyLock<AhoCorasick> = LazyLock::new(|| {
 pub struct ShaderWgsl {
     assignments: String,
     outputs: String,
+    fragment_discard: String,
 }
 
 impl ShaderWgsl {
@@ -33,14 +36,20 @@ impl ShaderWgsl {
             .map(|p| (generate_assignments_wgsl(p), generate_outputs_wgsl(p)))
             .unwrap_or_default();
 
+        // Generate empty code if there is no discard condition.
+        let fragment_discard = program
+            .and_then(|p| p.exprs.discard_condition.map(generate_discard_wgsl))
+            .unwrap_or_default();
+
         Self {
             assignments,
             outputs,
+            fragment_discard,
         }
     }
 
     pub fn create_model_shader(&self) -> String {
-        let replace_with = &[&self.assignments, &self.outputs];
+        let replace_with = &[&self.assignments, &self.outputs, &self.fragment_discard];
 
         let mut source = WGSL_REPLACEMENTS.replace_all(crate::shader::model::SOURCE, replace_with);
 
@@ -337,4 +346,12 @@ fn generate_outputs_wgsl(program: &ShaderProgram) -> String {
     }
 
     wgsl
+}
+
+fn generate_discard_wgsl(condition_expr_index: usize) -> String {
+    formatdoc! {"
+        if {VAR_PREFIX}{condition_expr_index} {{
+            discard;
+        }}
+    "}
 }

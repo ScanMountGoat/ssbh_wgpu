@@ -1699,8 +1699,10 @@ fn fs_generated(in: VertexOutput, @builtin(front_facing) is_front: bool) -> @loc
 
     let ASSIGN_VARS_GENERATED = 0.0;
 
+    // This needs to happen after all variables are assigned.
+    let FRAGMENT_DISCARD_GENERATED = 0.0;
+
     var output = vec4(0.0);
     let ASSIGN_OUT_COLOR_GENERATED = 0.0;
-    // TODO: generate discard condition for alpha testing
     return output;
 }
