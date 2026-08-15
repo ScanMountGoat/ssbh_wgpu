@@ -287,12 +287,9 @@ fn write_func(wgsl: &mut String, op: &Operation, args: &[usize]) -> Option<()> {
         Operation::Trunc => write!(wgsl, "trunc({a}{})", arg0?).unwrap(),
         Operation::Sin => write!(wgsl, "sin({a}{})", arg0?).unwrap(),
         Operation::Cos => write!(wgsl, "cos({a}{})", arg0?).unwrap(),
-        Operation::Select => write!(
-            wgsl,
-            "mix(f32({a}{}), f32({a}{}), f32({a}{}))",
-            arg2?, arg1?, arg0?
-        )
-        .unwrap(),
+        Operation::Select => {
+            write!(wgsl, "select({a}{}, {a}{}, {a}{})", arg2?, arg1?, arg0?).unwrap()
+        }
         Operation::IntBitsToFloat => write!(wgsl, "bitcast<f32>({a}{})", arg0?).unwrap(),
         Operation::UintBitsToFloat => write!(wgsl, "bitcast<f32>({a}{})", arg0?).unwrap(),
         Operation::FloatBitsToInt => write!(wgsl, "bitcast<i32>({a}{})", arg0?).unwrap(),
