@@ -1,4 +1,5 @@
-use log::warn;
+use futures::executor::block_on;
+use log::{error, warn};
 use ssbh_data::matl_data::{BlendFactor, BlendStateData, MatlEntryData};
 
 use crate::{
@@ -116,10 +117,23 @@ pub fn pipeline(
         let shader_wgsl = ShaderWgsl::new(program);
         let source = shader_wgsl.create_model_shader();
 
-        let module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+        let scope = device.push_error_scope(wgpu::ErrorFilter::Validation);
+        let mut module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some(&key.shader_label),
             source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Owned(source)),
         });
+        if let Some(error) = block_on(scope.pop()) {
+            // The error scope converts a panic into an error.
+            // The default value for the shader module at this point isn't valid, so set it here.
+            error!("Error compiling pipeline: {error}");
+            // Use the generated entry to make the errors easier to spot in the viewport.
+            module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+                label: None,
+                source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(
+                    crate::shader::model::SOURCE,
+                )),
+            });
+        }
 
         device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some(&key.shader_label),
@@ -143,6 +157,7 @@ pub fn pipeline(
         })
     } else {
         // Use the original ubershader entry as a fallback if no program is found.
+        // This shader should always compile.
         warn!(
             "Unable to generate code for {:?} due to no shader database entry",
             &key.shader_label

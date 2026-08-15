@@ -95,7 +95,7 @@ struct State {
 }
 
 impl State {
-    async fn new(
+    fn new(
         window: Window,
         cli: &Cli,
         event_loop: &winit::event_loop::ActiveEventLoop,
@@ -109,20 +109,18 @@ impl State {
             ))
         });
         let surface = instance.create_surface(window.clone())?;
-        let adapter = instance
-            .request_adapter(&wgpu::RequestAdapterOptions {
-                power_preference: wgpu::PowerPreference::HighPerformance,
-                ..Default::default()
-            })
-            .await?;
+        let adapter = block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
+            power_preference: wgpu::PowerPreference::HighPerformance,
+            ..Default::default()
+        }))
+        .unwrap();
 
-        let (device, queue) = adapter
-            .request_device(&wgpu::DeviceDescriptor {
-                required_features: REQUIRED_FEATURES,
-                required_limits: REQUIRED_LIMITS,
-                ..Default::default()
-            })
-            .await?;
+        let (device, queue) = block_on(adapter.request_device(&wgpu::DeviceDescriptor {
+            required_features: REQUIRED_FEATURES,
+            required_limits: REQUIRED_LIMITS,
+            ..Default::default()
+        }))
+        .unwrap();
 
         let size = window.inner_size();
 
@@ -567,7 +565,7 @@ impl ApplicationHandler<()> for App {
             .create_window(Window::default_attributes().with_title("ssbh_wgpu_viewer"))
             .unwrap();
 
-        self.state = block_on(State::new(window, &self.cli, event_loop)).ok();
+        self.state = State::new(window, &self.cli, event_loop).ok();
     }
 
     fn window_event(
