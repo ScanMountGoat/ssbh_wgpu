@@ -27,6 +27,7 @@ aho-corasick = "1.1.4"
 case = "1.0"
 smol_str = "0.3.6"
 indoc = "2.0.0"
+futures.workspace = true
 
 [dev-dependencies]
 approx = "0.5.1"

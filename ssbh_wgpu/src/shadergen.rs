@@ -31,14 +31,15 @@ pub struct ShaderWgsl {
 }
 
 impl ShaderWgsl {
-    pub fn new(program: Option<&ShaderProgram>) -> Self {
-        let (assignments, outputs) = program
-            .map(|p| (generate_assignments_wgsl(p), generate_outputs_wgsl(p)))
-            .unwrap_or_default();
+    pub fn new(program: &ShaderProgram) -> Self {
+        let assignments = generate_assignments_wgsl(program);
+        let outputs = generate_outputs_wgsl(program);
 
         // Generate empty code if there is no discard condition.
         let fragment_discard = program
-            .and_then(|p| p.exprs.discard_condition.map(generate_discard_wgsl))
+            .exprs
+            .discard_condition
+            .map(generate_discard_wgsl)
             .unwrap_or_default();
 
         Self {

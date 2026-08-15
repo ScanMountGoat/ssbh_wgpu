@@ -1,3 +1,4 @@
+use log::warn;
 use ssbh_data::matl_data::{BlendFactor, BlendStateData, MatlEntryData};
 
 use crate::{
@@ -84,59 +85,96 @@ pub fn pipeline(
     shared_data: &SharedRenderData,
     key: &PipelineKey,
 ) -> wgpu::RenderPipeline {
-    let program = shared_data.database.get(&key.shader_label);
+    let depth_stencil = Some(depth_stencil_state(
+        key.enable_depth_write,
+        key.enable_depth_test,
+    ));
+    // TODO: RasterizerState settings.
+    let primitive = wgpu::PrimitiveState {
+        topology: wgpu::PrimitiveTopology::TriangleList,
+        strip_index_format: None,
+        front_face: wgpu::FrontFace::Ccw,
+        cull_mode: key.cull_mode,
+        // Setting this to anything other than Fill requires Features::NON_FILL_POLYGON_MODE
+        polygon_mode: wgpu::PolygonMode::Fill, // TODO: set by rasterizer state
+        conservative: false,
+        unclipped_depth: false,
+    };
+    let multisample = wgpu::MultisampleState {
+        // MSAA is required for alpha to coverage to work on metal.
+        count: MSAA_SAMPLE_COUNT,
+        alpha_to_coverage_enabled: key.alpha_to_coverage_enabled,
+        ..Default::default()
+    };
+    let color_targets = [Some(wgpu::ColorTargetState {
+        format: key.surface_format,
+        blend: key.blend,
+        write_mask: wgpu::ColorWrites::ALL,
+    })];
 
-    // TODO: Use fs_main instead if program is missing or compilation fails.
-    let shader_wgsl = ShaderWgsl::new(program);
-    let source = shader_wgsl.create_model_shader();
+    if let Some(program) = shared_data.database.get(&key.shader_label) {
+        let shader_wgsl = ShaderWgsl::new(program);
+        let source = shader_wgsl.create_model_shader();
 
-    let module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-        label: Some(&key.shader_label),
-        source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Owned(source)),
-    });
+        let module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some(&key.shader_label),
+            source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Owned(source)),
+        });
 
-    device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-        label: Some(&key.shader_label),
-        layout: Some(&shared_data.pipeline_data.layout),
-        vertex: crate::shader::model::vertex_state(
-            &module,
-            &crate::shader::model::vs_generated_entry(
-                wgpu::VertexStepMode::Vertex,
-                wgpu::VertexStepMode::Vertex,
+        device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some(&key.shader_label),
+            layout: Some(&shared_data.pipeline_data.layout),
+            vertex: crate::shader::model::vertex_state(
+                &module,
+                &crate::shader::model::vs_generated_entry(
+                    wgpu::VertexStepMode::Vertex,
+                    wgpu::VertexStepMode::Vertex,
+                ),
             ),
-        ),
-        fragment: Some(crate::shader::model::fragment_state(
-            &module,
-            &crate::shader::model::fs_generated_entry([Some(wgpu::ColorTargetState {
-                format: key.surface_format,
-                blend: key.blend,
-                write_mask: wgpu::ColorWrites::ALL,
-            })]),
-        )),
-        // TODO: RasterizerState settings.
-        primitive: wgpu::PrimitiveState {
-            topology: wgpu::PrimitiveTopology::TriangleList,
-            strip_index_format: None,
-            front_face: wgpu::FrontFace::Ccw,
-            cull_mode: key.cull_mode,
-            // Setting this to anything other than Fill requires Features::NON_FILL_POLYGON_MODE
-            polygon_mode: wgpu::PolygonMode::Fill, // TODO: set by rasterizer state
-            conservative: false,
-            unclipped_depth: false,
-        },
-        depth_stencil: Some(depth_stencil_state(
-            key.enable_depth_write,
-            key.enable_depth_test,
-        )),
-        multisample: wgpu::MultisampleState {
-            // MSAA is required for alpha to coverage to work on metal.
-            count: MSAA_SAMPLE_COUNT,
-            alpha_to_coverage_enabled: key.alpha_to_coverage_enabled,
-            ..Default::default()
-        },
-        multiview_mask: None,
-        cache: None,
-    })
+            fragment: Some(crate::shader::model::fragment_state(
+                &module,
+                &crate::shader::model::fs_generated_entry(color_targets),
+            )),
+            primitive,
+            depth_stencil,
+            multisample,
+            multiview_mask: None,
+            cache: None,
+        })
+    } else {
+        // Use the original ubershader entry as a fallback if no program is found.
+        warn!(
+            "Unable to generate code for {:?} due to no shader database entry",
+            &key.shader_label
+        );
+        let module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some(&key.shader_label),
+            source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(
+                crate::shader::model::SOURCE,
+            )),
+        });
+
+        device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some(&key.shader_label),
+            layout: Some(&shared_data.pipeline_data.layout),
+            vertex: crate::shader::model::vertex_state(
+                &module,
+                &crate::shader::model::vs_main_entry(
+                    wgpu::VertexStepMode::Vertex,
+                    wgpu::VertexStepMode::Vertex,
+                ),
+            ),
+            fragment: Some(crate::shader::model::fragment_state(
+                &module,
+                &crate::shader::model::fs_main_entry(color_targets),
+            )),
+            primitive,
+            depth_stencil,
+            multisample,
+            multiview_mask: None,
+            cache: None,
+        })
+    }
 }
 
 pub fn depth_pipeline(device: &wgpu::Device) -> wgpu::RenderPipeline {
