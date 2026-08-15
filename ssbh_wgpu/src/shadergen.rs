@@ -292,9 +292,13 @@ fn write_func(wgsl: &mut String, op: &Operation, args: &[usize]) -> Option<()> {
         Operation::Float => write!(wgsl, "f32({a}{})", arg0?).unwrap(),
         Operation::Equal => write!(wgsl, "{a}{} == {a}{}", arg0?, arg1?).unwrap(),
         Operation::NotEqual => write!(wgsl, "{a}{} != {a}{}", arg0?, arg1?).unwrap(),
+        Operation::Greater => write!(wgsl, "{a}{} > {a}{}", arg0?, arg1?).unwrap(),
         Operation::GreaterEqual => write!(wgsl, "{a}{} >= {a}{}", arg0?, arg1?).unwrap(),
+        Operation::Less => write!(wgsl, "{a}{} < {a}{}", arg0?, arg1?).unwrap(),
         Operation::LessEqual => write!(wgsl, "{a}{} <= {a}{}", arg0?, arg1?).unwrap(),
         Operation::Not => write!(wgsl, "!{a}{}", arg0?).unwrap(),
+        Operation::And => write!(wgsl, "{a}{} && {a}{}", arg0?, arg1?).unwrap(),
+        Operation::Or => write!(wgsl, "{a}{} || {a}{}", arg0?, arg1?).unwrap(),
         Operation::LeftShift => write!(wgsl, "{a}{} << u32({a}{})", arg0?, arg1?).unwrap(),
         Operation::RightShift => write!(wgsl, "{a}{} >> u32({a}{})", arg0?, arg1?).unwrap(),
         Operation::BitAnd => write!(wgsl, "{a}{} & {a}{}", arg0?, arg1?).unwrap(),
@@ -302,6 +306,7 @@ fn write_func(wgsl: &mut String, op: &Operation, args: &[usize]) -> Option<()> {
             write!(wgsl, "pack2x16float(vec2({a}{}, {a}{}))", arg0?, arg1?).unwrap()
         }
         Operation::Unpack2Float16 => write!(wgsl, "unpack2x16float({a}{})", arg0?).unwrap(),
+        Operation::IsNaN => write!(wgsl, "false").unwrap(), // TODO: does WGSL support this?
     }
     Some(())
 }

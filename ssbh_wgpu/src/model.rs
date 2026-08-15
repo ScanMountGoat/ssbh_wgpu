@@ -492,8 +492,8 @@ impl RenderModel {
             // If the material entry is deleted from the matl, the mesh is also skipped.
             if let Some(material_data) = self.material_data_by_label.get(&mesh.material_label) {
                 // TODO: Does the invalid shader pipeline take priority?
-                if let Some(info) = shader_database.get(&mesh.shader_label) {
-                    if info.has_required_attributes(&mesh.attribute_names) {
+                if let Some(program) = shader_database.get(&mesh.shader_label) {
+                    if program.has_required_attributes(&mesh.attribute_names) {
                         // TODO: Don't assume the pipeline exists?
                         render_pass.set_pipeline(&self.pipelines[&mesh.pipeline_key]);
                     } else {

@@ -31,6 +31,7 @@ pub struct PipelineKey {
     polygon_mode: wgpu::PolygonMode,
     alpha_to_coverage_enabled: bool,
     surface_format: wgpu::TextureFormat,
+    // TODO: This shouldn't include the renderpass like _opaque.
     shader_label: String,
 }
 
@@ -90,12 +91,12 @@ pub fn pipeline(
     let source = shader_wgsl.create_model_shader();
 
     let module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-        label: None,
+        label: Some(&key.shader_label),
         source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Owned(source)),
     });
 
     device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-        label: Some("Render Pipeline"),
+        label: Some(&key.shader_label),
         layout: Some(&shared_data.pipeline_data.layout),
         vertex: crate::shader::model::vertex_state(
             &module,
