@@ -93,8 +93,16 @@ fn write_value(wgsl: &mut String, value: &Value) -> Option<()> {
             write!(wgsl, "{i:?}").unwrap();
             Some(())
         }
+        Value::Uint(u) => {
+            write!(wgsl, "{u:?}").unwrap();
+            Some(())
+        }
         Value::Float(f) => {
             write!(wgsl, "{f:?}").unwrap();
+            Some(())
+        }
+        Value::Bool(b) => {
+            write!(wgsl, "{b:?}").unwrap();
             Some(())
         }
         Value::Parameter(p) => write_parameter(wgsl, p),
@@ -320,7 +328,7 @@ fn write_func(wgsl: &mut String, op: &Operation, args: &[usize]) -> Option<()> {
 
 fn write_index(wgsl: &mut String, i: Option<usize>) {
     if let Some(i) = i {
-        write!(wgsl, "[{i}]").unwrap();
+        write!(wgsl, "[{VAR_PREFIX}{i}]").unwrap();
     }
 }
 
