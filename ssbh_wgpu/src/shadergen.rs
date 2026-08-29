@@ -193,6 +193,7 @@ fn write_attribute(wgsl: &mut String, a: &smush_shader::Attribute) -> Option<()>
         "IN_colorSet5" => Some("in.color_set5"),
         "IN_colorSet6" => Some("in.color_set6"),
         "IN_colorSet7" => Some("in.color_set7"),
+        "gl_InstanceID" => Some("0"), // TODO: instanced rendering?
         _ => {
             error!("Unrecognized attribute {a}");
             None
@@ -206,6 +207,13 @@ fn write_attribute(wgsl: &mut String, a: &smush_shader::Attribute) -> Option<()>
 }
 
 fn write_parameter(wgsl: &mut String, p: &Parameter) -> Option<()> {
+    if p.field == "data" {
+        // Dynamic field lookups should be handled during database creation using queries.
+        // Shader annotation can't handle cases like indexing by gl_InstanceID.
+        error!("Unsupported dynamic uniform field {p}");
+        return None;
+    }
+
     // TODO: just convert case instead of matching buffer names?
     match p.name.as_str() {
         "nuPerMaterial" => {
