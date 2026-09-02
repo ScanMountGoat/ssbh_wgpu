@@ -18,7 +18,6 @@ use wgpu::ComputePassDescriptor;
 // Used internally for model rendering passes.
 // The final render pass uses a user configurable format.
 // TODO: We need at least 16 bits to avoid banding from gamma correction.
-// TODO: Switch to Rgba16Unorm once validation issues are resolved.
 // TODO: Try and get R10G10B10A2 working without banding like in game.
 pub const RGBA_COLOR_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba16Float;
 
@@ -262,7 +261,7 @@ impl SsbhRenderer {
 
         let per_object_buffer = device.create_buffer_from_data(
             "PerObject Buffer",
-            &[per_object(0.0)],
+            &[per_object(0.0, &render_settings)],
             wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         );
 
@@ -462,19 +461,27 @@ impl SsbhRenderer {
             &self.current_frame_buffer,
             &[vec4(current_frame, 0.0, 0.0, 0.0)],
         );
-        queue.write_data(&self.per_object_buffer, &[per_object(current_frame)]);
+        queue.write_data(
+            &self.per_object_buffer,
+            &[per_object(current_frame, &self.render_settings)],
+        );
     }
 
     /// Updates the render settings.
     pub fn update_render_settings(
         &mut self,
         queue: &wgpu::Queue,
+        current_frame: f32,
         render_settings: &RenderSettings,
     ) {
         self.render_settings = *render_settings;
         queue.write_data(
             &self.render_settings_buffer,
             &[crate::shader::model::RenderSettings::from(render_settings)],
+        );
+        queue.write_data(
+            &self.per_object_buffer,
+            &[per_object(current_frame, &self.render_settings)],
         );
     }
 
@@ -1285,11 +1292,37 @@ impl SsbhRenderer {
 // Data taken from mario c00 face on training stage.
 // TODO: How much of this needs to be updated dynamically?
 // TODO: updates from lightSet values?
-fn per_object(current_frame: f32) -> crate::shader::model::PerObject {
+fn per_object(current_frame: f32, settings: &RenderSettings) -> crate::shader::model::PerObject {
     // Advancing by 1 frame in training mode increases the value by 1.0 / 60.0.
     // TODO: This is only not zero for models with UV scroll animations.
     // TODO: Should this take the playback speed into account?
     let current_time_seconds = current_frame / 60.0;
+
+    // TODO: Include other ink colors from /fighter/common/param/effect.prc
+    let ink_color = if settings.transition_material == TransitionMaterial::Ink {
+        vec4(0.758027, 0.115859, 0.04, settings.transition_factor)
+    } else {
+        Vec4::ZERO
+    };
+
+    // Match on the transition type since metal and ink can't both be active at once.
+    let change_metal = vec4(
+        if matches!(
+            settings.transition_material,
+            TransitionMaterial::MetalBox | TransitionMaterial::Gold
+        ) {
+            settings.transition_factor
+        } else {
+            0.0
+        },
+        if settings.transition_material == TransitionMaterial::Gold {
+            1.0
+        } else {
+            0.0
+        },
+        1.0,
+        0.0,
+    );
 
     crate::shader::model::PerObject {
         light_map_matrix: Mat4::IDENTITY,
@@ -1312,9 +1345,9 @@ fn per_object(current_frame: f32) -> crate::shader::model::PerObject {
         c_ar: vec4(0.14186, 0.04903, -0.082, 1.11054),
         c_ag: vec4(0.14717, 0.03699, -0.08283, 1.11036),
         c_ab: vec4(0.1419, 0.04334, -0.08283, 1.11018),
-        change_metal: vec4(0.0, 0.0, 1.0, 0.0),
+        change_metal,
         burn_color: vec4(2.0, 0.20, 0.10, 0.0),
-        ink_color: vec4(0.0, 0.0, 0.0, 0.0),
+        ink_color,
         flashing_param: vec4(1.0, 0.0, 0.0, 1.0),
         char_color_grading: vec4(1.0, 1.0, 50.0, 1.0),
     }

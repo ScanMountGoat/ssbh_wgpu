@@ -321,6 +321,7 @@ impl State {
             }
             WindowEvent::KeyboardInput { event, .. } => {
                 match &event.physical_key {
+                    // TODO: Support keyboards without a numpad.
                     winit::keyboard::PhysicalKey::Code(code) => match code {
                         // TODO: Add more steps?
                         KeyCode::Numpad0 => self.render.transition_factor = 0.0,
@@ -425,7 +426,7 @@ impl State {
 
     fn update_render_settings(&mut self) {
         self.renderer
-            .update_render_settings(&self.queue, &self.render);
+            .update_render_settings(&self.queue, self.current_frame, &self.render);
     }
 
     fn render(&mut self, output: wgpu::SurfaceTexture, scale_factor: f32) {
@@ -511,7 +512,7 @@ impl State {
             &ModelRenderOptions {
                 draw_bones: self.draw_bones,
                 draw_bone_axes: self.draw_bone_axes,
-                draw_floor_grid: true,
+                draw_floor_grid: false, // TODO: make this configurable
                 draw_wireframe: true,
                 ..Default::default()
             },
