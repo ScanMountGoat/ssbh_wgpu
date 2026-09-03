@@ -241,39 +241,32 @@ fn write_parameter(wgsl: &mut String, p: &Parameter) -> Option<()> {
             }
         }
         "PerObject" => {
-            write!(wgsl, "per_object.{}", p.field.to_snake()).unwrap();
-            write_index(wgsl, p.index);
-            write_channel(wgsl, p.channel);
+            write_parameter_inner(wgsl, "per_object", p.field.to_snake(), p);
         }
         "ForPass" => {
-            write!(wgsl, "for_pass.{}", p.field.to_snake()).unwrap();
-            write_index(wgsl, p.index);
-            write_channel(wgsl, p.channel);
+            write_parameter_inner(wgsl, "for_pass", p.field.to_snake(), p);
         }
         "PerFrame" => {
+            // The case conversion library doesn't always do the expected thing.
             let field = match p.field.as_str() {
                 "g_IBL_ColorGain" => "g_ibl_color_gain".to_string(),
                 "g_IBL_Scale" => "g_ibl_scale".to_string(),
+                "dbgMaterialID" => "dbg_material_id".to_string(),
                 f => f.to_snake(),
             };
-            write!(wgsl, "per_frame.{field}").unwrap();
-            write_index(wgsl, p.index);
-            write_channel(wgsl, p.channel);
+            write_parameter_inner(wgsl, "per_frame", field, p);
         }
         "nuPerViewCBuffer" => {
+            // The case conversion library doesn't always do the expected thing.
             let field = match p.field.as_str() {
                 "inverseScreenSize2D" => "inverse_screen_size_2d".to_string(),
                 "rtScaleFactor3d" => "rt_scale_factor_3d".to_string(),
                 f => f.to_snake(),
             };
-            write!(wgsl, "per_view.{field}").unwrap();
-            write_index(wgsl, p.index);
-            write_channel(wgsl, p.channel);
+            write_parameter_inner(wgsl, "per_view", field, p);
         }
         "nuPerWorldCBuffer" => {
-            write!(wgsl, "per_world.{}", p.field.to_snake()).unwrap();
-            write_index(wgsl, p.index);
-            write_channel(wgsl, p.channel);
+            write_parameter_inner(wgsl, "per_world", p.field.to_snake(), p);
         }
         _ => {
             error!("Unrecognized uniform {p}");
@@ -281,6 +274,13 @@ fn write_parameter(wgsl: &mut String, p: &Parameter) -> Option<()> {
         }
     }
     Some(())
+}
+
+fn write_parameter_inner(wgsl: &mut String, buffer: &str, field: String, p: &Parameter) {
+    write!(wgsl, "{buffer}.{field}").unwrap();
+    write_index(wgsl, p.index);
+    write_index(wgsl, p.index2);
+    write_channel(wgsl, p.channel);
 }
 
 fn write_func(wgsl: &mut String, op: &Operation, args: &[usize]) -> Option<()> {

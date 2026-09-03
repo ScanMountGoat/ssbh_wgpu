@@ -22,7 +22,7 @@ encase = { version = "0.9.0", features = ["glam"] }
 indexmap = "1.9.2"
 glyphon = "0.11.0"
 rayon.workspace = true
-smush_shader = { git = "https://github.com/ScanMountGoat/Smush-Material-Research", rev = "3dde562" }
+smush_shader = { git = "https://github.com/ScanMountGoat/Smush-Material-Research", rev = "50db659" }
 aho-corasick = "1.1.4"
 case = "1.0"
 smol_str = "0.3.6"
