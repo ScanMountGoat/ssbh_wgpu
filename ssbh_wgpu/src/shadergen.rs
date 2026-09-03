@@ -90,11 +90,11 @@ fn write_expr(wgsl: &mut String, expr: &OutputExpr<Operation>) -> Option<()> {
 fn write_value(wgsl: &mut String, value: &Value) -> Option<()> {
     match value {
         Value::Int(i) => {
-            write!(wgsl, "{i:?}").unwrap();
+            write!(wgsl, "{i:?}i").unwrap();
             Some(())
         }
         Value::Uint(u) => {
-            write!(wgsl, "{u:?}").unwrap();
+            write!(wgsl, "{u:?}u").unwrap();
             Some(())
         }
         Value::Float(f) => {
@@ -123,6 +123,11 @@ fn write_texture_inner(wgsl: &mut String, name: &str, texcoords: &[usize]) -> Op
         "Texture15" => {
             // TODO: shadow map sampler?
             write_sampler_2d_or_cube(wgsl, "texture_shadow", "default_sampler", texcoords)
+        }
+        "Texture16" => {
+            // TODO: ink normal map for stages?
+            error!("Unsupported texture {name}");
+            None
         }
         _ => write_sampler_2d_or_cube(
             wgsl,
@@ -331,7 +336,8 @@ fn write_func(wgsl: &mut String, op: &Operation, args: &[usize]) -> Option<()> {
         Operation::Pack2Float16 => {
             write!(wgsl, "pack2x16float(vec2({a}{}, {a}{}))", arg0?, arg1?).unwrap()
         }
-        Operation::Unpack2Float16 => write!(wgsl, "unpack2x16float({a}{})", arg0?).unwrap(),
+        Operation::Unpack2Float16X => write!(wgsl, "unpack2x16float({a}{}).x", arg0?).unwrap(),
+        Operation::Unpack2Float16Y => write!(wgsl, "unpack2x16float({a}{}).y", arg0?).unwrap(),
         Operation::IsNaN => write!(wgsl, "false").unwrap(), // TODO: does WGSL support this?
     }
     Some(())
