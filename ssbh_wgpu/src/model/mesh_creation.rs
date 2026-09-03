@@ -25,6 +25,11 @@ use xmb_lib::XmbFile;
 pub struct Material {
     pub material_uniforms_bind_group: crate::shader::model::bind_groups::BindGroup2,
     pub uniforms_buffer: wgpu::Buffer,
+    // The end of the shader label is used to determine draw order.
+    // ex: "SFX_PBS_0101000008018278_sort" has a tag of "sort".
+    // The render order is opaque -> far -> sort -> near.
+    // TODO: How to handle missing tags?
+    pub shader_label: String,
 }
 
 impl Material {
@@ -47,6 +52,7 @@ pub struct TransformBuffers {
     pub world_transforms: wgpu::Buffer,
 }
 
+// TODO: Add additional materials like metamon, light, dark?
 struct RenderMeshData {
     meshes: Vec<RenderMesh>,
     material_data_by_label: HashMap<String, Material>,
@@ -143,7 +149,7 @@ impl<'a> RenderMeshSharedData<'a> {
             is_selected: false,
             meshes,
             transforms: mesh_buffers,
-            material_data_by_label,
+            material_by_label: material_data_by_label,
             default_material_data,
             textures,
             pipelines,
@@ -512,15 +518,6 @@ impl<'a> RenderMeshSharedData<'a> {
                 },
             );
 
-        // The end of the shader label is used to determine draw order.
-        // ex: "SFX_PBS_0101000008018278_sort" has a tag of "sort".
-        // The render order is opaque -> far -> sort -> near.
-        // TODO: How to handle missing tags?
-        let shader_label = material
-            .map(|m| m.shader_label.as_str())
-            .unwrap_or("")
-            .to_string();
-
         let attribute_names = mesh_object
             .positions
             .iter()
@@ -540,7 +537,6 @@ impl<'a> RenderMeshSharedData<'a> {
         Ok(RenderMesh {
             name: mesh_object.name.clone(),
             material_label: material_label.clone(),
-            shader_label,
             is_visible: true,
             is_selected: false,
             meshex_flags: meshex_flags.unwrap_or(EntryFlags {
@@ -595,6 +591,7 @@ pub fn material_data(
     Material {
         material_uniforms_bind_group,
         uniforms_buffer,
+        shader_label: material.shader_label.clone(),
     }
 }
 
@@ -609,6 +606,7 @@ pub fn default_material_data(device: &wgpu::Device, shared_data: &SharedRenderDa
     Material {
         material_uniforms_bind_group,
         uniforms_buffer,
+        shader_label: String::new(),
     }
 }
 

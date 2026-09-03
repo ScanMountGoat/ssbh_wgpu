@@ -37,7 +37,7 @@ pub struct RenderModel {
     pub is_selected: bool,
 
     transforms: TransformBuffers,
-    material_data_by_label: HashMap<String, Material>,
+    material_by_label: HashMap<String, Material>,
     default_material_data: Material,
     pipelines: HashMap<PipelineKey, wgpu::RenderPipeline>,
     textures: Vec<(String, wgpu::Texture, wgpu::TextureViewDimension)>,
@@ -69,7 +69,6 @@ pub struct RenderMesh {
     pub is_selected: bool,
     meshex_flags: EntryFlags, // TODO: How to update these?
     material_label: String,
-    shader_label: String,
     renormal_bind_group: crate::shader::renormal::bind_groups::BindGroup0,
     skinning_bind_group: crate::shader::skinning::bind_groups::BindGroup0,
     skinning_transforms_bind_group: crate::shader::skinning::bind_groups::BindGroup1,
@@ -131,24 +130,15 @@ impl RenderModel {
 impl RenderModel {
     /// Reassign the mesh materials based on `modl`.
     /// This does not create materials that do not already exist.
-    pub fn reassign_materials(&mut self, modl: &ModlData, matl: Option<&MatlData>) {
+    pub fn reassign_materials(&mut self, modl: &ModlData) {
         for mesh in &mut self.meshes {
             if let Some(entry) = modl.entries.iter().find(|e| {
                 e.mesh_object_name == mesh.name && e.mesh_object_subindex == mesh.subindex
             }) {
                 mesh.material_label = entry.material_label.clone();
-                mesh.shader_label = matl
-                    .and_then(|matl| {
-                        matl.entries
-                            .iter()
-                            .find(|e| e.material_label == entry.material_label)
-                    })
-                    .map(|e| e.shader_label.to_string())
-                    .unwrap_or_default();
             } else {
                 // TODO: Should this use Option to avoid the case where a material has an emptry string label?
                 mesh.material_label = String::new();
-                mesh.shader_label = String::new();
             }
         }
     }
@@ -166,7 +156,7 @@ impl RenderModel {
     ) {
         let mut sampler_by_data = SamplerCache::new();
 
-        self.material_data_by_label = materials
+        self.material_by_label = materials
             .iter()
             .map(|material| {
                 // Only create new pipelines as needed since creation is slow.
@@ -292,7 +282,7 @@ impl RenderModel {
         // TODO: Avoid per frame allocations here?
         let animated_materials = animate_materials(anim, frame, &matl.entries);
         for material in animated_materials {
-            self.material_data_by_label
+            self.material_by_label
                 .entry(material.material_label.clone())
                 .and_modify(|material_data| {
                     material_data.update(queue, &material, &shared_data.database);
@@ -486,31 +476,33 @@ impl RenderModel {
         for mesh in self
             .meshes
             .iter()
-            .filter(|m| m.is_visible && m.shader_label.ends_with(pass) && m.meshex_flags.draw_model)
+            .filter(|m| m.is_visible && m.meshex_flags.draw_model)
         {
             // Meshes with no modl entry or an entry with an invalid material label are skipped entirely in game.
             // If the material entry is deleted from the matl, the mesh is also skipped.
-            if let Some(material_data) = self.material_data_by_label.get(&mesh.material_label) {
-                // TODO: Does the invalid shader pipeline take priority?
-                if let Some(program) = shader_database.get(&mesh.shader_label) {
-                    if program.has_required_attributes(&mesh.attribute_names) {
-                        // TODO: Don't assume the pipeline exists?
-                        render_pass.set_pipeline(&self.pipelines[&mesh.pipeline_key]);
+            if let Some(material) = self.material_by_label.get(&mesh.material_label) {
+                if material.shader_label.ends_with(pass) {
+                    // TODO: Does the invalid shader pipeline take priority?
+                    if let Some(program) = shader_database.get(&material.shader_label) {
+                        if program.has_required_attributes(&mesh.attribute_names) {
+                            // TODO: Don't assume the pipeline exists?
+                            render_pass.set_pipeline(&self.pipelines[&mesh.pipeline_key]);
+                        } else {
+                            render_pass.set_pipeline(invalid_attributes_pipeline);
+                        }
                     } else {
-                        render_pass.set_pipeline(invalid_attributes_pipeline);
+                        // TODO: Does this include invalid tags?
+                        render_pass.set_pipeline(invalid_shader_pipeline);
                     }
-                } else {
-                    // TODO: Does this include invalid tags?
-                    render_pass.set_pipeline(invalid_shader_pipeline);
-                }
 
-                self.draw_mesh(
-                    render_pass,
-                    mesh,
-                    per_frame_bind_group,
-                    &self.per_model_bind_group,
-                    &material_data.material_uniforms_bind_group,
-                );
+                    self.draw_mesh(
+                        render_pass,
+                        mesh,
+                        per_frame_bind_group,
+                        &self.per_model_bind_group,
+                        &material.material_uniforms_bind_group,
+                    );
+                }
             }
         }
     }
@@ -548,7 +540,7 @@ impl RenderModel {
         for mesh in self.meshes.iter().filter(|m| m.is_visible) {
             // Models should always show up in debug mode.
             let material_data = self
-                .material_data_by_label
+                .material_by_label
                 .get(&mesh.material_label)
                 .unwrap_or(&self.default_material_data);
 
