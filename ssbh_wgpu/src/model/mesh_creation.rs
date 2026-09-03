@@ -15,11 +15,16 @@ use crate::{
 use encase::{DynamicStorageBuffer, ShaderType};
 use log::{error, info};
 use nutexb_wgpu::NutexbFile;
+use rayon::prelude::*;
 use ssbh_data::{
     adj_data::AdjEntryData, matl_data::MatlEntryData, mesh_data::MeshObjectData,
     meshex_data::EntryFlags, prelude::*,
 };
-use std::{collections::HashMap, error::Error, num::NonZeroU64};
+use std::{
+    collections::{HashMap, HashSet},
+    error::Error,
+    num::NonZeroU64,
+};
 use xmb_lib::XmbFile;
 
 pub struct Material {
@@ -279,17 +284,27 @@ impl<'a> RenderMeshSharedData<'a> {
         // Mesh objects control the depth state of the pipeline.
         // Each (shader, mesh) pair may need a unique pipeline.
         // Cache materials separately since materials may share a pipeline.
-        let mut pipelines = HashMap::new();
+        let mut pipeline_keys = HashSet::new();
 
         let meshes = self
             .create_render_meshes(
                 accesses,
                 device,
-                &mut pipelines,
+                &mut pipeline_keys,
                 mesh_buffers,
                 &combined_mesh_buffers,
             )
             .unwrap_or_default();
+
+        // Pipeline compilation is CPU heavy and benefits from parallelization.
+        // TODO: Create a global pipeline cache?
+        let pipelines = pipeline_keys
+            .into_par_iter()
+            .map(|key| {
+                let value = pipeline(device, self.shared_data, &key);
+                (key, value)
+            })
+            .collect();
 
         RenderMeshData {
             meshes,
@@ -304,7 +319,7 @@ impl<'a> RenderMeshSharedData<'a> {
         &self,
         accesses: Vec<MeshBufferAccess>,
         device: &wgpu::Device,
-        pipelines: &mut HashMap<PipelineKey, wgpu::RenderPipeline>,
+        pipelines: &mut HashSet<PipelineKey>,
         transform_buffers: &TransformBuffers,
         mesh_buffers: &CombinedMeshBuffers,
     ) -> Option<Vec<RenderMesh>> {
@@ -413,7 +428,7 @@ impl<'a> RenderMeshSharedData<'a> {
         mesh_object: &MeshObjectData,
         adj_entry: Option<&AdjEntryData>,
         meshex_flags: Option<EntryFlags>,
-        pipelines: &mut HashMap<PipelineKey, wgpu::RenderPipeline>,
+        pipelines: &mut HashSet<PipelineKey>,
         transforms: &TransformBuffers,
         access: MeshBufferAccess,
         buffers: &CombinedMeshBuffers,
@@ -449,11 +464,7 @@ impl<'a> RenderMeshSharedData<'a> {
             material,
             RGBA_COLOR_FORMAT,
         );
-
-        // TODO: Compile pipelines in parallel.
-        pipelines
-            .entry(pipeline_key.clone())
-            .or_insert_with(|| pipeline(device, self.shared_data, &pipeline_key));
+        pipelines.insert(pipeline_key.clone());
 
         let vertex_count = mesh_object.vertex_count()?;
 
