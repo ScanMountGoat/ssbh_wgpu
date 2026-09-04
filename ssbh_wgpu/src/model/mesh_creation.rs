@@ -1,9 +1,13 @@
-use super::pipeline::{pipeline, PipelineKey};
+use super::{
+    per_object,
+    pipeline::{pipeline, PipelineKey},
+    BoneRenderData, SamplerCache,
+};
 use crate::{
     animation::AnimationTransforms,
     bone_rendering::*,
-    model::{BoneRenderData, SamplerCache},
-    renderer::{per_object, RGBA_COLOR_FORMAT},
+    renderer::RGBA_COLOR_FORMAT,
+    shader::model::StageUniforms,
     swing_rendering::SwingRenderData,
     uniforms::{
         default_material_uniforms_bind_group, default_uniforms_buffer,
@@ -125,11 +129,19 @@ impl<'a> RenderMeshSharedData<'a> {
 
         let default_material_data = default_material_data(device, self.shared_data);
 
+        let (is_stage, lightset) = self.is_stage_lightset();
+
         let per_model_buffer = self.per_model_buffer(device);
 
         let per_object_buffer = device.create_buffer_from_data(
             "PerObject Buffer",
-            &[per_object(0.0, render_settings)],
+            &[per_object(
+                0.0,
+                render_settings,
+                &StageUniforms::training(),
+                lightset,
+                is_stage,
+            )],
             wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         );
 
@@ -178,6 +190,8 @@ impl<'a> RenderMeshSharedData<'a> {
             per_model_bind_group,
             per_object_buffer,
             bone_names,
+            lightset,
+            is_stage,
         }
     }
 

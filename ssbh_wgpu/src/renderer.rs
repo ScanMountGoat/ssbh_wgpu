@@ -10,7 +10,7 @@ use crate::{
     texture::{load_default_lut, uv_pattern, TextureSamplerView},
     CameraTransforms, DeviceBufferExt, QueueExt, RenderModel, ShaderDatabase,
 };
-use glam::{ivec4, vec2, vec3, vec4, Mat4, UVec4, Vec4};
+use glam::{ivec4, vec2, vec4, Mat4, UVec4, Vec4};
 use nutexb_wgpu::NutexbFile;
 use ssbh_data::anim_data::AnimData;
 use wgpu::ComputePassDescriptor;
@@ -1266,77 +1266,6 @@ impl SsbhRenderer {
         pass.set_pipeline(pipeline);
         crate::shader::bloom::set_bind_groups(&mut pass, bind_group);
         pass.draw(0..3, 0..1);
-    }
-}
-
-// Data taken from mario c00 face on training stage.
-// TODO: How much of this needs to be updated dynamically?
-// TODO: updates from lightSet values?
-pub(crate) fn per_object(
-    current_frame: f32,
-    settings: &RenderSettings,
-) -> crate::shader::model::PerObject {
-    // Advancing by 1 frame in training mode increases the value by 1.0 / 60.0.
-    // TODO: This is only not zero for models with UV scroll animations.
-    // TODO: Should this take the playback speed into account?
-    let current_time_seconds = current_frame / 60.0;
-
-    // TODO: Include other ink colors from /fighter/common/param/effect.prc
-    let ink_color = if settings.transition_material == TransitionMaterial::Ink {
-        vec4(0.758027, 0.115859, 0.04, settings.transition_factor)
-    } else {
-        Vec4::ZERO
-    };
-
-    // Match on the transition type since metal and ink can't both be active at once.
-    let change_metal = vec4(
-        if matches!(
-            settings.transition_material,
-            TransitionMaterial::MetalBox | TransitionMaterial::Gold
-        ) {
-            settings.transition_factor
-        } else {
-            0.0
-        },
-        if settings.transition_material == TransitionMaterial::Gold {
-            1.0
-        } else {
-            0.0
-        },
-        1.0,
-        0.0,
-    );
-
-    // TODO: take the lightset lights as input.
-    let light_dir_color1 = vec4(4.0, 4.0, 4.0, 1.0);
-    let light_dir1 = vec4(0.38302, -0.86603, -0.32139, 0.0);
-
-    crate::shader::model::PerObject {
-        light_map_matrix: Mat4::IDENTITY,
-        blink_color: vec4(1.0, 1.0, 1.0, 0.0),
-        g_constant_volume: vec4(1.0, 1.0, 1.0, 1.0),
-        g_constant_offset: vec4(0.0, 0.0, 0.0, 0.0),
-        uv_scroll_counter: vec4(current_time_seconds, 0.0, 0.0, 0.0),
-        spycloak_params: vec4(0.0, 0.0, 0.0, 0.0),
-        compress_param: vec4(1.0, 0.0, 0.0, 1.0),
-        g_fresnel_color: vec4(1.5, 1.5, 1.5, 1.0),
-        costume_skin_color: vec4(1.0, 0.82745, 0.67843, 0.0),
-        outline_color: vec4(0.0, 0.0, 0.0, 0.0),
-        light_dir_color1,
-        light_dir1,
-        shadow_map_param: vec4(0.001, 0.0, 0.0, 0.0),
-        char_shadow_color: vec4(1.0, 1.0, 1.0, 0.0),
-        bg_shadow_color: vec4(0.70, 0.70, 0.70, 0.0),
-        silhouette_far_color: vec3(0.25, 0.25, 0.25),
-        pad: 0.0,
-        c_ar: vec4(0.14186, 0.04903, -0.082, 1.11054),
-        c_ag: vec4(0.14717, 0.03699, -0.08283, 1.11036),
-        c_ab: vec4(0.1419, 0.04334, -0.08283, 1.11018),
-        change_metal,
-        burn_color: vec4(2.0, 0.20, 0.10, 0.0),
-        ink_color,
-        flashing_param: vec4(1.0, 0.0, 0.0, 1.0),
-        char_color_grading: vec4(1.0, 1.0, 50.0, 1.0),
     }
 }
 

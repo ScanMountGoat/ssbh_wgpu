@@ -434,9 +434,6 @@ impl State {
     fn update_render_settings(&mut self) {
         self.renderer
             .update_render_settings(&self.queue, &self.render_settings);
-        for model in &mut self.render_models {
-            model.update_render_settings(&self.queue, self.current_frame, &self.render_settings);
-        }
     }
 
     fn render(&mut self, output: wgpu::SurfaceTexture, scale_factor: f32) {
@@ -495,7 +492,6 @@ impl State {
                     self.models[i].1.find_hlpb(),
                     &self.shared_data,
                     self.current_frame,
-                    &self.render_settings,
                 );
             }
 
@@ -512,6 +508,15 @@ impl State {
             if let Some(anim) = &self.light_animation {
                 self.renderer
                     .update_stage_uniforms(&self.queue, anim, self.current_frame);
+            }
+
+            for model in &mut self.render_models {
+                model.update_per_object(
+                    &self.queue,
+                    self.current_frame,
+                    &self.render_settings,
+                    self.light_animation.as_ref(),
+                );
             }
         }
 

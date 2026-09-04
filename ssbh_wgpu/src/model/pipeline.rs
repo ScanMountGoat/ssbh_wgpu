@@ -160,7 +160,7 @@ pub fn pipeline(
         // This shader should always compile.
         warn!(
             "Unable to generate code for {:?} due to no shader database entry",
-            &key.shader_label
+            key.shader_label
         );
         let module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some(&key.shader_label),

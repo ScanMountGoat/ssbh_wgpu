@@ -1,13 +1,17 @@
 use crate::{
-    animation::{animate_materials, animate_skel, animate_visibility, AnimationTransforms},
+    animation::{
+        animate_materials, animate_skel, animate_visibility, lighting::animate_lighting,
+        AnimationTransforms,
+    },
     bone_rendering::*,
-    renderer::per_object,
+    shader::model::StageUniforms,
     shape::IndexedMeshBuffers,
     swing::SwingPrc,
     swing_rendering::{draw_swing_collisions, SwingRenderData},
     vertex::CombinedMeshBuffers,
-    ModelFolder, QueueExt, RenderSettings, ShaderDatabase, SharedRenderData,
+    ModelFolder, QueueExt, RenderSettings, ShaderDatabase, SharedRenderData, TransitionMaterial,
 };
+use glam::{vec3, vec4, Mat4, Vec4};
 use log::{debug, info};
 use mesh_creation::{
     material_data, Material, MeshBufferAccess, RenderMeshSharedData, TransformBuffers,
@@ -45,6 +49,10 @@ pub struct RenderModel {
 
     per_model_bind_group: crate::shader::model::bind_groups::BindGroup1,
     per_object_buffer: wgpu::Buffer,
+
+    // TODO: struct for model.xmb information?
+    lightset: u32,
+    is_stage: bool,
 
     // Skeleton
     bone_render_data: BoneRenderData,
@@ -204,16 +212,10 @@ impl RenderModel {
         hlpb: Option<&HlpbData>,
         shared_data: &SharedRenderData,
         current_frame: f32,
-        render_settings: &RenderSettings,
     ) {
         // Update the buffers associated with each skel.
         // This avoids updating per mesh object and allocating new buffers.
         let start = std::time::Instant::now();
-
-        queue.write_data(
-            &self.per_object_buffer,
-            &[per_object(current_frame, render_settings)],
-        );
 
         // TODO: Restructure this to iterate the animations only once?
         for anim in anims.clone() {
@@ -261,15 +263,26 @@ impl RenderModel {
         debug!("Apply Anim: {:?}", start.elapsed());
     }
 
-    pub fn update_render_settings<'a>(
+    pub fn update_per_object<'a>(
         &mut self,
         queue: &wgpu::Queue,
         current_frame: f32,
         render_settings: &RenderSettings,
+        lighting_anim: Option<&AnimData>,
     ) {
+        // TODO: Also take the lightset data.
+        let stage_uniforms = lighting_anim
+            .map(|anim| animate_lighting(anim, current_frame))
+            .unwrap_or_else(|| StageUniforms::training());
         queue.write_data(
             &self.per_object_buffer,
-            &[per_object(current_frame, render_settings)],
+            &[per_object(
+                current_frame,
+                render_settings,
+                &stage_uniforms,
+                self.lightset,
+                self.is_stage,
+            )],
         );
     }
 
@@ -716,5 +729,85 @@ pub fn dispatch_skinning<'a>(
         let [workgroup_x, _, _] = crate::shader::skinning::compute::MAIN_WORKGROUP_SIZE;
         let workgroup_count = (mesh.vertex_count as f64 / workgroup_x as f64).ceil() as u32;
         compute_pass.dispatch_workgroups(workgroup_count, 1, 1);
+    }
+}
+
+// Data taken from mario c00 face on training stage.
+// TODO: How much of this needs to be updated dynamically?
+pub(crate) fn per_object(
+    current_frame: f32,
+    settings: &RenderSettings,
+    stage_uniforms: &StageUniforms,
+    lightset: u32,
+    is_stage: bool,
+) -> crate::shader::model::PerObject {
+    // Advancing by 1 frame in training mode increases the value by 1.0 / 60.0.
+    // TODO: This is only not zero for models with UV scroll animations.
+    // TODO: Should this take the playback speed into account?
+    let current_time_seconds = current_frame / 60.0;
+
+    // TODO: Include other ink colors from /fighter/common/param/effect.prc
+    let ink_color = if settings.transition_material == TransitionMaterial::Ink {
+        vec4(0.758027, 0.115859, 0.04, settings.transition_factor)
+    } else {
+        Vec4::ZERO
+    };
+
+    // Match on the transition type since metal and ink can't both be active at once.
+    let change_metal = vec4(
+        if matches!(
+            settings.transition_material,
+            TransitionMaterial::MetalBox | TransitionMaterial::Gold
+        ) {
+            settings.transition_factor
+        } else {
+            0.0
+        },
+        if settings.transition_material == TransitionMaterial::Gold {
+            1.0
+        } else {
+            0.0
+        },
+        1.0,
+        0.0,
+    );
+
+    let light = if is_stage {
+        // TODO: Test for invalid indices
+        &stage_uniforms.light_stage[lightset as usize]
+    } else {
+        &stage_uniforms.light_chr
+    };
+
+    let light_dir_color1 = light.color;
+    // TODO: Why does this need to be flipped?
+    let light_dir1 = -light.direction;
+
+    crate::shader::model::PerObject {
+        light_map_matrix: Mat4::IDENTITY,
+        blink_color: vec4(1.0, 1.0, 1.0, 0.0),
+        g_constant_volume: vec4(1.0, 1.0, 1.0, 1.0),
+        g_constant_offset: vec4(0.0, 0.0, 0.0, 0.0),
+        uv_scroll_counter: vec4(current_time_seconds, 0.0, 0.0, 0.0),
+        spycloak_params: vec4(0.0, 0.0, 0.0, 0.0),
+        compress_param: vec4(1.0, 0.0, 0.0, 1.0),
+        g_fresnel_color: vec4(1.5, 1.5, 1.5, 1.0),
+        costume_skin_color: vec4(1.0, 0.82745, 0.67843, 0.0),
+        outline_color: vec4(0.0, 0.0, 0.0, 0.0),
+        light_dir_color1,
+        light_dir1,
+        shadow_map_param: vec4(0.001, 0.0, 0.0, 0.0),
+        char_shadow_color: vec4(1.0, 1.0, 1.0, 0.0),
+        bg_shadow_color: vec4(0.70, 0.70, 0.70, 0.0),
+        silhouette_far_color: vec3(0.25, 0.25, 0.25),
+        pad: 0.0,
+        c_ar: vec4(0.14186, 0.04903, -0.082, 1.11054),
+        c_ag: vec4(0.14717, 0.03699, -0.08283, 1.11036),
+        c_ab: vec4(0.1419, 0.04334, -0.08283, 1.11018),
+        change_metal,
+        burn_color: vec4(2.0, 0.20, 0.10, 0.0),
+        ink_color,
+        flashing_param: vec4(1.0, 0.0, 0.0, 1.0),
+        char_color_grading: vec4(1.0, 1.0, 50.0, 1.0),
     }
 }
