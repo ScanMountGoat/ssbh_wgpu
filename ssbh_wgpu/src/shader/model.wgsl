@@ -112,8 +112,49 @@ struct ForPass {
     hdr_range: vec4<f32>,
 }
 
-// TODO: Does this need to actually change for each object?
-// TODO: This is shared for all meshes in a numshb?
+// Bind groups are ordered by how frequently they change for performance.
+// TODO: Is it worth actually optimizing this on the CPU side?
+@group(0) @binding(0)
+var<uniform> camera: CameraTransforms;
+
+@group(0) @binding(1)
+var texture_shadow: texture_2d<f32>;
+@group(0) @binding(2)
+var default_sampler: sampler;
+
+@group(0) @binding(4)
+var<uniform> render_settings: RenderSettings;
+
+@group(0) @binding(5)
+var<uniform> stage_uniforms: StageUniforms;
+
+@group(0) @binding(6)
+var uv_pattern: texture_2d<f32>;
+
+@group(0) @binding(7)
+var<uniform> current_frame: vec4<f32>;
+
+@group(0) @binding(8)
+var<uniform> for_pass: ForPass;
+
+@group(0) @binding(9)
+var<uniform> per_frame: PerFrame;
+
+@group(0) @binding(10)
+var<uniform> per_view: PerViewCBuffer;
+
+@group(0) @binding(11)
+var<uniform> per_world: PerWorldCBuffer;
+
+struct PerModel {
+    light_set_index: vec4<u32>, // is_stage, light_set, 0, 0
+}
+
+@group(1) @binding(0)
+var<uniform> per_model: PerModel;
+
+
+// This is shared for all meshes in a numshb.
 struct PerObject {
     light_map_matrix: mat4x4<f32>,
     blink_color: vec4<f32>,
@@ -142,49 +183,8 @@ struct PerObject {
     char_color_grading: vec4<f32>,
 }
 
-// Bind groups are ordered by how frequently they change for performance.
-// TODO: Is it worth actually optimizing this on the CPU side?
-@group(0) @binding(0)
-var<uniform> camera: CameraTransforms;
-
-@group(0) @binding(1)
-var texture_shadow: texture_2d<f32>;
-@group(0) @binding(2)
-var default_sampler: sampler;
-
-@group(0) @binding(4)
-var<uniform> render_settings: RenderSettings;
-
-@group(0) @binding(5)
-var<uniform> stage_uniforms: StageUniforms;
-
-@group(0) @binding(6)
-var uv_pattern: texture_2d<f32>;
-
-@group(0) @binding(7)
-var<uniform> current_frame: vec4<f32>;
-
-@group(0) @binding(8)
+@group(1) @binding(1)
 var<uniform> per_object: PerObject;
-
-@group(0) @binding(9)
-var<uniform> for_pass: ForPass;
-
-@group(0) @binding(19)
-var<uniform> per_frame: PerFrame;
-
-@group(0) @binding(20)
-var<uniform> per_view: PerViewCBuffer;
-
-@group(0) @binding(21)
-var<uniform> per_world: PerWorldCBuffer;
-
-struct PerModel {
-    light_set_index: vec4<u32>, // is_stage, light_set, 0, 0
-}
-
-@group(1) @binding(0)
-var<uniform> per_model: PerModel;
 
 // TODO: Is there a better way of organizing this?
 // TODO: How many textures can we have?

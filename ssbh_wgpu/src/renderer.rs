@@ -112,9 +112,6 @@ pub struct SsbhRenderer {
     current_frame_buffer: wgpu::Buffer,
 
     per_view_buffer: wgpu::Buffer,
-
-    // TODO: Store this in the model itself and update during animations?
-    per_object_buffer: wgpu::Buffer,
 }
 
 impl SsbhRenderer {
@@ -259,12 +256,6 @@ impl SsbhRenderer {
             wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         );
 
-        let per_object_buffer = device.create_buffer_from_data(
-            "PerObject Buffer",
-            &[per_object(0.0, &render_settings)],
-            wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-        );
-
         let for_pass_buffer = device.create_buffer_from_data(
             "ForPass Buffer",
             &[crate::shader::model::ForPass {
@@ -301,7 +292,6 @@ impl SsbhRenderer {
                 stage_uniforms: stage_uniforms_buffer.as_entire_buffer_binding(),
                 uv_pattern: &uv_pattern.create_view(&wgpu::TextureViewDescriptor::default()),
                 current_frame: current_frame_buffer.as_entire_buffer_binding(),
-                per_object: per_object_buffer.as_entire_buffer_binding(),
                 for_pass: for_pass_buffer.as_entire_buffer_binding(),
                 per_frame: per_frame_buffer.as_entire_buffer_binding(),
                 per_view: per_view_buffer.as_entire_buffer_binding(),
@@ -401,7 +391,6 @@ impl SsbhRenderer {
             surface_format,
             current_frame_buffer,
             per_view_buffer,
-            per_object_buffer,
             width,
             height,
             camera_transforms,
@@ -461,27 +450,18 @@ impl SsbhRenderer {
             &self.current_frame_buffer,
             &[vec4(current_frame, 0.0, 0.0, 0.0)],
         );
-        queue.write_data(
-            &self.per_object_buffer,
-            &[per_object(current_frame, &self.render_settings)],
-        );
     }
 
     /// Updates the render settings.
     pub fn update_render_settings(
         &mut self,
         queue: &wgpu::Queue,
-        current_frame: f32,
         render_settings: &RenderSettings,
     ) {
         self.render_settings = *render_settings;
         queue.write_data(
             &self.render_settings_buffer,
             &[crate::shader::model::RenderSettings::from(render_settings)],
-        );
-        queue.write_data(
-            &self.per_object_buffer,
-            &[per_object(current_frame, &self.render_settings)],
         );
     }
 
@@ -1292,7 +1272,10 @@ impl SsbhRenderer {
 // Data taken from mario c00 face on training stage.
 // TODO: How much of this needs to be updated dynamically?
 // TODO: updates from lightSet values?
-fn per_object(current_frame: f32, settings: &RenderSettings) -> crate::shader::model::PerObject {
+pub(crate) fn per_object(
+    current_frame: f32,
+    settings: &RenderSettings,
+) -> crate::shader::model::PerObject {
     // Advancing by 1 frame in training mode increases the value by 1.0 / 60.0.
     // TODO: This is only not zero for models with UV scroll animations.
     // TODO: Should this take the playback speed into account?
@@ -1324,6 +1307,10 @@ fn per_object(current_frame: f32, settings: &RenderSettings) -> crate::shader::m
         0.0,
     );
 
+    // TODO: take the lightset lights as input.
+    let light_dir_color1 = vec4(4.0, 4.0, 4.0, 1.0);
+    let light_dir1 = vec4(0.38302, -0.86603, -0.32139, 0.0);
+
     crate::shader::model::PerObject {
         light_map_matrix: Mat4::IDENTITY,
         blink_color: vec4(1.0, 1.0, 1.0, 0.0),
@@ -1335,8 +1322,8 @@ fn per_object(current_frame: f32, settings: &RenderSettings) -> crate::shader::m
         g_fresnel_color: vec4(1.5, 1.5, 1.5, 1.0),
         costume_skin_color: vec4(1.0, 0.82745, 0.67843, 0.0),
         outline_color: vec4(0.0, 0.0, 0.0, 0.0),
-        light_dir_color1: vec4(4.0, 4.0, 4.0, 1.0),
-        light_dir1: vec4(0.38302, -0.86603, -0.32139, 0.0),
+        light_dir_color1,
+        light_dir1,
         shadow_map_param: vec4(0.001, 0.0, 0.0, 0.0),
         char_shadow_color: vec4(1.0, 1.0, 1.0, 0.0),
         bg_shadow_color: vec4(0.70, 0.70, 0.70, 0.0),

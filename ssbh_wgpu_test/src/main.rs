@@ -4,8 +4,8 @@ use futures::executor::block_on;
 use rayon::prelude::*;
 use ssbh_data::prelude::*;
 use ssbh_wgpu::{
-    load_render_models, CameraTransforms, ModelFolder, ModelRenderOptions, SharedRenderData,
-    SsbhRenderer, REQUIRED_FEATURES, REQUIRED_LIMITS,
+    load_render_models, CameraTransforms, ModelFolder, ModelRenderOptions, RenderSettings,
+    SharedRenderData, SsbhRenderer, REQUIRED_FEATURES, REQUIRED_LIMITS,
 };
 use wgpu::{
     DeviceDescriptor, Extent3d, PowerPreference, RequestAdapterOptions, TextureDescriptor,
@@ -150,10 +150,13 @@ fn main() {
             .join("_");
         let output_path = source_folder.join(output_path).with_extension("png");
 
+        let render_settings = RenderSettings::default();
+
         let model = ModelFolder::load_folder(folder_path);
 
         let models = [model];
-        let mut render_models = load_render_models(&device, &queue, &models, &shared_data);
+        let mut render_models =
+            load_render_models(&device, &queue, &models, &shared_data, &render_settings);
 
         if fighter_anim {
             // Try and load an idle animation if possible.
@@ -172,6 +175,7 @@ fn main() {
                         models[0].find_hlpb(),
                         &shared_data,
                         0.0,
+                        &render_settings,
                     );
                 }
             }

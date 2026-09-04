@@ -3,14 +3,15 @@ use crate::{
     animation::AnimationTransforms,
     bone_rendering::*,
     model::{BoneRenderData, SamplerCache},
-    renderer::RGBA_COLOR_FORMAT,
+    renderer::{per_object, RGBA_COLOR_FORMAT},
     swing_rendering::SwingRenderData,
     uniforms::{
         default_material_uniforms_bind_group, default_uniforms_buffer,
         material_uniforms_bind_group, per_material, uniforms_buffer,
     },
     vertex::{buffer0, buffer1, combined_mesh_buffers, skin_weights, CombinedMeshBuffers},
-    DeviceBufferExt, ModelFiles, RenderMesh, RenderModel, ShaderDatabase, SharedRenderData,
+    DeviceBufferExt, ModelFiles, RenderMesh, RenderModel, RenderSettings, ShaderDatabase,
+    SharedRenderData,
 };
 use encase::{DynamicStorageBuffer, ShaderType};
 use log::{error, info};
@@ -81,7 +82,12 @@ pub struct RenderMeshSharedData<'a> {
 }
 
 impl<'a> RenderMeshSharedData<'a> {
-    pub fn to_render_model(&self, device: &wgpu::Device, queue: &wgpu::Queue) -> RenderModel {
+    pub fn to_render_model(
+        &self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        render_settings: &RenderSettings,
+    ) -> RenderModel {
         let start = std::time::Instant::now();
 
         // Attempt to initialize transforms using the skel.
@@ -121,10 +127,17 @@ impl<'a> RenderMeshSharedData<'a> {
 
         let per_model_buffer = self.per_model_buffer(device);
 
+        let per_object_buffer = device.create_buffer_from_data(
+            "PerObject Buffer",
+            &[per_object(0.0, render_settings)],
+            wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        );
+
         let per_model_bind_group = crate::shader::model::bind_groups::BindGroup1::from_bindings(
             device,
             crate::shader::model::bind_groups::BindGroupLayout1 {
                 per_model: per_model_buffer.as_entire_buffer_binding(),
+                per_object: per_object_buffer.as_entire_buffer_binding(),
             },
         );
 
@@ -163,11 +176,25 @@ impl<'a> RenderMeshSharedData<'a> {
             animation_transforms: Box::new(animation_transforms),
             swing_render_data,
             per_model_bind_group,
+            per_object_buffer,
             bone_names,
         }
     }
 
     fn per_model_buffer(&self, device: &wgpu::Device) -> wgpu::Buffer {
+        let (is_stage, lightset) = self.is_stage_lightset();
+
+        // TODO: Include other model.xmb rendering related settings.
+        device.create_buffer_from_data(
+            "PerModel",
+            &[crate::shader::model::PerModel {
+                light_set_index: glam::uvec4(is_stage as u32, lightset, 0, 0),
+            }],
+            wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        )
+    }
+
+    fn is_stage_lightset(&self) -> (bool, u32) {
         // Get light set information from the model.xmb.
         // We don't initialize the light data itself here.
         // This allows lighting to be updated globally for all models.
@@ -183,14 +210,7 @@ impl<'a> RenderMeshSharedData<'a> {
             .and_then(|a| a.parse().ok())
             .unwrap_or_default();
 
-        // TODO: Include other model.xmb rendering related settings.
-        device.create_buffer_from_data(
-            "PerModel",
-            &[crate::shader::model::PerModel {
-                light_set_index: glam::uvec4(is_stage as u32, lightset, 0, 0),
-            }],
-            wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-        )
+        (is_stage, lightset)
     }
 
     fn create_bone_render_data(

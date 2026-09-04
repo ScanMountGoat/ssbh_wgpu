@@ -87,7 +87,7 @@ struct State {
 
     is_playing: bool,
 
-    render: RenderSettings,
+    render_settings: RenderSettings,
 
     draw_bones: bool,
     draw_bone_names: bool,
@@ -170,9 +170,16 @@ impl State {
             shared_data.update_stage_cube_map(&device, &queue, &nutexb);
         }
 
+        let render_settings = RenderSettings::default();
+
         let models = load_model_folders(&cli.folder);
-        let mut render_models =
-            load_render_models(&device, &queue, models.iter().map(|(_, m)| m), &shared_data);
+        let mut render_models = load_render_models(
+            &device,
+            &queue,
+            models.iter().map(|(_, m)| m),
+            &shared_data,
+            &render_settings,
+        );
 
         // Assume only one folder is loaded and apply the swing prc to every folder.
         if let Some(swing_prc) = &swing_prc {
@@ -229,7 +236,7 @@ impl State {
             previous_frame_start: std::time::Instant::now(),
             shared_data,
             is_playing: false,
-            render: RenderSettings::default(),
+            render_settings,
             name_renderer,
             draw_bones: cli.bones,
             draw_bone_names: cli.bone_names,
@@ -324,21 +331,21 @@ impl State {
                     // TODO: Support keyboards without a numpad.
                     winit::keyboard::PhysicalKey::Code(code) => match code {
                         // TODO: Add more steps?
-                        KeyCode::Numpad0 => self.render.transition_factor = 0.0,
-                        KeyCode::Numpad1 => self.render.transition_factor = 1.0 / 3.0,
-                        KeyCode::Numpad2 => self.render.transition_factor = 2.0 / 3.0,
-                        KeyCode::Numpad3 => self.render.transition_factor = 1.0,
+                        KeyCode::Numpad0 => self.render_settings.transition_factor = 0.0,
+                        KeyCode::Numpad1 => self.render_settings.transition_factor = 1.0 / 3.0,
+                        KeyCode::Numpad2 => self.render_settings.transition_factor = 2.0 / 3.0,
+                        KeyCode::Numpad3 => self.render_settings.transition_factor = 1.0,
                         KeyCode::Numpad4 => {
-                            self.render.transition_material = TransitionMaterial::Ink
+                            self.render_settings.transition_material = TransitionMaterial::Ink
                         }
                         KeyCode::Numpad5 => {
-                            self.render.transition_material = TransitionMaterial::MetalBox
+                            self.render_settings.transition_material = TransitionMaterial::MetalBox
                         }
                         KeyCode::Numpad6 => {
-                            self.render.transition_material = TransitionMaterial::Gold
+                            self.render_settings.transition_material = TransitionMaterial::Gold
                         }
                         KeyCode::Numpad7 => {
-                            self.render.transition_material = TransitionMaterial::Ditto
+                            self.render_settings.transition_material = TransitionMaterial::Ditto
                         }
                         _ => (),
                     },
@@ -354,43 +361,43 @@ impl State {
                         _ => (),
                     },
                     winit::keyboard::Key::Character(c) => match c.as_str() {
-                        "1" => self.render.debug_mode = DebugMode::Shaded,
-                        "2" => self.render.debug_mode = DebugMode::ColorSet1,
-                        "3" => self.render.debug_mode = DebugMode::ColorSet2,
-                        "4" => self.render.debug_mode = DebugMode::ColorSet3,
-                        "5" => self.render.debug_mode = DebugMode::ColorSet4,
-                        "6" => self.render.debug_mode = DebugMode::ColorSet5,
-                        "7" => self.render.debug_mode = DebugMode::ColorSet6,
-                        "8" => self.render.debug_mode = DebugMode::ColorSet7,
-                        "q" => self.render.debug_mode = DebugMode::Texture0,
-                        "w" => self.render.debug_mode = DebugMode::Texture1,
-                        "e" => self.render.debug_mode = DebugMode::Texture2,
-                        "r" => self.render.debug_mode = DebugMode::Texture3,
-                        "t" => self.render.debug_mode = DebugMode::Texture4,
-                        "y" => self.render.debug_mode = DebugMode::Texture5,
-                        "u" => self.render.debug_mode = DebugMode::Texture6,
-                        "i" => self.render.debug_mode = DebugMode::Texture7,
-                        "o" => self.render.debug_mode = DebugMode::Texture8,
-                        "p" => self.render.debug_mode = DebugMode::Texture9,
-                        "a" => self.render.debug_mode = DebugMode::Texture10,
-                        "s" => self.render.debug_mode = DebugMode::Texture11,
-                        "d" => self.render.debug_mode = DebugMode::Texture12,
-                        "f" => self.render.debug_mode = DebugMode::Texture13,
-                        "g" => self.render.debug_mode = DebugMode::Texture14,
-                        "h" => self.render.debug_mode = DebugMode::Texture16,
-                        "j" => self.render.debug_mode = DebugMode::Position0,
-                        "k" => self.render.debug_mode = DebugMode::Normal0,
-                        "l" => self.render.debug_mode = DebugMode::Tangent0,
-                        "z" => self.render.debug_mode = DebugMode::Map1,
-                        "x" => self.render.debug_mode = DebugMode::Bake1,
-                        "c" => self.render.debug_mode = DebugMode::UvSet,
-                        "v" => self.render.debug_mode = DebugMode::UvSet1,
-                        "b" => self.render.debug_mode = DebugMode::UvSet2,
-                        "n" => self.render.debug_mode = DebugMode::Basic,
-                        "m" => self.render.debug_mode = DebugMode::Normals,
-                        "," => self.render.debug_mode = DebugMode::Bitangents,
-                        "." => self.render.debug_mode = DebugMode::Unlit,
-                        "/" => self.render.debug_mode = DebugMode::ShaderComplexity,
+                        "1" => self.render_settings.debug_mode = DebugMode::Shaded,
+                        "2" => self.render_settings.debug_mode = DebugMode::ColorSet1,
+                        "3" => self.render_settings.debug_mode = DebugMode::ColorSet2,
+                        "4" => self.render_settings.debug_mode = DebugMode::ColorSet3,
+                        "5" => self.render_settings.debug_mode = DebugMode::ColorSet4,
+                        "6" => self.render_settings.debug_mode = DebugMode::ColorSet5,
+                        "7" => self.render_settings.debug_mode = DebugMode::ColorSet6,
+                        "8" => self.render_settings.debug_mode = DebugMode::ColorSet7,
+                        "q" => self.render_settings.debug_mode = DebugMode::Texture0,
+                        "w" => self.render_settings.debug_mode = DebugMode::Texture1,
+                        "e" => self.render_settings.debug_mode = DebugMode::Texture2,
+                        "r" => self.render_settings.debug_mode = DebugMode::Texture3,
+                        "t" => self.render_settings.debug_mode = DebugMode::Texture4,
+                        "y" => self.render_settings.debug_mode = DebugMode::Texture5,
+                        "u" => self.render_settings.debug_mode = DebugMode::Texture6,
+                        "i" => self.render_settings.debug_mode = DebugMode::Texture7,
+                        "o" => self.render_settings.debug_mode = DebugMode::Texture8,
+                        "p" => self.render_settings.debug_mode = DebugMode::Texture9,
+                        "a" => self.render_settings.debug_mode = DebugMode::Texture10,
+                        "s" => self.render_settings.debug_mode = DebugMode::Texture11,
+                        "d" => self.render_settings.debug_mode = DebugMode::Texture12,
+                        "f" => self.render_settings.debug_mode = DebugMode::Texture13,
+                        "g" => self.render_settings.debug_mode = DebugMode::Texture14,
+                        "h" => self.render_settings.debug_mode = DebugMode::Texture16,
+                        "j" => self.render_settings.debug_mode = DebugMode::Position0,
+                        "k" => self.render_settings.debug_mode = DebugMode::Normal0,
+                        "l" => self.render_settings.debug_mode = DebugMode::Tangent0,
+                        "z" => self.render_settings.debug_mode = DebugMode::Map1,
+                        "x" => self.render_settings.debug_mode = DebugMode::Bake1,
+                        "c" => self.render_settings.debug_mode = DebugMode::UvSet,
+                        "v" => self.render_settings.debug_mode = DebugMode::UvSet1,
+                        "b" => self.render_settings.debug_mode = DebugMode::UvSet2,
+                        "n" => self.render_settings.debug_mode = DebugMode::Basic,
+                        "m" => self.render_settings.debug_mode = DebugMode::Normals,
+                        "," => self.render_settings.debug_mode = DebugMode::Bitangents,
+                        "." => self.render_settings.debug_mode = DebugMode::Unlit,
+                        "/" => self.render_settings.debug_mode = DebugMode::ShaderComplexity,
                         _ => (),
                     },
                     winit::keyboard::Key::Unidentified(_) => (),
@@ -426,7 +433,10 @@ impl State {
 
     fn update_render_settings(&mut self) {
         self.renderer
-            .update_render_settings(&self.queue, self.current_frame, &self.render);
+            .update_render_settings(&self.queue, &self.render_settings);
+        for model in &mut self.render_models {
+            model.update_render_settings(&self.queue, self.current_frame, &self.render_settings);
+        }
     }
 
     fn render(&mut self, output: wgpu::SurfaceTexture, scale_factor: f32) {
@@ -485,6 +495,7 @@ impl State {
                     self.models[i].1.find_hlpb(),
                     &self.shared_data,
                     self.current_frame,
+                    &self.render_settings,
                 );
             }
 

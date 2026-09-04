@@ -1,11 +1,12 @@
 use crate::{
     animation::{animate_materials, animate_skel, animate_visibility, AnimationTransforms},
     bone_rendering::*,
+    renderer::per_object,
     shape::IndexedMeshBuffers,
     swing::SwingPrc,
     swing_rendering::{draw_swing_collisions, SwingRenderData},
     vertex::CombinedMeshBuffers,
-    ModelFolder, QueueExt, ShaderDatabase, SharedRenderData,
+    ModelFolder, QueueExt, RenderSettings, ShaderDatabase, SharedRenderData,
 };
 use log::{debug, info};
 use mesh_creation::{
@@ -43,6 +44,7 @@ pub struct RenderModel {
     textures: Vec<(String, wgpu::Texture, wgpu::TextureViewDimension)>,
 
     per_model_bind_group: crate::shader::model::bind_groups::BindGroup1,
+    per_object_buffer: wgpu::Buffer,
 
     // Skeleton
     bone_render_data: BoneRenderData,
@@ -95,6 +97,7 @@ impl RenderModel {
         queue: &wgpu::Queue,
         model: &ModelFolder,
         shared_data: &SharedRenderData,
+        render_settings: &RenderSettings,
     ) -> Self {
         info!("Creating render model.");
         // TODO: Should this use the file names in the modl itself?
@@ -112,7 +115,7 @@ impl RenderModel {
             shared_data,
         };
 
-        shared_data.to_render_model(device, queue)
+        shared_data.to_render_model(device, queue, render_settings)
     }
 
     /// Finds the texture with the given `file_name`.
@@ -201,10 +204,16 @@ impl RenderModel {
         hlpb: Option<&HlpbData>,
         shared_data: &SharedRenderData,
         current_frame: f32,
+        render_settings: &RenderSettings,
     ) {
         // Update the buffers associated with each skel.
         // This avoids updating per mesh object and allocating new buffers.
         let start = std::time::Instant::now();
+
+        queue.write_data(
+            &self.per_object_buffer,
+            &[per_object(current_frame, render_settings)],
+        );
 
         // TODO: Restructure this to iterate the animations only once?
         for anim in anims.clone() {
@@ -250,6 +259,18 @@ impl RenderModel {
         );
 
         debug!("Apply Anim: {:?}", start.elapsed());
+    }
+
+    pub fn update_render_settings<'a>(
+        &mut self,
+        queue: &wgpu::Queue,
+        current_frame: f32,
+        render_settings: &RenderSettings,
+    ) {
+        queue.write_data(
+            &self.per_object_buffer,
+            &[per_object(current_frame, render_settings)],
+        );
     }
 
     /// Creates the data for rendering the collisions in `swing_prc`.
