@@ -129,6 +129,11 @@ fn write_texture_inner(wgsl: &mut String, name: &str, texcoords: &[usize]) -> Op
             error!("Unsupported texture {name}");
             None
         }
+        "dummy_texture" => {
+            // TODO: what does this texture do?
+            error!("Unsupported texture {name}");
+            None
+        }
         _ => write_sampler_2d_or_cube(
             wgsl,
             &name.to_snake(),
@@ -199,6 +204,7 @@ fn write_attribute(wgsl: &mut String, a: &smush_shader::Attribute) -> Option<()>
         "IN_colorSet6" => Some("in.color_set6"),
         "IN_colorSet7" => Some("in.color_set7"),
         "gl_InstanceID" => Some("0"), // TODO: instanced rendering?
+        "gl_VertexID" => Some("0"),   // TODO: vertex storage buffer indexing?
         _ => {
             error!("Unrecognized attribute {a}");
             None

@@ -38,7 +38,8 @@ pub mod viewport;
 pub use bone_name::BoneNameRenderer;
 pub use model::{RenderMesh, RenderModel};
 pub use render_settings::{
-    DebugMode, ModelRenderOptions, RenderSettings, SkinningSettings, TransitionMaterial,
+    DebugMode, MaterialType, ModelRenderOptions, RenderSettings, SkinningSettings,
+    TransitionMaterial,
 };
 pub use renderer::SsbhRenderer;
 pub use shader::model::CameraTransforms;
@@ -198,6 +199,30 @@ impl ModelFolder {
         self.matls
             .iter()
             .find(|(f, _)| f == "model.numatb")
+            .and_then(|(_, m)| m.as_ref())
+    }
+
+    /// Finds the `"metamon_model.numatb"` file in [matls](#structfield.matls).
+    pub fn find_metamon_matl(&self) -> Option<&MatlData> {
+        self.matls
+            .iter()
+            .find(|(f, _)| f == "metamon_model.numatb")
+            .and_then(|(_, m)| m.as_ref())
+    }
+
+    /// Finds the `"light_model.numatb"` file in [matls](#structfield.matls).
+    pub fn find_light_matl(&self) -> Option<&MatlData> {
+        self.matls
+            .iter()
+            .find(|(f, _)| f == "light_model.numatb")
+            .and_then(|(_, m)| m.as_ref())
+    }
+
+    /// Finds the `"dark_model.numatb"` file in [matls](#structfield.matls).
+    pub fn find_dark_matl(&self) -> Option<&MatlData> {
+        self.matls
+            .iter()
+            .find(|(f, _)| f == "dark_model.numatb")
             .and_then(|(_, m)| m.as_ref())
     }
 

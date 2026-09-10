@@ -4,6 +4,7 @@ use crate::{
         AnimationTransforms,
     },
     bone_rendering::*,
+    render_settings::MaterialType,
     shader::model::StageUniforms,
     shape::IndexedMeshBuffers,
     swing::SwingPrc,
@@ -17,17 +18,11 @@ use mesh_creation::{
     material_data, Material, MeshBufferAccess, RenderMeshSharedData, TransformBuffers,
 };
 use pipeline::{pipeline, PipelineKey};
-use ssbh_data::{
-    matl_data::{MatlEntryData, SamplerData},
-    meshex_data::EntryFlags,
-    prelude::*,
-};
+use ssbh_data::{matl_data::MatlEntryData, meshex_data::EntryFlags, prelude::*};
 use std::collections::{HashMap, HashSet};
 
 mod mesh_creation;
 pub mod pipeline;
-
-pub type SamplerCache = Vec<(SamplerData, wgpu::Sampler)>;
 
 /// A renderable version of a [ModelFolder].
 ///
@@ -42,7 +37,13 @@ pub struct RenderModel {
     pub is_selected: bool,
 
     transforms: TransformBuffers,
+
+    // TODO: group these into a container struct with option fields?
     material_by_label: HashMap<String, Material>,
+    metamon_material_by_label: HashMap<String, Material>,
+    dark_material_by_label: HashMap<String, Material>,
+    light_material_by_label: HashMap<String, Material>,
+
     default_material_data: Material,
     pipelines: HashMap<PipelineKey, wgpu::RenderPipeline>,
     textures: Vec<(String, wgpu::Texture, wgpu::TextureViewDimension)>,
@@ -83,8 +84,17 @@ pub struct RenderMesh {
     skinning_bind_group: crate::shader::skinning::bind_groups::BindGroup0,
     skinning_transforms_bind_group: crate::shader::skinning::bind_groups::BindGroup1,
     mesh_object_info_bind_group: crate::shader::skinning::bind_groups::BindGroup2,
+
     // TODO: How to update this when materials/shaders change?
+    // TODO: Is there a way to only include the mesh specific information here?
+    // TODO: changing the pipeline key may require compiling new pipelines
     pipeline_key: PipelineKey,
+    // TODO: Should the other material types be optional?
+    metamon_pipeline_key: PipelineKey,
+    dark_pipeline_key: PipelineKey,
+    light_pipeline_key: PipelineKey,
+
+    // TODO: Add keys for ditto, light, dark materials
     vertex_count: usize,
     vertex_index_count: usize,
     access: MeshBufferAccess,
@@ -116,6 +126,9 @@ impl RenderModel {
             modl: model.find_modl(),
             skel: model.find_skel(),
             matl: model.find_matl(),
+            metamon_matl: model.find_metamon_matl(),
+            light_matl: model.find_light_matl(),
+            dark_matl: model.find_dark_matl(),
             adj: model.find_adj(),
             hlpb: model.find_hlpb(),
             model_xmb: model.find_model_xmb(),
@@ -162,11 +175,12 @@ impl RenderModel {
     pub fn recreate_materials(
         &mut self,
         device: &wgpu::Device,
+        // TODO: take light, ditto, dark materials
+        // TODO: easier to just take the entire folder?
         materials: &[MatlEntryData],
         shared_data: &SharedRenderData,
     ) {
-        let mut sampler_by_data = SamplerCache::new();
-
+        // TODO: recreate ditto, light, dark materials
         self.material_by_label = materials
             .iter()
             .map(|material| {
@@ -187,13 +201,7 @@ impl RenderModel {
                     mesh.pipeline_key = pipeline_key;
                 }
 
-                let data = material_data(
-                    device,
-                    material,
-                    &self.textures,
-                    shared_data,
-                    &mut sampler_by_data,
-                );
+                let data = material_data(device, material, &self.textures, shared_data);
                 (material.material_label.clone(), data)
             })
             .collect();
@@ -222,6 +230,7 @@ impl RenderModel {
             // Assume final_frame_index is set to the length of the longest track.
             animate_visibility(anim, current_frame, &mut self.meshes);
 
+            // TODO: update ditto, light, dark materials
             if let Some(matl) = matl {
                 self.update_material_uniforms(anim, current_frame, matl, shared_data, queue);
             }
@@ -263,7 +272,7 @@ impl RenderModel {
         debug!("Apply Anim: {:?}", start.elapsed());
     }
 
-    pub fn update_per_object<'a>(
+    pub fn update_per_object(
         &mut self,
         queue: &wgpu::Queue,
         current_frame: f32,
@@ -273,7 +282,7 @@ impl RenderModel {
         // TODO: Also take the lightset data.
         let stage_uniforms = lighting_anim
             .map(|anim| animate_lighting(anim, current_frame))
-            .unwrap_or_else(|| StageUniforms::training());
+            .unwrap_or_else(StageUniforms::training);
         queue.write_data(
             &self.per_object_buffer,
             &[per_object(
@@ -316,6 +325,7 @@ impl RenderModel {
         // TODO: Avoid per frame allocations here?
         let animated_materials = animate_materials(anim, frame, &matl.entries);
         for material in animated_materials {
+            // TODO: update ditto, light, dark materials
             self.material_by_label
                 .entry(material.material_label.clone())
                 .and_modify(|material_data| {
@@ -500,6 +510,7 @@ impl RenderModel {
         invalid_shader_pipeline: &'a wgpu::RenderPipeline,
         invalid_attributes_pipeline: &'a wgpu::RenderPipeline,
         pass: &str,
+        material_type: MaterialType,
     ) {
         // TODO: How to store all data in RenderModel but still draw sorted meshes?
         // TODO: Does sort bias only effect meshes within a model or the entire pass?
@@ -512,15 +523,29 @@ impl RenderModel {
             .iter()
             .filter(|m| m.is_visible && m.meshex_flags.draw_model)
         {
+            // TODO: Should this use a fallback if a ditto, light, or dark material is missing?
+            let material = match material_type {
+                MaterialType::Model => self.material_by_label.get(&mesh.material_label),
+                MaterialType::Ditto => self.metamon_material_by_label.get(&mesh.material_label),
+                MaterialType::Light => self.light_material_by_label.get(&mesh.material_label),
+                MaterialType::Dark => self.dark_material_by_label.get(&mesh.material_label),
+            };
+
             // Meshes with no modl entry or an entry with an invalid material label are skipped entirely in game.
             // If the material entry is deleted from the matl, the mesh is also skipped.
-            if let Some(material) = self.material_by_label.get(&mesh.material_label) {
+            if let Some(material) = material {
                 if material.shader_label.ends_with(pass) {
                     // TODO: Does the invalid shader pipeline take priority?
                     if let Some(program) = shader_database.get(&material.shader_label) {
                         if program.has_required_attributes(&mesh.attribute_names) {
+                            let pipeline_key = match material_type {
+                                MaterialType::Model => &mesh.pipeline_key,
+                                MaterialType::Ditto => &mesh.metamon_pipeline_key,
+                                MaterialType::Light => &mesh.light_pipeline_key,
+                                MaterialType::Dark => &mesh.dark_pipeline_key,
+                            };
                             // TODO: Don't assume the pipeline exists?
-                            render_pass.set_pipeline(&self.pipelines[&mesh.pipeline_key]);
+                            render_pass.set_pipeline(&self.pipelines[pipeline_key]);
                         } else {
                             render_pass.set_pipeline(invalid_attributes_pipeline);
                         }
@@ -573,6 +598,7 @@ impl RenderModel {
         // Assume the pipeline is already set.
         for mesh in self.meshes.iter().filter(|m| m.is_visible) {
             // Models should always show up in debug mode.
+            // TODO: ditto, light, dark materials
             let material_data = self
                 .material_by_label
                 .get(&mesh.material_label)

@@ -954,6 +954,7 @@ impl SsbhRenderer {
                 &self.invalid_shader_pipeline,
                 &self.invalid_attributes_pipeline,
                 pass,
+                self.render_settings.material_type,
             );
         }
     }

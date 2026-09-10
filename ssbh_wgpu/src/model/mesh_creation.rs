@@ -1,7 +1,7 @@
 use super::{
     per_object,
     pipeline::{pipeline, PipelineKey},
-    BoneRenderData, SamplerCache,
+    BoneRenderData,
 };
 use crate::{
     animation::AnimationTransforms,
@@ -62,10 +62,12 @@ pub struct TransformBuffers {
     pub world_transforms: wgpu::Buffer,
 }
 
-// TODO: Add additional materials like metamon, light, dark?
 struct RenderMeshData {
     meshes: Vec<RenderMesh>,
-    material_data_by_label: HashMap<String, Material>,
+    material_by_label: HashMap<String, Material>,
+    metamon_material_by_label: HashMap<String, Material>,
+    light_material_by_label: HashMap<String, Material>,
+    dark_material_by_label: HashMap<String, Material>,
     textures: Vec<(String, wgpu::Texture, wgpu::TextureViewDimension)>,
     pipelines: HashMap<PipelineKey, wgpu::RenderPipeline>,
     buffer_data: CombinedMeshBuffers,
@@ -79,6 +81,9 @@ pub struct RenderMeshSharedData<'a> {
     pub modl: Option<&'a ModlData>,
     pub skel: Option<&'a SkelData>,
     pub matl: Option<&'a MatlData>,
+    pub metamon_matl: Option<&'a MatlData>,
+    pub light_matl: Option<&'a MatlData>,
+    pub dark_matl: Option<&'a MatlData>,
     pub adj: Option<&'a AdjData>,
     pub hlpb: Option<&'a HlpbData>,
     pub model_xmb: Option<&'a XmbFile>,
@@ -160,7 +165,10 @@ impl<'a> RenderMeshSharedData<'a> {
 
         let RenderMeshData {
             meshes,
-            material_data_by_label,
+            material_by_label,
+            metamon_material_by_label,
+            light_material_by_label,
+            dark_material_by_label,
             textures,
             pipelines,
             buffer_data,
@@ -169,7 +177,7 @@ impl<'a> RenderMeshSharedData<'a> {
         info!(
             "Created {:?} render meshe(s), {:?} material(s), {:?} pipeline(s): {:?}",
             meshes.len(),
-            material_data_by_label.len(),
+            material_by_label.len(),
             pipelines.len(),
             start.elapsed()
         );
@@ -179,7 +187,10 @@ impl<'a> RenderMeshSharedData<'a> {
             is_selected: false,
             meshes,
             transforms: mesh_buffers,
-            material_by_label: material_data_by_label,
+            material_by_label,
+            metamon_material_by_label,
+            dark_material_by_label,
+            light_material_by_label,
             default_material_data,
             textures,
             pipelines,
@@ -271,7 +282,13 @@ impl<'a> RenderMeshSharedData<'a> {
         let textures = self.create_textures(device, queue);
 
         // Materials can be shared between mesh objects.
-        let material_data_by_label = self.create_materials(device, &textures);
+        let material_by_label = create_materials(device, self.matl, self.shared_data, &textures);
+        let metamon_material_by_label =
+            create_materials(device, self.metamon_matl, self.shared_data, &textures);
+        let light_material_by_label =
+            create_materials(device, self.light_matl, self.shared_data, &textures);
+        let dark_material_by_label =
+            create_materials(device, self.dark_matl, self.shared_data, &textures);
 
         // DynamicStorageBuffer ensures mesh object offsets are properly aligned.
         let mut model_buffer0_data = DynamicStorageBuffer::new(Vec::new());
@@ -342,7 +359,10 @@ impl<'a> RenderMeshSharedData<'a> {
 
         RenderMeshData {
             meshes,
-            material_data_by_label,
+            material_by_label,
+            metamon_material_by_label,
+            light_material_by_label,
+            dark_material_by_label,
             textures,
             pipelines,
             buffer_data: combined_mesh_buffers,
@@ -420,41 +440,6 @@ impl<'a> RenderMeshSharedData<'a> {
             .collect()
     }
 
-    fn create_materials(
-        &self,
-        device: &wgpu::Device,
-        textures: &[(String, wgpu::Texture, wgpu::TextureViewDimension)],
-    ) -> HashMap<String, Material> {
-        // Some devices only support up to 4000 sampler allocations.
-        // Models use very few unique sampler settings in practice.
-        // Samplers are immutable and can be safely cached.
-        let mut sampler_by_data = SamplerCache::new();
-
-        // TODO: Split into PerMaterial, PerObject, etc in the shaders?
-        let materials = self
-            .matl
-            .map(|matl| {
-                matl.entries
-                    .iter()
-                    .map(|entry| {
-                        let data = material_data(
-                            device,
-                            entry,
-                            textures,
-                            self.shared_data,
-                            &mut sampler_by_data,
-                        );
-                        (entry.material_label.clone(), data)
-                    })
-                    .collect()
-            })
-            .unwrap_or_default();
-
-        info!("Created {} samplers", sampler_by_data.len());
-
-        materials
-    }
-
     // TODO: Group these parameters?
     fn create_render_mesh(
         &self,
@@ -483,22 +468,21 @@ impl<'a> RenderMeshSharedData<'a> {
             .unwrap_or(&String::new())
             .to_string();
 
-        let material = self.matl.and_then(|matl| {
-            matl.entries
-                .iter()
-                .find(|e| e.material_label == material_label)
-        });
-
         // Pipeline creation is expensive.
         // Lazily initialize pipelines and share pipelines when possible.
         // TODO: Should we delete unused pipelines when changes require a new pipeline?
-        let pipeline_key = PipelineKey::new(
-            mesh_object.disable_depth_write,
-            mesh_object.disable_depth_test,
-            material,
-            RGBA_COLOR_FORMAT,
-        );
+        let pipeline_key = self.pipeline_key(mesh_object, &material_label, self.matl);
         pipelines.insert(pipeline_key.clone());
+
+        let metamon_pipeline_key =
+            self.pipeline_key(mesh_object, &material_label, self.metamon_matl);
+        pipelines.insert(metamon_pipeline_key.clone());
+
+        let dark_pipeline_key = self.pipeline_key(mesh_object, &material_label, self.dark_matl);
+        pipelines.insert(dark_pipeline_key.clone());
+
+        let light_pipeline_key = self.pipeline_key(mesh_object, &material_label, self.light_matl);
+        pipelines.insert(light_pipeline_key.clone());
 
         let vertex_count = mesh_object.vertex_count()?;
 
@@ -592,6 +576,9 @@ impl<'a> RenderMeshSharedData<'a> {
             skinning_transforms_bind_group,
             mesh_object_info_bind_group,
             pipeline_key,
+            metamon_pipeline_key,
+            dark_pipeline_key,
+            light_pipeline_key,
             renormal_bind_group,
             subindex: mesh_object.subindex,
             vertex_count,
@@ -600,6 +587,43 @@ impl<'a> RenderMeshSharedData<'a> {
             attribute_names,
         })
     }
+
+    fn pipeline_key(
+        &self,
+        mesh_object: &MeshObjectData,
+        material_label: &String,
+        matl: Option<&MatlData>,
+    ) -> PipelineKey {
+        let material = matl.and_then(|matl| {
+            matl.entries
+                .iter()
+                .find(|e| e.material_label == *material_label)
+        });
+        PipelineKey::new(
+            mesh_object.disable_depth_write,
+            mesh_object.disable_depth_test,
+            material,
+            RGBA_COLOR_FORMAT,
+        )
+    }
+}
+
+fn create_materials(
+    device: &wgpu::Device,
+    matl: Option<&MatlData>,
+    shared_data: &SharedRenderData,
+    textures: &[(String, wgpu::Texture, wgpu::TextureViewDimension)],
+) -> HashMap<String, Material> {
+    matl.map(|matl| {
+        matl.entries
+            .iter()
+            .map(|entry| {
+                let data = material_data(device, entry, textures, shared_data);
+                (entry.material_label.clone(), data)
+            })
+            .collect()
+    })
+    .unwrap_or_default()
 }
 
 fn bone_bind_group1(
@@ -621,7 +645,6 @@ pub fn material_data(
     material: &MatlEntryData,
     textures: &[(String, wgpu::Texture, wgpu::TextureViewDimension)],
     shared_data: &SharedRenderData,
-    sampler_by_data: &mut SamplerCache,
 ) -> Material {
     let uniforms_buffer = uniforms_buffer(material, device, &shared_data.database);
     let material_uniforms_bind_group = material_uniforms_bind_group(
@@ -630,7 +653,6 @@ pub fn material_data(
         textures,
         &shared_data.default_textures,
         &uniforms_buffer,
-        sampler_by_data,
     );
 
     Material {
