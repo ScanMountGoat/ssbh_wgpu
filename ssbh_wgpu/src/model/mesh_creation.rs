@@ -18,12 +18,16 @@ use crate::{
     SharedRenderData,
 };
 use encase::{DynamicStorageBuffer, ShaderType};
+use glam::{vec3, Vec3};
 use log::{error, info};
 use nutexb_wgpu::NutexbFile;
 use rayon::prelude::*;
 use ssbh_data::{
-    adj_data::AdjEntryData, matl_data::MatlEntryData, mesh_data::MeshObjectData,
-    meshex_data::EntryFlags, prelude::*,
+    adj_data::AdjEntryData,
+    matl_data::MatlEntryData,
+    mesh_data::{transform_points, MeshObjectData},
+    meshex_data::EntryFlags,
+    prelude::*,
 };
 use std::{
     collections::{HashMap, HashSet},
@@ -174,6 +178,8 @@ impl<'a> RenderMeshSharedData<'a> {
             buffer_data,
         } = self.create_render_mesh_data(device, queue, &mesh_buffers);
 
+        let (min_xyz, max_xyz) = self.min_max_xyz();
+
         info!(
             "Created {:?} render meshe(s), {:?} material(s), {:?} pipeline(s): {:?}",
             meshes.len(),
@@ -203,6 +209,43 @@ impl<'a> RenderMeshSharedData<'a> {
             bone_names,
             lightset,
             is_stage,
+            min_xyz,
+            max_xyz,
+        }
+    }
+
+    fn min_max_xyz(&self) -> (Vec3, Vec3) {
+        if let Some(mesh) = self.mesh {
+            let mut min_xyz = None;
+            let mut max_xyz = None;
+
+            for o in &mesh.objects {
+                let transform = self.skel.and_then(|skel| {
+                    skel.bones.iter().find_map(|b| {
+                        if b.name == o.parent_bone_name {
+                            Some(b.transform)
+                        } else {
+                            None
+                        }
+                    })
+                });
+                // Figure out the bounding information using the transformed position at rest.
+                for a in &o.positions {
+                    for v in transform
+                        .map(|t| transform_points(&a.data, &t).to_vec4_with_w(1.0))
+                        .unwrap_or(a.data.to_vec4_with_w(1.0))
+                    {
+                        // TODO: Find a nicer way of writing this.
+                        let v = vec3(v[0], v[1], v[2]);
+                        min_xyz = Some(min_xyz.map(|min: Vec3| min.min(v)).unwrap_or(v));
+                        max_xyz = Some(max_xyz.map(|min: Vec3| min.max(v)).unwrap_or(v));
+                    }
+                }
+            }
+
+            (min_xyz.unwrap_or_default(), max_xyz.unwrap_or_default())
+        } else {
+            (Vec3::ZERO, Vec3::ZERO)
         }
     }
 

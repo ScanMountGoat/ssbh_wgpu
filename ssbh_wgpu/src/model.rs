@@ -12,7 +12,7 @@ use crate::{
     vertex::CombinedMeshBuffers,
     ModelFolder, QueueExt, RenderSettings, ShaderDatabase, SharedRenderData, TransitionMaterial,
 };
-use glam::{vec3, vec4, Mat4, Vec4};
+use glam::{vec3, vec4, Mat4, Vec3, Vec4};
 use log::{debug, info};
 use mesh_creation::{
     material_data, Material, MeshBufferAccess, RenderMeshSharedData, TransformBuffers,
@@ -35,6 +35,10 @@ pub struct RenderModel {
     pub is_visible: bool,
     /// Outline all the meshes in this model when `true` regardless of which meshes are selected.
     pub is_selected: bool,
+    /// The minimum XYZ coordinates for all vertex positions.
+    pub min_xyz: Vec3,
+    /// The maximum XYZ coordinates for all vertex positions.
+    pub max_xyz: Vec3,
 
     transforms: TransformBuffers,
 

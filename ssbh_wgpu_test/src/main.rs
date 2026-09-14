@@ -1,16 +1,21 @@
-use std::path::{Path, PathBuf};
+use std::{
+    path::{Path, PathBuf},
+    sync::{Arc, Mutex},
+};
 
 use futures::executor::block_on;
 use rayon::prelude::*;
 use ssbh_data::prelude::*;
 use ssbh_wgpu::{
-    load_render_models, CameraTransforms, ModelFolder, ModelRenderOptions, RenderSettings,
-    SharedRenderData, SsbhRenderer, REQUIRED_FEATURES, REQUIRED_LIMITS,
+    load_render_models, CameraTransforms, ModelFolder, ModelRenderOptions, RenderModel,
+    RenderSettings, SharedRenderData, SsbhRenderer, REQUIRED_FEATURES, REQUIRED_LIMITS,
 };
 use wgpu::{
     DeviceDescriptor, Extent3d, PowerPreference, RequestAdapterOptions, TextureDescriptor,
     TextureDimension, TextureUsages,
 };
+
+const FOV_Y: f32 = 0.5;
 
 // TODO: Just return camera transforms?
 fn calculate_camera(
@@ -22,7 +27,7 @@ fn calculate_camera(
         * glam::Mat4::from_rotation_x(rotation.x)
         * glam::Mat4::from_rotation_y(rotation.y);
     // Use a large far clip distance to include stage skyboxes.
-    let projection_matrix = glam::Mat4::perspective_rh(0.5, aspect, 1.0, 400000.0);
+    let projection_matrix = glam::Mat4::perspective_rh(FOV_Y, aspect, 1.0, 400000.0);
 
     let camera_pos = model_view_matrix.inverse().col(3);
 
@@ -68,30 +73,18 @@ fn main() {
     // TODO: Find a way to simplify initialization.
     let surface_format = wgpu::TextureFormat::Bgra8UnormSrgb;
     let shared_data = SharedRenderData::new(&device, &queue);
-    let mut renderer = SsbhRenderer::new(&device, &queue, 512, 512, 1.0, [0.0; 4], surface_format);
+    let renderer = Arc::new(Mutex::new(SsbhRenderer::new(
+        &device,
+        &queue,
+        512,
+        512,
+        1.0,
+        [0.0; 4],
+        surface_format,
+    )));
 
     // TODO: Share camera code with ssbh_wgpu?
     // TODO: Document the screen_dimensions struct.
-    // TODO: Frame each model individually?
-
-    let rotation = if fighter_anim {
-        // Match the in game orientation.
-        glam::vec3(0.0, 50.0f32.to_radians(), 0.0)
-    } else {
-        glam::Vec3::ZERO
-    };
-
-    let (camera_pos, model_view_matrix, projection_matrix, mvp_matrix) =
-        calculate_camera(glam::vec3(0.0, -8.0, -60.0), rotation);
-    let transforms = CameraTransforms {
-        model_view_matrix,
-        projection_matrix,
-        mvp_matrix,
-        mvp_inv_matrix: mvp_matrix.inverse(),
-        camera_pos,
-        screen_dimensions: glam::vec4(512.0, 512.0, 1.0, 0.0),
-    };
-    renderer.update_camera(&queue, transforms);
 
     let texture_desc = TextureDescriptor {
         size: Extent3d {
@@ -180,6 +173,13 @@ fn main() {
             }
         }
 
+        // Each model updates the renderer's internal buffers for camera framing.
+        // We need to hold the lock until the output image has been copied to the buffer.
+        // Rendering is cheap, so this has little performance impact in practice.
+        let mut renderer = renderer.lock().unwrap();
+
+        frame_models(&queue, &mut renderer, &render_models, fighter_anim);
+
         render_screenshot(
             &device,
             &renderer,
@@ -195,6 +195,52 @@ fn main() {
     });
 
     println!("Completed in {:?}", start.elapsed());
+}
+
+fn frame_models(
+    queue: &wgpu::Queue,
+    renderer: &mut SsbhRenderer,
+    models: &[RenderModel],
+    fighter_anim: bool,
+) {
+    let rotation = if fighter_anim {
+        // Match the in game orientation.
+        glam::vec3(0.0, 50.0f32.to_radians(), 0.0)
+    } else {
+        glam::Vec3::ZERO
+    };
+
+    let min_xyz = models
+        .iter()
+        .map(|m| m.min_xyz)
+        .reduce(glam::Vec3::min)
+        .unwrap_or_default();
+    let max_xyz = models
+        .iter()
+        .map(|m| m.max_xyz)
+        .reduce(glam::Vec3::max)
+        .unwrap_or_default();
+    let center = (min_xyz + max_xyz) / 2.0;
+    let bounds_size = max_xyz - min_xyz;
+
+    // Find the base of the triangle based on vertical FOV and model height.
+    // The aspect ratio is 1.0, so FOV_X is also FOV_Y.
+    // Take the max to frame both horizontally and vertically.
+    // Add a small offset to better frame the entire model.
+    let distance = bounds_size.y.max(bounds_size.x) / FOV_Y.tan() + 2.0;
+    let translation = glam::vec3(center.x, -center.y, -distance);
+
+    let (camera_pos, model_view_matrix, projection_matrix, mvp_matrix) =
+        calculate_camera(translation, rotation);
+    let transforms = CameraTransforms {
+        model_view_matrix,
+        projection_matrix,
+        mvp_matrix,
+        mvp_inv_matrix: mvp_matrix.inverse(),
+        camera_pos,
+        screen_dimensions: glam::vec4(512.0, 512.0, 1.0, 0.0),
+    };
+    renderer.update_camera(queue, transforms);
 }
 
 fn render_screenshot(
