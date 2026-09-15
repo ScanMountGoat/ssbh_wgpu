@@ -225,10 +225,11 @@ fn frame_models(
 
     // Find the base of the triangle based on vertical FOV and model height.
     // The aspect ratio is 1.0, so FOV_X is also FOV_Y.
+    // This distance should be from the closest object depth.
+    // TODO: Take near clip into account.
     // Take the max to frame both horizontally and vertically.
-    // Add a small offset to better frame the entire model.
-    let distance = bounds_size.y.max(bounds_size.x) / FOV_Y.tan() + 2.0;
-    let translation = glam::vec3(center.x, -center.y, -distance);
+    let distance = (bounds_size.x.max(bounds_size.y) * 0.5) / (FOV_Y * 0.5).tan();
+    let translation = glam::vec3(center.x, -center.y, min_xyz.z - distance);
 
     let (camera_pos, model_view_matrix, projection_matrix, mvp_matrix) =
         calculate_camera(translation, rotation);
