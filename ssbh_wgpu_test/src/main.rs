@@ -229,7 +229,7 @@ fn frame_models(
     // TODO: Take near clip into account.
     // Take the max to frame both horizontally and vertically.
     let distance = (bounds_size.x.max(bounds_size.y) * 0.5) / (FOV_Y * 0.5).tan();
-    let translation = glam::vec3(center.x, -center.y, min_xyz.z - distance);
+    let translation = glam::vec3(-center.x, -center.y, min_xyz.z - distance);
 
     let (camera_pos, model_view_matrix, projection_matrix, mvp_matrix) =
         calculate_camera(translation, rotation);

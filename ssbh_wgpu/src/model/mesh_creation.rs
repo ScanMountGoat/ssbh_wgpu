@@ -223,13 +223,13 @@ impl<'a> RenderMeshSharedData<'a> {
                 let transform = self.skel.and_then(|skel| {
                     skel.bones.iter().find_map(|b| {
                         if b.name == o.parent_bone_name {
-                            Some(b.transform)
+                            Some(skel.calculate_world_transform(&b).unwrap())
                         } else {
                             None
                         }
                     })
                 });
-                // Figure out the bounding information using the transformed position at rest.
+                // Figure out the bounding information using the transformed position without animations.
                 for a in &o.positions {
                     for v in transform
                         .map(|t| transform_points(&a.data, &t).to_vec4_with_w(1.0))
@@ -238,7 +238,7 @@ impl<'a> RenderMeshSharedData<'a> {
                         // TODO: Find a nicer way of writing this.
                         let v = vec3(v[0], v[1], v[2]);
                         min_xyz = Some(min_xyz.map(|min: Vec3| min.min(v)).unwrap_or(v));
-                        max_xyz = Some(max_xyz.map(|min: Vec3| min.max(v)).unwrap_or(v));
+                        max_xyz = Some(max_xyz.map(|max: Vec3| max.max(v)).unwrap_or(v));
                     }
                 }
             }
