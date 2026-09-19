@@ -219,10 +219,29 @@ fn write_attribute(wgsl: &mut String, a: &smush_shader::Attribute) -> Option<()>
 
 fn write_parameter(wgsl: &mut String, p: &Parameter) -> Option<()> {
     if p.field == "data" {
-        // Dynamic field lookups should be handled during database creation using queries.
-        // Shader annotation can't handle cases like indexing by gl_InstanceID.
         error!("Unsupported dynamic uniform field {p}");
-        return None;
+        match p.name.as_str() {
+            "EffectArea" => {
+                // TODO: document EffectArea fields
+                write!(wgsl, "0.0").unwrap();
+                return Some(());
+            }
+            "adjacenciesStruct" => {
+                // TODO: document adjacenciesStruct SSBO fields
+                write!(wgsl, "0u").unwrap();
+                return Some(());
+            }
+            "verticesStruct" => {
+                // TODO: document verticesStruct SSBO fields
+                write!(wgsl, "0u").unwrap();
+                return Some(());
+            }
+            _ => {
+                // Dynamic field lookups should be handled during database creation using queries.
+                // Shader annotation can't handle cases like indexing by gl_InstanceID.
+                return None;
+            }
+        }
     }
 
     // TODO: just convert case instead of matching buffer names?
