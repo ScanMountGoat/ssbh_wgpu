@@ -223,7 +223,7 @@ impl<'a> RenderMeshSharedData<'a> {
                 let transform = self.skel.and_then(|skel| {
                     skel.bones.iter().find_map(|b| {
                         if b.name == o.parent_bone_name {
-                            Some(skel.calculate_world_transform(&b).unwrap())
+                            Some(skel.calculate_world_transform(b).unwrap())
                         } else {
                             None
                         }
@@ -517,15 +517,23 @@ impl<'a> RenderMeshSharedData<'a> {
         let pipeline_key = self.pipeline_key(mesh_object, &material_label, self.matl);
         pipelines.insert(pipeline_key.clone());
 
-        let metamon_pipeline_key =
-            self.pipeline_key(mesh_object, &material_label, self.metamon_matl);
-        pipelines.insert(metamon_pipeline_key.clone());
+        let metamon_pipeline_key = self.metamon_matl.map(|matl| {
+            let key = self.pipeline_key(mesh_object, &material_label, Some(matl));
+            pipelines.insert(key.clone());
+            key
+        });
 
-        let dark_pipeline_key = self.pipeline_key(mesh_object, &material_label, self.dark_matl);
-        pipelines.insert(dark_pipeline_key.clone());
+        let dark_pipeline_key = self.dark_matl.map(|matl| {
+            let key = self.pipeline_key(mesh_object, &material_label, Some(matl));
+            pipelines.insert(key.clone());
+            key
+        });
 
-        let light_pipeline_key = self.pipeline_key(mesh_object, &material_label, self.light_matl);
-        pipelines.insert(light_pipeline_key.clone());
+        let light_pipeline_key = self.light_matl.map(|matl| {
+            let key = self.pipeline_key(mesh_object, &material_label, Some(matl));
+            pipelines.insert(key.clone());
+            key
+        });
 
         let vertex_count = mesh_object.vertex_count()?;
 

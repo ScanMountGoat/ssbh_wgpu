@@ -93,10 +93,9 @@ pub struct RenderMesh {
     // TODO: Is there a way to only include the mesh specific information here?
     // TODO: changing the pipeline key may require compiling new pipelines
     pipeline_key: PipelineKey,
-    // TODO: Should the other material types be optional?
-    metamon_pipeline_key: PipelineKey,
-    dark_pipeline_key: PipelineKey,
-    light_pipeline_key: PipelineKey,
+    metamon_pipeline_key: Option<PipelineKey>,
+    dark_pipeline_key: Option<PipelineKey>,
+    light_pipeline_key: Option<PipelineKey>,
 
     // TODO: Add keys for ditto, light, dark materials
     vertex_count: usize,
@@ -542,12 +541,7 @@ impl RenderModel {
                     // TODO: Does the invalid shader pipeline take priority?
                     if let Some(program) = shader_database.get(&material.shader_label) {
                         if program.has_required_attributes(&mesh.attribute_names) {
-                            let pipeline_key = match material_type {
-                                MaterialType::Model => &mesh.pipeline_key,
-                                MaterialType::Ditto => &mesh.metamon_pipeline_key,
-                                MaterialType::Light => &mesh.light_pipeline_key,
-                                MaterialType::Dark => &mesh.dark_pipeline_key,
-                            };
+                            let pipeline_key = pipeline_key(mesh, material_type);
                             // TODO: Don't assume the pipeline exists?
                             render_pass.set_pipeline(&self.pipelines[pipeline_key]);
                         } else {
@@ -719,6 +713,25 @@ impl RenderModel {
                 render_pass.draw_indexed(0..mesh.vertex_index_count as u32, 0, 0..1);
             }
         }
+    }
+}
+
+fn pipeline_key(mesh: &RenderMesh, material_type: MaterialType) -> &PipelineKey {
+    match material_type {
+        MaterialType::Model => &mesh.pipeline_key,
+        // Use the model.numatb pipeline as a fallback since only fighters will support these.
+        MaterialType::Ditto => mesh
+            .metamon_pipeline_key
+            .as_ref()
+            .unwrap_or(&mesh.pipeline_key),
+        MaterialType::Light => mesh
+            .light_pipeline_key
+            .as_ref()
+            .unwrap_or(&mesh.pipeline_key),
+        MaterialType::Dark => mesh
+            .dark_pipeline_key
+            .as_ref()
+            .unwrap_or(&mesh.pipeline_key),
     }
 }
 
