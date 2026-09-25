@@ -13,7 +13,7 @@ use crate::{
     ModelFolder, QueueExt, RenderSettings, ShaderDatabase, SharedRenderData, TransitionMaterial,
 };
 use glam::{vec3, vec4, Mat4, Vec3, Vec4};
-use log::{debug, info};
+use log::{debug, error, info};
 use mesh_creation::{
     material_data, Material, MeshBufferAccess, RenderMeshSharedData, TransformBuffers,
 };
@@ -816,8 +816,13 @@ pub(crate) fn per_object(
     );
 
     let light = if is_stage {
-        // TODO: Test for invalid indices
-        &stage_uniforms.light_stage[lightset as usize]
+        if let Some(light) = stage_uniforms.light_stage.get(lightset as usize) {
+            light
+        } else {
+            // TODO: Why do some stage models have lightset indices of 10?
+            error!("Invalid lightset index {lightset}");
+            &stage_uniforms.light_stage[lightset as usize]
+        }
     } else {
         &stage_uniforms.light_chr
     };

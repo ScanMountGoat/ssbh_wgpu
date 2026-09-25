@@ -54,7 +54,8 @@ pub const REQUIRED_FEATURES: wgpu::Features = wgpu::Features::TEXTURE_COMPRESSIO
     .union(wgpu::Features::TEXTURE_ADAPTER_SPECIFIC_FORMAT_FEATURES)
     .union(wgpu::Features::POLYGON_MODE_LINE)
     .union(wgpu::Features::DEPTH32FLOAT_STENCIL8)
-    .union(wgpu::Features::TEXTURE_FORMAT_16BIT_NORM);
+    .union(wgpu::Features::TEXTURE_FORMAT_16BIT_NORM)
+    .union(wgpu::Features::FLOAT32_FILTERABLE);
 
 // TODO: Find a way to use default limits.
 pub const REQUIRED_LIMITS: wgpu::Limits = wgpu::Limits {

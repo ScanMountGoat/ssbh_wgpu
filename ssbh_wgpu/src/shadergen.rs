@@ -129,7 +129,7 @@ fn write_texture_inner(wgsl: &mut String, name: &str, texcoords: &[usize]) -> Op
             error!("Unsupported texture {name}");
             None
         }
-        "dummy_texture" => {
+        "DummyTexture" => {
             // TODO: what does this texture do?
             error!("Unsupported texture {name}");
             None
