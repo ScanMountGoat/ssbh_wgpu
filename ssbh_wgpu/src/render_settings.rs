@@ -66,8 +66,6 @@ pub enum TransitionMaterial {
     MetalBox,
     /// The gold material applied by the Xerneas Pokemon summon.
     Gold,
-    /// The purple material applied by the Ditto Pokemon summon.
-    Ditto,
 }
 
 #[derive(PartialEq, Eq, Copy, Clone, Display, EnumIter, EnumString, Default)]
@@ -120,7 +118,12 @@ impl From<&RenderSettings> for crate::shader::model::RenderSettings {
     fn from(r: &RenderSettings) -> Self {
         Self {
             debug_mode: glam::UVec4::splat(r.debug_mode as u32),
-            transition_material: glam::UVec4::splat(r.transition_material as u32),
+            transition_material: glam::uvec4(
+                r.transition_material as u32,
+                r.material_type as u32,
+                0,
+                0,
+            ),
             transition_factor: glam::vec4(r.transition_factor, 0.0, 0.0, 0.0),
             render_diffuse: glam::UVec4::splat(r.render_diffuse as u32),
             render_specular: glam::UVec4::splat(r.render_specular as u32),

@@ -11,7 +11,7 @@ struct CameraTransforms {
 struct RenderSettings {
     debug_mode: vec4<u32>,
     render_uv_pattern: vec4<u32>,
-    transition_material: vec4<u32>,
+    transition_material: vec4<u32>, // transition_material, material_type
     transition_factor: vec4<f32>,
     render_diffuse: vec4<u32>,
     render_specular: vec4<u32>,
@@ -152,7 +152,6 @@ struct PerModel {
 
 @group(1) @binding(0)
 var<uniform> per_model: PerModel;
-
 
 // This is shared for all meshes in a numshb.
 struct PerObject {
@@ -1423,21 +1422,22 @@ fn GetPbrParams(in: VertexOutput, is_front: bool) -> PbrParams {
             transitionCustomVector11 = vec4(0.0);
             transitionCustomVector30 = vec4(0.0);
         }
-        case 3u: {
-            // Ditto Pokemon.
-            transitionAlbedo = vec3(0.1694, 0.0924, 0.2002);
-            transitionPrm = vec4(1.0, 0.75, 1.0, 0.032); // TODO: Roughness?
-            transitionCustomVector11 = vec4(0.0); // TODO: What is this?
-            transitionCustomVector30 = vec4(0.5, 4.0, 0.0, 0.0);
-        }
         default: {
         }
     }
 
+    var customVector11 = per_material.custom_vector[11];
+    var customVector30 = per_material.custom_vector[30];
+    if render_settings.transition_material.y == 1u {
+        // Ditto Pokemon.
+        customVector11 = vec4(0.0); // TODO: What is this?
+        customVector30 = vec4(0.5, 4.0, 0.0, 0.0);
+    }
+
     // TODO: Combine mix with each case above?
-    out.sss_color = mix(per_material.custom_vector[11].rgb, transitionCustomVector11.rgb, render_settings.transition_factor.x);
-    out.sss_blend = mix(per_material.custom_vector[30].x, transitionCustomVector30.x, render_settings.transition_factor.x);
-    out.sss_smooth_factor = mix(per_material.custom_vector[30].y, transitionCustomVector30.y, render_settings.transition_factor.x);
+    out.sss_color = mix(customVector11.rgb, transitionCustomVector11.rgb, render_settings.transition_factor.x);
+    out.sss_blend = mix(customVector30.x, transitionCustomVector30.x, render_settings.transition_factor.x);
+    out.sss_smooth_factor = mix(customVector30.y, transitionCustomVector30.y, render_settings.transition_factor.x);
 
     var prm = vec4(0.0, 0.0, 1.0, 0.0);
     let hasPrm = per_material.has_texture[6].x == 1u;
@@ -1478,6 +1478,11 @@ fn GetPbrParams(in: VertexOutput, is_front: bool) -> PbrParams {
         hasVector47 = true;
     }
 
+    if render_settings.transition_material.y == 1u {
+        // Ditto Pokemon.
+        prm = vec4(1.0, 0.75, 1.0, 0.032); // TODO: Roughness?
+    }
+
     out.metalness = mix(prm.r, transitionPrm.r, transitionFactor);
     out.roughness = mix(prm.g, transitionPrm.g, transitionFactor);
     out.ambient_occlusion = prm.b;
@@ -1495,6 +1500,10 @@ fn GetPbrParams(in: VertexOutput, is_front: bool) -> PbrParams {
 
     let albedoColor = GetAlbedoColor(map1, uvSet, uvSet1, reflectionVector, colorSet5);
     var albedoRgb = GetAlbedoColorFinal(albedoColor);
+    if render_settings.transition_material.y == 1u {
+        // Ditto Pokemon.
+        albedoRgb = vec3(0.1694, 0.0924, 0.2002);
+    }
     albedoRgb = mix(albedoRgb, transitionAlbedo, transitionFactor);
     out.albedo = vec4(albedoRgb, albedoColor.a);
 
