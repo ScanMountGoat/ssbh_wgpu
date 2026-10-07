@@ -112,8 +112,64 @@ fn write_value(wgsl: &mut String, value: &Value) -> Option<()> {
 }
 
 fn write_texture(wgsl: &mut String, t: &smush_shader::Texture) -> Option<()> {
+    // Apply default values if channels are "disabled" by render settings.
+    match t.name.as_str() {
+        // TODO: reduce repetition
+        "Texture4" => match t.channel {
+            Some('x') => {
+                write_texture_or_default(wgsl, t, 0.5, "render_settings.render_nor.r")?;
+            }
+            Some('y') => {
+                write_texture_or_default(wgsl, t, 0.5, "render_settings.render_nor.g")?;
+            }
+            Some('z') => {
+                write_texture_or_default(wgsl, t, 0.0, "render_settings.render_nor.b")?;
+            }
+            Some('w') => {
+                write_texture_or_default(wgsl, t, 1.0, "render_settings.render_nor.a")?;
+            }
+            _ => {
+                write_texture_inner(wgsl, &t.name, &t.texcoords)?;
+                write_channel(wgsl, t.channel);
+            }
+        },
+        "Texture6" => match t.channel {
+            Some('x') => {
+                write_texture_or_default(wgsl, t, 0.0, "render_settings.render_prm.r")?;
+            }
+            Some('y') => {
+                write_texture_or_default(wgsl, t, 1.0, "render_settings.render_prm.g")?;
+            }
+            Some('z') => {
+                write_texture_or_default(wgsl, t, 1.0, "render_settings.render_prm.b")?;
+            }
+            Some('w') => {
+                write_texture_or_default(wgsl, t, 0.16, "render_settings.render_prm.a")?;
+            }
+            _ => {
+                write_texture_inner(wgsl, &t.name, &t.texcoords)?;
+                write_channel(wgsl, t.channel);
+            }
+        },
+        _ => {
+            write_texture_inner(wgsl, &t.name, &t.texcoords)?;
+            write_channel(wgsl, t.channel);
+        }
+    }
+
+    Some(())
+}
+
+fn write_texture_or_default(
+    wgsl: &mut String,
+    t: &smush_shader::Texture,
+    default_value: f32,
+    toggle: &str,
+) -> Option<()> {
+    write!(wgsl, "select({default_value}, ").unwrap();
     write_texture_inner(wgsl, &t.name, &t.texcoords)?;
     write_channel(wgsl, t.channel);
+    write!(wgsl, ", {toggle} != 0u)").unwrap();
     Some(())
 }
 
@@ -186,6 +242,8 @@ fn write_attribute(wgsl: &mut String, a: &smush_shader::Attribute) -> Option<()>
         return Some(());
     }
 
+    // Apply default values if "disabled" by render settings.
+    // TODO: Figure out proper defaults for all color attributes.
     // TODO: Support remaining attributes.
     let name = match a.name.as_str() {
         "IN_Position" => Some("in.position"),
@@ -196,13 +254,15 @@ fn write_attribute(wgsl: &mut String, a: &smush_shader::Attribute) -> Option<()>
         "IN_uvSet1" => Some("in.uv_set_uv_set1.zw"),
         "IN_uvSet2" => Some("in.uv_set2_bake1.xy"),
         "IN_bake1" => Some("in.uv_set2_bake1.zw"),
-        "IN_colorSet1" => Some("in.color_set1"),
-        "IN_colorSet2" => Some("in.color_set2_combined"),
-        "IN_colorSet3" => Some("in.color_set3"),
-        "IN_colorSet4" => Some("in.color_set4"),
-        "IN_colorSet5" => Some("in.color_set5"),
-        "IN_colorSet6" => Some("in.color_set6"),
-        "IN_colorSet7" => Some("in.color_set7"),
+        "IN_colorSet1" => {
+            Some("select(vec4(0.5), in.color_set1, render_settings.render_vertex_color.x != 0u)")
+        }
+        "IN_colorSet2" => Some("select(vec4(0.0), in.color_set2_combined, render_settings.render_vertex_color.x != 0u)"),
+        "IN_colorSet3" => Some("select(vec4(0.0), in.color_set3, render_settings.render_vertex_color.x != 0u)"),
+        "IN_colorSet4" => Some("select(vec4(0.0), in.color_set4, render_settings.render_vertex_color.x != 0u)"),
+        "IN_colorSet5" => Some("select(vec4(0.0), in.color_set5, render_settings.render_vertex_color.x != 0u)"),
+        "IN_colorSet6" => Some("select(vec4(0.0), in.color_set6, render_settings.render_vertex_color.x != 0u)"),
+        "IN_colorSet7" => Some("select(vec4(0.0), in.color_set7, render_settings.render_vertex_color.x != 0u)"),
         "gl_InstanceID" => Some("0"), // TODO: instanced rendering?
         "gl_VertexID" => Some("0"),   // TODO: vertex storage buffer indexing?
         _ => {
