@@ -7,8 +7,9 @@ use futures::executor::block_on;
 use rayon::prelude::*;
 use ssbh_data::prelude::*;
 use ssbh_wgpu::{
-    load_render_models, CameraTransforms, ModelFolder, ModelRenderOptions, RenderModel,
-    RenderSettings, SharedRenderData, SsbhRenderer, REQUIRED_FEATURES, REQUIRED_LIMITS,
+    camera::frame_bounds_translation, load_render_models, CameraTransforms, ModelFolder,
+    ModelRenderOptions, RenderModel, RenderSettings, SharedRenderData, SsbhRenderer,
+    REQUIRED_FEATURES, REQUIRED_LIMITS,
 };
 use wgpu::{
     DeviceDescriptor, Extent3d, PowerPreference, RequestAdapterOptions, TextureDescriptor,
@@ -220,16 +221,7 @@ fn frame_models(
         .map(|m| m.max_xyz)
         .reduce(glam::Vec3::max)
         .unwrap_or_default();
-    let center = (min_xyz + max_xyz) / 2.0;
-    let bounds_size = max_xyz - min_xyz;
-
-    // Find the base of the triangle based on vertical FOV and model height.
-    // The aspect ratio is 1.0, so FOV_X is also FOV_Y.
-    // This distance should be from the closest object depth.
-    // TODO: Take near clip into account.
-    // Take the max to frame both horizontally and vertically.
-    let distance = (bounds_size.x.max(bounds_size.y) * 0.5) / (FOV_Y * 0.5).tan();
-    let translation = glam::vec3(-center.x, -center.y, min_xyz.z - distance);
+    let translation = frame_bounds_translation(min_xyz, max_xyz, FOV_Y, 1.0);
 
     let (camera_pos, model_view_matrix, projection_matrix, mvp_matrix) =
         calculate_camera(translation, rotation);

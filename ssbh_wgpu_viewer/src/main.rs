@@ -3,10 +3,11 @@ use clap::Parser;
 use futures::executor::block_on;
 use ssbh_data::prelude::*;
 use ssbh_wgpu::{
-    animation::camera::animate_camera, load_model_folders, load_render_models, next_frame,
-    swing::SwingPrc, BoneNameRenderer, CameraTransforms, DebugMode, ModelFolder,
-    ModelRenderOptions, NutexbFile, RenderModel, RenderSettings, SharedRenderData, SsbhRenderer,
-    TransitionMaterial, REQUIRED_FEATURES, REQUIRED_LIMITS,
+    animation::camera::animate_camera, camera::frame_models_translation_rotation,
+    load_model_folders, load_render_models, next_frame, swing::SwingPrc, BoneNameRenderer,
+    CameraTransforms, DebugMode, ModelFolder, ModelRenderOptions, NutexbFile, RenderModel,
+    RenderSettings, SharedRenderData, SsbhRenderer, TransitionMaterial, REQUIRED_FEATURES,
+    REQUIRED_LIMITS,
 };
 use std::{
     collections::HashSet,
@@ -170,7 +171,10 @@ impl State {
             shared_data.update_stage_cube_map(&device, &queue, &nutexb);
         }
 
-        let render_settings = RenderSettings::default();
+        let render_settings = RenderSettings {
+            material_type: ssbh_wgpu::MaterialType::Model,
+            ..Default::default()
+        };
 
         let models = load_model_folders(&cli.folder);
         let mut render_models = load_render_models(
@@ -214,6 +218,10 @@ impl State {
 
         let name_renderer = BoneNameRenderer::new(&device, &queue, font_bytes, surface_format);
 
+        let aspect = size.width as f32 / size.height as f32;
+        let (translation_xyz, rotation_xyz) =
+            frame_models_translation_rotation(&render_models, FOV_Y, aspect);
+
         Ok(Self {
             window,
             surface,
@@ -227,8 +235,8 @@ impl State {
             previous_cursor_position: PhysicalPosition { x: 0.0, y: 0.0 },
             is_mouse_left_clicked: false,
             is_mouse_right_clicked: false,
-            translation_xyz: glam::vec3(0.0, -8.0, -60.0),
-            rotation_xyz: glam::vec3(0.0, 0.0, 0.0),
+            translation_xyz,
+            rotation_xyz,
             animation,
             camera_animation,
             light_animation,
@@ -343,9 +351,6 @@ impl State {
                         }
                         KeyCode::Numpad6 => {
                             self.render_settings.transition_material = TransitionMaterial::Gold
-                        }
-                        KeyCode::Numpad7 => {
-                            self.render_settings.transition_material = TransitionMaterial::Ditto
                         }
                         _ => (),
                     },
