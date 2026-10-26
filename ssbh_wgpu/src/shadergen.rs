@@ -3,7 +3,7 @@ use std::{fmt::Write, str::FromStr, sync::LazyLock};
 use aho_corasick::AhoCorasick;
 use case::CaseExt;
 use indoc::formatdoc;
-use log::error;
+use log::warn;
 use smol_str::format_smolstr;
 use smush_shader::{Operation, OutputExpr, Parameter, ShaderProgram, Value};
 use ssbh_data::matl_data::ParamId;
@@ -182,12 +182,12 @@ fn write_texture_inner(wgsl: &mut String, name: &str, texcoords: &[usize]) -> Op
         }
         "Texture16" => {
             // TODO: ink normal map for stages?
-            error!("Unsupported texture {name}");
+            warn!("Unsupported texture {name}");
             None
         }
         "DummyTexture" => {
             // TODO: what does this texture do?
-            error!("Unsupported texture {name}");
+            warn!("Unsupported texture {name}");
             None
         }
         _ => write_sampler_2d_or_cube(
@@ -266,7 +266,7 @@ fn write_attribute(wgsl: &mut String, a: &smush_shader::Attribute) -> Option<()>
         "gl_InstanceID" => Some("0"), // TODO: instanced rendering?
         "gl_VertexID" => Some("0"),   // TODO: vertex storage buffer indexing?
         _ => {
-            error!("Unrecognized attribute {a}");
+            warn!("Unrecognized attribute {a}");
             None
         }
     }?;
@@ -279,7 +279,7 @@ fn write_attribute(wgsl: &mut String, a: &smush_shader::Attribute) -> Option<()>
 
 fn write_parameter(wgsl: &mut String, p: &Parameter) -> Option<()> {
     if p.field == "data" {
-        error!("Unsupported dynamic uniform field {p}");
+        warn!("Unsupported dynamic uniform field {p}");
         match p.name.as_str() {
             "EffectArea" => {
                 // TODO: document EffectArea fields
@@ -317,11 +317,11 @@ fn write_parameter(wgsl: &mut String, p: &Parameter) -> Option<()> {
                     // TODO: why is there an index for boolean params?
                     write!(wgsl, "per_material.custom_boolean[{i}].x").unwrap();
                 } else {
-                    error!("Unrecognized field {}", p.field);
+                    warn!("Unrecognized field {}", p.field);
                     return None;
                 }
             } else {
-                error!("Unrecognized field {}", p.field);
+                warn!("Unrecognized field {}", p.field);
                 return None;
             }
         }
@@ -354,7 +354,7 @@ fn write_parameter(wgsl: &mut String, p: &Parameter) -> Option<()> {
             write_parameter_inner(wgsl, "per_world", p.field.to_snake(), p);
         }
         _ => {
-            error!("Unrecognized uniform {p}");
+            warn!("Unrecognized uniform {p}");
             return None;
         }
     }
