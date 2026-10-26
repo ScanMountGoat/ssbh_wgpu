@@ -19,6 +19,7 @@ pub use nutexb_wgpu::NutexbFile;
 pub mod animation;
 mod bone_name;
 mod bone_rendering;
+pub mod camera;
 mod floor_grid;
 mod model;
 mod render_settings;
@@ -26,6 +27,7 @@ mod renderer;
 mod sampler;
 mod shader;
 mod shader_database;
+mod shadergen;
 mod shape;
 pub mod swing;
 mod swing_rendering;
@@ -37,11 +39,12 @@ pub mod viewport;
 pub use bone_name::BoneNameRenderer;
 pub use model::{RenderMesh, RenderModel};
 pub use render_settings::{
-    DebugMode, ModelRenderOptions, RenderSettings, SkinningSettings, TransitionMaterial,
+    DebugMode, MaterialType, ModelRenderOptions, RenderSettings, SkinningSettings,
+    TransitionMaterial,
 };
 pub use renderer::SsbhRenderer;
 pub use shader::model::CameraTransforms;
-pub use shader_database::{split_param, ShaderDatabase, ShaderProgram};
+pub use shader_database::ShaderDatabase;
 pub use texture::{create_default_textures, load_default_spec_cube};
 
 // TODO: Find a way to avoid using the format features for filterable f32 textures.
@@ -52,7 +55,8 @@ pub const REQUIRED_FEATURES: wgpu::Features = wgpu::Features::TEXTURE_COMPRESSIO
     .union(wgpu::Features::TEXTURE_ADAPTER_SPECIFIC_FORMAT_FEATURES)
     .union(wgpu::Features::POLYGON_MODE_LINE)
     .union(wgpu::Features::DEPTH32FLOAT_STENCIL8)
-    .union(wgpu::Features::TEXTURE_FORMAT_16BIT_NORM);
+    .union(wgpu::Features::TEXTURE_FORMAT_16BIT_NORM)
+    .union(wgpu::Features::FLOAT32_FILTERABLE);
 
 // TODO: Find a way to use default limits.
 pub const REQUIRED_LIMITS: wgpu::Limits = wgpu::Limits {
@@ -200,6 +204,30 @@ impl ModelFolder {
             .and_then(|(_, m)| m.as_ref())
     }
 
+    /// Finds the `"metamon_model.numatb"` file in [matls](#structfield.matls).
+    pub fn find_metamon_matl(&self) -> Option<&MatlData> {
+        self.matls
+            .iter()
+            .find(|(f, _)| f == "metamon_model.numatb")
+            .and_then(|(_, m)| m.as_ref())
+    }
+
+    /// Finds the `"light_model.numatb"` file in [matls](#structfield.matls).
+    pub fn find_light_matl(&self) -> Option<&MatlData> {
+        self.matls
+            .iter()
+            .find(|(f, _)| f == "light_model.numatb")
+            .and_then(|(_, m)| m.as_ref())
+    }
+
+    /// Finds the `"dark_model.numatb"` file in [matls](#structfield.matls).
+    pub fn find_dark_matl(&self) -> Option<&MatlData> {
+        self.matls
+            .iter()
+            .find(|(f, _)| f == "dark_model.numatb")
+            .and_then(|(_, m)| m.as_ref())
+    }
+
     /// Finds the `"model.nusktb"` file in [skels](#structfield.skels).
     pub fn find_skel(&self) -> Option<&SkelData> {
         self.skels
@@ -282,13 +310,14 @@ pub fn load_render_models<'a>(
     queue: &wgpu::Queue,
     models: impl IntoIterator<Item = &'a ModelFolder>,
     shared_data: &SharedRenderData,
+    render_settings: &RenderSettings,
 ) -> Vec<RenderModel> {
     let start = std::time::Instant::now();
 
     // TODO: Find a way to efficiently parallelize render mesh creation?
     let render_models: Vec<_> = models
         .into_iter()
-        .map(|model| RenderModel::from_folder(device, queue, model, shared_data))
+        .map(|model| RenderModel::from_folder(device, queue, model, shared_data, render_settings))
         .collect();
 
     info!(

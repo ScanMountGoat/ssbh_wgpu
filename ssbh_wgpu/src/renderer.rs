@@ -10,7 +10,7 @@ use crate::{
     texture::{load_default_lut, uv_pattern, TextureSamplerView},
     CameraTransforms, DeviceBufferExt, QueueExt, RenderModel, ShaderDatabase,
 };
-use glam::{vec4, Mat4, UVec4, Vec4};
+use glam::{ivec4, vec2, vec4, Mat4, UVec4, Vec4};
 use nutexb_wgpu::NutexbFile;
 use ssbh_data::anim_data::AnimData;
 use wgpu::ComputePassDescriptor;
@@ -18,7 +18,6 @@ use wgpu::ComputePassDescriptor;
 // Used internally for model rendering passes.
 // The final render pass uses a user configurable format.
 // TODO: We need at least 16 bits to avoid banding from gamma correction.
-// TODO: Switch to Rgba16Unorm once validation issues are resolved.
 // TODO: Try and get R10G10B10A2 working without banding like in game.
 pub const RGBA_COLOR_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba16Float;
 
@@ -96,6 +95,10 @@ pub struct SsbhRenderer {
 
     color_lut: TextureSamplerView,
 
+    width: u32,
+    height: u32,
+    camera_transforms: CameraTransforms,
+
     clear_color: [f64; 4],
 
     render_settings: RenderSettings,
@@ -107,6 +110,8 @@ pub struct SsbhRenderer {
     surface_format: wgpu::TextureFormat,
 
     current_frame_buffer: wgpu::Buffer,
+
+    per_view_buffer: wgpu::Buffer,
 }
 
 impl SsbhRenderer {
@@ -182,16 +187,17 @@ impl SsbhRenderer {
         );
 
         // Assume the user will update the camera, so these values don't matter.
+        let camera_transforms = crate::shader::model::CameraTransforms {
+            model_view_matrix: Mat4::IDENTITY,
+            projection_matrix: Mat4::IDENTITY,
+            mvp_matrix: Mat4::IDENTITY,
+            mvp_inv_matrix: Mat4::IDENTITY,
+            camera_pos: vec4(0.0, 0.0, -1.0, 1.0),
+            screen_dimensions: vec4(1.0, 1.0, 1.0, 1.0),
+        };
         let camera_buffer = device.create_buffer_from_data(
             "Camera Buffer",
-            &[crate::shader::model::CameraTransforms {
-                model_view_matrix: Mat4::IDENTITY,
-                projection_matrix: Mat4::IDENTITY,
-                mvp_matrix: Mat4::IDENTITY,
-                mvp_inv_matrix: Mat4::IDENTITY,
-                camera_pos: vec4(0.0, 0.0, -1.0, 1.0),
-                screen_dimensions: vec4(1.0, 1.0, 1.0, 1.0),
-            }],
+            &[camera_transforms],
             wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         );
 
@@ -250,6 +256,32 @@ impl SsbhRenderer {
             wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         );
 
+        let for_pass_buffer = device.create_buffer_from_data(
+            "ForPass Buffer",
+            &[crate::shader::model::ForPass {
+                hdr_range: vec4(0.5, 2.0, 0.0, 1.0),
+            }],
+            wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        );
+
+        let per_frame_buffer = device.create_buffer_from_data(
+            "PerFrame Buffer",
+            &[per_frame(width, height)],
+            wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        );
+
+        let per_view_buffer = device.create_buffer_from_data(
+            "PerViewCBuffer Buffer",
+            &[per_view(width, height, &camera_transforms)],
+            wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        );
+
+        let per_world_buffer = device.create_buffer_from_data(
+            "PerWorldCBuffer Buffer",
+            &[per_world()],
+            wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        );
+
         let per_frame_bind_group = crate::shader::model::bind_groups::BindGroup0::from_bindings(
             device,
             crate::shader::model::bind_groups::BindGroupLayout0 {
@@ -260,6 +292,10 @@ impl SsbhRenderer {
                 stage_uniforms: stage_uniforms_buffer.as_entire_buffer_binding(),
                 uv_pattern: &uv_pattern.create_view(&wgpu::TextureViewDescriptor::default()),
                 current_frame: current_frame_buffer.as_entire_buffer_binding(),
+                for_pass: for_pass_buffer.as_entire_buffer_binding(),
+                per_frame: per_frame_buffer.as_entire_buffer_binding(),
+                per_view: per_view_buffer.as_entire_buffer_binding(),
+                per_world: per_world_buffer.as_entire_buffer_binding(),
             },
         );
 
@@ -354,6 +390,10 @@ impl SsbhRenderer {
             floor_grid,
             surface_format,
             current_frame_buffer,
+            per_view_buffer,
+            width,
+            height,
+            camera_transforms,
         }
     }
 
@@ -367,7 +407,14 @@ impl SsbhRenderer {
     /// This adjusts screen based effects such as bloom to have a more appropriate scale on high DPI screens.
     /// This should usually match the current monitor's scaling factor
     /// in the OS such as `1.5` for 150% scaling. If unsure, use a value of `1.0`.
-    pub fn resize(&mut self, device: &wgpu::Device, width: u32, height: u32, scale_factor: f32) {
+    pub fn resize(
+        &mut self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        width: u32,
+        height: u32,
+        scale_factor: f32,
+    ) {
         self.pass_info = PassInfo::new(
             device,
             width,
@@ -376,12 +423,25 @@ impl SsbhRenderer {
             &self.color_lut,
             self.surface_format,
         );
+        self.width = width;
+        self.height = height;
+
+        queue.write_data(
+            &self.per_view_buffer,
+            &[per_view(self.width, self.height, &self.camera_transforms)],
+        );
     }
 
     // TODO: Document that anything that takes a device reference shouldn't be called each frame.
     /// Updates the camera transforms.
     pub fn update_camera(&mut self, queue: &wgpu::Queue, transforms: CameraTransforms) {
+        self.camera_transforms = transforms;
+
         queue.write_data(&self.camera_buffer, &[transforms]);
+        queue.write_data(
+            &self.per_view_buffer,
+            &[per_view(self.width, self.height, &transforms)],
+        );
     }
 
     /// Updates the current frame for material animations.
@@ -894,6 +954,7 @@ impl SsbhRenderer {
                 &self.invalid_shader_pipeline,
                 &self.invalid_attributes_pipeline,
                 pass,
+                self.render_settings.material_type,
             );
         }
     }
@@ -1206,6 +1267,114 @@ impl SsbhRenderer {
         pass.set_pipeline(pipeline);
         crate::shader::bloom::set_bind_groups(&mut pass, bind_group);
         pass.draw(0..3, 0..1);
+    }
+}
+
+fn per_world() -> crate::shader::model::PerWorldCBuffer {
+    // TODO: Where do these matrices come from?
+    let world_matrix = Mat4::IDENTITY;
+    crate::shader::model::PerWorldCBuffer {
+        world_matrix,
+        world_inverse_matrix: world_matrix.inverse(),
+        m_is_shadow_caster: ivec4(0, 0, 0, 0),
+    }
+}
+
+fn per_view(
+    width: u32,
+    height: u32,
+    camera: &CameraTransforms,
+) -> crate::shader::model::PerViewCBuffer {
+    crate::shader::model::PerViewCBuffer {
+        view_matrix: [camera.model_view_matrix, Mat4::IDENTITY],
+        view_inverse_matrix: camera.model_view_matrix.inverse(),
+        projection_matrix: camera.projection_matrix,
+        projection_inverse_matrix: camera.projection_matrix.inverse(),
+        screen_size: vec2(width as f32, height as f32),
+        inverse_screen_size_2d: vec2(1.0 / width as f32, 1.0 / height as f32),
+        rt_scale_factor: vec2(1.0, 1.0),
+        rt_scale_factor_3d: vec2(1.0, 1.0),
+    }
+}
+
+fn per_frame(width: u32, height: u32) -> crate::shader::model::PerFrame {
+    // TODO: Where does this shadow matrix come from?
+    let shadow_map_matrix = Mat4::from_cols_array_2d(&[
+        [0.01125, 0.00143, 0.00251, 0.0],
+        [0.00229, -0.00703, -0.01237, 0.0],
+        [0.0, 0.01249, -0.00725, 0.0],
+        [0.64666, 0.55785, 0.60843, 1.0],
+    ]);
+    // TODO: What is the depth of field texture?
+    crate::shader::model::PerFrame {
+        depth_of_field0: vec4(0.0, 0.0, 0.0, 0.0),
+        depth_of_field1: vec4(0.0, 0.0, 0.0, 0.0),
+        depth_of_field_tex_size: vec4(0.00104, 0.00185, 0.0, 0.0), // TODO: 1 / (2*width), 1 / (2 * height)
+        sun_shaft_light_param0: vec4(0.0, 0.0, 0.0, 0.0),
+        sun_shaft_light_param1: vec4(0.0, 0.0, 0.0, 0.0),
+        sun_shaft_blur_param: [vec4(0.0, 0.0, 1.0, 1.0), vec4(0.0, 0.0, 0.0, 0.0)],
+        sun_shaft_composite_param: vec4(0.0, 0.0, 0.0, 0.0),
+        glare_abstract_param: vec4(0.925, 3.0, 0.0, 0.0),
+        glare_blend_ratio: vec4(0.32, 0.10, 0.20, 0.25),
+        render_target_tex_size: vec4(
+            1.0 / width as f32,
+            1.0 / height as f32,
+            1.0 / width as f32,
+            1.0 / height as f32,
+        ),
+        light_any_param: vec4(0.0, 0.0, 0.0, 0.0),
+        rim_light_dir: vec4(0.0, 0.0, 1.0, 0.99495),
+        lens_flare_param: vec4(0.0, 0.0, 0.0, 0.0),
+        outline_param: vec4(0.25, 0.40, 0.0, 0.0),
+        multi_shadow_matrix: [
+            Mat4::from_cols_array_2d(&[
+                [0.0, 0.0, 0.0, 0.0],
+                [0.0, 0.0, 0.0, 0.0],
+                [0.0, 0.0, 0.0, 0.0],
+                [100.0, 100.0, 0.0, 1.00],
+            ]),
+            Mat4::from_cols_array_2d(&[
+                [0.0, 0.0, 0.0, 0.0],
+                [0.0, 0.0, 0.0, 0.0],
+                [0.0, 0.0, 0.0, 0.0],
+                [100.0, 100.0, 0.0, 1.00],
+            ]),
+            Mat4::from_cols_array_2d(&[
+                [0.0, 0.0, 0.0, 0.0],
+                [0.0, 0.0, 0.0, 0.0],
+                [0.0, 0.0, 0.0, 0.0],
+                [100.0, 100.0, 0.0, 1.00],
+            ]),
+            Mat4::from_cols_array_2d(&[
+                [0.0, 0.0, 0.0, 0.0],
+                [0.0, 0.0, 0.0, 0.0],
+                [0.0, 0.0, 0.0, 0.0],
+                [100.0, 100.0, 0.0, 1.00],
+            ]),
+        ],
+        shadow_map_matrix,
+        effect_light_param0: vec4(0.10, 0.10, -15.0, 0.0),
+        effect_light_param1: vec4(30.0, 12.0, 29.0, 11.0),
+        effect_light_param2: vec4(499.50, 360.0, 0.0, 0.0),
+        bg_rot_inv: Mat4::IDENTITY,
+        g_fog_color: vec4(0.30, 0.45, 1.0, 1.0),
+        g_fog_params: vec4(0.001, 0.0, 2.0, 1.0),
+        g_fog_height_params: vec4(0.0, 1000.0, 1.0, 0.20),
+        g_fog_color_sun_dir: vec4(0.80, 0.40, 0.30, 0.0),
+        g_sun_fog_dir: vec4(0.09966, -0.20195, -0.97431, 1.0),
+        g_fog_sky_params: vec4(8.0, 0.20, 50000.0, 0.0),
+        g_light_map_gain: vec4(1.0, 1.0, 1.0, 1.0),
+        g_ibl_color_gain: vec4(1.0, 1.0, 1.0, 1.0),
+        g_fog_new_params: vec4(0.0, 100000.0, 1.0, -0.79355),
+        g_ibl_scale: vec4(1.0, 1.0, 1.0, 1.0),
+        dbg_material_id: vec4(0.0, 1.0, 0.0, 0.0),
+        stage_color_grading: vec4(1.0, 1.0, 0.0, -1.0),
+        g_light_map_mix_weight: vec4(1.0, 0.0, 0.0, 0.0),
+        g_far_color_gain: vec4(1.0, 1.0, 1.0, 1.0),
+        g_far_color_offset: vec4(0.0, 0.0, 0.0, 0.0),
+        c_ar_reflection: vec4(0.00053, 0.23903, 0.00716, 0.55124),
+        c_ag_reflection: vec4(0.00053, 0.2324, 0.00053, 0.55124),
+        c_ab_reflection: vec4(0.00053, 0.2324, 0.00053, 0.54551),
     }
 }
 

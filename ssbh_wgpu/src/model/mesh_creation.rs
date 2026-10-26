@@ -1,30 +1,49 @@
-use super::pipeline::{pipeline, PipelineKey};
+use super::{
+    per_object,
+    pipeline::{pipeline, PipelineKey},
+    BoneRenderData,
+};
 use crate::{
     animation::AnimationTransforms,
     bone_rendering::*,
-    model::{BoneRenderData, SamplerCache},
     renderer::RGBA_COLOR_FORMAT,
+    shader::model::StageUniforms,
     swing_rendering::SwingRenderData,
     uniforms::{
         default_material_uniforms_bind_group, default_uniforms_buffer,
         material_uniforms_bind_group, per_material, uniforms_buffer,
     },
     vertex::{buffer0, buffer1, combined_mesh_buffers, skin_weights, CombinedMeshBuffers},
-    DeviceBufferExt, ModelFiles, RenderMesh, RenderModel, ShaderDatabase, SharedRenderData,
+    DeviceBufferExt, ModelFiles, RenderMesh, RenderModel, RenderSettings, ShaderDatabase,
+    SharedRenderData,
 };
 use encase::{DynamicStorageBuffer, ShaderType};
+use glam::{vec3, Vec3};
 use log::{error, info};
 use nutexb_wgpu::NutexbFile;
+use rayon::prelude::*;
 use ssbh_data::{
-    adj_data::AdjEntryData, matl_data::MatlEntryData, mesh_data::MeshObjectData,
-    meshex_data::EntryFlags, prelude::*,
+    adj_data::AdjEntryData,
+    matl_data::MatlEntryData,
+    mesh_data::{transform_points, MeshObjectData},
+    meshex_data::EntryFlags,
+    prelude::*,
 };
-use std::{collections::HashMap, error::Error, num::NonZeroU64};
+use std::{
+    collections::{HashMap, HashSet},
+    error::Error,
+    num::NonZeroU64,
+};
 use xmb_lib::XmbFile;
 
 pub struct Material {
     pub material_uniforms_bind_group: crate::shader::model::bind_groups::BindGroup2,
     pub uniforms_buffer: wgpu::Buffer,
+    // The end of the shader label is used to determine draw order.
+    // ex: "SFX_PBS_0101000008018278_sort" has a tag of "sort".
+    // The render order is opaque -> far -> sort -> near.
+    // TODO: How to handle missing tags?
+    pub shader_label: String,
 }
 
 impl Material {
@@ -49,7 +68,10 @@ pub struct TransformBuffers {
 
 struct RenderMeshData {
     meshes: Vec<RenderMesh>,
-    material_data_by_label: HashMap<String, Material>,
+    material_by_label: HashMap<String, Material>,
+    metamon_material_by_label: HashMap<String, Material>,
+    light_material_by_label: HashMap<String, Material>,
+    dark_material_by_label: HashMap<String, Material>,
     textures: Vec<(String, wgpu::Texture, wgpu::TextureViewDimension)>,
     pipelines: HashMap<PipelineKey, wgpu::RenderPipeline>,
     buffer_data: CombinedMeshBuffers,
@@ -63,6 +85,9 @@ pub struct RenderMeshSharedData<'a> {
     pub modl: Option<&'a ModlData>,
     pub skel: Option<&'a SkelData>,
     pub matl: Option<&'a MatlData>,
+    pub metamon_matl: Option<&'a MatlData>,
+    pub light_matl: Option<&'a MatlData>,
+    pub dark_matl: Option<&'a MatlData>,
     pub adj: Option<&'a AdjData>,
     pub hlpb: Option<&'a HlpbData>,
     pub model_xmb: Option<&'a XmbFile>,
@@ -70,7 +95,12 @@ pub struct RenderMeshSharedData<'a> {
 }
 
 impl<'a> RenderMeshSharedData<'a> {
-    pub fn to_render_model(&self, device: &wgpu::Device, queue: &wgpu::Queue) -> RenderModel {
+    pub fn to_render_model(
+        &self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        render_settings: &RenderSettings,
+    ) -> RenderModel {
         let start = std::time::Instant::now();
 
         // Attempt to initialize transforms using the skel.
@@ -108,12 +138,27 @@ impl<'a> RenderMeshSharedData<'a> {
 
         let default_material_data = default_material_data(device, self.shared_data);
 
+        let (is_stage, lightset) = self.is_stage_lightset();
+
         let per_model_buffer = self.per_model_buffer(device);
+
+        let per_object_buffer = device.create_buffer_from_data(
+            "PerObject Buffer",
+            &[per_object(
+                0.0,
+                render_settings,
+                &StageUniforms::training(),
+                lightset,
+                is_stage,
+            )],
+            wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        );
 
         let per_model_bind_group = crate::shader::model::bind_groups::BindGroup1::from_bindings(
             device,
             crate::shader::model::bind_groups::BindGroupLayout1 {
                 per_model: per_model_buffer.as_entire_buffer_binding(),
+                per_object: per_object_buffer.as_entire_buffer_binding(),
             },
         );
 
@@ -124,16 +169,21 @@ impl<'a> RenderMeshSharedData<'a> {
 
         let RenderMeshData {
             meshes,
-            material_data_by_label,
+            material_by_label,
+            metamon_material_by_label,
+            light_material_by_label,
+            dark_material_by_label,
             textures,
             pipelines,
             buffer_data,
         } = self.create_render_mesh_data(device, queue, &mesh_buffers);
 
+        let (min_xyz, max_xyz) = self.min_max_xyz();
+
         info!(
             "Created {:?} render meshe(s), {:?} material(s), {:?} pipeline(s): {:?}",
             meshes.len(),
-            material_data_by_label.len(),
+            material_by_label.len(),
             pipelines.len(),
             start.elapsed()
         );
@@ -143,7 +193,10 @@ impl<'a> RenderMeshSharedData<'a> {
             is_selected: false,
             meshes,
             transforms: mesh_buffers,
-            material_data_by_label,
+            material_by_label,
+            metamon_material_by_label,
+            dark_material_by_label,
+            light_material_by_label,
             default_material_data,
             textures,
             pipelines,
@@ -152,11 +205,64 @@ impl<'a> RenderMeshSharedData<'a> {
             animation_transforms: Box::new(animation_transforms),
             swing_render_data,
             per_model_bind_group,
+            per_object_buffer,
             bone_names,
+            lightset,
+            is_stage,
+            min_xyz,
+            max_xyz,
+        }
+    }
+
+    fn min_max_xyz(&self) -> (Vec3, Vec3) {
+        if let Some(mesh) = self.mesh {
+            let mut min_xyz = None;
+            let mut max_xyz = None;
+
+            for o in &mesh.objects {
+                let transform = self.skel.and_then(|skel| {
+                    skel.bones.iter().find_map(|b| {
+                        if b.name == o.parent_bone_name {
+                            Some(skel.calculate_world_transform(b).unwrap())
+                        } else {
+                            None
+                        }
+                    })
+                });
+                // Figure out the bounding information using the transformed position without animations.
+                for a in &o.positions {
+                    for v in transform
+                        .map(|t| transform_points(&a.data, &t).to_vec4_with_w(1.0))
+                        .unwrap_or(a.data.to_vec4_with_w(1.0))
+                    {
+                        // TODO: Find a nicer way of writing this.
+                        let v = vec3(v[0], v[1], v[2]);
+                        min_xyz = Some(min_xyz.map(|min: Vec3| min.min(v)).unwrap_or(v));
+                        max_xyz = Some(max_xyz.map(|max: Vec3| max.max(v)).unwrap_or(v));
+                    }
+                }
+            }
+
+            (min_xyz.unwrap_or_default(), max_xyz.unwrap_or_default())
+        } else {
+            (Vec3::ZERO, Vec3::ZERO)
         }
     }
 
     fn per_model_buffer(&self, device: &wgpu::Device) -> wgpu::Buffer {
+        let (is_stage, lightset) = self.is_stage_lightset();
+
+        // TODO: Include other model.xmb rendering related settings.
+        device.create_buffer_from_data(
+            "PerModel",
+            &[crate::shader::model::PerModel {
+                light_set_index: glam::uvec4(is_stage as u32, lightset, 0, 0),
+            }],
+            wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        )
+    }
+
+    fn is_stage_lightset(&self) -> (bool, u32) {
         // Get light set information from the model.xmb.
         // We don't initialize the light data itself here.
         // This allows lighting to be updated globally for all models.
@@ -172,14 +278,7 @@ impl<'a> RenderMeshSharedData<'a> {
             .and_then(|a| a.parse().ok())
             .unwrap_or_default();
 
-        // TODO: Include other model.xmb rendering related settings.
-        device.create_buffer_from_data(
-            "PerModel",
-            &[crate::shader::model::PerModel {
-                light_set_index: glam::uvec4(is_stage as u32, lightset, 0, 0),
-            }],
-            wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-        )
+        (is_stage, lightset)
     }
 
     fn create_bone_render_data(
@@ -226,7 +325,13 @@ impl<'a> RenderMeshSharedData<'a> {
         let textures = self.create_textures(device, queue);
 
         // Materials can be shared between mesh objects.
-        let material_data_by_label = self.create_materials(device, &textures);
+        let material_by_label = create_materials(device, self.matl, self.shared_data, &textures);
+        let metamon_material_by_label =
+            create_materials(device, self.metamon_matl, self.shared_data, &textures);
+        let light_material_by_label =
+            create_materials(device, self.light_matl, self.shared_data, &textures);
+        let dark_material_by_label =
+            create_materials(device, self.dark_matl, self.shared_data, &textures);
 
         // DynamicStorageBuffer ensures mesh object offsets are properly aligned.
         let mut model_buffer0_data = DynamicStorageBuffer::new(Vec::new());
@@ -273,21 +378,34 @@ impl<'a> RenderMeshSharedData<'a> {
         // Mesh objects control the depth state of the pipeline.
         // Each (shader, mesh) pair may need a unique pipeline.
         // Cache materials separately since materials may share a pipeline.
-        let mut pipelines = HashMap::new();
+        let mut pipeline_keys = HashSet::new();
 
         let meshes = self
             .create_render_meshes(
                 accesses,
                 device,
-                &mut pipelines,
+                &mut pipeline_keys,
                 mesh_buffers,
                 &combined_mesh_buffers,
             )
             .unwrap_or_default();
 
+        // Pipeline compilation is CPU heavy and benefits from parallelization.
+        // TODO: Create a global pipeline cache?
+        let pipelines = pipeline_keys
+            .into_par_iter()
+            .map(|key| {
+                let value = pipeline(device, self.shared_data, &key);
+                (key, value)
+            })
+            .collect();
+
         RenderMeshData {
             meshes,
-            material_data_by_label,
+            material_by_label,
+            metamon_material_by_label,
+            light_material_by_label,
+            dark_material_by_label,
             textures,
             pipelines,
             buffer_data: combined_mesh_buffers,
@@ -298,7 +416,7 @@ impl<'a> RenderMeshSharedData<'a> {
         &self,
         accesses: Vec<MeshBufferAccess>,
         device: &wgpu::Device,
-        pipelines: &mut HashMap<PipelineKey, wgpu::RenderPipeline>,
+        pipelines: &mut HashSet<PipelineKey>,
         transform_buffers: &TransformBuffers,
         mesh_buffers: &CombinedMeshBuffers,
     ) -> Option<Vec<RenderMesh>> {
@@ -365,41 +483,6 @@ impl<'a> RenderMeshSharedData<'a> {
             .collect()
     }
 
-    fn create_materials(
-        &self,
-        device: &wgpu::Device,
-        textures: &[(String, wgpu::Texture, wgpu::TextureViewDimension)],
-    ) -> HashMap<String, Material> {
-        // Some devices only support up to 4000 sampler allocations.
-        // Models use very few unique sampler settings in practice.
-        // Samplers are immutable and can be safely cached.
-        let mut sampler_by_data = SamplerCache::new();
-
-        // TODO: Split into PerMaterial, PerObject, etc in the shaders?
-        let materials = self
-            .matl
-            .map(|matl| {
-                matl.entries
-                    .iter()
-                    .map(|entry| {
-                        let data = material_data(
-                            device,
-                            entry,
-                            textures,
-                            self.shared_data,
-                            &mut sampler_by_data,
-                        );
-                        (entry.material_label.clone(), data)
-                    })
-                    .collect()
-            })
-            .unwrap_or_default();
-
-        info!("Created {} samplers", sampler_by_data.len());
-
-        materials
-    }
-
     // TODO: Group these parameters?
     fn create_render_mesh(
         &self,
@@ -407,7 +490,7 @@ impl<'a> RenderMeshSharedData<'a> {
         mesh_object: &MeshObjectData,
         adj_entry: Option<&AdjEntryData>,
         meshex_flags: Option<EntryFlags>,
-        pipelines: &mut HashMap<PipelineKey, wgpu::RenderPipeline>,
+        pipelines: &mut HashSet<PipelineKey>,
         transforms: &TransformBuffers,
         access: MeshBufferAccess,
         buffers: &CombinedMeshBuffers,
@@ -428,25 +511,29 @@ impl<'a> RenderMeshSharedData<'a> {
             .unwrap_or(&String::new())
             .to_string();
 
-        let material = self.matl.and_then(|matl| {
-            matl.entries
-                .iter()
-                .find(|e| e.material_label == material_label)
-        });
-
         // Pipeline creation is expensive.
         // Lazily initialize pipelines and share pipelines when possible.
         // TODO: Should we delete unused pipelines when changes require a new pipeline?
-        let pipeline_key = PipelineKey::new(
-            mesh_object.disable_depth_write,
-            mesh_object.disable_depth_test,
-            material,
-            RGBA_COLOR_FORMAT,
-        );
+        let pipeline_key = self.pipeline_key(mesh_object, &material_label, self.matl);
+        pipelines.insert(pipeline_key.clone());
 
-        pipelines
-            .entry(pipeline_key)
-            .or_insert_with(|| pipeline(device, &self.shared_data.pipeline_data, &pipeline_key));
+        let metamon_pipeline_key = self.metamon_matl.map(|matl| {
+            let key = self.pipeline_key(mesh_object, &material_label, Some(matl));
+            pipelines.insert(key.clone());
+            key
+        });
+
+        let dark_pipeline_key = self.dark_matl.map(|matl| {
+            let key = self.pipeline_key(mesh_object, &material_label, Some(matl));
+            pipelines.insert(key.clone());
+            key
+        });
+
+        let light_pipeline_key = self.light_matl.map(|matl| {
+            let key = self.pipeline_key(mesh_object, &material_label, Some(matl));
+            pipelines.insert(key.clone());
+            key
+        });
 
         let vertex_count = mesh_object.vertex_count()?;
 
@@ -511,15 +598,6 @@ impl<'a> RenderMeshSharedData<'a> {
                 },
             );
 
-        // The end of the shader label is used to determine draw order.
-        // ex: "SFX_PBS_0101000008018278_sort" has a tag of "sort".
-        // The render order is opaque -> far -> sort -> near.
-        // TODO: How to handle missing tags?
-        let shader_label = material
-            .map(|m| m.shader_label.as_str())
-            .unwrap_or("")
-            .to_string();
-
         let attribute_names = mesh_object
             .positions
             .iter()
@@ -539,7 +617,6 @@ impl<'a> RenderMeshSharedData<'a> {
         Ok(RenderMesh {
             name: mesh_object.name.clone(),
             material_label: material_label.clone(),
-            shader_label,
             is_visible: true,
             is_selected: false,
             meshex_flags: meshex_flags.unwrap_or(EntryFlags {
@@ -550,6 +627,9 @@ impl<'a> RenderMeshSharedData<'a> {
             skinning_transforms_bind_group,
             mesh_object_info_bind_group,
             pipeline_key,
+            metamon_pipeline_key,
+            dark_pipeline_key,
+            light_pipeline_key,
             renormal_bind_group,
             subindex: mesh_object.subindex,
             vertex_count,
@@ -558,6 +638,43 @@ impl<'a> RenderMeshSharedData<'a> {
             attribute_names,
         })
     }
+
+    fn pipeline_key(
+        &self,
+        mesh_object: &MeshObjectData,
+        material_label: &String,
+        matl: Option<&MatlData>,
+    ) -> PipelineKey {
+        let material = matl.and_then(|matl| {
+            matl.entries
+                .iter()
+                .find(|e| e.material_label == *material_label)
+        });
+        PipelineKey::new(
+            mesh_object.disable_depth_write,
+            mesh_object.disable_depth_test,
+            material,
+            RGBA_COLOR_FORMAT,
+        )
+    }
+}
+
+fn create_materials(
+    device: &wgpu::Device,
+    matl: Option<&MatlData>,
+    shared_data: &SharedRenderData,
+    textures: &[(String, wgpu::Texture, wgpu::TextureViewDimension)],
+) -> HashMap<String, Material> {
+    matl.map(|matl| {
+        matl.entries
+            .iter()
+            .map(|entry| {
+                let data = material_data(device, entry, textures, shared_data);
+                (entry.material_label.clone(), data)
+            })
+            .collect()
+    })
+    .unwrap_or_default()
 }
 
 fn bone_bind_group1(
@@ -579,7 +696,6 @@ pub fn material_data(
     material: &MatlEntryData,
     textures: &[(String, wgpu::Texture, wgpu::TextureViewDimension)],
     shared_data: &SharedRenderData,
-    sampler_by_data: &mut SamplerCache,
 ) -> Material {
     let uniforms_buffer = uniforms_buffer(material, device, &shared_data.database);
     let material_uniforms_bind_group = material_uniforms_bind_group(
@@ -588,12 +704,12 @@ pub fn material_data(
         textures,
         &shared_data.default_textures,
         &uniforms_buffer,
-        sampler_by_data,
     );
 
     Material {
         material_uniforms_bind_group,
         uniforms_buffer,
+        shader_label: material.shader_label.clone(),
     }
 }
 
@@ -608,6 +724,7 @@ pub fn default_material_data(device: &wgpu::Device, shared_data: &SharedRenderDa
     Material {
         material_uniforms_bind_group,
         uniforms_buffer,
+        shader_label: String::new(),
     }
 }
 

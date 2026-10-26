@@ -6,7 +6,7 @@ edition = "2021"
 [dependencies]
 winit.workspace = true
 wgpu.workspace = true
-futures = "0.3"
+futures.workspace = true
 log = "0.4.17"
 simple_logger.workspace = true
 glam = { workspace = true, features = ["bytemuck"] }

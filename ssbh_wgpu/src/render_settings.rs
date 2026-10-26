@@ -66,8 +66,19 @@ pub enum TransitionMaterial {
     MetalBox,
     /// The gold material applied by the Xerneas Pokemon summon.
     Gold,
-    /// The purple material applied by the Ditto Pokemon summon.
+}
+
+#[derive(PartialEq, Eq, Copy, Clone, Display, EnumIter, EnumString, Default)]
+pub enum MaterialType {
+    /// The `model.numatb` materials.
+    #[default]
+    Model,
+    /// The `metamon_model.numatb` materials.
     Ditto,
+    /// The `light_model.numatb` materials.
+    Light,
+    /// The `dark_model.numatb` materials.
+    Dark,
 }
 
 /// Settings for configuring the rendered output of an [crate::SsbhRenderer].
@@ -82,6 +93,8 @@ pub struct RenderSettings {
     /// The amount to blend between the regular material and the [transition_material](#structfield.transition_material).
     /// 0.0 = regular material, 1.0 = transition material.
     pub transition_factor: f32,
+    /// The material file to use for all models.
+    pub material_type: MaterialType,
     pub render_diffuse: bool,
     pub render_specular: bool,
     pub render_emission: bool,
@@ -105,7 +118,12 @@ impl From<&RenderSettings> for crate::shader::model::RenderSettings {
     fn from(r: &RenderSettings) -> Self {
         Self {
             debug_mode: glam::UVec4::splat(r.debug_mode as u32),
-            transition_material: glam::UVec4::splat(r.transition_material as u32),
+            transition_material: glam::uvec4(
+                r.transition_material as u32,
+                r.material_type as u32,
+                0,
+                0,
+            ),
             transition_factor: glam::vec4(r.transition_factor, 0.0, 0.0, 0.0),
             render_diffuse: glam::UVec4::splat(r.render_diffuse as u32),
             render_specular: glam::UVec4::splat(r.render_specular as u32),
@@ -129,6 +147,7 @@ impl Default for RenderSettings {
             debug_mode: DebugMode::Shaded,
             transition_material: TransitionMaterial::Ink,
             transition_factor: 0.0,
+            material_type: MaterialType::Model,
             render_diffuse: true,
             render_specular: true,
             render_emission: true,

@@ -11,7 +11,7 @@ struct CameraTransforms {
 struct RenderSettings {
     debug_mode: vec4<u32>,
     render_uv_pattern: vec4<u32>,
-    transition_material: vec4<u32>,
+    transition_material: vec4<u32>, // transition_material, material_type
     transition_factor: vec4<f32>,
     render_diffuse: vec4<u32>,
     render_specular: vec4<u32>,
@@ -33,7 +33,7 @@ struct Light {
     color: vec4<f32>,
     // Convert quaternions to direction vectors.
     direction: vec4<f32>,
-    transform: mat4x4<f32>
+    transform: mat4x4<f32>,
 }
 
 struct SceneAttributesForShaderFx {
@@ -47,8 +47,70 @@ struct SceneAttributesForShaderFx {
 struct StageUniforms {
     light_chr: Light,
     light_stage: array<Light, 8>,
-    scene_attributes: SceneAttributesForShaderFx
+    scene_attributes: SceneAttributesForShaderFx,
 };
+
+struct PerViewCBuffer {
+    view_matrix: array<mat4x4<f32>, 2>,
+    view_inverse_matrix: mat4x4<f32>,
+    projection_matrix: mat4x4<f32>,
+    projection_inverse_matrix: mat4x4<f32>,
+    screen_size: vec2<f32>,
+    inverse_screen_size_2d: vec2<f32>,
+    rt_scale_factor: vec2<f32>,
+    rt_scale_factor_3d: vec2<f32>,
+}
+
+struct PerWorldCBuffer {
+    world_matrix: mat4x4<f32>,
+    world_inverse_matrix: mat4x4<f32>,
+    m_is_shadow_caster: vec4<i32>,
+}
+
+struct PerFrame {
+    depth_of_field0: vec4<f32>,
+    depth_of_field1: vec4<f32>,
+    depth_of_field_tex_size: vec4<f32>,
+    sun_shaft_light_param0: vec4<f32>,
+    sun_shaft_light_param1: vec4<f32>,
+    sun_shaft_blur_param: array<vec4<f32>, 2>,
+    sun_shaft_composite_param: vec4<f32>,
+    glare_abstract_param: vec4<f32>,
+    glare_blend_ratio: vec4<f32>,
+    render_target_tex_size: vec4<f32>,
+    light_any_param: vec4<f32>,
+    rim_light_dir: vec4<f32>,
+    lens_flare_param: vec4<f32>,
+    outline_param: vec4<f32>,
+    multi_shadow_matrix: array<mat4x4<f32>, 4>,
+    shadow_map_matrix: mat4x4<f32>,
+    effect_light_param0: vec4<f32>,
+    effect_light_param1: vec4<f32>,
+    effect_light_param2: vec4<f32>,
+    bg_rot_inv: mat4x4<f32>,
+    g_fog_color: vec4<f32>,
+    g_fog_params: vec4<f32>,
+    g_fog_height_params: vec4<f32>,
+    g_fog_color_sun_dir: vec4<f32>,
+    g_sun_fog_dir: vec4<f32>,
+    g_fog_sky_params: vec4<f32>,
+    g_light_map_gain: vec4<f32>,
+    g_ibl_color_gain: vec4<f32>,
+    g_fog_new_params: vec4<f32>,
+    g_ibl_scale: vec4<f32>,
+    dbg_material_id: vec4<f32>,
+    stage_color_grading: vec4<f32>,
+    g_light_map_mix_weight: vec4<f32>,
+    g_far_color_gain: vec4<f32>,
+    g_far_color_offset: vec4<f32>,
+    c_ar_reflection: vec4<f32>,
+    c_ag_reflection: vec4<f32>,
+    c_ab_reflection: vec4<f32>,
+}
+
+struct ForPass {
+    hdr_range: vec4<f32>,
+}
 
 // Bind groups are ordered by how frequently they change for performance.
 // TODO: Is it worth actually optimizing this on the CPU side?
@@ -72,12 +134,56 @@ var uv_pattern: texture_2d<f32>;
 @group(0) @binding(7)
 var<uniform> current_frame: vec4<f32>;
 
+@group(0) @binding(8)
+var<uniform> for_pass: ForPass;
+
+@group(0) @binding(9)
+var<uniform> per_frame: PerFrame;
+
+@group(0) @binding(10)
+var<uniform> per_view: PerViewCBuffer;
+
+@group(0) @binding(11)
+var<uniform> per_world: PerWorldCBuffer;
+
 struct PerModel {
-    light_set_index: vec4<u32> // is_stage, light_set, 0, 0
+    light_set_index: vec4<u32>, // is_stage, light_set, 0, 0
 }
 
 @group(1) @binding(0)
 var<uniform> per_model: PerModel;
+
+// This is shared for all meshes in a numshb.
+struct PerObject {
+    light_map_matrix: mat4x4<f32>,
+    blink_color: vec4<f32>,
+    g_constant_volume: vec4<f32>,
+    g_constant_offset: vec4<f32>,
+    uv_scroll_counter: vec4<f32>,
+    spycloak_params: vec4<f32>,
+    compress_param: vec4<f32>,
+    g_fresnel_color: vec4<f32>,
+    costume_skin_color: vec4<f32>,
+    outline_color: vec4<f32>,
+    light_dir_color1: vec4<f32>,
+    light_dir1: vec4<f32>,
+    shadow_map_param: vec4<f32>,
+    char_shadow_color: vec4<f32>,
+    bg_shadow_color: vec4<f32>,
+    silhouette_far_color: vec3<f32>,
+    pad: f32,
+    c_ar: vec4<f32>,
+    c_ag: vec4<f32>,
+    c_ab: vec4<f32>,
+    change_metal: vec4<f32>,
+    burn_color: vec4<f32>,
+    ink_color: vec4<f32>,
+    flashing_param: vec4<f32>,
+    char_color_grading: vec4<f32>,
+}
+
+@group(1) @binding(1)
+var<uniform> per_object: PerObject;
 
 // TODO: Is there a better way of organizing this?
 // TODO: How many textures can we have?
@@ -172,7 +278,7 @@ struct PerMaterial {
     has_color_set567: vec4<u32>,
     shader_settings: vec4<u32>, // discard, premultiplied, anisotropic_rotation, 0
     lighting_settings: vec4<u32>, // lighting, sh, receives_shadow, 0
-    shader_complexity: vec4<f32>
+    shader_complexity: vec4<f32>,
 };
 
 @group(2) @binding(30)
@@ -368,7 +474,7 @@ fn GetLight() -> Light {
     if per_model.light_set_index.x == 0u {
         return stage_uniforms.light_chr;
     } else {
-        switch (per_model.light_set_index.y) {
+        switch per_model.light_set_index.y {
             case 0u: {
                 return stage_uniforms.light_stage[0];
             }
@@ -683,10 +789,7 @@ fn VertexLightMap(colorSet2: vec4<f32>, colorSet2_1: vec4<f32>, colorSet2_2: vec
 }
 
 @vertex
-fn vs_main(
-    buffer0: VertexInput0,
-    buffer1: VertexInput1
-) -> VertexOutput {
+fn vs_main(buffer0: VertexInput0, buffer1: VertexInput1) -> VertexOutput {
     var out: VertexOutput;
     out.position = buffer0.position0;
     out.clip_position = camera.mvp_matrix * vec4(buffer0.position0.xyz, 1.0);
@@ -852,7 +955,7 @@ fn plasma_colormap(x: f32) -> vec3<f32> {
     var high = plasma8[0];
 
     // Workaround for WGSL only allowing constant array indices.
-    switch (index) {
+    switch index {
         case 0: {
             low = plasma8[0];
             high = plasma8[1];
@@ -1008,7 +1111,7 @@ fn fs_debug(in: VertexOutput) -> @location(0) vec4<f32> {
     // TODO: Some of these render modes should be gamma corrected.
     // TODO: Use more accurate gamma correction.
     var outColor = vec4(1.0);
-    switch (render_settings.debug_mode.x) {
+    switch render_settings.debug_mode.x {
         case 1u: {
             let color = normalize(in.position.xyz) * 0.5 + 0.5;
             outColor = vec4(pow(color, vec3(2.2)), 1.0);
@@ -1199,8 +1302,7 @@ struct PbrParams {
     reflectionVector: vec3<f32>,
     normal: vec3<f32>,
     tangent: vec3<f32>,
-    bitangent: vec3<f32>
-}
+    bitangent: vec3<f32>}
 
 fn GetPbrParams(in: VertexOutput, is_front: bool) -> PbrParams {
     // TODO: Create a struct for the non packed attributes.
@@ -1221,7 +1323,7 @@ fn GetPbrParams(in: VertexOutput, is_front: bool) -> PbrParams {
 
     // TODO: clean up this code.
     let viewVector = normalize(camera.camera_pos.xyz - in.position.xyz);
-    
+
     // Normal code ported from in game.
     // This is similar to mikktspace but normalization happens in the fragment shader.
     let normal = normalize(in.normal.xyz);
@@ -1295,7 +1397,7 @@ fn GetPbrParams(in: VertexOutput, is_front: bool) -> PbrParams {
     var transitionCustomVector11 = vec4(0.0);
     var transitionCustomVector30 = vec4(0.0);
 
-    switch (render_settings.transition_material.x) {
+    switch render_settings.transition_material.x {
         case 0u: {
             // Inkling's Ink.
             // TODO: Include other colors from /fighter/common/param/effect.prc?
@@ -1320,21 +1422,22 @@ fn GetPbrParams(in: VertexOutput, is_front: bool) -> PbrParams {
             transitionCustomVector11 = vec4(0.0);
             transitionCustomVector30 = vec4(0.0);
         }
-        case 3u: {
-            // Ditto Pokemon.
-            transitionAlbedo = vec3(0.1694, 0.0924, 0.2002);
-            transitionPrm = vec4(1.0, 0.75, 1.0, 0.032); // TODO: Roughness?
-            transitionCustomVector11 = vec4(0.0); // TODO: What is this?
-            transitionCustomVector30 = vec4(0.5, 4.0, 0.0, 0.0);
-        }
         default: {
         }
     }
 
+    var customVector11 = per_material.custom_vector[11];
+    var customVector30 = per_material.custom_vector[30];
+    if render_settings.transition_material.y == 1u {
+        // Ditto Pokemon.
+        customVector11 = vec4(0.0); // TODO: What is this?
+        customVector30 = vec4(0.5, 4.0, 0.0, 0.0);
+    }
+
     // TODO: Combine mix with each case above?
-    out.sss_color = mix(per_material.custom_vector[11].rgb, transitionCustomVector11.rgb, render_settings.transition_factor.x);
-    out.sss_blend = mix(per_material.custom_vector[30].x, transitionCustomVector30.x, render_settings.transition_factor.x);
-    out.sss_smooth_factor = mix(per_material.custom_vector[30].y, transitionCustomVector30.y, render_settings.transition_factor.x);
+    out.sss_color = mix(customVector11.rgb, transitionCustomVector11.rgb, render_settings.transition_factor.x);
+    out.sss_blend = mix(customVector30.x, transitionCustomVector30.x, render_settings.transition_factor.x);
+    out.sss_smooth_factor = mix(customVector30.y, transitionCustomVector30.y, render_settings.transition_factor.x);
 
     var prm = vec4(0.0, 0.0, 1.0, 0.0);
     let hasPrm = per_material.has_texture[6].x == 1u;
@@ -1375,6 +1478,11 @@ fn GetPbrParams(in: VertexOutput, is_front: bool) -> PbrParams {
         hasVector47 = true;
     }
 
+    if render_settings.transition_material.y == 1u {
+        // Ditto Pokemon.
+        prm = vec4(1.0, 0.75, 1.0, 0.032); // TODO: Roughness?
+    }
+
     out.metalness = mix(prm.r, transitionPrm.r, transitionFactor);
     out.roughness = mix(prm.g, transitionPrm.g, transitionFactor);
     out.ambient_occlusion = prm.b;
@@ -1392,6 +1500,10 @@ fn GetPbrParams(in: VertexOutput, is_front: bool) -> PbrParams {
 
     let albedoColor = GetAlbedoColor(map1, uvSet, uvSet1, reflectionVector, colorSet5);
     var albedoRgb = GetAlbedoColorFinal(albedoColor);
+    if render_settings.transition_material.y == 1u {
+        // Ditto Pokemon.
+        albedoRgb = vec3(0.1694, 0.0924, 0.2002);
+    }
     albedoRgb = mix(albedoRgb, transitionAlbedo, transitionFactor);
     out.albedo = vec4(albedoRgb, albedoColor.a);
 
@@ -1437,7 +1549,6 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) is_front: bool) -> @location
     let nDotV = max(dot(normal, viewVector), 0.0);
     let nDotH = clamp(dot(normal, halfAngle), 0.0, 1.0);
     let nDotL = dot(normal, normalize(chrLightDir));
-
 
     var shadow = 1.0;
     if render_settings.render_shadows.x == 1u && per_material.lighting_settings.z == 1u {
@@ -1539,4 +1650,68 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) is_front: bool) -> @location
     }
 
     return vec4(outColor, outAlpha);
+}
+
+@vertex
+fn vs_generated(buffer0: VertexInput0, buffer1: VertexInput1) -> VertexOutput {
+    var out: VertexOutput;
+    out.position = buffer0.position0;
+    out.clip_position = camera.mvp_matrix * vec4(buffer0.position0.xyz, 1.0);
+
+    // TODO: Generate code for clip position as well?
+    if per_material.has_float[16].x == 1u {
+        // Z offset used for the ore club item.
+        out.clip_position.z -= per_material.custom_float[16].x / out.clip_position.w;
+    }
+    out.normal = buffer0.normal0;
+    out.tangent = buffer0.tangent0;
+
+    // TODO: How to update the SH lighting for each mesh?
+    // The in game shaders just add these coefficients as uniforms.
+    // TODO: Create a PerMesh buffer with SH coefficients?
+    // This could just use PerModel for now based on the model type in the xmb.
+    // Stages and fighters use different SH coefficients.
+    // TODO: The easiest is to just update a global SH Coefficients buffer for now.
+    let shNormal = vec4(normalize(buffer0.normal0.xyz), 1.0);
+    let shAmbientR = dot(shNormal, vec4(0.14186, 0.04903, -0.082, 1.11054));
+    let shAmbientG = dot(shNormal, vec4(0.14717, 0.03699, -0.08283, 1.11036));
+    let shAmbientB = dot(shNormal, vec4(0.1419, 0.04334, -0.08283, 1.11018));
+    out.sh_lighting = vec4(shAmbientR, shAmbientG, shAmbientB, 0.0);
+
+    out.map1 = vec4(buffer1.map1_uvset.xy, 0.0, 0.0);
+    out.uv_set_uv_set1 = vec4(buffer1.map1_uvset.zw, buffer1.uv_set1_uv_set2.xy);
+    out.uv_set2_bake1 = vec4(buffer1.uv_set1_uv_set2.zw, buffer1.bake1.xy);
+
+    out.color_set1 = buffer1.color_set1;
+    out.color_set2_combined = (buffer1.color_set2_combined * buffer1.color_set2_combined);
+    out.color_set3 = buffer1.color_set3;
+    out.color_set4 = buffer1.color_set4;
+    out.color_set5 = buffer1.color_set5;
+    out.color_set6 = buffer1.color_set6;
+    out.color_set7 = buffer1.color_set7;
+
+    out.light_position = GetLight().transform * vec4(buffer0.position0.xyz, 1.0);
+    return out;
+}
+
+@fragment
+fn fs_generated(in: VertexOutput, @builtin(front_facing) is_front: bool) -> @location(0) vec4<f32> {
+    // Required for wgsl_to_wgpu reachability analysis to include these resources.
+    let REMOVE_BEGIN = 0.0;
+    var _unused = per_object.bg_shadow_color.x;
+    _unused = per_material.custom_vector[0].x;
+    _unused = for_pass.hdr_range.x;
+    _unused = per_frame.bg_rot_inv[0].x;
+    _unused = per_view.inverse_screen_size_2d.x;
+    _unused = per_world.world_matrix[0].x;
+    let REMOVE_END = 0.0;
+
+    let ASSIGN_VARS_GENERATED = 0.0;
+
+    // This needs to happen after all variables are assigned.
+    let FRAGMENT_DISCARD_GENERATED = 0.0;
+
+    var output = vec4(0.0);
+    let ASSIGN_OUT_COLOR_GENERATED = 0.0;
+    return output;
 }
