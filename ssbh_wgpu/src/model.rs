@@ -178,13 +178,54 @@ impl RenderModel {
     pub fn recreate_materials(
         &mut self,
         device: &wgpu::Device,
-        // TODO: take light, ditto, dark materials
-        // TODO: easier to just take the entire folder?
         materials: &[MatlEntryData],
         shared_data: &SharedRenderData,
     ) {
-        // TODO: recreate ditto, light, dark materials
-        self.material_by_label = materials
+        self.material_by_label =
+            self.create_materials(device, materials, shared_data, MaterialType::Model);
+    }
+
+    /// Identical to [Self::recreate_materials] but updates the `metamon_model.numatb` materials.
+    pub fn recreate_metamon_materials(
+        &mut self,
+        device: &wgpu::Device,
+        materials: &[MatlEntryData],
+        shared_data: &SharedRenderData,
+    ) {
+        self.metamon_material_by_label =
+            self.create_materials(device, materials, shared_data, MaterialType::Ditto);
+    }
+
+    /// Identical to [Self::recreate_materials] but updates the `light_model.numatb` materials.
+    pub fn recreate_light_materials(
+        &mut self,
+        device: &wgpu::Device,
+        materials: &[MatlEntryData],
+        shared_data: &SharedRenderData,
+    ) {
+        self.light_material_by_label =
+            self.create_materials(device, materials, shared_data, MaterialType::Light);
+    }
+
+    /// Identical to [Self::recreate_materials] but updates the `dark_model.numatb` materials.
+    pub fn recreate_dark_materials(
+        &mut self,
+        device: &wgpu::Device,
+        materials: &[MatlEntryData],
+        shared_data: &SharedRenderData,
+    ) {
+        self.dark_material_by_label =
+            self.create_materials(device, materials, shared_data, MaterialType::Dark);
+    }
+
+    fn create_materials(
+        &mut self,
+        device: &wgpu::Device,
+        materials: &[MatlEntryData],
+        shared_data: &SharedRenderData,
+        material_type: MaterialType,
+    ) -> HashMap<String, Material> {
+        materials
             .iter()
             .map(|material| {
                 // Only create new pipelines as needed since creation is slow.
@@ -195,19 +236,27 @@ impl RenderModel {
                     .iter_mut()
                     .filter(|m| m.material_label == material.material_label)
                 {
-                    let pipeline_key = mesh.pipeline_key.with_material(Some(material));
-                    self.pipelines
-                        .entry(pipeline_key.clone())
-                        .or_insert_with(|| pipeline(device, shared_data, &pipeline_key));
+                    // TODO: Should this ever set the key to some if not present?
+                    if let Some(old_key) = match material_type {
+                        MaterialType::Model => Some(&mut mesh.pipeline_key),
+                        MaterialType::Ditto => mesh.metamon_pipeline_key.as_mut(),
+                        MaterialType::Light => mesh.light_pipeline_key.as_mut(),
+                        MaterialType::Dark => mesh.dark_pipeline_key.as_mut(),
+                    } {
+                        let new_key = old_key.with_material(Some(material));
+                        self.pipelines
+                            .entry(new_key.clone())
+                            .or_insert_with(|| pipeline(device, shared_data, &new_key));
 
-                    // Update the pipeline key for associated RenderMeshes.
-                    mesh.pipeline_key = pipeline_key;
+                        // Update the pipeline key for associated RenderMeshes.
+                        *old_key = new_key;
+                    }
                 }
 
                 let data = material_data(device, material, &self.textures, shared_data);
                 (material.material_label.clone(), data)
             })
-            .collect();
+            .collect()
     }
 
     /// Apply skeletal and material animations for this model.

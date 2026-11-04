@@ -2,7 +2,7 @@ use strum::{Display, EnumIter, EnumString};
 
 // TODO: Separate modes for selecting parameters by index (ex: Booleans[3])?
 /// Model rendering modes supported by [SsbhRenderer](crate::SsbhRenderer).
-#[derive(PartialEq, Eq, Copy, Clone, Display, EnumIter, EnumString)]
+#[derive(Debug, PartialEq, Eq, Copy, Clone, Display, EnumIter, EnumString)]
 pub enum DebugMode {
     /// The default shaded mode supporting lighting and post processing.
     Shaded,
@@ -58,7 +58,7 @@ pub enum DebugMode {
 }
 
 /// The secondary material for material transitions when using [DebugMode::Shaded].
-#[derive(PartialEq, Eq, Copy, Clone, Display, EnumIter, EnumString)]
+#[derive(Debug, PartialEq, Eq, Copy, Clone, Display, EnumIter, EnumString)]
 pub enum TransitionMaterial {
     /// The colored material applied by Inkling's ink.
     Ink,
@@ -68,7 +68,7 @@ pub enum TransitionMaterial {
     Gold,
 }
 
-#[derive(PartialEq, Eq, Copy, Clone, Display, EnumIter, EnumString, Default)]
+#[derive(Debug, PartialEq, Eq, Copy, Clone, Display, EnumIter, EnumString, Default)]
 pub enum MaterialType {
     /// The `model.numatb` materials.
     #[default]
@@ -83,7 +83,7 @@ pub enum MaterialType {
 
 /// Settings for configuring the rendered output of an [crate::SsbhRenderer].
 /// These settings modify internal WGPU state and should only be updated as needed.
-#[derive(PartialEq, Clone, Copy)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 pub struct RenderSettings {
     /// The attribute to render as the output color when [Some].
     pub debug_mode: DebugMode,
