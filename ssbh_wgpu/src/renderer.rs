@@ -640,7 +640,7 @@ impl SsbhRenderer {
         self.skeleton_pass(
             encoder,
             render_models.iter(),
-            &self.pass_info.color_final.view,
+            &self.pass_info.skel_color.view,
             options.draw_bones,
             options.draw_bone_axes,
         );
@@ -1043,8 +1043,7 @@ impl SsbhRenderer {
                 view,
                 resolve_target: None,
                 ops: wgpu::Operations {
-                    // TODO: Combine with another pass to avoid loading.
-                    load: wgpu::LoadOp::Load,
+                    load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
                     store: wgpu::StoreOp::Store,
                 },
                 depth_slice: None,
@@ -1466,6 +1465,7 @@ struct PassInfo {
     depth_msaa: TextureSamplerView,
 
     // TODO: Most of these textures can just be cleared and reused.
+    skel_color: TextureSamplerView,
     skel_depth: TextureSamplerView,
     skel_mask: TextureSamplerView,
     skel_outlines: TextureSamplerView,
@@ -1513,6 +1513,8 @@ impl PassInfo {
 
         // TODO: Use msaa for skeleton drawing?
         let skel_depth = create_depth(device, width, height, 1);
+        let skel_color =
+            create_texture_sampler(device, "Skel Color", width, height, RGBA_COLOR_FORMAT, 1);
         let skel_mask =
             create_texture_sampler(device, "Skel Mask", width, height, RGBA_COLOR_FORMAT, 1);
         let skel_outlines =
@@ -1600,11 +1602,13 @@ impl PassInfo {
             &silhouette_outlines,
             &skel_outlines,
             &material_mask,
+            &skel_color,
             surface_format.is_srgb(),
         );
 
         Self {
             depth_msaa,
+            skel_color,
             skel_depth,
             skel_mask,
             skel_outlines,
@@ -1824,6 +1828,7 @@ fn create_overlay_bind_group(
     outline: &TextureSamplerView,
     skel_outline: &TextureSamplerView,
     material_mask: &TextureSamplerView,
+    skel: &TextureSamplerView,
     is_srgb: bool,
 ) -> crate::shader::overlay::bind_groups::BindGroup0 {
     let buffer = device.create_buffer_from_data(
@@ -1842,6 +1847,7 @@ fn create_overlay_bind_group(
             outline_texture1: &outline.view,
             outline_texture2: &skel_outline.view,
             material_mask_texture: &material_mask.view,
+            skel_texture: &skel.view,
             settings: buffer.as_entire_buffer_binding(),
         },
     )
