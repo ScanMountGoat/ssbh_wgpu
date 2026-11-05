@@ -93,6 +93,7 @@ struct State {
     draw_bones: bool,
     draw_bone_names: bool,
     draw_bone_axes: bool,
+    draw_floor_grid: bool,
 }
 
 impl State {
@@ -138,7 +139,6 @@ impl State {
         };
         surface.configure(&device, &config);
 
-        // TODO: Frame bounding spheres?
         let animation = cli
             .anim
             .as_ref()
@@ -249,6 +249,7 @@ impl State {
             draw_bones: cli.bones,
             draw_bone_names: cli.bone_names,
             draw_bone_axes: cli.bone_axes,
+            draw_floor_grid: cli.grid,
         })
     }
 
@@ -489,6 +490,7 @@ impl State {
 
             // TODO: Combine these into one list?
             for (i, model) in self.render_models.iter_mut().enumerate() {
+                // TODO: Update the current matl like light, dark, metamon, or normal
                 model.apply_anims(
                     &self.queue,
                     self.animation.iter(),
@@ -533,7 +535,7 @@ impl State {
             &ModelRenderOptions {
                 draw_bones: self.draw_bones,
                 draw_bone_axes: self.draw_bone_axes,
-                draw_floor_grid: false, // TODO: make this configurable
+                draw_floor_grid: self.draw_floor_grid,
                 draw_wireframe: true,
                 ..Default::default()
             },
@@ -672,6 +674,10 @@ struct Cli {
 
     #[arg(long)]
     bone_names: bool,
+
+    /// Draw an infinite floor grid.
+    #[arg(long)]
+    grid: bool,
 }
 
 fn main() -> anyhow::Result<()> {
