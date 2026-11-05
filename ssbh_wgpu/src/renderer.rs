@@ -216,6 +216,7 @@ impl SsbhRenderer {
 
         let variance_shadow = create_texture_sampler(
             device,
+            "Variance Shadow",
             VARIANCE_SHADOW_WIDTH,
             VARIANCE_SHADOW_HEIGHT,
             VARIANCE_SHADOW_FORMAT,
@@ -587,8 +588,6 @@ impl SsbhRenderer {
             self.model_debug_pass(
                 encoder,
                 render_models,
-                options.mask_model_index,
-                &options.mask_material_label,
                 options.draw_wireframe,
                 options.draw_floor_grid,
             );
@@ -619,14 +618,22 @@ impl SsbhRenderer {
                 encoder,
                 render_models,
                 shader_database,
-                options.mask_model_index,
-                &options.mask_material_label,
                 options.draw_floor_grid,
             );
 
             // Combine the model and bloom contributions and apply color grading.
             self.post_processing_pass(encoder, &self.pass_info.color_final.view);
         }
+
+        // TODO: Should this also use multisampling?
+        // TODO: how to use the model depth?
+        // Don't apply bloom over the material mask color.
+        self.material_mask_pass(
+            encoder,
+            render_models,
+            options.mask_model_index,
+            &options.mask_material_label,
+        );
 
         // TODO: Should this also use multisampling?
         // TODO: Disable this pass if not needed.
@@ -708,25 +715,6 @@ impl SsbhRenderer {
             &self.swing_camera_bind_group,
             hidden_collisions,
         );
-    }
-
-    fn draw_material_mask<'a>(
-        &'a self,
-        pass: &mut wgpu::RenderPass<'a>,
-        render_models: impl Iterator<Item = &'a RenderModel>,
-        model_index: usize,
-        material_label: &str,
-    ) {
-        // Material labels may be repeated in multiple models.
-        // Only show the selected material for the specified model.
-        if let Some(model) = render_models.into_iter().nth(model_index) {
-            model.draw_meshes_material_mask(
-                pass,
-                &self.per_frame_bind_group,
-                &self.selected_material_pipeline,
-                material_label,
-            );
-        }
     }
 
     fn bloom_upscale_pass(&self, encoder: &mut wgpu::CommandEncoder) {
@@ -867,7 +855,7 @@ impl SsbhRenderer {
                 depth_slice: None,
             })],
             depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                view: &self.pass_info.depth.view,
+                view: &self.pass_info.depth_msaa.view,
                 depth_ops: Some(wgpu::Operations {
                     load: wgpu::LoadOp::Clear(1.0),
                     store: wgpu::StoreOp::Store,
@@ -890,8 +878,6 @@ impl SsbhRenderer {
         encoder: &mut wgpu::CommandEncoder,
         render_models: &[RenderModel],
         shader_database: &ShaderDatabase,
-        mask_model_index: usize,
-        mask_material_label: &str,
         floor_grid: bool,
     ) {
         // TODO: Force having a color attachment for each fragment shader output in wgsl_to_wgpu?
@@ -909,7 +895,7 @@ impl SsbhRenderer {
                 depth_slice: None,
             })],
             depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                view: &self.pass_info.depth.view,
+                view: &self.pass_info.depth_msaa.view,
                 depth_ops: Some(wgpu::Operations {
                     load: wgpu::LoadOp::Load,
                     store: wgpu::StoreOp::Store,
@@ -925,13 +911,6 @@ impl SsbhRenderer {
         // TODO: How does this impact the depth buffer?
         // TODO: Investigate sorting.
         self.draw_render_models(render_models.iter(), &mut pass, shader_database, "near");
-
-        self.draw_material_mask(
-            &mut pass,
-            render_models.iter(),
-            mask_model_index,
-            mask_material_label,
-        );
 
         // Draw this last to avoid obscuring models or masks.
         if floor_grid {
@@ -994,8 +973,6 @@ impl SsbhRenderer {
         &self,
         encoder: &mut wgpu::CommandEncoder,
         render_models: &[RenderModel],
-        mask_model_index: usize,
-        mask_material_label: &str,
         wireframe: bool,
         floor_grid: bool,
     ) {
@@ -1011,7 +988,7 @@ impl SsbhRenderer {
                 depth_slice: None,
             })],
             depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                view: &self.pass_info.depth.view,
+                view: &self.pass_info.depth_msaa.view,
                 depth_ops: Some(wgpu::Operations {
                     load: wgpu::LoadOp::Clear(1.0),
                     store: wgpu::StoreOp::Store,
@@ -1035,13 +1012,6 @@ impl SsbhRenderer {
                 model.draw_meshes_debug(&mut pass, &self.per_frame_bind_group);
             }
         }
-
-        self.draw_material_mask(
-            &mut pass,
-            render_models.iter(),
-            mask_model_index,
-            mask_material_label,
-        );
 
         // Draw this last to avoid obscuring models or masks.
         if floor_grid {
@@ -1268,6 +1238,49 @@ impl SsbhRenderer {
         crate::shader::bloom::set_bind_groups(&mut pass, bind_group);
         pass.draw(0..3, 0..1);
     }
+
+    fn material_mask_pass(
+        &self,
+        encoder: &mut wgpu::CommandEncoder,
+        render_models: &[RenderModel],
+        mask_model_index: usize,
+        mask_material_label: &str,
+    ) {
+        let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("Material Mask Pass"),
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view: &self.pass_info.material_mask_msaa.view,
+                resolve_target: Some(&self.pass_info.material_mask.view),
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
+                    store: wgpu::StoreOp::Store,
+                },
+                depth_slice: None,
+            })],
+            depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                view: &self.pass_info.depth_msaa.view,
+                depth_ops: Some(wgpu::Operations {
+                    load: wgpu::LoadOp::Load,
+                    store: wgpu::StoreOp::Store,
+                }),
+                stencil_ops: None,
+            }),
+            timestamp_writes: None,
+            occlusion_query_set: None,
+            multiview_mask: None,
+        });
+
+        // Material labels may be repeated in multiple models.
+        // Only show the selected material for the specified model.
+        if let Some(model) = render_models.into_iter().nth(mask_model_index) {
+            model.draw_meshes_material_mask(
+                &mut pass,
+                &self.per_frame_bind_group,
+                &self.selected_material_pipeline,
+                mask_material_label,
+            );
+        }
+    }
 }
 
 fn per_world() -> crate::shader::model::PerWorldCBuffer {
@@ -1450,7 +1463,7 @@ struct PassInfo {
     // TODO: most of these just need a view?
     color: TextureSamplerView,
     color_msaa: TextureSamplerView,
-    depth: TextureSamplerView,
+    depth_msaa: TextureSamplerView,
 
     // TODO: Most of these textures can just be cleared and reused.
     skel_depth: TextureSamplerView,
@@ -1460,6 +1473,9 @@ struct PassInfo {
 
     // Final color before applying overlays
     color_final: TextureSamplerView,
+
+    material_mask: TextureSamplerView,
+    material_mask_msaa: TextureSamplerView,
 
     bloom_threshold: TextureSamplerView,
 
@@ -1493,18 +1509,38 @@ impl PassInfo {
         color_lut: &TextureSamplerView,
         surface_format: wgpu::TextureFormat,
     ) -> Self {
-        let depth = create_depth(device, width, height, MSAA_SAMPLE_COUNT);
+        let depth_msaa = create_depth(device, width, height, MSAA_SAMPLE_COUNT);
 
         // TODO: Use msaa for skeleton drawing?
         let skel_depth = create_depth(device, width, height, 1);
-        let skel_mask = create_texture_sampler(device, width, height, RGBA_COLOR_FORMAT, 1);
-        let skel_outlines = create_texture_sampler(device, width, height, surface_format, 1);
+        let skel_mask =
+            create_texture_sampler(device, "Skel Mask", width, height, RGBA_COLOR_FORMAT, 1);
+        let skel_outlines =
+            create_texture_sampler(device, "Skel Outlines", width, height, surface_format, 1);
         let skel_outline_bind_group = create_outline_bind_group(device, &skel_mask);
 
-        let color = create_texture_sampler(device, width, height, RGBA_COLOR_FORMAT, 1);
-        let color_msaa =
-            create_texture_sampler(device, width, height, RGBA_COLOR_FORMAT, MSAA_SAMPLE_COUNT);
-        let color_final = create_texture_sampler(device, width, height, RGBA_COLOR_FORMAT, 1);
+        let color = create_texture_sampler(device, "Color", width, height, RGBA_COLOR_FORMAT, 1);
+        let color_msaa = create_texture_sampler(
+            device,
+            "Color MSAA",
+            width,
+            height,
+            RGBA_COLOR_FORMAT,
+            MSAA_SAMPLE_COUNT,
+        );
+        let color_final =
+            create_texture_sampler(device, "Color Final", width, height, RGBA_COLOR_FORMAT, 1);
+
+        let material_mask =
+            create_texture_sampler(device, "Material Mask", width, height, RGBA_COLOR_FORMAT, 1);
+        let material_mask_msaa = create_texture_sampler(
+            device,
+            "Material Mask MSAA",
+            width,
+            height,
+            RGBA_COLOR_FORMAT,
+            MSAA_SAMPLE_COUNT,
+        );
 
         // Bloom uses successively smaller render targets to increase the blur.
         // Account for monitor scaling to avoid a smaller perceived radius on high DPI screens.
@@ -1546,8 +1582,16 @@ impl PassInfo {
         let post_process_bind_group =
             create_post_process_bind_group(device, &color, &bloom_upscaled, color_lut);
 
-        let silhouette_mask = create_texture_sampler(device, width, height, surface_format, 1);
-        let silhouette_outlines = create_texture_sampler(device, width, height, surface_format, 1);
+        let silhouette_mask =
+            create_texture_sampler(device, "Silhouette Mask", width, height, surface_format, 1);
+        let silhouette_outlines = create_texture_sampler(
+            device,
+            "Silhouette Outlines",
+            width,
+            height,
+            surface_format,
+            1,
+        );
         let outline_bind_group = create_outline_bind_group(device, &silhouette_mask);
 
         let overlay_bind_group = create_overlay_bind_group(
@@ -1555,17 +1599,20 @@ impl PassInfo {
             &color_final,
             &silhouette_outlines,
             &skel_outlines,
+            &material_mask,
             surface_format.is_srgb(),
         );
 
         Self {
-            depth,
+            depth_msaa,
             skel_depth,
             skel_mask,
             skel_outlines,
             color,
             color_msaa,
             color_final,
+            material_mask,
+            material_mask_msaa,
             bloom_threshold,
             bloom_threshold_bind_group,
             bloom_blur_colors,
@@ -1622,26 +1669,13 @@ fn create_depth(
 
 fn create_texture_sampler(
     device: &wgpu::Device,
+    label: &str,
     width: u32,
     height: u32,
     format: wgpu::TextureFormat,
     sample_count: u32,
 ) -> TextureSamplerView {
-    // TODO: Labels
-    let texture = device.create_texture(&wgpu::TextureDescriptor {
-        label: Some("color texture"),
-        size: wgpu::Extent3d {
-            width: width.max(1),
-            height: height.max(1),
-            depth_or_array_layers: 1,
-        },
-        mip_level_count: 1,
-        sample_count,
-        dimension: wgpu::TextureDimension::D2,
-        format,
-        usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
-        view_formats: &[],
-    });
+    let texture = create_texture(device, label, width, height, format, sample_count);
 
     let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
 
@@ -1655,6 +1689,31 @@ fn create_texture_sampler(
     });
 
     TextureSamplerView { view, sampler }
+}
+
+fn create_texture(
+    device: &wgpu::Device,
+    label: &str,
+    width: u32,
+    height: u32,
+    format: wgpu::TextureFormat,
+    sample_count: u32,
+) -> wgpu::Texture {
+    let texture = device.create_texture(&wgpu::TextureDescriptor {
+        label: Some(label),
+        size: wgpu::Extent3d {
+            width: width.max(1),
+            height: height.max(1),
+            depth_or_array_layers: 1,
+        },
+        mip_level_count: 1,
+        sample_count,
+        dimension: wgpu::TextureDimension::D2,
+        format,
+        usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
+        view_formats: &[],
+    });
+    texture
 }
 
 // TODO: Find a way to generate this from render pass descriptions.
@@ -1700,7 +1759,8 @@ fn create_bloom_combine_bind_group(
     TextureSamplerView,
     crate::shader::bloom_combine::bind_groups::BindGroup0,
 ) {
-    let texture = create_texture_sampler(device, width, height, surface_format, 1);
+    let texture =
+        create_texture_sampler(device, "Bloom Combined", width, height, surface_format, 1);
 
     let bind_group = crate::shader::bloom_combine::bind_groups::BindGroup0::from_bindings(
         device,
@@ -1726,7 +1786,7 @@ fn create_bloom_bind_group(
     TextureSamplerView,
     crate::shader::bloom::bind_groups::BindGroup0,
 ) {
-    let texture = create_texture_sampler(device, width, height, format, 1);
+    let texture = create_texture_sampler(device, "Bloom", width, height, format, 1);
 
     let bind_group = crate::shader::bloom::bind_groups::BindGroup0::from_bindings(
         device,
@@ -1761,8 +1821,9 @@ fn create_post_process_bind_group(
 fn create_overlay_bind_group(
     device: &wgpu::Device,
     color_final: &TextureSamplerView,
-    outline_texture: &TextureSamplerView,
-    skel_outline_texture: &TextureSamplerView,
+    outline: &TextureSamplerView,
+    skel_outline: &TextureSamplerView,
+    material_mask: &TextureSamplerView,
     is_srgb: bool,
 ) -> crate::shader::overlay::bind_groups::BindGroup0 {
     let buffer = device.create_buffer_from_data(
@@ -1778,9 +1839,9 @@ fn create_overlay_bind_group(
         crate::shader::overlay::bind_groups::BindGroupLayout0 {
             color_texture: &color_final.view,
             color_sampler: &color_final.sampler,
-            outline_texture1: &outline_texture.view,
-            outline_texture2: &skel_outline_texture.view,
-            outline_sampler: &outline_texture.sampler,
+            outline_texture1: &outline.view,
+            outline_texture2: &skel_outline.view,
+            material_mask_texture: &material_mask.view,
             settings: buffer.as_entire_buffer_binding(),
         },
     )
