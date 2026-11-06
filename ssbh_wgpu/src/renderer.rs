@@ -32,9 +32,7 @@ pub const MSAA_SAMPLE_COUNT: u32 = 4;
 
 pub const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
 
-// Modified from Rg16Unorm for better compatibility.
-// TODO: Switch to Rg16Unorm once validation issues are resolved.
-const VARIANCE_SHADOW_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rg16Float;
+const VARIANCE_SHADOW_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rg16Unorm;
 
 const SHADOW_MAP_WIDTH: u32 = 1024;
 const SHADOW_MAP_HEIGHT: u32 = 1024;

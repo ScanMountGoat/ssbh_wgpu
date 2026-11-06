@@ -749,8 +749,12 @@ fn GetF0FromSpecular(specular: f32) -> f32 {
     return specular * 0.2;
 }
 
-// Shadow mapping.
+// Shadow mapping from in game shaders adapted for WGPU coordinate system.
 fn GetShadow(light_position: vec4<f32>, param: f32) -> f32 {
+    if render_settings.render_shadows.x == 0u {
+        return 1.0;
+    }
+
     // compensate for the Y-flip difference between the NDC and texture coordinates
     let flipCorrection = vec2(0.5, -0.5);
     // compute texture coordinates for shadow lookup
@@ -762,13 +766,10 @@ fn GetShadow(light_position: vec4<f32>, param: f32) -> f32 {
     // TODO: This assumes depth is in the range 0.0 to 1.0 in the texture.
     let currentDepth = light_position.z * projCorrection;
 
-    // TODO: This shouldn't be necessary with Rg16Unorm.
-    let adjust_offset = 10.0;
-
     // Translated variance shadow mapping from in game.
     let m1 = textureSample(texture_shadow, default_sampler, light_local).r;
     let m2 = textureSample(texture_shadow, default_sampler, light_local).g;
-    let sigma2 = clamp(m2 - m1 * m1 + param * adjust_offset, 0.0, 1.0);
+    let sigma2 = clamp(m2 - m1 * m1 + param, 0.0, 1.0);
     let tDif = max(currentDepth - m1, 0.0);
     // Approximate Pr(x >= t) using one of Chebychev's inqequalities.
     var shadow = sigma2 / (sigma2 + tDif * tDif);
@@ -1551,7 +1552,7 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) is_front: bool) -> @location
     let nDotL = dot(normal, normalize(chrLightDir));
 
     var shadow = 1.0;
-    if render_settings.render_shadows.x == 1u && per_material.lighting_settings.z == 1u {
+    if per_material.lighting_settings.z == 1u {
         shadow = GetShadow(in.light_position, 0.0001);
     }
 

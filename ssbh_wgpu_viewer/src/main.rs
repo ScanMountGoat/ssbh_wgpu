@@ -171,10 +171,7 @@ impl State {
             shared_data.update_stage_cube_map(&device, &queue, &nutexb);
         }
 
-        let render_settings = RenderSettings {
-            material_type: ssbh_wgpu::MaterialType::Model,
-            ..Default::default()
-        };
+        let render_settings = RenderSettings::default();
 
         let models = load_model_folders(&cli.folder);
         let mut render_models = load_render_models(
