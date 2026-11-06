@@ -1,6 +1,7 @@
 use std::collections::BTreeMap;
 
-use smush_shader::ShaderProgram;
+// Export since the version is pinned.
+pub use smush_shader::*;
 
 static DATABASE_BINARY: &[u8] = include_bytes!("resources/shaders.bin");
 
