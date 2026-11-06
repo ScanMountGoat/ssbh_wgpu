@@ -26,7 +26,7 @@ mod render_settings;
 mod renderer;
 mod sampler;
 mod shader;
-mod shader_database;
+pub mod shader_database;
 mod shadergen;
 mod shape;
 pub mod swing;
@@ -44,7 +44,6 @@ pub use render_settings::{
 };
 pub use renderer::SsbhRenderer;
 pub use shader::model::CameraTransforms;
-pub use shader_database::ShaderDatabase;
 pub use texture::{create_default_textures, load_default_spec_cube};
 
 // TODO: Find a way to avoid using the format features for filterable f32 textures.
@@ -434,6 +433,8 @@ pub(crate) use assert_vector_relative_eq;
 
 #[cfg(test)]
 pub(crate) use assert_quat_relative_eq;
+
+use crate::shader_database::ShaderDatabase;
 
 trait DeviceBufferExt {
     fn create_buffer_from_data<T: ShaderType + WriteInto + ShaderSize>(
