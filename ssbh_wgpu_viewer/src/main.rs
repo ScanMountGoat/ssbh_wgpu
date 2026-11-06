@@ -487,12 +487,14 @@ impl State {
 
             // TODO: Combine these into one list?
             for (i, model) in self.render_models.iter_mut().enumerate() {
-                // TODO: Update the current matl like light, dark, metamon, or normal
                 model.apply_anims(
                     &self.queue,
                     self.animation.iter(),
                     self.models[i].1.find_skel(),
                     self.models[i].1.find_matl(),
+                    self.models[i].1.find_metamon_matl(),
+                    self.models[i].1.find_light_matl(),
+                    self.models[i].1.find_dark_matl(),
                     self.models[i].1.find_hlpb(),
                     &self.shared_data,
                     self.current_frame,

@@ -269,6 +269,9 @@ impl RenderModel {
         anims: impl Iterator<Item = &'a AnimData> + Clone,
         skel: Option<&SkelData>,
         matl: Option<&MatlData>,
+        metamon_matl: Option<&MatlData>,
+        light_matl: Option<&MatlData>,
+        dark_matl: Option<&MatlData>,
         hlpb: Option<&HlpbData>,
         shared_data: &SharedRenderData,
         current_frame: f32,
@@ -282,9 +285,46 @@ impl RenderModel {
             // Assume final_frame_index is set to the length of the longest track.
             animate_visibility(anim, current_frame, &mut self.meshes);
 
-            // TODO: update ditto, light, dark materials
+            // TODO: Does this even need the original matl?
             if let Some(matl) = matl {
-                self.update_material_uniforms(anim, current_frame, matl, shared_data, queue);
+                self.update_material_uniforms(
+                    queue,
+                    anim,
+                    current_frame,
+                    matl,
+                    shared_data,
+                    MaterialType::Model,
+                );
+            }
+            if let Some(matl) = metamon_matl {
+                self.update_material_uniforms(
+                    queue,
+                    anim,
+                    current_frame,
+                    matl,
+                    shared_data,
+                    MaterialType::Ditto,
+                );
+            }
+            if let Some(matl) = light_matl {
+                self.update_material_uniforms(
+                    queue,
+                    anim,
+                    current_frame,
+                    matl,
+                    shared_data,
+                    MaterialType::Light,
+                );
+            }
+            if let Some(matl) = dark_matl {
+                self.update_material_uniforms(
+                    queue,
+                    anim,
+                    current_frame,
+                    matl,
+                    shared_data,
+                    MaterialType::Dark,
+                );
             }
         }
 
@@ -367,18 +407,26 @@ impl RenderModel {
 
     fn update_material_uniforms(
         &mut self,
+        queue: &wgpu::Queue,
         anim: &AnimData,
         frame: f32,
         matl: &MatlData,
         shared_data: &SharedRenderData,
-        queue: &wgpu::Queue,
+        material_type: MaterialType,
     ) {
         // Get a list of changed materials.
         // TODO: Avoid per frame allocations here?
         let animated_materials = animate_materials(anim, frame, &matl.entries);
+
+        let materials_to_update = match material_type {
+            MaterialType::Model => &mut self.material_by_label,
+            MaterialType::Ditto => &mut self.metamon_material_by_label,
+            MaterialType::Light => &mut self.light_material_by_label,
+            MaterialType::Dark => &mut self.dark_material_by_label,
+        };
+
         for material in animated_materials {
-            // TODO: update ditto, light, dark materials
-            self.material_by_label
+            materials_to_update
                 .entry(material.material_label.clone())
                 .and_modify(|material_data| {
                     material_data.update(queue, &material, &shared_data.database);
