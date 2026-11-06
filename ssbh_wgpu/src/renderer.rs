@@ -111,6 +111,7 @@ pub struct SsbhRenderer {
 
     current_frame_buffer: wgpu::Buffer,
 
+    per_frame_buffer: wgpu::Buffer,
     per_view_buffer: wgpu::Buffer,
 }
 
@@ -391,6 +392,7 @@ impl SsbhRenderer {
             floor_grid,
             surface_format,
             current_frame_buffer,
+            per_frame_buffer,
             per_view_buffer,
             width,
             height,
@@ -430,6 +432,11 @@ impl SsbhRenderer {
         queue.write_data(
             &self.per_view_buffer,
             &[per_view(self.width, self.height, &self.camera_transforms)],
+        );
+
+        queue.write_data(
+            &self.per_frame_buffer,
+            &[per_frame(self.width, self.height)],
         );
     }
 

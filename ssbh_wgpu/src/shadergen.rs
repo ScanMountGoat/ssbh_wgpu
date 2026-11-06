@@ -424,6 +424,9 @@ fn write_func(wgsl: &mut String, op: &Operation, args: &[usize]) -> Option<()> {
         Operation::Unpack2Float16X => write!(wgsl, "unpack2x16float({a}{}).x", arg0?).unwrap(),
         Operation::Unpack2Float16Y => write!(wgsl, "unpack2x16float({a}{}).y", arg0?).unwrap(),
         Operation::IsNaN => write!(wgsl, "false").unwrap(), // TODO: does WGSL support this?
+        Operation::VarianceShadow => {
+            write!(wgsl, "GetShadow(in.light_position, {a}{})", arg0?).unwrap()
+        }
     }
     Some(())
 }
