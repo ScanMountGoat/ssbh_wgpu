@@ -116,7 +116,10 @@ pub fn buffer1(mesh_data: &MeshObjectData) -> Result<Vec<VertexInput1>, Error> {
             uv_set1_uv_set2: glam::Vec4::ZERO,
             bake1: glam::Vec4::ZERO,
             color_set1: glam::Vec4::ZERO,
-            color_set2_combined: glam::Vec4::ZERO,
+            color_set2: glam::Vec4::ZERO,
+            color_set2_1: glam::Vec4::ZERO,
+            color_set2_2: glam::Vec4::ZERO,
+            color_set2_3: glam::Vec4::ZERO,
             color_set3: glam::Vec4::ZERO,
             color_set4: glam::Vec4::ZERO,
             color_set5: glam::Vec4::ZERO,
@@ -138,10 +141,12 @@ pub fn buffer1(mesh_data: &MeshObjectData) -> Result<Vec<VertexInput1>, Error> {
     }
 
     for attribute in &mesh_data.color_sets {
-        // TODO: Investigate how the game combines colorSet2, colorSet2_1, colorSet2_2.
         match attribute.name.as_str() {
             "colorSet1" => set_color_attribute!(vertices, &attribute.data, color_set1, 0),
-            "colorSet2" => set_color_attribute!(vertices, &attribute.data, color_set2_combined, 0),
+            "colorSet2" => set_color_attribute!(vertices, &attribute.data, color_set2, 0),
+            "colorSet2_1" => set_color_attribute!(vertices, &attribute.data, color_set2_1, 0),
+            "colorSet2_2" => set_color_attribute!(vertices, &attribute.data, color_set2_2, 0),
+            "colorSet2_3" => set_color_attribute!(vertices, &attribute.data, color_set2_3, 0),
             "colorSet3" => set_color_attribute!(vertices, &attribute.data, color_set3, 0),
             "colorSet4" => set_color_attribute!(vertices, &attribute.data, color_set4, 0),
             "colorSet5" => set_color_attribute!(vertices, &attribute.data, color_set5, 0),

@@ -297,12 +297,15 @@ struct VertexInput1 {
     @location(4) uv_set1_uv_set2: vec4<f32>,
     @location(5) bake1: vec4<f32>,
     @location(6) color_set1: vec4<f32>,
-    @location(7) color_set2_combined: vec4<f32>,
-    @location(8) color_set3: vec4<f32>,
-    @location(9) color_set4: vec4<f32>,
-    @location(10) color_set5: vec4<f32>,
-    @location(11) color_set6: vec4<f32>,
-    @location(12) color_set7: vec4<f32>,
+    @location(7) color_set2: vec4<f32>,
+    @location(8) color_set2_1: vec4<f32>,   
+    @location(9) color_set2_2: vec4<f32>,    
+    @location(10) color_set2_3: vec4<f32>,
+    @location(11) color_set3: vec4<f32>,
+    @location(12) color_set4: vec4<f32>,
+    @location(13) color_set5: vec4<f32>,
+    @location(14) color_set6: vec4<f32>,
+    @location(15) color_set7: vec4<f32>,
 };
 
 // TODO: This will need to be reworked at some point.
@@ -883,7 +886,7 @@ fn vs_main(buffer0: VertexInput0, buffer1: VertexInput1) -> VertexOutput {
         // Apply color scaling since the attribute is stored as four bytes.
         // This allows values greater than the normal 0.0 to 1.0 range.
         out.color_set1 = buffer1.color_set1 * 2.0;
-        out.color_set2_combined = (buffer1.color_set2_combined * buffer1.color_set2_combined) * 7.0;
+        out.color_set2_combined = (buffer1.color_set2 * buffer1.color_set2) * 7.0;
         out.color_set3 = buffer1.color_set3 * 2.0;
         out.color_set4 = buffer1.color_set4 * 2.0;
         out.color_set5 = buffer1.color_set5 * 3.0;
@@ -892,7 +895,7 @@ fn vs_main(buffer0: VertexInput0, buffer1: VertexInput1) -> VertexOutput {
     } else {
         // It can be useful to see the unmodified values for debug modes.
         out.color_set1 = buffer1.color_set1;
-        out.color_set2_combined = buffer1.color_set2_combined;
+        out.color_set2_combined = buffer1.color_set2;
         out.color_set3 = buffer1.color_set3;
         out.color_set4 = buffer1.color_set4;
         out.color_set5 = buffer1.color_set5;
@@ -1653,61 +1656,74 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) is_front: bool) -> @location
     return vec4(outColor, outAlpha);
 }
 
+struct VertexOutputGenerated {
+    @builtin(position) clip_position: vec4<f32>,
+    @location(0) light_position: vec4<f32>, // TODO: modify OUT_ShadowMap instead
+    // VERTEX_OUTPUT_FIELDS_GENERATED
+};
+
 @vertex
-fn vs_generated(buffer0: VertexInput0, buffer1: VertexInput1) -> VertexOutput {
-    var out: VertexOutput;
-    out.position = buffer0.position0;
-    out.clip_position = camera.mvp_matrix * vec4(buffer0.position0.xyz, 1.0);
-
-    // TODO: Generate code for clip position as well?
-    if per_material.has_float[16].x == 1u {
-        // Z offset used for the ore club item.
-        out.clip_position.z -= per_material.custom_float[16].x / out.clip_position.w;
-    }
-    out.normal = buffer0.normal0;
-    out.tangent = buffer0.tangent0;
-
-    // TODO: How to update the SH lighting for each mesh?
-    // The in game shaders just add these coefficients as uniforms.
-    // TODO: Create a PerMesh buffer with SH coefficients?
-    // This could just use PerModel for now based on the model type in the xmb.
-    // Stages and fighters use different SH coefficients.
-    // TODO: The easiest is to just update a global SH Coefficients buffer for now.
-    let shNormal = vec4(normalize(buffer0.normal0.xyz), 1.0);
-    let shAmbientR = dot(shNormal, vec4(0.14186, 0.04903, -0.082, 1.11054));
-    let shAmbientG = dot(shNormal, vec4(0.14717, 0.03699, -0.08283, 1.11036));
-    let shAmbientB = dot(shNormal, vec4(0.1419, 0.04334, -0.08283, 1.11018));
-    out.sh_lighting = vec4(shAmbientR, shAmbientG, shAmbientB, 0.0);
-
-    out.map1 = vec4(buffer1.map1_uvset.xy, 0.0, 0.0);
-    out.uv_set_uv_set1 = vec4(buffer1.map1_uvset.zw, buffer1.uv_set1_uv_set2.xy);
-    out.uv_set2_bake1 = vec4(buffer1.uv_set1_uv_set2.zw, buffer1.bake1.xy);
-
-    out.color_set1 = buffer1.color_set1;
-    out.color_set2_combined = (buffer1.color_set2_combined * buffer1.color_set2_combined);
-    out.color_set3 = buffer1.color_set3;
-    out.color_set4 = buffer1.color_set4;
-    out.color_set5 = buffer1.color_set5;
-    out.color_set6 = buffer1.color_set6;
-    out.color_set7 = buffer1.color_set7;
-
-    out.light_position = GetLight().transform * vec4(buffer0.position0.xyz, 1.0);
-    return out;
-}
-
-@fragment
-fn fs_generated(in: VertexOutput, @builtin(front_facing) is_front: bool) -> @location(0) vec4<f32> {
+fn vs_generated(buffer0: VertexInput0, buffer1: VertexInput1) -> VertexOutputGenerated {
     // Required for wgsl_to_wgpu reachability analysis to include these resources.
-    let REMOVE_BEGIN = 0.0;
+    let VS_REMOVE_BEGIN = 0.0;
     var _unused = per_object.bg_shadow_color.x;
     _unused = per_material.custom_vector[0].x;
     _unused = for_pass.hdr_range.x;
     _unused = per_frame.bg_rot_inv[0].x;
     _unused = per_view.inverse_screen_size_2d.x;
     _unused = per_world.world_matrix[0].x;
-    let REMOVE_END = 0.0;
+    let VS_REMOVE_END = 0.0;
 
-    let ASSIGN_VARS_GENERATED = 0.0;
+    // TODO: Generate code for clip position as well?
+    var out: VertexOutputGenerated;
+    out.clip_position = camera.mvp_matrix * vec4(buffer0.position0.xyz, 1.0);
+
+    // Vertex inputs aren't generated, so initialize code them here.
+    // The vertex input structs store all used attributes from all shaders.
+    let IN_Position = buffer0.position0;
+    let IN_Normal = buffer0.normal0;
+    let IN_Tangent = buffer0.tangent0;
+    let IN_map1 = buffer1.map1_uvset.xy;
+    let IN_uvSet = buffer1.map1_uvset.zw;
+    let IN_uvSet1 = buffer1.uv_set1_uv_set2.xy;
+    let IN_uvSet2 = buffer1.uv_set1_uv_set2.zw;
+    let IN_bake1 = buffer1.bake1;
+    // Apply default values if "disabled" by render settings.
+    // TODO: Figure out proper defaults for all color attributes.
+    let IN_colorSet1 = select(vec4(0.5), buffer1.color_set1, render_settings.render_vertex_color.x != 0u);
+    let IN_colorSet2 = select(vec4(0.0), buffer1.color_set2, render_settings.render_vertex_color.x != 0u);
+    let IN_colorSet2_1 = select(vec4(0.0), buffer1.color_set2_1, render_settings.render_vertex_color.x != 0u);
+    let IN_colorSet2_2 = select(vec4(0.0), buffer1.color_set2_2, render_settings.render_vertex_color.x != 0u);
+    let IN_colorSet2_3 = select(vec4(0.0), buffer1.color_set2_3, render_settings.render_vertex_color.x != 0u);
+    let IN_colorSet3 = select(vec4(0.0), buffer1.color_set3, render_settings.render_vertex_color.x != 0u);
+    let IN_colorSet4 = select(vec4(0.0), buffer1.color_set4, render_settings.render_vertex_color.x != 0u);
+    let IN_colorSet5 = select(vec4(0.0), buffer1.color_set5, render_settings.render_vertex_color.x != 0u);
+    let IN_colorSet6 = select(vec4(0.0), buffer1.color_set6, render_settings.render_vertex_color.x != 0u);
+    let IN_colorSet7 = select(vec4(0.0), buffer1.color_set7, render_settings.render_vertex_color.x != 0u);
+    let IN_ink_color_set = vec4(0.0); // TODO: ink rendering?
+
+    let ASSIGN_VS_VARS_GENERATED = 0.0;
+    let ASSIGN_VS_OUTPUTS_GENERATED = 0.0;
+
+    // TODO: Modify OUT_ShadowMap instead
+    out.light_position = GetLight().transform * vec4(buffer0.position0.xyz, 1.0);
+    return out;
+}
+
+// TODO: generate the fragment input struct and match names based on location?
+@fragment
+fn fs_generated(in: VertexOutputGenerated, @builtin(front_facing) is_front: bool) -> @location(0) vec4<f32> {
+    // Required for wgsl_to_wgpu reachability analysis to include these resources.
+    let FS_REMOVE_BEGIN = 0.0;
+    var _unused = per_object.bg_shadow_color.x;
+    _unused = per_material.custom_vector[0].x;
+    _unused = for_pass.hdr_range.x;
+    _unused = per_frame.bg_rot_inv[0].x;
+    _unused = per_view.inverse_screen_size_2d.x;
+    _unused = per_world.world_matrix[0].x;
+    let FS_REMOVE_END = 0.0;
+
+    let ASSIGN_FS_VARS_GENERATED = 0.0;
 
     // This needs to happen after all variables are assigned.
     let FRAGMENT_DISCARD_GENERATED = 0.0;
