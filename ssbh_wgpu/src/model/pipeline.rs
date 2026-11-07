@@ -334,12 +334,12 @@ pub fn model_pipeline_from_entry(
             module: &module,
             entry_point: Some(vertex_entry),
             buffers: &[
-                crate::shader::model::VertexInput0::vertex_buffer_layout(
+                Some(crate::shader::model::VertexInput0::vertex_buffer_layout(
                     wgpu::VertexStepMode::Vertex,
-                ),
-                crate::shader::model::VertexInput1::vertex_buffer_layout(
+                )),
+                Some(crate::shader::model::VertexInput1::vertex_buffer_layout(
                     wgpu::VertexStepMode::Vertex,
-                ),
+                )),
             ],
             compilation_options: wgpu::PipelineCompilationOptions::default(),
         },

@@ -290,6 +290,10 @@ struct VertexInput0 {
     @location(2) tangent0: vec4<f32>,
 };
 
+// Per mesh data for RENORMAL calculations
+@group(3) @binding(0) var<storage, read> vertices: array<VertexInput0>;
+@group(3) @binding(1) var<storage, read> adj_data: array<i32>;
+
 // We can safely assume 16 available locations.
 // Pack attributes to avoid going over the attribute limit.
 struct VertexInput1 {
@@ -1672,6 +1676,8 @@ fn vs_generated(buffer0: VertexInput0, buffer1: VertexInput1) -> VertexOutputGen
     _unused = per_frame.bg_rot_inv[0].x;
     _unused = per_view.inverse_screen_size_2d.x;
     _unused = per_world.world_matrix[0].x;
+    _unused = textureSampleLevel(texture4, sampler4, vec2(0.0), 0.0).x;
+    _unused = textureSampleLevel(texture7, sampler7, vec3(0.0), 0.0).x;
     let VS_REMOVE_END = 0.0;
 
     // TODO: Generate code for clip position as well?
@@ -1701,6 +1707,9 @@ fn vs_generated(buffer0: VertexInput0, buffer1: VertexInput1) -> VertexOutputGen
     let IN_colorSet6 = select(vec4(0.0), buffer1.color_set6, render_settings.render_vertex_color.x != 0u);
     let IN_colorSet7 = select(vec4(0.0), buffer1.color_set7, render_settings.render_vertex_color.x != 0u);
     let IN_ink_color_set = vec4(0.0); // TODO: ink rendering?
+
+    // TODO: figure out how renormal and effect area code interact.
+    let unk_renormal = vec4(0.0);
 
     let ASSIGN_VS_VARS_GENERATED = 0.0;
     let ASSIGN_VS_OUTPUTS_GENERATED = 0.0;

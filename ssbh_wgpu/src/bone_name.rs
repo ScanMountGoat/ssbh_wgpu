@@ -152,18 +152,8 @@ impl BoneNameRenderer {
             },
         );
         // TODO: Account for window scale factor?
-        buffer.set_size(
-            &mut self.font_system,
-            Some(width as f32),
-            Some(height as f32),
-        );
-        buffer.set_text(
-            &mut self.font_system,
-            text,
-            &Attrs::new(),
-            Shaping::Advanced,
-            None,
-        );
+        buffer.set_size(Some(width as f32), Some(height as f32));
+        buffer.set_text(text, &Attrs::new(), Shaping::Advanced, None);
         buffer.shape_until_scroll(&mut self.font_system, false);
 
         let position = transform * glam::vec4(0.0, 0.0, 0.0, 1.0);

@@ -136,6 +136,7 @@ impl State {
             alpha_mode: wgpu::CompositeAlphaMode::Auto,
             view_formats: Vec::new(),
             desired_maximum_frame_latency: 2,
+            color_space: wgpu::SurfaceColorSpace::Auto,
         };
         surface.configure(&device, &config);
 
@@ -569,7 +570,7 @@ impl State {
         self.queue.submit([encoder.finish()]);
 
         // Actually draw the frame.
-        output.present();
+        self.queue.present(output);
     }
 }
 

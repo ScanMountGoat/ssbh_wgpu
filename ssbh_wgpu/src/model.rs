@@ -84,7 +84,7 @@ pub struct RenderMesh {
     pub is_selected: bool,
     meshex_flags: EntryFlags, // TODO: How to update these?
     material_label: String,
-    renormal_bind_group: crate::shader::renormal::bind_groups::BindGroup0,
+    renormal_bind_group: crate::shader::model::bind_groups::BindGroup3,
     skinning_bind_group: crate::shader::skinning::bind_groups::BindGroup0,
     skinning_transforms_bind_group: crate::shader::skinning::bind_groups::BindGroup1,
     mesh_object_info_bind_group: crate::shader::skinning::bind_groups::BindGroup2,
@@ -594,6 +594,7 @@ impl RenderModel {
                 bind_group0,
                 bind_group1,
                 bind_group2,
+                &mesh.renormal_bind_group,
             );
 
             if self.set_mesh_buffers(render_pass, mesh).is_some() {
@@ -832,24 +833,6 @@ fn pipeline_key(mesh: &RenderMesh, material_type: MaterialType) -> &PipelineKey 
     }
 }
 
-pub fn dispatch_renormal<'a>(meshes: &'a [RenderMesh], compute_pass: &mut wgpu::ComputePass<'a>) {
-    // Assume the pipeline is already set.
-    // Some meshes have a material label tag to enable the recalculating of normals.
-    // This helps with animations with large deformations.
-    // TODO: Is this check case sensitive?
-    for mesh in meshes
-        .iter()
-        .filter(|m| m.material_label.contains("RENORMAL"))
-    {
-        crate::shader::renormal::set_bind_groups(compute_pass, &mesh.renormal_bind_group);
-
-        // Round up with ceil to avoid skipping vertices.
-        let [workgroup_x, _, _] = crate::shader::renormal::compute::MAIN_WORKGROUP_SIZE;
-        let workgroup_count = (mesh.vertex_count as f64 / workgroup_x as f64).ceil() as u32;
-        compute_pass.dispatch_workgroups(workgroup_count, 1, 1);
-    }
-}
-
 pub fn dispatch_skinning<'a>(
     meshes: &'a [RenderMesh],
     compute_pass: &mut wgpu::ComputePass<'a>,
@@ -918,7 +901,7 @@ pub(crate) fn per_object(
         } else {
             // TODO: Why do some stage models have lightset indices of 10?
             error!("Invalid lightset index {lightset}");
-            &stage_uniforms.light_stage[lightset as usize]
+            &stage_uniforms.light_stage[0]
         }
     } else {
         &stage_uniforms.light_chr

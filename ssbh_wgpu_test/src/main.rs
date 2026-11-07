@@ -291,7 +291,7 @@ fn render_screenshot(
 fn save_screenshot(output_buffer: &wgpu::Buffer, output_path: PathBuf) {
     // Save the output texture.
     let buffer_slice = output_buffer.slice(..);
-    let data = buffer_slice.get_mapped_range();
+    let data = buffer_slice.get_mapped_range().unwrap();
     rayon::spawn(move || {
         let mut buffer = image::RgbaImage::from_raw(512, 512, data.to_owned()).unwrap();
         // Convert BGRA to RGBA.

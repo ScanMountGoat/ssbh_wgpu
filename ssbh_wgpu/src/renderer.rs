@@ -57,7 +57,6 @@ pub struct SsbhRenderer {
 
     // TODO: Group model related pipelines?
     skinning_pipeline: wgpu::ComputePipeline,
-    renormal_pipeline: wgpu::ComputePipeline,
     shadow_pipeline: wgpu::RenderPipeline,
     variance_shadow_pipeline: wgpu::RenderPipeline,
     invalid_shader_pipeline: wgpu::RenderPipeline,
@@ -163,7 +162,6 @@ impl SsbhRenderer {
             create_screen_pipeline(device, &shader, &layout, "fs_main", RGBA_COLOR_FORMAT);
 
         let skinning_pipeline = crate::shader::skinning::compute::create_main_pipeline(device);
-        let renormal_pipeline = crate::shader::renormal::compute::create_main_pipeline(device);
 
         let shadow_pipeline = depth_pipeline(device);
 
@@ -357,7 +355,6 @@ impl SsbhRenderer {
             bloom_upscale_pipeline,
             post_process_pipeline,
             skinning_pipeline,
-            renormal_pipeline,
             shadow_pipeline,
             camera_buffer,
             per_frame_bind_group,
@@ -584,7 +581,6 @@ impl SsbhRenderer {
         // Transform the vertex positions and normals.
         // Always run compute passes to preserve vertex positions when switching to debug shading.
         self.skinning_pass(encoder, render_models.iter());
-        self.renormal_pass(encoder, render_models.iter());
 
         // TODO: Benchmark and investigate compute shaders for post processing.
         // TODO: Don't make color_final a parameter since we already take self.
@@ -819,23 +815,6 @@ impl SsbhRenderer {
                 &mut skinning_pass,
                 &self.skinning_settings_bind_group,
             );
-        }
-    }
-
-    fn renormal_pass<'a>(
-        &self,
-        encoder: &mut wgpu::CommandEncoder,
-        render_models: impl Iterator<Item = &'a RenderModel>,
-    ) {
-        // TODO: This doesn't appear to be a compute shader in game?
-        // TODO: What is the performance cost of this?
-        let mut renormal_pass = encoder.begin_compute_pass(&ComputePassDescriptor {
-            label: Some("Renormal Pass"),
-            timestamp_writes: None,
-        });
-        renormal_pass.set_pipeline(&self.renormal_pipeline);
-        for model in render_models {
-            crate::model::dispatch_renormal(&model.meshes, &mut renormal_pass);
         }
     }
 

@@ -120,7 +120,7 @@ fn vertex_assignments_wgsl(program: &ShaderProgram) -> String {
 
     for (i, expr) in program.exprs.vertex_exprs.iter().enumerate() {
         write!(&mut wgsl, "let {VERTEX_VAR_PREFIX}{i} = ",).unwrap();
-        if write_expr(&mut wgsl, expr, VERTEX_VAR_PREFIX).is_none() {
+        if write_expr(&mut wgsl, expr, VERTEX_VAR_PREFIX, true).is_none() {
             write!(wgsl, "0.0").unwrap();
         }
         writeln!(&mut wgsl, ";",).unwrap();
@@ -151,7 +151,7 @@ fn fragment_assignments_wgsl(program: &ShaderProgram) -> String {
 
     for (i, expr) in program.exprs.fragment_exprs.iter().enumerate() {
         write!(&mut wgsl, "let {FRAGMENT_VAR_PREFIX}{i} = ",).unwrap();
-        if write_expr(&mut wgsl, expr, FRAGMENT_VAR_PREFIX).is_none() {
+        if write_expr(&mut wgsl, expr, FRAGMENT_VAR_PREFIX, false).is_none() {
             write!(wgsl, "0.0").unwrap();
         }
         writeln!(&mut wgsl, ";",).unwrap();
@@ -160,14 +160,19 @@ fn fragment_assignments_wgsl(program: &ShaderProgram) -> String {
     wgsl
 }
 
-fn write_expr(wgsl: &mut String, expr: &OutputExpr<Operation>, prefix: &str) -> Option<()> {
+fn write_expr(
+    wgsl: &mut String,
+    expr: &OutputExpr<Operation>,
+    prefix: &str,
+    is_vertex: bool,
+) -> Option<()> {
     match expr {
-        OutputExpr::Value(value) => write_value(wgsl, value, prefix),
+        OutputExpr::Value(value) => write_value(wgsl, value, prefix, is_vertex),
         OutputExpr::Func { op, args } => write_func(wgsl, op, args, prefix),
     }
 }
 
-fn write_value(wgsl: &mut String, value: &Value, prefix: &str) -> Option<()> {
+fn write_value(wgsl: &mut String, value: &Value, prefix: &str, is_vertex: bool) -> Option<()> {
     match value {
         Value::Int(i) => {
             write!(wgsl, "{i:?}i").unwrap();
@@ -186,53 +191,114 @@ fn write_value(wgsl: &mut String, value: &Value, prefix: &str) -> Option<()> {
             Some(())
         }
         Value::Parameter(p) => write_parameter(wgsl, p, prefix),
-        Value::Texture(t) => write_texture(wgsl, t, prefix),
+        Value::Texture(t) => write_texture(wgsl, t, prefix, is_vertex),
         Value::Attribute(a) => write_attribute(wgsl, a),
     }
 }
 
-fn write_texture(wgsl: &mut String, t: &smush_shader::Texture, prefix: &str) -> Option<()> {
+fn write_texture(
+    wgsl: &mut String,
+    t: &smush_shader::Texture,
+    prefix: &str,
+    is_vertex: bool,
+) -> Option<()> {
     // Apply default values if channels are "disabled" by render settings.
     match t.name.as_str() {
         // TODO: reduce repetition
         "Texture4" => match t.channel {
             Some('x') => {
-                write_texture_or_default(wgsl, t, 0.5, "render_settings.render_nor.r", prefix)?;
+                write_texture_or_default(
+                    wgsl,
+                    t,
+                    0.5,
+                    "render_settings.render_nor.r",
+                    prefix,
+                    is_vertex,
+                )?;
             }
             Some('y') => {
-                write_texture_or_default(wgsl, t, 0.5, "render_settings.render_nor.g", prefix)?;
+                write_texture_or_default(
+                    wgsl,
+                    t,
+                    0.5,
+                    "render_settings.render_nor.g",
+                    prefix,
+                    is_vertex,
+                )?;
             }
             Some('z') => {
-                write_texture_or_default(wgsl, t, 0.0, "render_settings.render_nor.b", prefix)?;
+                write_texture_or_default(
+                    wgsl,
+                    t,
+                    0.0,
+                    "render_settings.render_nor.b",
+                    prefix,
+                    is_vertex,
+                )?;
             }
             Some('w') => {
-                write_texture_or_default(wgsl, t, 1.0, "render_settings.render_nor.a", prefix)?;
+                write_texture_or_default(
+                    wgsl,
+                    t,
+                    1.0,
+                    "render_settings.render_nor.a",
+                    prefix,
+                    is_vertex,
+                )?;
             }
             _ => {
-                write_texture_inner(wgsl, &t.name, &t.texcoords, prefix)?;
+                write_texture_inner(wgsl, &t.name, &t.texcoords, prefix, is_vertex)?;
                 write_channel(wgsl, t.channel);
             }
         },
         "Texture6" => match t.channel {
             Some('x') => {
-                write_texture_or_default(wgsl, t, 0.0, "render_settings.render_prm.r", prefix)?;
+                write_texture_or_default(
+                    wgsl,
+                    t,
+                    0.0,
+                    "render_settings.render_prm.r",
+                    prefix,
+                    is_vertex,
+                )?;
             }
             Some('y') => {
-                write_texture_or_default(wgsl, t, 1.0, "render_settings.render_prm.g", prefix)?;
+                write_texture_or_default(
+                    wgsl,
+                    t,
+                    1.0,
+                    "render_settings.render_prm.g",
+                    prefix,
+                    is_vertex,
+                )?;
             }
             Some('z') => {
-                write_texture_or_default(wgsl, t, 1.0, "render_settings.render_prm.b", prefix)?;
+                write_texture_or_default(
+                    wgsl,
+                    t,
+                    1.0,
+                    "render_settings.render_prm.b",
+                    prefix,
+                    is_vertex,
+                )?;
             }
             Some('w') => {
-                write_texture_or_default(wgsl, t, 0.16, "render_settings.render_prm.a", prefix)?;
+                write_texture_or_default(
+                    wgsl,
+                    t,
+                    0.16,
+                    "render_settings.render_prm.a",
+                    prefix,
+                    is_vertex,
+                )?;
             }
             _ => {
-                write_texture_inner(wgsl, &t.name, &t.texcoords, prefix)?;
+                write_texture_inner(wgsl, &t.name, &t.texcoords, prefix, is_vertex)?;
                 write_channel(wgsl, t.channel);
             }
         },
         _ => {
-            write_texture_inner(wgsl, &t.name, &t.texcoords, prefix)?;
+            write_texture_inner(wgsl, &t.name, &t.texcoords, prefix, is_vertex)?;
             write_channel(wgsl, t.channel);
         }
     }
@@ -246,9 +312,10 @@ fn write_texture_or_default(
     default_value: f32,
     toggle: &str,
     prefix: &str,
+    is_vertex: bool,
 ) -> Option<()> {
     write!(wgsl, "select({default_value}, ").unwrap();
-    write_texture_inner(wgsl, &t.name, &t.texcoords, prefix)?;
+    write_texture_inner(wgsl, &t.name, &t.texcoords, prefix, is_vertex)?;
     write_channel(wgsl, t.channel);
     write!(wgsl, ", {toggle} != 0u)").unwrap();
     Some(())
@@ -259,12 +326,20 @@ fn write_texture_inner(
     name: &str,
     texcoords: &[usize],
     prefix: &str,
+    is_vertex: bool,
 ) -> Option<()> {
     // TODO: Support remaining textures.
     match name {
         "Texture15" => {
             // TODO: shadow map sampler?
-            write_sampler_2d_or_cube(wgsl, "texture_shadow", "default_sampler", texcoords, prefix)
+            write_sampler_2d_or_cube(
+                wgsl,
+                "texture_shadow",
+                "default_sampler",
+                texcoords,
+                prefix,
+                is_vertex,
+            )
         }
         "Texture16" => {
             // TODO: ink normal map for stages?
@@ -282,6 +357,7 @@ fn write_texture_inner(
             &name.to_snake().replace("texture", "sampler"),
             texcoords,
             prefix,
+            is_vertex,
         ),
     }
 }
@@ -292,16 +368,25 @@ fn write_sampler_2d_or_cube(
     sampler: &str,
     texcoords: &[usize],
     prefix: &str,
+    is_vertex: bool,
 ) -> Option<()> {
     match texcoords {
-        [u, v] => write_sampler_2d(wgsl, name, sampler, *u, *v, prefix),
+        [u, v] => write_sampler_2d(wgsl, name, sampler, *u, *v, prefix, is_vertex),
         [u, v, w] => {
             // Assume 3D textures aren't used, so UVW coordinates should always be a cube map.
-            write!(
-                wgsl,
-                "textureSample({name}, {sampler}, vec3({prefix}{u}, {prefix}{v}, {prefix}{w}))",
-            )
-            .unwrap();
+            if is_vertex {
+                write!(
+                    wgsl,
+                    "textureSampleLevel({name}, {sampler}, vec3({prefix}{u}, {prefix}{v}, {prefix}{w}), 0.0)",
+                )
+                .unwrap();
+            } else {
+                write!(
+                    wgsl,
+                    "textureSample({name}, {sampler}, vec3({prefix}{u}, {prefix}{v}, {prefix}{w}))",
+                )
+                .unwrap();
+            }
             Some(())
         }
         _ => None,
@@ -315,12 +400,23 @@ fn write_sampler_2d(
     u: usize,
     v: usize,
     prefix: &str,
+    is_vertex: bool,
 ) -> Option<()> {
-    write!(
-        wgsl,
-        "textureSample({name}, {sampler}, vec2({prefix}{u}, {prefix}{v}))",
-    )
-    .unwrap();
+    // TODO: differentiate between texture functions in the database itself.
+    if is_vertex {
+        write!(
+            wgsl,
+            "textureSampleLevel({name}, {sampler}, vec2({prefix}{u}, {prefix}{v}), 0.0)",
+        )
+        .unwrap();
+    } else {
+        write!(
+            wgsl,
+            "textureSample({name}, {sampler}, vec2({prefix}{u}, {prefix}{v}))",
+        )
+        .unwrap();
+    }
+
     Some(())
 }
 
@@ -333,8 +429,10 @@ fn write_attribute(wgsl: &mut String, a: &smush_shader::Attribute) -> Option<()>
 
     // TODO: Support remaining attributes.
     let name = match a.name.as_str() {
-        "gl_InstanceID" => Some("0"), // TODO: instanced rendering?
-        "gl_VertexID" => Some("0"),   // TODO: vertex storage buffer indexing?
+        "gl_InstanceID" => Some("0"),    // TODO: instanced rendering?
+        "gl_VertexID" => Some("0"),      // TODO: vertex storage buffer indexing?
+        "renormal" => Some("IN_Normal"), // TODO: use a vertex operation for renormal
+        "unk_renormal" => Some("unk_renormal"),
         name => {
             if name.starts_with("IN_") {
                 // Input attributes are assigned to variables previously.

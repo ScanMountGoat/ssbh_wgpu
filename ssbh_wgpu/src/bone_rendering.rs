@@ -320,8 +320,10 @@ fn skeleton_pipeline(
         vertex: wgpu::VertexState {
             module: &module,
             entry_point: Some(vertex_entry),
-            buffers: &[crate::shader::skeleton::VertexInput::vertex_buffer_layout(
-                wgpu::VertexStepMode::Vertex,
+            buffers: &[Some(
+                crate::shader::skeleton::VertexInput::vertex_buffer_layout(
+                    wgpu::VertexStepMode::Vertex,
+                ),
             )],
             compilation_options: wgpu::PipelineCompilationOptions::default(),
         },
@@ -364,8 +366,10 @@ fn skeleton_silhouette_pipeline(
         vertex: wgpu::VertexState {
             module: &module,
             entry_point: Some(vertex_entry),
-            buffers: &[crate::shader::skeleton::VertexInput::vertex_buffer_layout(
-                wgpu::VertexStepMode::Vertex,
+            buffers: &[Some(
+                crate::shader::skeleton::VertexInput::vertex_buffer_layout(
+                    wgpu::VertexStepMode::Vertex,
+                ),
             )],
             compilation_options: wgpu::PipelineCompilationOptions::default(),
         },
@@ -395,14 +399,10 @@ fn bone_axes_pipeline(
     device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
         label: Some("Bone Axes Pipeline"),
         layout: Some(&layout),
-        vertex: wgpu::VertexState {
-            module: &shader,
-            entry_point: Some("vs_axes"),
-            buffers: &[crate::shader::skeleton::VertexInput::vertex_buffer_layout(
-                wgpu::VertexStepMode::Vertex,
-            )],
-            compilation_options: wgpu::PipelineCompilationOptions::default(),
-        },
+        vertex: crate::shader::skeleton::vertex_state(
+            &shader,
+            &crate::shader::skeleton::vs_axes_entry(wgpu::VertexStepMode::Vertex),
+        ),
         fragment: Some(crate::shader::skeleton::fragment_state(
             &shader,
             &crate::shader::skeleton::fs_axes_entry([Some(surface_format.into())]),

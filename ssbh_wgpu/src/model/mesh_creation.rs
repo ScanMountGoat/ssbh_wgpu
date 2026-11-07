@@ -555,9 +555,9 @@ impl<'a> RenderMeshSharedData<'a> {
         let buffer0_source_binding = access.buffer0.binding(&buffers.vertex_buffer0_source)?;
         let weights_binding = access.weights.binding(&buffers.skinning_buffer)?;
 
-        let renormal_bind_group = crate::shader::renormal::bind_groups::BindGroup0::from_bindings(
+        let renormal_bind_group = crate::shader::model::bind_groups::BindGroup3::from_bindings(
             device,
-            crate::shader::renormal::bind_groups::BindGroupLayout0 {
+            crate::shader::model::bind_groups::BindGroupLayout3 {
                 vertices: buffer0_binding.clone(),
                 adj_data: adj_buffer.as_entire_buffer_binding(),
             },
