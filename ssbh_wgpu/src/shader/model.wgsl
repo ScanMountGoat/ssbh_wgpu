@@ -1707,7 +1707,6 @@ fn vs_generated(buffer0: VertexInput0, buffer1: VertexInput1, @builtin(vertex_in
     _unused = textureSampleLevel(texture7, sampler7, vec3(0.0), 0.0).x;
     let VS_REMOVE_END = 0.0;
 
-    // TODO: Generate code for clip position as well?
     var out: VertexOutputGenerated;
     out.clip_position = camera.mvp_matrix * vec4(buffer0.position0.xyz, 1.0);
 

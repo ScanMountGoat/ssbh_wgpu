@@ -514,6 +514,10 @@ impl QueueExt for wgpu::Queue {
 ///
 /// The return value may be more than `1.0` frames if `time_since_last_frame` is sufficiently large.
 /// This is often called "frame skipping" and ssbh_wgpu will not render all animation frames.
+///
+/// If `should_loop` is `true`, the frame values will wrap to be strictly less than `final_frame_index`.
+///
+/// If `final_frame_index` is `0.0`, this will disable any looping and allow the frame to keep increasing.
 pub fn next_frame(
     current_frame: f32,
     time_since_last_frame: Duration,
@@ -528,7 +532,7 @@ pub fn next_frame(
 
     let mut next_frame = current_frame + (delta_t_frames as f32 * playback_speed);
 
-    if next_frame > final_frame_index && should_loop {
+    if final_frame_index > 0.0 && next_frame > final_frame_index && should_loop {
         // Wrap around to loop the animation.
         // This may not be seamless if the animations have different lengths.
         next_frame = if final_frame_index > 0.0 {

@@ -626,8 +626,8 @@ fn vertex_outputs_wgsl(program: &ShaderProgram) -> String {
     let mut wgsl = String::new();
 
     for (name, i) in &program.exprs.vertex_output_exprs {
-        if name.starts_with("gl_Position") {
-            // TODO: handle position code
+        if let Some((_, c)) = name.split_once("gl_Position.") {
+            writeln!(&mut wgsl, "out.clip_position.{c} = {VERTEX_VAR_PREFIX}{i};").unwrap();
         } else {
             // These names already have the channel for assignment.
             writeln!(&mut wgsl, "out.{name} = {VERTEX_VAR_PREFIX}{i};").unwrap();
