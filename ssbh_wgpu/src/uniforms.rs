@@ -677,6 +677,7 @@ mod tests {
                             lighting: false,
                             sh: false,
                             anisotropic_rotation: false,
+                            renormal: false,
                             attributes: Vec::new(),
                             parameters: vec![
                                 "Texture0.xyz".into(),

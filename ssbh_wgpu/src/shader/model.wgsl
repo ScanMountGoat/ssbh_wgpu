@@ -796,6 +796,31 @@ fn VertexLightMap(colorSet2: vec4<f32>, colorSet2_1: vec4<f32>, colorSet2_2: vec
     return lightX * lightMapMixWeight.x + lightY * lightMapMixWeight.y + lightZ * lightMapMixWeight.z + lightW * lightMapMixWeight.w;
 }
 
+
+// SFX_PBS_011000000800826b_VS
+fn renormal(vertex_index: u32) -> vec4<f32> {
+    // Average normals over adjacent faces to calculate smooth normals.
+    // This reduces shading artifacts in animations with heavy deformations.
+    var renormal = vec3(0.0);
+    let start = i32(vertex_index) * 18;
+
+    // Loop over up to 9 adjacent faces.
+    let vertexCount = i32(arrayLength(&vertices));
+    for (var i = 0; i < 9; i = i + 1) {
+        let v0 = i32(vertex_index);
+        let v1 = adj_data[start + i * 2 + 0];
+        let v2 = adj_data[start + i * 2 + 1];
+
+        if (v0 >= 0 && v0 < vertexCount) && (v1 >= 0 && v1 < vertexCount) && (v2 >= 0 && v2 < vertexCount) {
+            let u = vertices[v1].position0 - vertices[v0].position0;
+            let v = vertices[v2].position0 - vertices[v0].position0;
+            renormal = renormal + cross(u.xyz, v.xyz);
+        }
+    }
+
+    return vec4(normalize(renormal), 0.0);
+}
+
 @vertex
 fn vs_main(buffer0: VertexInput0, buffer1: VertexInput1) -> VertexOutput {
     var out: VertexOutput;
@@ -1667,7 +1692,7 @@ struct VertexOutputGenerated {
 };
 
 @vertex
-fn vs_generated(buffer0: VertexInput0, buffer1: VertexInput1) -> VertexOutputGenerated {
+fn vs_generated(buffer0: VertexInput0, buffer1: VertexInput1, @builtin(vertex_index) vertex_index: u32) -> VertexOutputGenerated {
     // Required for wgsl_to_wgpu reachability analysis to include these resources.
     let VS_REMOVE_BEGIN = 0.0;
     var _unused = per_object.bg_shadow_color.x;
@@ -1676,6 +1701,8 @@ fn vs_generated(buffer0: VertexInput0, buffer1: VertexInput1) -> VertexOutputGen
     _unused = per_frame.bg_rot_inv[0].x;
     _unused = per_view.inverse_screen_size_2d.x;
     _unused = per_world.world_matrix[0].x;
+    _unused = f32(arrayLength(&vertices));
+    _unused = f32(arrayLength(&adj_data));
     _unused = textureSampleLevel(texture4, sampler4, vec2(0.0), 0.0).x;
     _unused = textureSampleLevel(texture7, sampler7, vec3(0.0), 0.0).x;
     let VS_REMOVE_END = 0.0;

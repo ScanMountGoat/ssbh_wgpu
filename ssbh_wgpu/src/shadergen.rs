@@ -429,9 +429,9 @@ fn write_attribute(wgsl: &mut String, a: &smush_shader::Attribute) -> Option<()>
 
     // TODO: Support remaining attributes.
     let name = match a.name.as_str() {
-        "gl_InstanceID" => Some("0"),    // TODO: instanced rendering?
-        "gl_VertexID" => Some("0"),      // TODO: vertex storage buffer indexing?
-        "renormal" => Some("IN_Normal"), // TODO: use a vertex operation for renormal
+        "gl_InstanceID" => Some("0"), // TODO: instanced rendering?
+        "gl_VertexID" => Some("0"),   // TODO: vertex storage buffer indexing?
+        "renormal" => Some("renormal(vertex_index)"),
         "unk_renormal" => Some("unk_renormal"),
         name => {
             if name.starts_with("IN_") {

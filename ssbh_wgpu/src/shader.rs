@@ -29,10 +29,6 @@ pub mod post_process {
     include!(concat!(env!("OUT_DIR"), "/post_process.rs"));
 }
 #[allow(dead_code)]
-pub mod renormal {
-    include!(concat!(env!("OUT_DIR"), "/renormal.rs"));
-}
-#[allow(dead_code)]
 pub mod skeleton {
     include!(concat!(env!("OUT_DIR"), "/skeleton.rs"));
 }
