@@ -28,7 +28,8 @@ fn calculate_camera(
         * glam::Mat4::from_rotation_x(rotation.x)
         * glam::Mat4::from_rotation_y(rotation.y);
     // Use a large far clip distance to include stage skyboxes.
-    let projection_matrix = glam::Mat4::perspective_rh(FOV_Y, aspect, 1.0, 400000.0);
+    let projection_matrix =
+        glam::camera::rh::proj::directx::perspective(FOV_Y, aspect, 1.0, 400000.0);
 
     let camera_pos = model_view_matrix.inverse().col(3);
 

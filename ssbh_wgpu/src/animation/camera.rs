@@ -24,7 +24,7 @@ impl CameraAnimValues {
 
         let aspect_ratio = width as f32 / height as f32;
 
-        let projection_matrix = Mat4::perspective_rh(
+        let projection_matrix = glam::camera::rh::proj::directx::perspective(
             self.fov_y_radians,
             aspect_ratio,
             self.near_clip,
@@ -133,10 +133,8 @@ mod tests {
     use super::*;
 
     use crate::assert_matrix_relative_eq;
-    use ssbh_data::{
-        anim_data::{GroupData, NodeData, TrackData, Transform, TransformFlags},
-        Vector3, Vector4,
-    };
+    use glam::{quat, vec3};
+    use ssbh_data::anim_data::{GroupData, NodeData, TrackData, Transform, TransformFlags};
 
     // TODO: Test missing how missing data and capitalization is handled in game.
     // TODO: Test if transform scale has any impact in game.
@@ -159,9 +157,9 @@ mod tests {
                             compensate_scale: false,
                             transform_flags: TransformFlags::default(),
                             values: TrackValues::Transform(vec![Transform {
-                                scale: Vector3::new(1.0, 1.0, 1.0),
-                                rotation: Vector4::new(0.0, 0.7071, 0.0, 0.7071),
-                                translation: Vector3::new(5.0, 10.0, -70.0),
+                                scale: vec3(1.0, 1.0, 1.0),
+                                rotation: quat(0.0, 0.7071, 0.0, 0.7071),
+                                translation: vec3(5.0, 10.0, -70.0),
                             }]),
                         }],
                     }],

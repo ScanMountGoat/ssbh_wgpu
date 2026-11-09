@@ -441,5 +441,9 @@ fn blend_factor(factor: BlendFactor) -> wgpu::BlendFactor {
         BlendFactor::OneMinusSourceColor => wgpu::BlendFactor::OneMinusSrc,
         BlendFactor::OneMinusDestinationColor => wgpu::BlendFactor::OneMinusDst,
         BlendFactor::SourceAlphaSaturate => wgpu::BlendFactor::SrcAlphaSaturated,
+        BlendFactor::Source1Alpha => wgpu::BlendFactor::Src1Alpha,
+        BlendFactor::Source1Color => wgpu::BlendFactor::Src1,
+        BlendFactor::OneMinusSource1Alpha => wgpu::BlendFactor::OneMinusSrc1Alpha,
+        BlendFactor::OneMinusSource1Color => wgpu::BlendFactor::OneMinusSrc1,
     }
 }

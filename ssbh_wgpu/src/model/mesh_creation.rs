@@ -232,7 +232,7 @@ impl<'a> RenderMeshSharedData<'a> {
                 // Figure out the bounding information using the transformed position without animations.
                 for a in &o.positions {
                     for v in transform
-                        .map(|t| transform_points(&a.data, &t).to_vec4_with_w(1.0))
+                        .map(|t| transform_points(&a.data, t).to_vec4_with_w(1.0))
                         .unwrap_or(a.data.to_vec4_with_w(1.0))
                     {
                         // TODO: Find a nicer way of writing this.

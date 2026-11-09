@@ -16,8 +16,9 @@ pub fn light_transform(rotation: glam::Quat, scale: glam::Vec3) -> glam::Mat4 {
     // TODO: Why do we negate w?
     // TODO: Do translation and scale matter?
     // TODO: What controls the "scale" of the lighting region?
-    let perspective_matrix =
-        glam::Mat4::orthographic_rh(-scale.x, scale.x, -scale.y, scale.y, -scale.z, scale.z);
+    let perspective_matrix = glam::camera::rh::proj::directx::orthographic(
+        -scale.x, scale.x, -scale.y, scale.y, -scale.z, scale.z,
+    );
     let model_view = glam::Mat4::from_quat(rotation.conjugate());
 
     perspective_matrix * model_view

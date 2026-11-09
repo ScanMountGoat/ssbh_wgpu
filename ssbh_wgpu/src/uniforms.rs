@@ -472,8 +472,8 @@ pub fn boolean_index(param: ParamId) -> Option<usize> {
 mod tests {
     use super::*;
 
+    use glam::{vec4, Vec4};
     use smush_shader::ShaderProgram;
-    use ssbh_data::Vector4;
 
     #[test]
     fn create_default_uniforms() {
@@ -567,7 +567,7 @@ mod tests {
                     }],
                     vectors: vec![Vector4Param {
                         param_id: ParamId::CustomBoolean0,
-                        data: Vector4::default()
+                        data: Vec4::ZERO
                     }],
                     rasterizer_states: vec![RasterizerStateParam {
                         param_id: ParamId::BlendState0,
@@ -635,21 +635,11 @@ mod tests {
                     vectors: vec![
                         Vector4Param {
                             param_id: ParamId::CustomVector0,
-                            data: Vector4 {
-                                x: 1.0,
-                                y: 2.0,
-                                z: 3.0,
-                                w: 4.0
-                            }
+                            data: vec4(1.0, 2.0, 3.0, 4.0)
                         },
                         Vector4Param {
                             param_id: ParamId::CustomVector8,
-                            data: Vector4 {
-                                x: 1.0,
-                                y: 1.0,
-                                z: 1.0,
-                                w: 1.0
-                            }
+                            data: vec4(1.0, 1.0, 1.0, 1.0)
                         }
                     ],
                     rasterizer_states: vec![RasterizerStateParam {

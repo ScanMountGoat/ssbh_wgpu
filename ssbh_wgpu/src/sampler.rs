@@ -58,9 +58,10 @@ fn address_mode(wrap_mode: WrapMode) -> wgpu::AddressMode {
 
 #[cfg(test)]
 mod tests {
-    use ssbh_data::{matl_data::MaxAnisotropy, Color4f};
-
     use super::*;
+
+    use glam::Vec4;
+    use ssbh_data::matl_data::MaxAnisotropy;
 
     #[test]
     fn sampler_anisotropy() {
@@ -82,12 +83,7 @@ mod tests {
                 wrapr: WrapMode::ClampToBorder,
                 min_filter: MinFilter::LinearMipmapLinear,
                 mag_filter: MagFilter::Linear,
-                border_color: Color4f {
-                    r: 0.0,
-                    g: 0.0,
-                    b: 0.0,
-                    a: 0.0
-                },
+                border_color: Vec4::ZERO,
                 lod_bias: 0.0,
                 max_anisotropy: MaxAnisotropy::Two
             })
@@ -115,12 +111,7 @@ mod tests {
                 wrapr: WrapMode::ClampToBorder,
                 min_filter: MinFilter::Nearest,
                 mag_filter: MagFilter::Linear2,
-                border_color: Color4f {
-                    r: 0.0,
-                    g: 0.0,
-                    b: 0.0,
-                    a: 0.0
-                },
+                border_color: Vec4::ZERO,
                 lod_bias: 0.0,
                 max_anisotropy: MaxAnisotropy::Two
             })
@@ -147,12 +138,7 @@ mod tests {
                 wrapr: WrapMode::ClampToEdge,
                 min_filter: MinFilter::LinearMipmapLinear,
                 mag_filter: MagFilter::Linear,
-                border_color: Color4f {
-                    r: 0.0,
-                    g: 0.0,
-                    b: 0.0,
-                    a: 0.0
-                },
+                border_color: Vec4::ZERO,
                 lod_bias: 0.0,
                 max_anisotropy: MaxAnisotropy::One
             })

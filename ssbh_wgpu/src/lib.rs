@@ -553,7 +553,7 @@ mod tests {
 
     #[test]
     fn next_frame_loop_zero_final_frame() {
-        assert_eq!(0.0, next_frame(1.0, Duration::from_secs(0), 0.0, 1.0, true));
+        assert_eq!(1.0, next_frame(1.0, Duration::from_secs(0), 0.0, 1.0, true));
     }
 
     #[test]

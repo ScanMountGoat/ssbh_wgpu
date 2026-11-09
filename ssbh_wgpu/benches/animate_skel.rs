@@ -1,4 +1,5 @@
 use criterion::{criterion_group, criterion_main, Criterion};
+use glam::Mat4;
 use ssbh_data::prelude::*;
 
 use criterion::BenchmarkId;
@@ -12,12 +13,7 @@ fn identity_bone(name: &str, parent_index: Option<usize>) -> BoneData {
     BoneData {
         name: name.to_string(),
         // Start with the identity to make this simpler.
-        transform: [
-            [1.0, 0.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0, 0.0],
-            [0.0, 0.0, 1.0, 0.0],
-            [0.0, 0.0, 0.0, 1.0],
-        ],
+        transform: Mat4::IDENTITY,
         parent_index,
         billboard_type: BillboardType::Disabled,
     }

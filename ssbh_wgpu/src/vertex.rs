@@ -5,6 +5,7 @@ use crate::{
     },
     DeviceBufferExt,
 };
+use glam::{vec4, Vec4};
 use log::warn;
 use ssbh_data::{
     mesh_data::{error::Error, MeshObjectData},
@@ -25,13 +26,13 @@ pub fn buffer0(mesh_data: &MeshObjectData) -> Result<Vec<VertexInput0>, Error> {
         .positions
         .first()
         .map(|a| a.data.to_vec4_with_w(1.0))
-        .unwrap_or_else(|| vec![[0.0; 4]; vertex_count]);
+        .unwrap_or_else(|| vec![Vec4::ZERO; vertex_count]);
 
     let normals: Vec<_> = mesh_data
         .normals
         .first()
         .map(|a| a.data.to_vec4_with_w(1.0))
-        .unwrap_or_else(|| vec![[0.0; 4]; vertex_count]);
+        .unwrap_or_else(|| vec![Vec4::ZERO; vertex_count]);
 
     // TODO: Add a padding function that preserves w?
     let tangents: Vec<_> = mesh_data
@@ -39,16 +40,14 @@ pub fn buffer0(mesh_data: &MeshObjectData) -> Result<Vec<VertexInput0>, Error> {
         .first()
         .map(|a| match &a.data {
             ssbh_data::mesh_data::VectorData::Vector2(v) => {
-                v.iter().map(|[x, y]| [*x, *y, 0.0, 1.0]).collect()
+                v.iter().map(|v| v.extend(0.0).extend(1.0)).collect()
             }
             ssbh_data::mesh_data::VectorData::Vector3(v) => {
-                v.iter().map(|[x, y, z]| [*x, *y, *z, 1.0]).collect()
+                v.iter().map(|v| v.extend(1.0)).collect()
             }
-            ssbh_data::mesh_data::VectorData::Vector4(v) => {
-                v.iter().map(|[x, y, z, w]| [*x, *y, *z, *w]).collect()
-            }
+            ssbh_data::mesh_data::VectorData::Vector4(v) => v.iter().copied().collect(),
         })
-        .unwrap_or_else(|| vec![[0.0, 0.0, 0.0, 1.0]; vertex_count]);
+        .unwrap_or_else(|| vec![vec4(0.0, 0.0, 0.0, 1.0); vertex_count]);
 
     for ((position, normal), tangent) in positions.into_iter().zip(normals).zip(tangents) {
         vertices.push(VertexInput0 {
@@ -283,6 +282,7 @@ pub fn combined_mesh_buffers(
 
 #[cfg(test)]
 mod tests {
+    use glam::{vec2, vec3, vec4, Mat4};
     use ssbh_data::{
         mesh_data::{AttributeData, BoneInfluence},
         skel_data::BoneData,
@@ -300,7 +300,7 @@ mod tests {
     fn identity_bone(name: &str) -> BoneData {
         BoneData {
             name: name.to_string(),
-            transform: [[0.0; 4]; 4],
+            transform: Mat4::IDENTITY,
             parent_index: None,
             billboard_type: ssbh_data::skel_data::BillboardType::Disabled,
         }
@@ -329,7 +329,7 @@ mod tests {
         let vertices = buffer0(&MeshObjectData {
             texture_coordinates: vec![AttributeData {
                 name: "a".to_string(),
-                data: ssbh_data::mesh_data::VectorData::Vector2(vec![[0.0, 1.0]]),
+                data: ssbh_data::mesh_data::VectorData::Vector2(vec![vec2(0.0, 1.0)]),
             }],
             ..Default::default()
         })
@@ -351,15 +351,15 @@ mod tests {
         let vertices = buffer0(&MeshObjectData {
             positions: vec![AttributeData {
                 name: "a".to_string(),
-                data: ssbh_data::mesh_data::VectorData::Vector4(vec![[0.0, 1.0, 2.0, 3.0]]),
+                data: ssbh_data::mesh_data::VectorData::Vector4(vec![vec4(0.0, 1.0, 2.0, 3.0)]),
             }],
             normals: vec![AttributeData {
                 name: "a".to_string(),
-                data: ssbh_data::mesh_data::VectorData::Vector2(vec![[2.0, 3.0]]),
+                data: ssbh_data::mesh_data::VectorData::Vector2(vec![vec2(2.0, 3.0)]),
             }],
             tangents: vec![AttributeData {
                 name: "a".to_string(),
-                data: ssbh_data::mesh_data::VectorData::Vector3(vec![[4.0, 5.0, 6.0]]),
+                data: ssbh_data::mesh_data::VectorData::Vector3(vec![vec3(4.0, 5.0, 6.0)]),
             }],
             ..Default::default()
         })
@@ -421,7 +421,7 @@ mod tests {
             &MeshObjectData {
                 positions: vec![AttributeData {
                     name: "a".to_string(),
-                    data: ssbh_data::mesh_data::VectorData::Vector4(vec![[0.0, 1.0, 2.0, 3.0]]),
+                    data: ssbh_data::mesh_data::VectorData::Vector4(vec![vec4(0.0, 1.0, 2.0, 3.0)]),
                 }],
                 ..Default::default()
             },
@@ -438,7 +438,7 @@ mod tests {
             &MeshObjectData {
                 positions: vec![AttributeData {
                     name: "a".to_string(),
-                    data: ssbh_data::mesh_data::VectorData::Vector4(vec![[0.0, 1.0, 2.0, 3.0]]),
+                    data: ssbh_data::mesh_data::VectorData::Vector4(vec![vec4(0.0, 1.0, 2.0, 3.0)]),
                 }],
                 bone_influences: vec![
                     bone_influence("a", 0, 1.0),
@@ -480,7 +480,7 @@ mod tests {
             &MeshObjectData {
                 positions: vec![AttributeData {
                     name: "a".to_string(),
-                    data: ssbh_data::mesh_data::VectorData::Vector4(vec![[0.0, 1.0, 2.0, 3.0]]),
+                    data: ssbh_data::mesh_data::VectorData::Vector4(vec![vec4(0.0, 1.0, 2.0, 3.0)]),
                 }],
                 bone_influences: vec![bone_influence("invalid", 0, 1.0)],
                 ..Default::default()
@@ -502,7 +502,7 @@ mod tests {
             &MeshObjectData {
                 positions: vec![AttributeData {
                     name: "a".to_string(),
-                    data: ssbh_data::mesh_data::VectorData::Vector4(vec![[0.0, 1.0, 2.0, 3.0]]),
+                    data: ssbh_data::mesh_data::VectorData::Vector4(vec![vec4(0.0, 1.0, 2.0, 3.0)]),
                 }],
                 bone_influences: vec![bone_influence("a", 2, 1.0)],
                 ..Default::default()

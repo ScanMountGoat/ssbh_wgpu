@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-glam = { workspace = true, features = ["bytemuck"] }
+glam = { workspace = true, features = ["bytemuck", "encase-013"] }
 wgpu.workspace = true
 bytemuck = { version = "1.13", features = [ "derive" ] }
 ssbh_data = { workspace = true, features = ["strum"] }
@@ -18,7 +18,7 @@ arbitrary = { version = "1", optional = true, features = ["derive"] }
 image = "0.25.1"
 prc-rs = "1.6.1"
 topological-sort = "0.2.2"
-encase = { version = "0.9.0", features = ["glam"] }
+encase = "0.13.0"
 indexmap = "1.9.2"
 glyphon = "0.12.0"
 rayon.workspace = true

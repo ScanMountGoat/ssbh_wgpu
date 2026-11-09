@@ -38,7 +38,8 @@ fn calculate_camera(
         * glam::Mat4::from_rotation_x(rotation.x)
         * glam::Mat4::from_rotation_y(rotation.y);
     // Use a large far clip distance to include stage skyboxes.
-    let projection_matrix = glam::Mat4::perspective_rh(FOV_Y, aspect, NEAR_CLIP, FAR_CLIP);
+    let projection_matrix =
+        glam::camera::rh::proj::directx::perspective(FOV_Y, aspect, NEAR_CLIP, FAR_CLIP);
 
     let camera_pos = model_view_matrix.inverse().col(3);
 
@@ -442,6 +443,7 @@ impl State {
 
     fn render(&mut self, output: wgpu::SurfaceTexture, scale_factor: f32) {
         let current_frame_start = std::time::Instant::now();
+
         if self.is_playing {
             self.current_frame = next_frame(
                 self.current_frame,

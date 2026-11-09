@@ -1,12 +1,12 @@
 use self::constraints::{apply_aim_constraint, apply_orient_constraint};
 use crate::{shader::skinning::AnimatedWorldTransforms, RenderMesh};
+use glam::{Quat, Vec3, Vec4};
 use indexmap::IndexSet;
 use ssbh_data::{
     anim_data::{GroupType, TrackValues, TransformFlags},
     matl_data::MatlEntryData,
     prelude::*,
     skel_data::BoneData,
-    Vector3, Vector4,
 };
 
 pub mod camera;
@@ -36,8 +36,7 @@ impl<'a> AnimatedBone<'a> {
                 // For example, suppose Mario throws a different fighter like Bowser.
                 // Mario's "thrown" anim needs to use some transforms from Bowser's skel.
                 let (skel_scale, skel_rot, scale_trans) =
-                    glam::Mat4::from_cols_array_2d(&self.bone.transform)
-                        .to_scale_rotation_translation();
+                    self.bone.transform.to_scale_rotation_translation();
 
                 let adjusted_transform = AnimTransform {
                     translation: if self.flags.override_translation {
@@ -59,11 +58,11 @@ impl<'a> AnimatedBone<'a> {
 
                 adjusted_transform.to_mat4(scale_compensation)
             })
-            .unwrap_or_else(|| glam::Mat4::from_cols_array_2d(&self.bone.transform))
+            .unwrap_or(self.bone.transform)
     }
 
     fn transform(&self) -> glam::Mat4 {
-        glam::Mat4::from_cols_array_2d(&self.bone.transform)
+        self.bone.transform
     }
 }
 
@@ -129,7 +128,6 @@ impl AnimationTransforms {
             // TODO: Return an error instead?
             let bone_world = skel
                 .calculate_world_transform(bone)
-                .map(|t| glam::Mat4::from_cols_array_2d(&t))
                 .unwrap_or(glam::Mat4::IDENTITY);
 
             world_transforms[i] = bone_world;
@@ -518,32 +516,21 @@ impl Interpolate for f32 {
     }
 }
 
-impl Interpolate for Vector3 {
+impl Interpolate for Vec3 {
     fn interpolate(&self, other: &Self, factor: f32) -> Self {
-        // TODO: Are these conversions optimized out?
-        glam::Vec3::from(self.to_array())
-            .lerp(glam::Vec3::from(other.to_array()), factor)
-            .to_array()
-            .into()
+        self.lerp(*other, factor)
     }
 }
 
 // TODO: Separate interpolation for quats and vectors.
-impl Interpolate for Vector4 {
+impl Interpolate for Vec4 {
     fn interpolate(&self, other: &Self, factor: f32) -> Self {
-        // TODO: Are these conversions optimized out?
-        glam::Vec4::from(self.to_array())
-            .lerp(glam::Vec4::from(other.to_array()), factor)
-            .to_array()
-            .into()
+        self.lerp(*other, factor)
     }
 }
 
-fn interpolate_quat(a: &Vector4, b: &Vector4, factor: f32) -> Vector4 {
-    glam::quat(a.x, a.y, a.z, a.w)
-        .lerp(glam::quat(b.x, b.y, b.z, b.w), factor)
-        .to_array()
-        .into()
+fn interpolate_quat(a: &Quat, b: &Quat, factor: f32) -> Quat {
+    a.lerp(*b, factor)
 }
 
 impl Interpolate for ssbh_data::anim_data::Transform {
@@ -574,6 +561,7 @@ where
 
 #[cfg(test)]
 mod tests {
+    use glam::{quat, vec3, Mat4};
     use indexmap::indexset;
     use ssbh_data::{
         anim_data::{GroupData, NodeData, TrackData, Transform, TransformFlags},
@@ -589,12 +577,7 @@ mod tests {
         BoneData {
             name: name.to_string(),
             // Start with the identity to make this simpler.
-            transform: [
-                [1.0, 0.0, 0.0, 0.0],
-                [0.0, 1.0, 0.0, 0.0],
-                [0.0, 0.0, 1.0, 0.0],
-                [0.0, 0.0, 0.0, 1.0],
-            ],
+            transform: Mat4::IDENTITY,
             parent_index,
             billboard_type: BillboardType::Disabled,
         }
@@ -732,9 +715,9 @@ mod tests {
                             name: "Transform".to_string(),
                             compensate_scale: false,
                             values: TrackValues::Transform(vec![Transform {
-                                scale: Vector3::new(1.0, 2.0, 3.0),
-                                rotation: Vector4::new(1.0, 0.0, 0.0, 0.0),
-                                translation: Vector3::new(4.0, 5.0, 6.0),
+                                scale: vec3(1.0, 2.0, 3.0),
+                                rotation: quat(1.0, 0.0, 0.0, 0.0),
+                                translation: vec3(4.0, 5.0, 6.0),
                             }]),
                             transform_flags: TransformFlags::default(),
                         }],
@@ -808,9 +791,9 @@ mod tests {
                                     name: "Transform".to_string(),
                                     compensate_scale: false,
                                     values: TrackValues::Transform(vec![Transform {
-                                        scale: Vector3::new(1.0, 2.0, 3.0),
-                                        rotation: Vector4::new(0.0, 0.0, 0.0, 1.0),
-                                        translation: Vector3::new(0.0, 0.0, 0.0),
+                                        scale: vec3(1.0, 2.0, 3.0),
+                                        rotation: quat(0.0, 0.0, 0.0, 1.0),
+                                        translation: vec3(0.0, 0.0, 0.0),
                                     }]),
                                     transform_flags: TransformFlags::default(),
                                 }],
@@ -821,9 +804,9 @@ mod tests {
                                     name: "Transform".to_string(),
                                     compensate_scale: false,
                                     values: TrackValues::Transform(vec![Transform {
-                                        scale: Vector3::new(4.0, 5.0, 6.0),
-                                        rotation: Vector4::new(0.0, 0.0, 0.0, 1.0),
-                                        translation: Vector3::new(0.0, 0.0, 0.0),
+                                        scale: vec3(4.0, 5.0, 6.0),
+                                        rotation: quat(0.0, 0.0, 0.0, 1.0),
+                                        translation: vec3(0.0, 0.0, 0.0),
                                     }]),
                                     transform_flags: TransformFlags::default(),
                                 }],
@@ -844,9 +827,9 @@ mod tests {
                                     name: "Transform".to_string(),
                                     compensate_scale: false,
                                     values: TrackValues::Transform(vec![Transform {
-                                        scale: Vector3::new(4.0, 5.0, 6.0),
-                                        rotation: Vector4::new(0.0, 0.0, 0.0, 1.0),
-                                        translation: Vector3::new(0.0, 0.0, 0.0),
+                                        scale: vec3(4.0, 5.0, 6.0),
+                                        rotation: quat(0.0, 0.0, 0.0, 1.0),
+                                        translation: vec3(0.0, 0.0, 0.0),
                                     }]),
                                     transform_flags: TransformFlags::default(),
                                 }],
@@ -857,9 +840,9 @@ mod tests {
                                     name: "Transform".to_string(),
                                     compensate_scale: false,
                                     values: TrackValues::Transform(vec![Transform {
-                                        scale: Vector3::new(7.0, 8.0, 9.0),
-                                        rotation: Vector4::new(0.0, 0.0, 0.0, 1.0),
-                                        translation: Vector3::new(0.0, 0.0, 0.0),
+                                        scale: vec3(7.0, 8.0, 9.0),
+                                        rotation: quat(0.0, 0.0, 0.0, 1.0),
+                                        translation: vec3(0.0, 0.0, 0.0),
                                     }]),
                                     transform_flags: TransformFlags::default(),
                                 }],
@@ -930,9 +913,9 @@ mod tests {
                                 name: "Transform".to_string(),
                                 compensate_scale: false,
                                 values: TrackValues::Transform(vec![Transform {
-                                    scale: Vector3::new(1.0, 2.0, 3.0),
-                                    rotation: Vector4::new(0.0, 0.0, 0.0, 1.0),
-                                    translation: Vector3::new(0.0, 0.0, 0.0),
+                                    scale: vec3(1.0, 2.0, 3.0),
+                                    rotation: quat(0.0, 0.0, 0.0, 1.0),
+                                    translation: vec3(0.0, 0.0, 0.0),
                                 }]),
                                 transform_flags: TransformFlags::default(),
                             }],
@@ -944,9 +927,9 @@ mod tests {
                                 // TODO: This acts just like scale inheritance?
                                 compensate_scale: false,
                                 values: TrackValues::Transform(vec![Transform {
-                                    scale: Vector3::new(1.0, 2.0, 3.0),
-                                    rotation: Vector4::new(0.0, 0.0, 0.0, 1.0),
-                                    translation: Vector3::new(0.0, 0.0, 0.0),
+                                    scale: vec3(1.0, 2.0, 3.0),
+                                    rotation: quat(0.0, 0.0, 0.0, 1.0),
+                                    translation: vec3(0.0, 0.0, 0.0),
                                 }]),
                                 transform_flags: TransformFlags::default(),
                             }],
@@ -957,9 +940,9 @@ mod tests {
                                 name: "Transform".to_string(),
                                 compensate_scale: false,
                                 values: TrackValues::Transform(vec![Transform {
-                                    scale: Vector3::new(1.0, 2.0, 3.0),
-                                    rotation: Vector4::new(0.0, 0.0, 0.0, 1.0),
-                                    translation: Vector3::new(0.0, 0.0, 0.0),
+                                    scale: vec3(1.0, 2.0, 3.0),
+                                    rotation: quat(0.0, 0.0, 0.0, 1.0),
+                                    translation: vec3(0.0, 0.0, 0.0),
                                 }]),
                                 transform_flags: TransformFlags::default(),
                             }],
@@ -1031,8 +1014,8 @@ mod tests {
                                 compensate_scale: compensate_scales[0],
                                 values: TrackValues::Transform(vec![Transform {
                                     scale: scale.into(),
-                                    rotation: Vector4::new(0.0, 0.0, 0.0, 1.0),
-                                    translation: Vector3::new(0.0, 0.0, 0.0),
+                                    rotation: quat(0.0, 0.0, 0.0, 1.0),
+                                    translation: vec3(0.0, 0.0, 0.0),
                                 }]),
                                 transform_flags: TransformFlags::default(),
                             }],
@@ -1044,8 +1027,8 @@ mod tests {
                                 compensate_scale: compensate_scales[1],
                                 values: TrackValues::Transform(vec![Transform {
                                     scale: scale.into(),
-                                    rotation: Vector4::new(0.0, 0.0, 0.0, 1.0),
-                                    translation: Vector3::new(0.0, 0.0, 0.0),
+                                    rotation: quat(0.0, 0.0, 0.0, 1.0),
+                                    translation: vec3(0.0, 0.0, 0.0),
                                 }]),
                                 transform_flags: TransformFlags::default(),
                             }],
@@ -1057,8 +1040,8 @@ mod tests {
                                 compensate_scale: compensate_scales[2],
                                 values: TrackValues::Transform(vec![Transform {
                                     scale: scale.into(),
-                                    rotation: Vector4::new(0.0, 0.0, 0.0, 1.0),
-                                    translation: Vector3::new(0.0, 0.0, 0.0),
+                                    rotation: quat(0.0, 0.0, 0.0, 1.0),
+                                    translation: vec3(0.0, 0.0, 0.0),
                                 }]),
                                 transform_flags: TransformFlags::default(),
                             }],
@@ -1237,9 +1220,9 @@ mod tests {
                                 name: "Transform".to_string(),
                                 compensate_scale: false,
                                 values: TrackValues::Transform(vec![Transform {
-                                    scale: Vector3::new(2.0, 2.0, 2.0),
-                                    rotation: Vector4::new(1.0, 0.0, 0.0, 0.0),
-                                    translation: Vector3::new(0.0, 1.0, 2.0),
+                                    scale: vec3(2.0, 2.0, 2.0),
+                                    rotation: quat(1.0, 0.0, 0.0, 0.0),
+                                    translation: vec3(0.0, 1.0, 2.0),
                                 }]),
                                 transform_flags: TransformFlags {
                                     override_translation: true,
@@ -1255,9 +1238,9 @@ mod tests {
                                 name: "Transform".to_string(),
                                 compensate_scale: false,
                                 values: TrackValues::Transform(vec![Transform {
-                                    scale: Vector3::new(2.0, 2.0, 2.0),
-                                    rotation: Vector4::new(1.0, 0.0, 0.0, 0.0),
-                                    translation: Vector3::new(0.0, 1.0, 2.0),
+                                    scale: vec3(2.0, 2.0, 2.0),
+                                    rotation: quat(1.0, 0.0, 0.0, 0.0),
+                                    translation: vec3(0.0, 1.0, 2.0),
                                 }]),
                                 transform_flags: TransformFlags {
                                     override_translation: true,
@@ -1273,9 +1256,9 @@ mod tests {
                                 name: "Transform".to_string(),
                                 compensate_scale: false,
                                 values: TrackValues::Transform(vec![Transform {
-                                    scale: Vector3::new(2.0, 2.0, 2.0),
-                                    rotation: Vector4::new(1.0, 0.0, 0.0, 0.0),
-                                    translation: Vector3::new(0.0, 1.0, 2.0),
+                                    scale: vec3(2.0, 2.0, 2.0),
+                                    rotation: quat(1.0, 0.0, 0.0, 0.0),
+                                    translation: vec3(0.0, 1.0, 2.0),
                                 }]),
                                 transform_flags: TransformFlags {
                                     override_translation: true,
@@ -1364,11 +1347,9 @@ mod tests {
                                 name: "Transform".to_string(),
                                 compensate_scale: true,
                                 values: TrackValues::Transform(vec![Transform {
-                                    scale: Vector3::new(1.0, 1.0, 1.0),
-                                    rotation: glam::Quat::from_rotation_z(0.0f32.to_radians())
-                                        .to_array()
-                                        .into(),
-                                    translation: Vector3::new(1.0, 2.0, 3.0),
+                                    scale: vec3(1.0, 1.0, 1.0),
+                                    rotation: glam::Quat::from_rotation_z(0.0f32.to_radians()),
+                                    translation: vec3(1.0, 2.0, 3.0),
                                 }]),
                                 transform_flags: TransformFlags::default(),
                             }],
@@ -1379,11 +1360,9 @@ mod tests {
                                 name: "Transform".to_string(),
                                 compensate_scale: true,
                                 values: TrackValues::Transform(vec![Transform {
-                                    scale: Vector3::new(1.0, 1.0, 1.0),
-                                    rotation: glam::Quat::from_rotation_z(0.0f32.to_radians())
-                                        .to_array()
-                                        .into(),
-                                    translation: Vector3::new(4.0, 5.0, 6.0),
+                                    scale: vec3(1.0, 1.0, 1.0),
+                                    rotation: glam::Quat::from_rotation_z(0.0f32.to_radians()),
+                                    translation: vec3(4.0, 5.0, 6.0),
                                 }]),
                                 transform_flags: TransformFlags::default(),
                             }],
@@ -1394,11 +1373,9 @@ mod tests {
                                 name: "Transform".to_string(),
                                 compensate_scale: true,
                                 values: TrackValues::Transform(vec![Transform {
-                                    scale: Vector3::new(1.0, 1.0, 1.0),
-                                    rotation: glam::Quat::from_rotation_z(90.0f32.to_radians())
-                                        .to_array()
-                                        .into(),
-                                    translation: Vector3::new(1.0, 2.0, 3.0),
+                                    scale: vec3(1.0, 1.0, 1.0),
+                                    rotation: glam::Quat::from_rotation_z(90.0f32.to_radians()),
+                                    translation: vec3(1.0, 2.0, 3.0),
                                 }]),
                                 transform_flags: TransformFlags::default(),
                             }],
@@ -1409,11 +1386,9 @@ mod tests {
                                 name: "Transform".to_string(),
                                 compensate_scale: true,
                                 values: TrackValues::Transform(vec![Transform {
-                                    scale: Vector3::new(1.0, 1.0, 1.0),
-                                    rotation: glam::Quat::from_rotation_z(0.0f32.to_radians())
-                                        .to_array()
-                                        .into(),
-                                    translation: Vector3::new(4.0, 5.0, 6.0),
+                                    scale: vec3(1.0, 1.0, 1.0),
+                                    rotation: glam::Quat::from_rotation_z(0.0f32.to_radians()),
+                                    translation: vec3(4.0, 5.0, 6.0),
                                 }]),
                                 transform_flags: TransformFlags::default(),
                             }],
@@ -1434,11 +1409,11 @@ mod tests {
                         source_bone_name: "R0".into(),
                         target_bone_name: "L0".into(),
                         unk_type: 2,
-                        constraint_axes: Vector3::new(1.0, 1.0, 1.0),
-                        quat1: Vector4::new(0.0, 0.0, 0.0, 1.0),
-                        quat2: Vector4::new(0.0, 0.0, 0.0, 1.0),
-                        range_min: Vector3::new(-180.0, -180.0, -180.0),
-                        range_max: Vector3::new(180.0, 180.0, 180.0),
+                        constraint_axes: vec3(1.0, 1.0, 1.0),
+                        quat1: quat(0.0, 0.0, 0.0, 1.0),
+                        quat2: quat(0.0, 0.0, 0.0, 1.0),
+                        range_min: vec3(-180.0, -180.0, -180.0),
+                        range_max: vec3(180.0, 180.0, 180.0),
                     },
                     OrientConstraintData {
                         name: "constraint2".into(),
@@ -1447,11 +1422,11 @@ mod tests {
                         source_bone_name: "R1".into(),
                         target_bone_name: "L1".into(),
                         unk_type: 2,
-                        constraint_axes: Vector3::new(1.0, 1.0, 1.0),
-                        quat1: Vector4::new(0.0, 0.0, 0.0, 1.0),
-                        quat2: Vector4::new(0.0, 0.0, 0.0, 1.0),
-                        range_min: Vector3::new(-180.0, -180.0, -180.0),
-                        range_max: Vector3::new(180.0, 180.0, 180.0),
+                        constraint_axes: vec3(1.0, 1.0, 1.0),
+                        quat1: quat(0.0, 0.0, 0.0, 1.0),
+                        quat2: quat(0.0, 0.0, 0.0, 1.0),
+                        range_min: vec3(-180.0, -180.0, -180.0),
+                        range_max: vec3(180.0, 180.0, 180.0),
                     },
                 ],
             }),
