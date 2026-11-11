@@ -465,7 +465,7 @@ impl State {
                             .unwrap_or_default(),
                     ),
                 1.0,
-                true,
+                true, // TODO: loop animations individually
             );
         }
         self.previous_frame_start = current_frame_start;
@@ -518,15 +518,20 @@ impl State {
                 self.renderer
                     .update_stage_uniforms(&self.queue, anim, self.current_frame);
             }
+        }
 
-            for model in &mut self.render_models {
-                model.update_per_object(
-                    &self.queue,
-                    self.current_frame,
-                    &self.render_settings,
-                    self.light_animation.as_ref(),
-                );
-            }
+        for (i, model) in self.render_models.iter_mut().enumerate() {
+            model.update_per_object(
+                &self.queue,
+                self.current_frame,
+                &self.render_settings,
+                self.light_animation.as_ref(),
+            );
+            model.update_per_world(
+                &self.queue,
+                &self.renderer.camera_transforms(),
+                self.models[i].1.find_skel(),
+            );
         }
 
         let mut final_pass = self.renderer.render_models(

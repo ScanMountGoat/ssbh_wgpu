@@ -10,7 +10,7 @@ use crate::{
     texture::{load_default_lut, uv_pattern, TextureSamplerView},
     CameraTransforms, DeviceBufferExt, QueueExt, RenderModel, ShaderDatabase,
 };
-use glam::{ivec4, vec2, vec4, Mat4, UVec4, Vec4};
+use glam::{vec2, vec4, Mat4, UVec4, Vec4};
 use nutexb_wgpu::NutexbFile;
 use ssbh_data::anim_data::AnimData;
 use wgpu::ComputePassDescriptor;
@@ -274,12 +274,6 @@ impl SsbhRenderer {
             wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         );
 
-        let per_world_buffer = device.create_buffer_from_data(
-            "PerWorldCBuffer Buffer",
-            &[per_world()],
-            wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-        );
-
         let per_frame_bind_group = crate::shader::model::bind_groups::BindGroup0::from_bindings(
             device,
             crate::shader::model::bind_groups::BindGroupLayout0 {
@@ -293,7 +287,6 @@ impl SsbhRenderer {
                 for_pass: for_pass_buffer.as_entire_buffer_binding(),
                 per_frame: per_frame_buffer.as_entire_buffer_binding(),
                 per_view: per_view_buffer.as_entire_buffer_binding(),
-                per_world: per_world_buffer.as_entire_buffer_binding(),
             },
         );
 
@@ -716,6 +709,10 @@ impl SsbhRenderer {
             &self.swing_camera_bind_group,
             hidden_collisions,
         );
+    }
+
+    pub fn camera_transforms(&self) -> CameraTransforms {
+        self.camera_transforms
     }
 
     fn bloom_upscale_pass(&self, encoder: &mut wgpu::CommandEncoder) {
@@ -1203,7 +1200,11 @@ impl SsbhRenderer {
 
         pass.set_pipeline(&self.shadow_pipeline);
         for model in render_models.into_iter().filter(|m| m.is_visible) {
-            model.draw_meshes_depth(&mut pass, &self.per_frame_bind_group);
+            model.draw_meshes_depth(
+                &mut pass,
+                &self.per_frame_bind_group,
+                self.render_settings.material_type,
+            );
         }
     }
 
@@ -1263,16 +1264,6 @@ impl SsbhRenderer {
                 mask_material_label,
             );
         }
-    }
-}
-
-fn per_world() -> crate::shader::model::PerWorldCBuffer {
-    // TODO: Where do these matrices come from?
-    let world_matrix = Mat4::IDENTITY;
-    crate::shader::model::PerWorldCBuffer {
-        world_matrix,
-        world_inverse_matrix: world_matrix.inverse(),
-        m_is_shadow_caster: ivec4(0, 0, 0, 0),
     }
 }
 

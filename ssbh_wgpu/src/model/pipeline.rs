@@ -194,19 +194,8 @@ pub fn pipeline(
 
 pub fn depth_pipeline(device: &wgpu::Device) -> wgpu::RenderPipeline {
     let module = crate::shader::model::create_shader_module(device);
+    let render_pipeline_layout = crate::shader::model::create_pipeline_layout(device);
 
-    // We only need the per frame and light related bind groups.
-    let render_pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-        label: None,
-        bind_group_layouts: &[
-            Some(&crate::shader::model::bind_groups::BindGroup0::get_bind_group_layout(device)),
-            Some(&crate::shader::model::bind_groups::BindGroup1::get_bind_group_layout(device)),
-        ],
-        immediate_size: 0,
-    });
-
-    // TODO: Some of these values should come from wgsl_to_wgpu
-    // TODO: Get entry points from wgsl shader.
     device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
         label: Some("Render Pipeline Depth"),
         layout: Some(&render_pipeline_layout),

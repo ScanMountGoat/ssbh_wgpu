@@ -6,6 +6,7 @@ use super::{
 use crate::{
     animation::AnimationTransforms,
     bone_rendering::*,
+    model::per_world,
     renderer::RGBA_COLOR_FORMAT,
     shader::model::StageUniforms,
     swing_rendering::SwingRenderData,
@@ -18,7 +19,7 @@ use crate::{
     SharedRenderData,
 };
 use encase::{DynamicStorageBuffer, ShaderType};
-use glam::{vec3, Vec3};
+use glam::{vec3, Mat4, Vec3};
 use log::{error, info};
 use nutexb_wgpu::NutexbFile;
 use rayon::prelude::*;
@@ -555,11 +556,18 @@ impl<'a> RenderMeshSharedData<'a> {
         let buffer0_source_binding = access.buffer0.binding(&buffers.vertex_buffer0_source)?;
         let weights_binding = access.weights.binding(&buffers.skinning_buffer)?;
 
-        let renormal_bind_group = crate::shader::model::bind_groups::BindGroup3::from_bindings(
+        let per_world_buffer = device.create_buffer_from_data(
+            "PerWorldCBuffer Buffer",
+            &[per_world(Mat4::IDENTITY)],
+            wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        );
+
+        let per_mesh_bind_group = crate::shader::model::bind_groups::BindGroup3::from_bindings(
             device,
             crate::shader::model::bind_groups::BindGroupLayout3 {
                 vertices: buffer0_binding.clone(),
                 adj_data: adj_buffer.as_entire_buffer_binding(),
+                per_world: per_world_buffer.as_entire_buffer_binding(),
             },
         );
 
@@ -581,11 +589,11 @@ impl<'a> RenderMeshSharedData<'a> {
                 },
             );
 
-        let parent_index = find_parent_index(mesh_object, self.skel);
+        let parent_bone_index = find_parent_index(mesh_object, self.skel);
         let mesh_object_info_buffer = device.create_buffer_from_data(
             "Mesh Object Info Buffer",
             &[crate::shader::skinning::MeshObjectInfo {
-                parent_index: glam::IVec4::new(parent_index, -1, -1, -1),
+                parent_index: glam::IVec4::new(parent_index(parent_bone_index), -1, -1, -1),
             }],
             wgpu::BufferUsages::UNIFORM,
         );
@@ -630,12 +638,14 @@ impl<'a> RenderMeshSharedData<'a> {
             metamon_pipeline_key,
             dark_pipeline_key,
             light_pipeline_key,
-            renormal_bind_group,
+            per_mesh_bind_group,
             subindex: mesh_object.subindex,
             vertex_count,
             vertex_index_count: mesh_object.vertex_indices.len(),
             access,
             attribute_names,
+            parent_bone_index,
+            per_world_buffer,
         })
     }
 
@@ -859,16 +869,16 @@ fn parent_index(index: Option<usize>) -> i32 {
     index.map(|i| i as i32).unwrap_or(-1)
 }
 
-fn find_parent_index(mesh: &MeshObjectData, skel: Option<&SkelData>) -> i32 {
+fn find_parent_index(mesh: &MeshObjectData, skel: Option<&SkelData>) -> Option<usize> {
     // Only include a parent if there are no bone influences.
     // TODO: What happens if there are influences and a parent bone?
     if mesh.bone_influences.is_empty() {
-        parent_index(skel.as_ref().and_then(|skel| {
+        skel.as_ref().and_then(|skel| {
             skel.bones
                 .iter()
                 .position(|b| b.name == mesh.parent_bone_name)
-        }))
+        })
     } else {
-        -1
+        None
     }
 }

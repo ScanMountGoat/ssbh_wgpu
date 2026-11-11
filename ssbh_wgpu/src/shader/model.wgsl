@@ -143,9 +143,6 @@ var<uniform> per_frame: PerFrame;
 @group(0) @binding(10)
 var<uniform> per_view: PerViewCBuffer;
 
-@group(0) @binding(11)
-var<uniform> per_world: PerWorldCBuffer;
-
 struct PerModel {
     light_set_index: vec4<u32>, // is_stage, light_set, 0, 0
 }
@@ -293,6 +290,10 @@ struct VertexInput0 {
 // Per mesh data for RENORMAL calculations
 @group(3) @binding(0) var<storage, read> vertices: array<VertexInput0>;
 @group(3) @binding(1) var<storage, read> adj_data: array<i32>;
+
+// This is called "PerWorld" but can change per mesh for effects like billboarding.
+@group(3) @binding(2)
+var<uniform> per_world: PerWorldCBuffer;
 
 // We can safely assume 16 available locations.
 // Pack attributes to avoid going over the attribute limit.
@@ -932,16 +933,17 @@ fn vs_main(buffer0: VertexInput0, buffer1: VertexInput1) -> VertexOutput {
         out.color_set7 = buffer1.color_set7;
     }
 
-    out.light_position = GetLight().transform * vec4(buffer0.position0.xyz, 1.0);
+    out.light_position = GetLight().transform * per_world.world_matrix * vec4(buffer0.position0.xyz, 1.0);
     return out;
 }
 
+// TODO: vs_depth_generated
 @vertex
 fn vs_depth(
     buffer0: VertexInput0,
     buffer1: VertexInput1
 ) -> @builtin(position) vec4<f32> {
-    return GetLight().transform * vec4(buffer0.position0.xyz, 1.0);
+    return GetLight().transform * per_world.world_matrix * vec4(buffer0.position0.xyz, 1.0);
 }
 
 @vertex
@@ -1740,8 +1742,8 @@ fn vs_generated(buffer0: VertexInput0, buffer1: VertexInput1, @builtin(vertex_in
     let ASSIGN_VS_VARS_GENERATED = 0.0;
     let ASSIGN_VS_OUTPUTS_GENERATED = 0.0;
 
-    // TODO: Modify OUT_ShadowMap instead
-    out.light_position = GetLight().transform * vec4(buffer0.position0.xyz, 1.0);
+    // TODO: Modify OUT_ShadowMap to use WGSL coordinates to be able to use generated code.
+    out.light_position = GetLight().transform * per_world.world_matrix * vec4(buffer0.position0.xyz, 1.0);
     return out;
 }
 

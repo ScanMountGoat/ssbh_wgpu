@@ -10,15 +10,18 @@ use crate::{
     swing::SwingPrc,
     swing_rendering::{draw_swing_collisions, SwingRenderData},
     vertex::CombinedMeshBuffers,
-    ModelFolder, QueueExt, RenderSettings, ShaderDatabase, SharedRenderData, TransitionMaterial,
+    CameraTransforms, ModelFolder, QueueExt, RenderSettings, ShaderDatabase, SharedRenderData,
+    TransitionMaterial,
 };
-use glam::{vec3, vec4, Mat4, Vec3, Vec4};
+use glam::{ivec4, vec3, vec4, Mat4, Vec3, Vec4};
 use log::{debug, error, info};
 use mesh_creation::{
     material_data, Material, MeshBufferAccess, RenderMeshSharedData, TransformBuffers,
 };
 use pipeline::{pipeline, PipelineKey};
-use ssbh_data::{matl_data::MatlEntryData, meshex_data::EntryFlags, prelude::*};
+use ssbh_data::{
+    matl_data::MatlEntryData, meshex_data::EntryFlags, prelude::*, skel_data::BillboardType,
+};
 use std::collections::{HashMap, HashSet};
 
 mod mesh_creation;
@@ -82,12 +85,14 @@ pub struct RenderMesh {
     pub is_visible: bool,
     /// Outline this mesh when `true`.
     pub is_selected: bool,
+
     meshex_flags: EntryFlags, // TODO: How to update these?
     material_label: String,
-    renormal_bind_group: crate::shader::model::bind_groups::BindGroup3,
+    per_mesh_bind_group: crate::shader::model::bind_groups::BindGroup3,
     skinning_bind_group: crate::shader::skinning::bind_groups::BindGroup0,
     skinning_transforms_bind_group: crate::shader::skinning::bind_groups::BindGroup1,
     mesh_object_info_bind_group: crate::shader::skinning::bind_groups::BindGroup2,
+    per_world_buffer: wgpu::Buffer,
 
     // TODO: How to update this when materials/shaders change?
     // TODO: Is there a way to only include the mesh specific information here?
@@ -97,7 +102,7 @@ pub struct RenderMesh {
     dark_pipeline_key: Option<PipelineKey>,
     light_pipeline_key: Option<PipelineKey>,
 
-    // TODO: Add keys for ditto, light, dark materials
+    parent_bone_index: Option<usize>,
     vertex_count: usize,
     vertex_index_count: usize,
     access: MeshBufferAccess,
@@ -152,9 +157,7 @@ impl RenderModel {
             .find(|(f, _, _)| f == file_name)
             .map(|(_, t, d)| (t, d))
     }
-}
 
-impl RenderModel {
     /// Reassign the mesh materials based on `modl`.
     /// This does not create materials that do not already exist.
     pub fn reassign_materials(&mut self, modl: &ModlData) {
@@ -387,6 +390,46 @@ impl RenderModel {
         );
     }
 
+    pub fn update_per_world(
+        &mut self,
+        queue: &wgpu::Queue,
+        camera: &CameraTransforms,
+        skel: Option<&SkelData>,
+    ) {
+        for mesh in &self.meshes {
+            let mut world_matrix = Mat4::IDENTITY;
+            if let Some(skel) = skel {
+                if let Some(parent_index) = mesh.parent_bone_index {
+                    if let Some(parent_bone) = skel.bones.get(parent_index) {
+                        let parent_world_transform =
+                            self.animation_transforms.world_transforms[parent_index];
+
+                        // TODO: does billboarding only affect the 3x3 rotation portion?
+                        // TODO: finish implementing billboard types
+                        world_matrix = match parent_bone.billboard_type {
+                            BillboardType::Disabled => parent_world_transform,
+                            BillboardType::XAxisViewPointAligned => parent_world_transform,
+                            BillboardType::YAxisViewPointAligned => parent_world_transform,
+                            BillboardType::Unk3 => parent_world_transform,
+                            BillboardType::XYAxisViewPointAligned => parent_world_transform,
+                            BillboardType::YAxisViewPlaneAligned => parent_world_transform,
+                            BillboardType::XYAxisViewPlaneAligned => {
+                                let (_, rotation, _) =
+                                    camera.model_view_matrix.to_scale_rotation_translation();
+
+                                let mut transform = Mat4::from_quat(rotation).inverse();
+                                *transform.col_mut(2) = Vec4::Z;
+                                *transform.col_mut(3) = parent_world_transform.col(3);
+                                transform
+                            }
+                        }
+                    }
+                }
+            }
+            queue.write_data(&mesh.per_world_buffer, &[per_world(world_matrix)]);
+        }
+    }
+
     /// Creates the data for rendering the collisions in `swing_prc`.
     /// This method should be called once to initialize the swing collisions
     /// and any time collisions in the PRC are added, edited, or removed.
@@ -594,7 +637,7 @@ impl RenderModel {
                 bind_group0,
                 bind_group1,
                 bind_group2,
-                &mesh.renormal_bind_group,
+                &mesh.per_mesh_bind_group,
             );
 
             if self.set_mesh_buffers(render_pass, mesh).is_some() {
@@ -624,13 +667,7 @@ impl RenderModel {
             .iter()
             .filter(|m| m.is_visible && m.meshex_flags.draw_model)
         {
-            // TODO: Should this use a fallback if a ditto, light, or dark material is missing?
-            let material = match material_type {
-                MaterialType::Model => self.material_by_label.get(&mesh.material_label),
-                MaterialType::Ditto => self.metamon_material_by_label.get(&mesh.material_label),
-                MaterialType::Light => self.light_material_by_label.get(&mesh.material_label),
-                MaterialType::Dark => self.dark_material_by_label.get(&mesh.material_label),
-            };
+            let material = self.get_material_by_type(material_type, mesh);
 
             // Meshes with no modl entry or an entry with an invalid material label are skipped entirely in game.
             // If the material entry is deleted from the matl, the mesh is also skipped.
@@ -659,6 +696,20 @@ impl RenderModel {
                     );
                 }
             }
+        }
+    }
+
+    fn get_material_by_type(
+        &self,
+        material_type: MaterialType,
+        mesh: &RenderMesh,
+    ) -> Option<&Material> {
+        // TODO: Should this use a fallback if a ditto, light, or dark material is missing?
+        match material_type {
+            MaterialType::Model => self.material_by_label.get(&mesh.material_label),
+            MaterialType::Ditto => self.metamon_material_by_label.get(&mesh.material_label),
+            MaterialType::Light => self.light_material_by_label.get(&mesh.material_label),
+            MaterialType::Dark => self.dark_material_by_label.get(&mesh.material_label),
         }
     }
 
@@ -795,6 +846,7 @@ impl RenderModel {
         &'a self,
         render_pass: &mut wgpu::RenderPass<'a>,
         per_frame_bind_group: &'a crate::shader::model::bind_groups::BindGroup0,
+        material_type: MaterialType,
     ) {
         // Assume only shared bind groups for all meshes.
         per_frame_bind_group.set(render_pass);
@@ -806,9 +858,14 @@ impl RenderModel {
             .iter()
             .filter(|m| m.is_visible && m.meshex_flags.cast_shadow)
         {
-            // Prevent potential validation error from empty meshes.
-            if mesh.vertex_index_count > 0 && self.set_mesh_buffers(render_pass, mesh).is_some() {
-                render_pass.draw_indexed(0..mesh.vertex_index_count as u32, 0, 0..1);
+            if let Some(material) = self.get_material_by_type(material_type, mesh) {
+                self.draw_mesh(
+                    render_pass,
+                    mesh,
+                    per_frame_bind_group,
+                    &self.per_model_bind_group,
+                    &material.material_uniforms_bind_group,
+                );
             }
         }
     }
@@ -937,5 +994,13 @@ pub(crate) fn per_object(
         ink_color,
         flashing_param: vec4(1.0, 0.0, 0.0, 1.0),
         char_color_grading: vec4(1.0, 1.0, 50.0, 1.0),
+    }
+}
+
+fn per_world(world_matrix: Mat4) -> crate::shader::model::PerWorldCBuffer {
+    crate::shader::model::PerWorldCBuffer {
+        world_matrix,
+        world_inverse_matrix: world_matrix.inverse(),
+        m_is_shadow_caster: ivec4(0, 0, 0, 0),
     }
 }
