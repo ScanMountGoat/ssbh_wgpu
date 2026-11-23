@@ -1256,7 +1256,7 @@ impl SsbhRenderer {
 
         // Material labels may be repeated in multiple models.
         // Only show the selected material for the specified model.
-        if let Some(model) = render_models.into_iter().nth(mask_model_index) {
+        if let Some(model) = render_models.get(mask_model_index) {
             model.draw_meshes_material_mask(
                 &mut pass,
                 &self.per_frame_bind_group,
@@ -1678,7 +1678,7 @@ fn create_texture(
     format: wgpu::TextureFormat,
     sample_count: u32,
 ) -> wgpu::Texture {
-    let texture = device.create_texture(&wgpu::TextureDescriptor {
+    device.create_texture(&wgpu::TextureDescriptor {
         label: Some(label),
         size: wgpu::Extent3d {
             width: width.max(1),
@@ -1691,8 +1691,7 @@ fn create_texture(
         format,
         usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
         view_formats: &[],
-    });
-    texture
+    })
 }
 
 // TODO: Find a way to generate this from render pass descriptions.

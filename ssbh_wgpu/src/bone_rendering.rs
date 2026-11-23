@@ -211,6 +211,7 @@ fn bone_axes_indices() -> Vec<u32> {
     vec![0, 1, 2, 3, 4, 5]
 }
 
+#[allow(clippy::approx_constant)]
 fn pyramid() -> Vec<[f32; 4]> {
     // Pos0 Nrm0 Pos1 Nrm1 ...
     vec![
