@@ -14,7 +14,6 @@ use crate::{
     TransitionMaterial,
 };
 use glam::{ivec4, vec3, vec4, Mat4, Vec3, Vec4};
-use log::{debug, error, info};
 use mesh_creation::{
     material_data, Material, MeshBufferAccess, RenderMeshSharedData, TransformBuffers,
 };
@@ -23,6 +22,7 @@ use ssbh_data::{
     matl_data::MatlEntryData, meshex_data::EntryFlags, prelude::*, skel_data::BillboardType,
 };
 use std::collections::{HashMap, HashSet};
+use tracing::{debug, error, info};
 
 mod mesh_creation;
 pub mod pipeline;

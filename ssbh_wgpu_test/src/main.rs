@@ -1,4 +1,5 @@
 use std::{
+    io::IsTerminal,
     path::{Path, PathBuf},
     sync::{Arc, Mutex},
 };
@@ -11,6 +12,8 @@ use ssbh_wgpu::{
     ModelRenderOptions, RenderModel, RenderSettings, SharedRenderData, SsbhRenderer,
     REQUIRED_FEATURES, REQUIRED_LIMITS,
 };
+use tracing::level_filters::LevelFilter;
+use tracing_subscriber::{layer::SubscriberExt, Layer};
 use wgpu::{
     DeviceDescriptor, Extent3d, PowerPreference, RequestAdapterOptions, TextureDescriptor,
     TextureDimension, TextureUsages,
@@ -48,11 +51,13 @@ fn main() {
     let fighter_anim = args.get(2).map(|s| s.as_str()) == Some("--fighter-anim");
 
     // Check for any errors.
-    simple_logger::SimpleLogger::new()
-        .with_level(log::LevelFilter::Warn)
-        .with_module_level("ssbh_wgpu", log::LevelFilter::Warn)
-        .init()
-        .unwrap();
+    let subscriber = tracing_subscriber::registry().with(
+        tracing_subscriber::fmt::layer()
+            .without_time()
+            .with_ansi(std::io::stdout().is_terminal())
+            .with_filter(LevelFilter::WARN),
+    );
+    tracing::subscriber::set_global_default(subscriber).unwrap();
 
     // Load models in headless mode without a surface.
     // This simplifies testing for stability and performance.

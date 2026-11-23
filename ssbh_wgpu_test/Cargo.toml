@@ -7,8 +7,8 @@ edition = "2021"
 futures.workspace = true
 wgpu.workspace = true
 ssbh_wgpu = { path = "../ssbh_wgpu" }
-log = "0.4.17"
-simple_logger.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
 globwalk = "0.8.0"
 image = "0.25.1"
 glam.workspace = true

@@ -1,6 +1,5 @@
 use bytemuck::Pod;
 use encase::{internal::WriteInto, ShaderSize, ShaderType, StorageBuffer};
-use log::{error, info};
 use model::pipeline::PipelineData;
 use rayon::prelude::*;
 use ssbh_data::prelude::*;
@@ -9,6 +8,7 @@ use std::{
     path::{Path, PathBuf},
     time::Duration,
 };
+use tracing::{error, info};
 use walkdir::WalkDir;
 use wgpu::util::DeviceExt;
 use xmb_lib::XmbFile;

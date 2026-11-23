@@ -1,9 +1,9 @@
-use log::warn;
 pub use nutexb::NutexbFile;
 use shader::bind_groups::BindGroup0;
 use shader::set_bind_groups;
 use shader::{create_pipeline_layout, create_shader_module};
 use thiserror::Error;
+use tracing::warn;
 use wgpu::{util::DeviceExt, Limits};
 use wgpu::{
     Extent3d, TextureDescriptor, TextureDimension, TextureFormat, TextureUsages,

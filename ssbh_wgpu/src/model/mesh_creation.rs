@@ -20,7 +20,6 @@ use crate::{
 };
 use encase::{DynamicStorageBuffer, ShaderType};
 use glam::{vec3, Mat4, Vec3};
-use log::{error, info};
 use nutexb_wgpu::NutexbFile;
 use rayon::prelude::*;
 use ssbh_data::{
@@ -35,6 +34,7 @@ use std::{
     error::Error,
     num::NonZeroU64,
 };
+use tracing::{error, info};
 use xmb_lib::XmbFile;
 
 pub struct Material {

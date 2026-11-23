@@ -11,9 +11,12 @@ use ssbh_wgpu::{
 };
 use std::{
     collections::HashSet,
+    io::IsTerminal,
     path::{Path, PathBuf},
     sync::Arc,
 };
+use tracing::level_filters::LevelFilter;
+use tracing_subscriber::{layer::SubscriberExt, Layer};
 use winit::{
     application::ApplicationHandler,
     dpi::PhysicalPosition,
@@ -688,12 +691,13 @@ struct Cli {
 }
 
 fn main() -> anyhow::Result<()> {
-    // Ignore most wgpu logs to avoid flooding the console.
-    simple_logger::SimpleLogger::new()
-        .with_level(log::LevelFilter::Warn)
-        .with_module_level("ssbh_wgpu", log::LevelFilter::Info)
-        .init()
-        .unwrap();
+    let subscriber = tracing_subscriber::registry().with(
+        tracing_subscriber::fmt::layer()
+            .without_time()
+            .with_ansi(std::io::stdout().is_terminal())
+            .with_filter(LevelFilter::WARN),
+    );
+    tracing::subscriber::set_global_default(subscriber).unwrap();
 
     let cli = Cli::parse();
 

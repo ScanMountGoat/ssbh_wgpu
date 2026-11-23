@@ -3,10 +3,10 @@ use std::{collections::BTreeSet, fmt::Write, str::FromStr, sync::LazyLock};
 use aho_corasick::AhoCorasick;
 use case::CaseExt;
 use indoc::formatdoc;
-use log::warn;
 use smol_str::format_smolstr;
 use smush_shader::{Operation, OutputExpr, Parameter, ShaderProgram, Value};
 use ssbh_data::matl_data::ParamId;
+use tracing::warn;
 
 use crate::uniforms::{boolean_index, float_index, vector_index};
 

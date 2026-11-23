@@ -6,11 +6,11 @@ use crate::{
     DeviceBufferExt,
 };
 use glam::{vec4, Vec4};
-use log::warn;
 use ssbh_data::{
     mesh_data::{error::Error, MeshObjectData},
     skel_data::SkelData,
 };
+use tracing::warn;
 use wgpu::Device;
 
 // TODO: Create a function and tests that groups attributes into two buffers

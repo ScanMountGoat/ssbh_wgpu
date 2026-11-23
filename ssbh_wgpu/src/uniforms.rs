@@ -5,9 +5,9 @@ use crate::{
     texture::{create_sampler, load_default, load_texture, LoadTextureError},
     DeviceBufferExt, ShaderDatabase,
 };
-use log::warn;
 use smush_shader::split_param;
 use ssbh_data::matl_data::*;
+use tracing::warn;
 use wgpu::SamplerDescriptor;
 
 // TODO: Move this to textures?

@@ -1,6 +1,6 @@
 use futures::executor::block_on;
-use log::{error, warn};
 use ssbh_data::matl_data::{BlendFactor, BlendStateData, MatlEntryData};
+use tracing::{error, warn};
 
 use crate::{
     renderer::{MSAA_SAMPLE_COUNT, RGBA_COLOR_FORMAT},
