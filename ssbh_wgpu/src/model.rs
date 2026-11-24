@@ -1,7 +1,7 @@
 use crate::{
     animation::{
-        animate_materials, animate_skel, animate_visibility, lighting::animate_lighting,
-        AnimationTransforms,
+        anim_frame, animate_materials, animate_skel, animate_visibility,
+        lighting::animate_lighting, AnimationTransforms,
     },
     bone_rendering::*,
     render_settings::MaterialType,
@@ -278,6 +278,7 @@ impl RenderModel {
         hlpb: Option<&HlpbData>,
         shared_data: &SharedRenderData,
         current_frame: f32,
+        should_loop: bool,
     ) {
         // Update the buffers associated with each skel.
         // This avoids updating per mesh object and allocating new buffers.
@@ -285,15 +286,16 @@ impl RenderModel {
 
         // TODO: Restructure this to iterate the animations only once?
         for anim in anims.clone() {
-            // Assume final_frame_index is set to the length of the longest track.
-            animate_visibility(anim, current_frame, &mut self.meshes);
+            let anim_current_frame = anim_frame(current_frame, should_loop, anim);
+
+            animate_visibility(anim, anim_current_frame, &mut self.meshes);
 
             // TODO: Does this even need the original matl?
             if let Some(matl) = matl {
                 self.update_material_uniforms(
                     queue,
                     anim,
-                    current_frame,
+                    anim_current_frame,
                     matl,
                     shared_data,
                     MaterialType::Model,
@@ -303,7 +305,7 @@ impl RenderModel {
                 self.update_material_uniforms(
                     queue,
                     anim,
-                    current_frame,
+                    anim_current_frame,
                     matl,
                     shared_data,
                     MaterialType::Ditto,
@@ -313,7 +315,7 @@ impl RenderModel {
                 self.update_material_uniforms(
                     queue,
                     anim,
-                    current_frame,
+                    anim_current_frame,
                     matl,
                     shared_data,
                     MaterialType::Light,
@@ -323,7 +325,7 @@ impl RenderModel {
                 self.update_material_uniforms(
                     queue,
                     anim,
-                    current_frame,
+                    anim_current_frame,
                     matl,
                     shared_data,
                     MaterialType::Dark,
@@ -338,6 +340,7 @@ impl RenderModel {
                 anims,
                 hlpb,
                 current_frame,
+                should_loop,
             );
 
             queue.write_data(

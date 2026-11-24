@@ -451,24 +451,7 @@ impl State {
             self.current_frame = next_frame(
                 self.current_frame,
                 current_frame_start.duration_since(self.previous_frame_start),
-                self.animation
-                    .as_ref()
-                    .map(|a| a.final_frame_index)
-                    .unwrap_or_default()
-                    .max(
-                        self.camera_animation
-                            .as_ref()
-                            .map(|a| a.final_frame_index)
-                            .unwrap_or_default(),
-                    )
-                    .max(
-                        self.light_animation
-                            .as_ref()
-                            .map(|a| a.final_frame_index)
-                            .unwrap_or_default(),
-                    ),
                 1.0,
-                true, // TODO: loop animations individually
             );
         }
         self.previous_frame_start = current_frame_start;
@@ -504,6 +487,7 @@ impl State {
                     self.models[i].1.find_hlpb(),
                     &self.shared_data,
                     self.current_frame,
+                    true,
                 );
             }
 

@@ -513,70 +513,43 @@ impl QueueExt for wgpu::Queue {
 /// ssbh_wgpu handles non integral frame values using interpolation where appropriate.
 ///
 /// The return value may be more than `1.0` frames if `time_since_last_frame` is sufficiently large.
-/// This is often called "frame skipping" and ssbh_wgpu will not render all animation frames.
-///
-/// If `should_loop` is `true`, the frame values will wrap to be strictly less than `final_frame_index`.
-///
-/// If `final_frame_index` is `0.0`, this will disable any looping and allow the frame to keep increasing.
-pub fn next_frame(
-    current_frame: f32,
-    time_since_last_frame: Duration,
-    final_frame_index: f32,
-    playback_speed: f32,
-    should_loop: bool,
-) -> f32 {
+/// This is often called "frame skipping" since not all frame values will be rendered.
+pub fn next_frame(current_frame: f32, time_since_last_frame: Duration, playback_speed: f32) -> f32 {
     // Convert elapsed time to a delta in frames.
     // This relies on interpolation or frame skipping.
     // TODO: Ensure 60hz monitors always advanced by exactly one frame per refresh?
     let delta_t_frames = time_since_last_frame.as_secs_f64() * 60.0;
-
-    let mut next_frame = current_frame + (delta_t_frames as f32 * playback_speed);
-
-    if final_frame_index > 0.0 && next_frame > final_frame_index && should_loop {
-        // Wrap around to loop the animation.
-        // This may not be seamless if the animations have different lengths.
-        next_frame = if final_frame_index > 0.0 {
-            next_frame.rem_euclid(final_frame_index)
-        } else {
-            // Use 0.0 instead of NaN for empty animations.
-            0.0
-        };
-    }
-
-    next_frame
+    current_frame + (delta_t_frames as f32 * playback_speed)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
     use std::time::Duration;
 
     #[test]
-    fn next_frame_loop_zero_final_frame() {
-        assert_eq!(1.0, next_frame(1.0, Duration::from_secs(0), 0.0, 1.0, true));
+    fn next_frame_0_seconds() {
+        assert_eq!(1.0, next_frame(1.0, Duration::from_secs(0), 1.0));
     }
 
     #[test]
-    fn next_frame_loop_no_wrapping() {
-        assert_eq!(
-            60.0,
-            next_frame(0.0, Duration::from_secs(1), 61.0, 1.0, true)
-        );
+    fn next_frame_1_seconds() {
+        assert_eq!(60.0, next_frame(0.0, Duration::from_secs(1), 1.0));
     }
 
     #[test]
-    fn next_frame_loop_wrap_around() {
-        assert_eq!(
-            1.0,
-            next_frame(0.0, Duration::from_secs(1), 59.0, 1.0, true)
-        );
+    fn next_frame_fraction_second() {
+        assert_eq!(5.4, next_frame(0.0, Duration::from_millis(90), 1.0));
     }
 
     #[test]
-    fn next_frame_no_loop() {
-        assert_eq!(
-            60.0,
-            next_frame(0.0, Duration::from_secs(1), 59.0, 1.0, false)
-        );
+    fn next_frame_2_seconds_half_speed() {
+        assert_eq!(60.0, next_frame(0.0, Duration::from_secs(2), 0.5));
+    }
+
+    #[test]
+    fn next_frame_3_seconds_half_speed() {
+        assert_eq!(92.0, next_frame(2.0, Duration::from_secs(3), 0.5));
     }
 }
