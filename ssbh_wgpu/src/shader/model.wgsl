@@ -825,8 +825,10 @@ fn renormal(vertex_index: u32) -> vec4<f32> {
 @vertex
 fn vs_main(buffer0: VertexInput0, buffer1: VertexInput1) -> VertexOutput {
     var out: VertexOutput;
-    out.position = buffer0.position0;
-    out.clip_position = camera.mvp_matrix * vec4(buffer0.position0.xyz, 1.0);
+
+    let position = per_world.world_matrix * vec4(buffer0.position0.xyz, 1.0);
+    out.position = position;
+    out.clip_position = camera.mvp_matrix * position;
     if per_material.has_float[16].x == 1u {
         // Z offset used for the ore club item.
         out.clip_position.z -= per_material.custom_float[16].x / out.clip_position.w;
