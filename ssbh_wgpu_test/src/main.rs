@@ -9,8 +9,8 @@ use rayon::prelude::*;
 use ssbh_data::prelude::*;
 use ssbh_wgpu::{
     camera::frame_bounds_translation, load_render_models, CameraTransforms, ModelFolder,
-    ModelRenderOptions, RenderModel, RenderSettings, SharedRenderData, SsbhRenderer,
-    REQUIRED_FEATURES, REQUIRED_LIMITS,
+    ModelRenderOptions, RenderModel, RenderSettings, SharedRenderData, SkinningSettings,
+    SsbhRenderer, REQUIRED_FEATURES, REQUIRED_LIMITS,
 };
 use tracing::level_filters::LevelFilter;
 use tracing_subscriber::{layer::SubscriberExt, Layer};
@@ -190,6 +190,17 @@ fn main() {
         let mut renderer = renderer.lock().unwrap();
 
         frame_models(&queue, &mut renderer, &render_models, fighter_anim);
+
+        // TODO: these should already be initialized to reasonable defaults
+        for render_model in &mut render_models {
+            render_model.update_per_object(&queue, 0.0, &render_settings, None);
+            render_model.update_per_world(
+                &queue,
+                &renderer.camera_transforms(),
+                models[0].find_skel(),
+                &SkinningSettings::default(),
+            );
+        }
 
         render_screenshot(
             &device,
