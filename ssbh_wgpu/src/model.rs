@@ -13,7 +13,7 @@ use crate::{
     CameraTransforms, ModelFolder, QueueExt, RenderSettings, ShaderDatabase, SharedRenderData,
     TransitionMaterial,
 };
-use glam::{ivec4, vec3, vec4, Mat4, Vec3, Vec4};
+use glam::{ivec4, vec3, vec4, Mat3, Mat4, Vec3, Vec4, Vec4Swizzles};
 use mesh_creation::{
     material_data, Material, MeshBufferAccess, RenderMeshSharedData, TransformBuffers,
 };
@@ -407,25 +407,11 @@ impl RenderModel {
                         let parent_world_transform =
                             self.animation_transforms.world_transforms[parent_index];
 
-                        // TODO: does billboarding only affect the 3x3 rotation portion?
-                        // TODO: finish implementing billboard types
-                        world_matrix = match parent_bone.billboard_type {
-                            BillboardType::Disabled => parent_world_transform,
-                            BillboardType::XAxisViewPointAligned => parent_world_transform,
-                            BillboardType::YAxisViewPointAligned => parent_world_transform,
-                            BillboardType::Unk3 => parent_world_transform,
-                            BillboardType::XYAxisViewPointAligned => parent_world_transform,
-                            BillboardType::YAxisViewPlaneAligned => parent_world_transform,
-                            BillboardType::XYAxisViewPlaneAligned => {
-                                let (_, rotation, _) =
-                                    camera.model_view_matrix.to_scale_rotation_translation();
-
-                                let mut transform = Mat4::from_quat(rotation).inverse();
-                                *transform.col_mut(2) = Vec4::Z;
-                                *transform.col_mut(3) = parent_world_transform.col(3);
-                                transform
-                            }
-                        }
+                        world_matrix = apply_billboarding(
+                            parent_world_transform,
+                            camera.model_view_matrix,
+                            parent_bone.billboard_type,
+                        )
                     }
                 }
             }
@@ -870,6 +856,118 @@ impl RenderModel {
                     &material.material_uniforms_bind_group,
                 );
             }
+        }
+    }
+}
+
+fn apply_billboarding(
+    parent_world_transform: Mat4,
+    view: Mat4,
+    billboard_type: BillboardType,
+) -> Mat4 {
+    // Billboard matrices use rotation matrices constructed from basis vectors.
+    // Billboard types affect the right (x+), up (y+), and look (z+) vectors.
+    // Billboards aligned to the viewpoint
+    // https://nehe.gamedev.net/article/billboarding_how_to/18011/
+    // https://www.flipcode.com/archives/Billboarding-Excerpt_From_iReal-Time_Renderingi_2E.shtml
+    // TODO: reduce repetition
+    match billboard_type {
+        BillboardType::Disabled => parent_world_transform,
+        BillboardType::XAxisViewpointAligned => {
+            // Start with the inverse since shaders do view * world * pos.
+            let mut transform = Mat4::from_mat3(Mat3::from_mat4(view).inverse());
+
+            // Calculate a look vector to face the camera.
+            let look = (view.col(3).xyz() - parent_world_transform.col(3).xyz())
+                .normalize()
+                .extend(0.0);
+
+            // Fix only the X-axis.
+            let right = view.col(0);
+
+            // Construct the remaining vector for the orthornomal basis.
+            let up = look.xyz().cross(right.xyz()).normalize().extend(0.0);
+
+            let billboard = Mat4::from_cols(right, up, look, Vec4::W);
+            transform *= billboard;
+
+            // Use the translation from the parent bone.
+            *transform.col_mut(3) = parent_world_transform.col(3);
+
+            transform
+        }
+        BillboardType::YAxisViewpointAligned => {
+            // Start with the inverse since shaders do view * world * pos.
+            let mut transform = Mat4::from_mat3(Mat3::from_mat4(view).inverse());
+
+            // Calculate a look vector to face the camera.
+            let look = (view.col(3).xyz() - parent_world_transform.col(3).xyz())
+                .normalize()
+                .extend(0.0);
+
+            // Fix only the Y-axis.
+            let up = view.col(1);
+
+            // Construct the remaining vector for the orthornomal basis.
+            let right = look.xyz().cross(up.xyz()).normalize().extend(0.0);
+
+            let billboard = Mat4::from_cols(right, up, look, Vec4::W);
+            transform *= billboard;
+
+            // Use the translation from the parent bone.
+            *transform.col_mut(3) = parent_world_transform.col(3);
+
+            transform
+        }
+        BillboardType::Unk3 => parent_world_transform,
+        BillboardType::XYAxisViewpointAligned => {
+            // Start with the inverse since shaders do view * world * pos.
+            let mut transform = Mat4::from_mat3(Mat3::from_mat4(view).inverse());
+
+            // Calculate a look vector to face the camera.
+            let look = (view.col(3).xyz() - parent_world_transform.col(3).xyz())
+                .normalize()
+                .extend(0.0);
+            // Use a temporary up vector.
+            let right = view.col(1).xyz().cross(look.xyz()).normalize().extend(0.0);
+
+            // Construct the final up vector.
+            let up = look.xyz().cross(right.xyz()).normalize().extend(0.0);
+
+            // Keep the camera look direction with the X-axis and Y-axis fixed.
+            let billboard = Mat4::from_cols(right, up, look, Vec4::W);
+            transform *= billboard;
+
+            // Use the translation from the parent bone.
+            *transform.col_mut(3) = parent_world_transform.col(3);
+
+            transform
+        }
+        BillboardType::YAxisViewPlaneAligned => {
+            // Start with the inverse since shaders do view * world * pos.
+            let mut transform = Mat4::from_mat3(Mat3::from_mat4(view).inverse());
+
+            // Fix only the Y-axis.
+            let billboard = Mat4::from_cols(Vec4::X, view.col(1), view.col(2), Vec4::W);
+            transform *= billboard;
+
+            // Use the translation from the parent bone.
+            *transform.col_mut(3) = parent_world_transform.col(3);
+
+            transform
+        }
+        BillboardType::XYAxisViewPlaneAligned => {
+            // Start with the inverse since shaders do view * world * pos.
+            let mut transform = Mat4::from_mat3(Mat3::from_mat4(view).inverse());
+
+            // Keep the camera look direction with the X-axis and Y-axis fixed.
+            let billboard = Mat4::from_cols(Vec4::X, Vec4::Y, view.col(2), Vec4::W);
+            transform *= billboard;
+
+            // Use the translation from the parent bone.
+            *transform.col_mut(3) = parent_world_transform.col(3);
+
+            transform
         }
     }
 }
