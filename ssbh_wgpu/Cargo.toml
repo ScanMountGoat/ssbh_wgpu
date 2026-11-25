@@ -22,7 +22,7 @@ encase = "0.13.0"
 indexmap = "1.9.2"
 glyphon = "0.12.0"
 rayon.workspace = true
-smush_shader = { git = "https://github.com/ScanMountGoat/Smush-Material-Research", rev = "8fa02f7" }
+smush_shader = { git = "https://github.com/ScanMountGoat/Smush-Material-Research", rev = "b61f818" }
 aho-corasick = "1.1.4"
 case = "1.0"
 smol_str = "0.3.6"
