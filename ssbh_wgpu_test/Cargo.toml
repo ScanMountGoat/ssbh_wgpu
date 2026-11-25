@@ -10,7 +10,7 @@ ssbh_wgpu = { path = "../ssbh_wgpu" }
 tracing.workspace = true
 tracing-subscriber.workspace = true
 globwalk = "0.8.0"
-image = "0.25.1"
+image = { workspace = true, features = ["png"] }
 glam.workspace = true
 ssbh_data.workspace = true
 rayon.workspace = true
