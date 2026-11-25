@@ -6,8 +6,8 @@ use ssbh_wgpu::{
     animation::camera::animate_camera, camera::frame_models_translation_rotation,
     load_model_folders, load_render_models, next_frame, swing::SwingPrc, BoneNameRenderer,
     CameraTransforms, DebugMode, ModelFolder, ModelRenderOptions, NutexbFile, RenderModel,
-    RenderSettings, SharedRenderData, SsbhRenderer, TransitionMaterial, REQUIRED_FEATURES,
-    REQUIRED_LIMITS,
+    RenderSettings, SharedRenderData, SkinningSettings, SsbhRenderer, TransitionMaterial,
+    REQUIRED_FEATURES, REQUIRED_LIMITS,
 };
 use std::{
     collections::HashSet,
@@ -93,6 +93,7 @@ struct State {
     is_playing: bool,
 
     render_settings: RenderSettings,
+    skinning_settings: SkinningSettings,
 
     draw_bones: bool,
     draw_bone_names: bool,
@@ -224,6 +225,8 @@ impl State {
         let (translation_xyz, rotation_xyz) =
             frame_models_translation_rotation(&render_models, FOV_Y, aspect);
 
+        let skinning_settings = SkinningSettings::default();
+
         Ok(Self {
             window,
             surface,
@@ -247,6 +250,7 @@ impl State {
             shared_data,
             is_playing: false,
             render_settings,
+            skinning_settings,
             name_renderer,
             draw_bones: cli.bones,
             draw_bone_names: cli.bone_names,
@@ -442,6 +446,8 @@ impl State {
     fn update_render_settings(&mut self) {
         self.renderer
             .update_render_settings(&self.queue, &self.render_settings);
+        self.renderer
+            .update_skinning_settings(&self.queue, &self.skinning_settings);
     }
 
     fn render(&mut self, output: wgpu::SurfaceTexture, scale_factor: f32) {
@@ -518,6 +524,7 @@ impl State {
                 &self.queue,
                 &self.renderer.camera_transforms(),
                 self.models[i].1.find_skel(),
+                &self.skinning_settings,
             );
         }
 

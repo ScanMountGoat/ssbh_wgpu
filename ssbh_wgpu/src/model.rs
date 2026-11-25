@@ -11,7 +11,7 @@ use crate::{
     swing_rendering::{draw_swing_collisions, SwingRenderData},
     vertex::CombinedMeshBuffers,
     CameraTransforms, ModelFolder, QueueExt, RenderSettings, ShaderDatabase, SharedRenderData,
-    TransitionMaterial,
+    SkinningSettings, TransitionMaterial,
 };
 use glam::{ivec4, vec3, vec4, Mat3, Mat4, Vec3, Vec4, Vec4Swizzles};
 use mesh_creation::{
@@ -398,14 +398,18 @@ impl RenderModel {
         queue: &wgpu::Queue,
         camera: &CameraTransforms,
         skel: Option<&SkelData>,
+        skinning_settings: &SkinningSettings,
     ) {
         for mesh in &self.meshes {
             let mut world_matrix = Mat4::IDENTITY;
             if let Some(skel) = skel {
                 if let Some(parent_index) = mesh.parent_bone_index {
                     if let Some(parent_bone) = skel.bones.get(parent_index) {
-                        let parent_world_transform =
-                            self.animation_transforms.world_transforms[parent_index];
+                        let parent_world_transform = if skinning_settings.enable_parenting {
+                            self.animation_transforms.world_transforms[parent_index]
+                        } else {
+                            Mat4::IDENTITY
+                        };
 
                         world_matrix = apply_billboarding(
                             parent_world_transform,
